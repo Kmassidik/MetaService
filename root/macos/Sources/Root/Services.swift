@@ -1,0 +1,26 @@
+import Foundation
+import RootCore
+import RootStore
+
+/// Everything a route needs, built once at start.
+struct Services {
+    let config: RootConfig
+    let clock: Clock
+    let machines: MachineStore
+    let enrollments: EnrollmentStore
+    let sessions: SessionStore
+    let audit: AuditStore
+    let throttle: Throttle
+    let google: GoogleAuth
+
+    init(config: RootConfig, database: Database, clock: Clock = SystemClock()) {
+        self.config = config
+        self.clock = clock
+        machines = MachineStore(database)
+        enrollments = EnrollmentStore(database)
+        sessions = SessionStore(database)
+        audit = AuditStore(database)
+        throttle = Throttle(clock: clock)
+        google = GoogleAuth(config: config, clock: clock)
+    }
+}

@@ -8,3 +8,7 @@ root.env
 *.env
 !root.env.example
 .DS_Store
+.build/
+.build-fake/
+.swiftpm/
+Package.resolved.bak
