@@ -8,6 +8,7 @@
   import MachineList from './components/MachineList.svelte'
   import AddMachine from './components/AddMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
+  import ScanView from './components/ScanView.svelte'
 
   const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
@@ -17,6 +18,7 @@
   let operator = $state(null)
   let machines = $state([])
   let now = $state(Date.now())
+  let view = $state('machines')
   let banner = $state('')
   let adding = $state(false)
   let removing = $state(null)
@@ -109,14 +111,18 @@
   <SignIn {googleReady} />
 {:else}
   <div class="page">
-    <TopBar email={operator.email} onSignOut={leave} />
+    <TopBar email={operator.email} onSignOut={leave} {view} onView={(next) => (view = next)} />
     <main>
-      <div class="intro">
-        <Summary {counts} />
-        <button class="btn primary" type="button" onclick={() => (adding = true)}>Add a machine</button>
-      </div>
-      {#if banner}<p class="banner" role="status">{banner}</p>{/if}
-      <MachineList {machines} {now} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} />
+      {#if view === 'scan'}
+        <ScanView />
+      {:else}
+        <div class="intro">
+          <Summary {counts} />
+          <button class="btn primary" type="button" onclick={() => (adding = true)}>Add a machine</button>
+        </div>
+        {#if banner}<p class="banner" role="status">{banner}</p>{/if}
+        <MachineList {machines} {now} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} />
+      {/if}
     </main>
   </div>
   <AddMachine open={adding} onClose={() => (adding = false)} onCreated={refresh} />

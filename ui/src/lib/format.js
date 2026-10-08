@@ -64,3 +64,31 @@ export function nameProblem(name) {
   if (!NAME_PATTERN.test(name)) return 'Use lowercase letters, numbers and dashes, starting with a letter or number.'
   return null
 }
+
+const SOURCE_LABELS = { router: 'Router', nmap: 'nmap', agent_probe: 'Agent check', arp: 'ARP table' }
+const SOURCE_PROBLEMS = {
+  not_configured: 'not set up',
+  missing: 'not installed',
+  failed: 'failed',
+  unreachable: 'cannot be reached',
+  outside_subnet: 'is outside the scanned network',
+}
+
+export function sourceName(source) {
+  return SOURCE_LABELS[source] ?? source
+}
+
+/** A short human sentence for how one scan source went, or null when it went fine. */
+export function sourceProblem(value) {
+  if (value === 'ok') return null
+  if (value === 'refused_401') return 'login refused (check the read-only account)'
+  if (value?.startsWith('refused_')) return `refused (${value.slice('refused_'.length)})`
+  return SOURCE_PROBLEMS[value] ?? 'did not run'
+}
+
+/** A machine name from a device's host name, following the same rule as the Root. Falls back to the last part of the address. */
+export function suggestName(hostname, ip) {
+  const cleaned = (hostname ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63).replace(/-+$/, '')
+  if (cleaned && NAME_PATTERN.test(cleaned)) return cleaned
+  return `device-${(ip ?? '').split('.').pop() || 'new'}`
+}

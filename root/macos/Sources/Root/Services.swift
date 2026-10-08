@@ -10,6 +10,8 @@ struct Services {
     let enrollments: EnrollmentStore
     let sessions: SessionStore
     let audit: AuditStore
+    let scans: ScanStore
+    let scanService: ScanService
     let throttle: Throttle
     let google: GoogleAuth
 
@@ -20,6 +22,8 @@ struct Services {
         enrollments = EnrollmentStore(database)
         sessions = SessionStore(database)
         audit = AuditStore(database)
+        scans = ScanStore(database)
+        scanService = ScanService(config: config, clock: clock, store: scans, audit: audit)
         throttle = Throttle(clock: clock)
         google = GoogleAuth(config: config, clock: clock)
     }

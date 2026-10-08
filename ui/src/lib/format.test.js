@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem } from './format.js'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName } from './format.js'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
 const ago = (ms) => new Date(now - ms).toISOString()
@@ -55,4 +55,25 @@ test('nameProblem matches the Root rule', () => {
   for (const bad of ['', 'Upper', 'has space', '-lead', 'semi;colon', '../x', 'a'.repeat(64), "x'; DROP TABLE machines;--", '<script>']) {
     assert.notEqual(nameProblem(bad), null, bad)
   }
+})
+
+test('suggestName always gives a name the Root accepts', () => {
+  assert.equal(suggestName('Kurnias-MacBook-Pro.local', '192.168.100.40'), 'kurnias-macbook-pro-local')
+  assert.equal(suggestName(null, '192.168.100.60'), 'device-60')
+  assert.equal(suggestName('', '192.168.100.61'), 'device-61')
+  assert.equal(suggestName('<script>alert(1)</script>', '192.168.100.62'), 'script-alert-1-script')
+  assert.equal(suggestName('---', '192.168.100.63'), 'device-63')
+  assert.equal(suggestName('x'.repeat(100), '192.168.100.64').length, 63)
+  for (const hostname of ['Ünïcode', 'a b c', "x'; DROP TABLE machines;--", '../../etc', '-lead', 'UPPER']) {
+    assert.equal(nameProblem(suggestName(hostname, '192.168.100.9')), null, hostname)
+  }
+})
+
+test('source messages', () => {
+  assert.equal(sourceProblem('ok'), null)
+  assert.match(sourceProblem('refused_401'), /login refused/)
+  assert.equal(sourceProblem('refused_500'), 'refused (500)')
+  assert.equal(sourceProblem('missing'), 'not installed')
+  assert.equal(sourceProblem('something-new'), 'did not run')
+  assert.equal(sourceName('agent_probe'), 'Agent check')
 })

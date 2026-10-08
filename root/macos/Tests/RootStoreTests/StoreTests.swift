@@ -148,3 +148,70 @@ final class StoreTests: XCTestCase {
         XCTAssertNotEqual(stored, made.token)
     }
 }
+
+final class ScanStoreTests: XCTestCase {
+    private var database: Database!
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    override func setUpWithError() throws {
+        database = try Database(path: ":memory:")
+        try Migrations.migrate(database)
+    }
+
+    private func finding(_ ip: String, mac: String? = nil) -> ScanFinding {
+        ScanFinding(ip: ip, mac: mac, hostname: "h-\(ip)", vendor: nil, seenBy: [.router, .nmap], agentPortOpen: false)
+    }
+
+    func testOnlyOneRunAtATime() throws {
+        let scans = ScanStore(database)
+        let first = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        XCTAssertThrowsError(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)) { XCTAssertEqual($0 as? ScanError, .alreadyRunning) }
+        try scans.finish(runId: first, findings: [], sources: [:], now: now)
+        XCTAssertNoThrow(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now))
+    }
+
+    func testACrashedRunStopsBlockingAfterAWhile() throws {
+        let scans = ScanStore(database)
+        _ = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        XCTAssertNoThrow(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now.addingTimeInterval(ScanStore.staleAfter + 1)))
+    }
+
+    func testResultsAreStoredSortedAndMarkedManaged() throws {
+        let scans = ScanStore(database)
+        try MachineStore(database).enroll(name: "mini", tokenHash: "h", ip: "192.168.100.9", now: now)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        try scans.finish(runId: id, findings: [finding("192.168.100.40", mac: "AA:BB:CC:00:00:40"), finding("192.168.100.9")], sources: ["router": "ok", "nmap": "ok"], now: now)
+        let run = try XCTUnwrap(try scans.latest())
+        XCTAssertEqual(run.state, "done")
+        XCTAssertEqual(run.sources, ["router": "ok", "nmap": "ok"])
+        XCTAssertEqual(run.results.map(\.ip), ["192.168.100.9", "192.168.100.40"])
+        XCTAssertEqual(run.results[0].machine, "mini")
+        XCTAssertNil(run.results[1].machine)
+        XCTAssertEqual(run.results[1].seenBy, ["router", "nmap"])
+        XCTAssertEqual(try scans.result(runId: id, resultId: run.results[1].id).ip, "192.168.100.40")
+        XCTAssertThrowsError(try scans.result(runId: id, resultId: 9999))
+    }
+
+    func testFailedRunsAndOldRunsArePruned() throws {
+        let scans = ScanStore(database)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        try scans.fail(runId: id, sources: ["nmap": "missing"], now: now)
+        XCTAssertEqual(try scans.get(id: id).state, "failed")
+        for _ in 0..<(ScanStore.keepRuns + 3) {
+            let next = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+            try scans.finish(runId: next, findings: [finding("192.168.100.5")], sources: [:], now: now)
+        }
+        XCTAssertThrowsError(try scans.get(id: id)) { XCTAssertEqual($0 as? ScanError, .notFound) }
+        XCTAssertLessThanOrEqual(try database.query("SELECT COUNT(*) AS n FROM scan_runs").first?.int("n") ?? 99, ScanStore.keepRuns + 1)
+        XCTAssertLessThanOrEqual(try database.query("SELECT COUNT(*) AS n FROM scan_results").first?.int("n") ?? 99, ScanStore.keepRuns + 1)
+    }
+
+    func testHostileDeviceNamesAreStoredAsText() throws {
+        let scans = ScanStore(database)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        let hostile = ScanFinding(ip: "192.168.100.5", mac: nil, hostname: "x'; DROP TABLE machines;--<script>", vendor: nil, seenBy: [.nmap], agentPortOpen: false)
+        try scans.finish(runId: id, findings: [hostile], sources: [:], now: now)
+        XCTAssertEqual(try scans.latest()?.results.first?.hostname, "x'; DROP TABLE machines;--<script>")
+        XCTAssertNoThrow(try database.query("SELECT COUNT(*) FROM machines"))
+    }
+}

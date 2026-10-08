@@ -1,4 +1,5 @@
 import Foundation
+import RootCore
 
 struct ConfigError: Error, CustomStringConvertible {
     let description: String
@@ -14,6 +15,14 @@ struct RootConfig {
     var googleClientId: String?
     var googleClientSecret: String?
     var allowedEmails: Set<String> = []
+    var scanSubnet: Subnet?
+    var nmapPath: String?
+    var arpPath = "/usr/sbin/arp"
+    var agentPort = 9101
+    var routerURL: String?
+    var routerUser: String?
+    var routerPassword: String?
+    var routerCertSha256: String?
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
@@ -92,5 +101,32 @@ enum ConfigLoader {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_PORT") }
             config.port = port
         }
+        try applyScan(env, to: &config)
+    }
+
+    /// Scan settings. The subnet and the router must be private addresses; an operator can never type a target.
+    static func applyScan(_ env: [String: String], to config: inout RootConfig) throws {
+        if let text = env["SCAN_SUBNET"] {
+            guard let subnet = Subnet(cidr: text), subnet.isPrivate else { throw ConfigError(description: "SCAN_SUBNET must be a private network no wider than /22") }
+            config.scanSubnet = subnet
+        }
+        config.nmapPath = env["NMAP_PATH"]
+        config.arpPath = env["ARP_PATH"] ?? config.arpPath
+        if let text = env["AGENT_PORT"] {
+            guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad AGENT_PORT") }
+            config.agentPort = port
+        }
+        config.routerUser = env["ROUTER_USER"]
+        config.routerPassword = env["ROUTER_PASSWORD"]
+        config.routerCertSha256 = env["ROUTER_CERT_SHA256"]?.lowercased()
+        config.routerURL = try env["ROUTER_URL"].map(routerHost)
+    }
+
+    /// The router must be a plain IPv4 address over http or https. Whether it sits inside the scan subnet is checked when a scan starts.
+    static func routerHost(_ text: String) throws -> String {
+        guard let url = URL(string: text), ["http", "https"].contains(url.scheme), let host = url.host, IPv4.isValid(host), url.user == nil else {
+            throw ConfigError(description: "ROUTER_URL must be http(s) with an IPv4 address and no credentials in it")
+        }
+        return text
     }
 }

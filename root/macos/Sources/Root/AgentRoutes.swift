@@ -19,7 +19,7 @@ struct AgentRoutes {
         try guards.limit("enroll", per: context, max: Self.enrollPerMinute, seconds: 60)
         let body = try EnrollRequest(body: try await guards.body(request))
         let now = services.clock.now
-        guard try services.enrollments.consume(token: body.enrollmentToken, machineName: body.name, now: now) else {
+        guard try services.enrollments.consume(token: body.enrollmentToken, machineName: body.name, fromIp: context.remoteIP, now: now) else {
             try services.audit.record(actor: "agent:\(body.name)", action: "machine.enroll_refused", detail: ["from": context.remoteIP], at: now)
             throw ApiFailure.unauthorized("enrollment refused")
         }

@@ -116,9 +116,32 @@ public struct HeartbeatRequest: Equatable {
 
 public struct CreateEnrollmentRequest: Equatable {
     public let name: String
+    /// When set, only a machine connecting from this address can use the token.
+    public let expectedIp: String?
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["name"])
+        let object = try StrictObject(data: body, allowed: ["name", "ip"])
         name = try object.id("name")
+        expectedIp = try object.optionalString("ip", maxLength: 15)
+        guard expectedIp == nil || IPv4.isValid(expectedIp!) else { throw InputError("ip is not a valid IPv4 address") }
+    }
+}
+
+public struct AddScanItem: Equatable {
+    public let resultId: Int
+    public let name: String
+}
+
+/// "Add these found devices": each becomes an enrollment token pinned to the address that was found.
+public struct AddScanRequest: Equatable {
+    public static let maxItems = 50
+    public let items: [AddScanItem]
+
+    public init(body: Data) throws {
+        let object = try StrictObject(data: body, allowed: ["items"])
+        let list = try object.objects("items", allowed: ["result_id", "name"], maxCount: Self.maxItems)
+        guard !list.isEmpty else { throw InputError("pick at least one device") }
+        items = try list.map { AddScanItem(resultId: try $0.int("result_id", range: 1...Int(Int32.max)), name: try $0.id("name")) }
+        guard Set(items.map(\.name)).count == items.count, Set(items.map(\.resultId)).count == items.count else { throw InputError("names and devices must be different from each other") }
     }
 }

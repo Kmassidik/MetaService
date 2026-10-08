@@ -2,9 +2,9 @@
 import sys
 import time
 
-from contract.root_tests import checks_abuse, checks_agents, checks_auth, checks_public
+from contract.root_tests import checks_abuse, checks_agents, checks_auth, checks_public, checks_scan
 
-ALL_CHECKS = checks_public.CHECKS + checks_auth.CHECKS + checks_agents.CHECKS + checks_abuse.CHECKS
+ALL_CHECKS = checks_public.CHECKS + checks_auth.CHECKS + checks_agents.CHECKS + checks_abuse.CHECKS + checks_scan.CHECKS
 
 
 def main():
@@ -13,6 +13,9 @@ def main():
         started = time.time()
         try:
             check()
+        except checks_scan.Skip as why:
+            print(f"SKIP  {check.__name__}: {why}")
+            continue
         except Exception as error:  # noqa: BLE001 - any crash is a failed check
             failures += 1
             print(f"FAIL  {check.__name__}: {error!r}")

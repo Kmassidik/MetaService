@@ -49,3 +49,8 @@ export const listMachines = async () => (await call('GET', '/api/machines')).mac
 export const inviteMachine = (name) => call('POST', '/api/enrollments', { name })
 export const removeMachine = (id) => call('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 export const signOut = () => call('POST', '/auth/logout')
+
+export const scanSetup = () => call('GET', '/api/scan/setup')
+export const startScan = () => call('POST', '/api/scans')
+export const latestScan = async () => (await call('GET', '/api/scans/latest')).scan
+export const addFromScan = (runId, items) => call('POST', `/api/scans/${runId}/add`, { items })

@@ -41,6 +41,19 @@ public enum Migrations {
             );
             CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """) }),
+        (2, { try $0.exec("""
+            CREATE TABLE scan_runs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, subnet TEXT NOT NULL,
+              state TEXT NOT NULL, sources_json TEXT NOT NULL DEFAULT '{}',
+              started_at INTEGER NOT NULL, finished_at INTEGER
+            );
+            CREATE TABLE scan_results (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL REFERENCES scan_runs(id) ON DELETE CASCADE,
+              ip TEXT NOT NULL, mac TEXT, hostname TEXT, vendor TEXT, seen_by TEXT NOT NULL, agent_port_open INTEGER NOT NULL DEFAULT 0,
+              UNIQUE (run_id, ip)
+            );
+            """) }),
+        (3, { try $0.exec("ALTER TABLE enrollments ADD COLUMN expected_ip TEXT;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

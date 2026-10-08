@@ -42,8 +42,9 @@ class Reply:
 class RunningRoot:
     """A real Root process with its own database and env file, stopped when the check ends."""
 
-    def __init__(self, binary=FAKE_BINARY, env_text=None, env_mode=0o600, extra_args=None):
+    def __init__(self, binary=FAKE_BINARY, env_text=None, env_mode=0o600, extra_args=None, process_env=None):
         self.binary = binary
+        self.process_env = process_env
         self.extra_args = extra_args if extra_args is not None else ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-")]
         self.dir = tempfile.mkdtemp(prefix="ms-root-")
         self.port = _free_port()
@@ -58,7 +59,7 @@ class RunningRoot:
     def start(self):
         args = [str(self.binary), "--env-file", self.env_file, "--db", os.path.join(self.dir, "root.sqlite3"),
                 "--port", str(self.port), "--bind", "127.0.0.1", "--public-url", self.base] + self.extra_args
-        self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **(self.process_env or {})})
         self._wait_until_up()
         return self
 
@@ -191,3 +192,16 @@ def good_heartbeat(**changes):
     }
     body.update(changes)
     return body
+
+
+def local_private_ip():
+    """This machine's private IPv4 address, or None (then the scan checks that need a real LAN are skipped)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        try:
+            sock.connect(("192.0.2.1", 9))
+            ip = sock.getsockname()[0]
+        except OSError:
+            return None
+    first, second = (int(part) for part in ip.split(".")[:2])
+    private = first == 10 or (first == 172 and 16 <= second <= 31) or (first == 192 and second == 168)
+    return ip if private else None

@@ -56,7 +56,7 @@ struct OperatorRoutes {
         let body = try CreateEnrollmentRequest(body: try await guards.body(request))
         let made: (token: String, expires: Date)
         do {
-            made = try services.enrollments.create(machineName: body.name, now: services.clock.now)
+            made = try services.enrollments.create(machineName: body.name, expectedIp: body.expectedIp, now: services.clock.now)
         } catch EnrollmentError.machineExists {
             throw ApiFailure(status: .conflict, code: "machine_exists", message: "a machine with that name is already enrolled")
         }
