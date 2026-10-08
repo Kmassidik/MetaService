@@ -7,10 +7,11 @@ let package = Package(
     products: [.executable(name: "metaservice-root", targets: ["Root"])],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
+        .package(path: "../../shared/metaservice-shared"),
     ],
     targets: [
         // Pure rules, no I/O: validation, tokens, states, throttling, cookies. Testable on their own.
-        .target(name: "RootCore", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(name: "RootCore", dependencies: [.product(name: "MSCore", package: "metaservice-shared")], swiftSettings: [.swiftLanguageMode(.v5)]),
         // SQLite with bound parameters only, migrations, and one small store per table.
         .target(name: "RootStore", dependencies: ["RootCore"], swiftSettings: [.swiftLanguageMode(.v5)],
                 linkerSettings: [.linkedLibrary("sqlite3")]),

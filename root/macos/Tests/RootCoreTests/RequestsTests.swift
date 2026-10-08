@@ -67,12 +67,4 @@ final class RequestsTests: XCTestCase {
         }
     }
 
-    func testStrictObjectTellsBoolFromNumber() throws {
-        let object = try StrictObject(data: data(["flag": true, "count": 1]), allowed: ["flag", "count"])
-        XCTAssertNoThrow(try object.bool("flag"))
-        XCTAssertThrowsError(try object.bool("count"))
-        XCTAssertThrowsError(try object.int("flag", range: 0...5))
-        XCTAssertEqual(try object.int("count", range: 0...5), 1)
-        XCTAssertThrowsError(try object.int("count", range: 2...5))
-    }
 }

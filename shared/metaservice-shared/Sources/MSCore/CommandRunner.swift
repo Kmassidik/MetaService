@@ -1,6 +1,6 @@
 import Foundation
 
-enum CommandFailure: Error {
+public enum CommandFailure: Error {
     case missing
     case timedOut
     case tooMuchOutput
@@ -8,8 +8,8 @@ enum CommandFailure: Error {
 }
 
 /// Runs one program with an argument list (never through a shell), with a time limit and an output limit.
-enum CommandRunner {
-    static func run(_ executable: String, _ arguments: [String], timeout: TimeInterval, maxOutput: Int = 4 * 1024 * 1024) async throws -> Data {
+public enum CommandRunner {
+    public static func run(_ executable: String, _ arguments: [String], timeout: TimeInterval, maxOutput: Int = 4 * 1024 * 1024) async throws -> Data {
         guard FileManager.default.isExecutableFile(atPath: executable) else { throw CommandFailure.missing }
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {
