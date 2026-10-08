@@ -42,8 +42,9 @@ class Reply:
 class RunningRoot:
     """A real Root process with its own database and env file, stopped when the check ends."""
 
-    def __init__(self, binary=FAKE_BINARY, env_text=None, env_mode=0o600):
+    def __init__(self, binary=FAKE_BINARY, env_text=None, env_mode=0o600, extra_args=None):
         self.binary = binary
+        self.extra_args = extra_args if extra_args is not None else ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-")]
         self.dir = tempfile.mkdtemp(prefix="ms-root-")
         self.port = _free_port()
         self.base = f"http://localhost:{self.port}"
@@ -56,7 +57,7 @@ class RunningRoot:
 
     def start(self):
         args = [str(self.binary), "--env-file", self.env_file, "--db", os.path.join(self.dir, "root.sqlite3"),
-                "--port", str(self.port), "--bind", "127.0.0.1", "--public-url", self.base]
+                "--port", str(self.port), "--bind", "127.0.0.1", "--public-url", self.base] + self.extra_args
         self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self._wait_until_up()
         return self

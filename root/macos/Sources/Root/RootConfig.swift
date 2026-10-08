@@ -10,6 +10,7 @@ struct RootConfig {
     var bind = "127.0.0.1"
     var publicBaseURL = "http://localhost:9100"
     var databasePath: String
+    var uiDirectory = "ui/dist"
     var googleClientId: String?
     var googleClientSecret: String?
     var allowedEmails: Set<String> = []
@@ -43,7 +44,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            guard ["--env-file", "--db", "--port", "--bind", "--public-url"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--public-url", "--ui-dir"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -59,6 +60,7 @@ enum ConfigLoader {
         }
         config.bind = options["--bind"] ?? config.bind
         config.publicBaseURL = options["--public-url"] ?? config.publicBaseURL
+        config.uiDirectory = options["--ui-dir"] ?? config.uiDirectory
     }
 
     /// A file holding secrets must not be readable by anyone but its owner.

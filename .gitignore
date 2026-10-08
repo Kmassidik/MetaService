@@ -12,3 +12,4 @@ root.env
 .build-fake/
 .swiftpm/
 Package.resolved.bak
+!ui/dist/

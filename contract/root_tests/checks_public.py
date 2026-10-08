@@ -79,6 +79,16 @@ def check_release_style_build_has_no_fake_door():
         expect(Browser(root).request("GET", "/api/machines").status == 401, "the plain build let someone in")
 
 
+def check_auth_status_tells_the_ui_whether_google_is_set_up():
+    with running() as root:
+        expect(Browser(root).request("GET", "/auth/status").body == {"google": False}, "status should say google is not set up")
+    env = "ALLOWED_EMAILS=kurnia@example.com\nGOOGLE_CLIENT_ID=test-client\nGOOGLE_CLIENT_SECRET=test-secret\n"
+    with running(env_text=env) as root:
+        reply = Browser(root).request("GET", "/auth/status")
+        expect(reply.body == {"google": True}, "status should say google is set up")
+        expect(b"test-secret" not in reply.raw and b"test-client" not in reply.raw, "status leaks the Google settings")
+
+
 def check_login_says_unavailable_until_google_is_configured():
     with running() as root:
         reply = Browser(root).request("GET", "/auth/login")
@@ -121,10 +131,33 @@ def check_root_refuses_an_env_file_others_can_read():
     raise AssertionError("the Root started with a world-readable env file")
 
 
-CHECKS = [
+def check_ui_files_are_served_with_a_strict_page_policy():
+    import os, tempfile, pathlib
+    ui = tempfile.mkdtemp(prefix="ms-ui-")
+    pathlib.Path(ui, "assets").mkdir()
+    pathlib.Path(ui, "index.html").write_text("<!doctype html><title>x</title>")
+    pathlib.Path(ui, "assets", "app-abc.js").write_text("console.log(1)")
+    pathlib.Path(ui, "secret.txt").write_text("nope")
+    with running(extra_args=["--ui-dir", ui]) as root:
+        page = Browser(root).request("GET", "/")
+        expect(page.status == 200 and b"<title>x</title>" in page.raw, f"index gave {page.status}")
+        policy = page.header("Content-Security-Policy") or ""
+        for needle in ("script-src 'self'", "style-src 'self'", "frame-ancestors 'none'", "base-uri 'none'"):
+            expect(needle in policy, f"page policy lacks {needle}")
+        expect("unsafe-inline" not in policy and "unsafe-eval" not in policy, "page policy allows unsafe code")
+        expect(page.header("Cache-Control") == "no-cache", "index may be cached too long")
+        asset = Browser(root).request("GET", "/assets/app-abc.js")
+        expect(asset.status == 200 and "immutable" in (asset.header("Cache-Control") or ""), "hashed asset is not cached long")
+        expect(asset.header("Content-Type", ) .startswith("text/javascript"), "wrong script type")
+        for path in ("/secret.txt", "/assets/../secret.txt", "/assets/%2e%2e/secret.txt", "/.env", "/assets/", "/assets/nope.js"):
+            reply = Browser(root).request("GET", path)
+            expect(reply.status == 404 and b"nope" not in reply.raw, f"{path} gave {reply.status}")
+
+
+CHECKS = [check_ui_files_are_served_with_a_strict_page_policy, 
     check_health_is_public_and_minimal, check_security_headers_on_every_reply, check_unknown_paths_and_methods_are_clean_404s,
     check_operator_endpoints_need_a_session, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
     check_errors_reveal_nothing_inside, check_release_style_build_has_no_fake_door,
-    check_login_says_unavailable_until_google_is_configured, check_login_redirects_to_google_with_pkce_when_configured,
+    check_auth_status_tells_the_ui_whether_google_is_set_up, check_login_says_unavailable_until_google_is_configured, check_login_redirects_to_google_with_pkce_when_configured,
     check_callback_without_a_started_login_is_refused, check_root_refuses_an_env_file_others_can_read,
 ]

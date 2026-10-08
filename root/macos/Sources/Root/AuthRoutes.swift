@@ -14,12 +14,18 @@ struct AuthRoutes {
     private static let loggedEmailLimit = 100
 
     func register(on group: RouterGroup<RootContext>) {
+        group.get("/auth/status", use: status)
         group.get("/auth/login", use: login)
         group.get("/auth/callback", use: callback)
         group.post("/auth/logout", use: logout)
         #if FAKE_AUTH
         group.post("/auth/fake", use: fakeSignIn)
         #endif
+    }
+
+    /// Public and harmless: lets the sign-in page say whether Google sign-in is set up.
+    func status(_ request: Request, context: RootContext) async throws -> Response {
+        try Json.response(["google": services.config.googleConfigured])
     }
 
     func login(_ request: Request, context: RootContext) async throws -> Response {

@@ -8,3 +8,4 @@ swift build 2>&1 | tail -1
 swift build -Xswiftc -DFAKE_AUTH --scratch-path .build-fake 2>&1 | tail -1
 cd ../..
 nix develop --command python3 -m contract.root_tests.runner | tail -3
+nix develop --command bash -c 'cd ui && npm run check --silent && npm test --silent 2>&1 | grep -E "^ℹ (pass|fail)" && npm run build --silent && node e2e/panel.e2e.mjs | tail -2' 
