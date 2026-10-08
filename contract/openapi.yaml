@@ -1,0 +1,295 @@
+openapi: 3.0.3
+info:
+  title: MetaService Root-Agent contract
+  version: 1.0.0
+  description: >
+    The one API every MetaService Agent implements, and the part of the Root that Agents call.
+    An Agent that passes contract/tests works with the Root, whatever language it is written in.
+    JSON only. Every request carries the machine token as a Bearer token.
+    Every response carries the header X-MetaService-Contract with the contract version.
+servers:
+  - url: http://127.0.0.1:9101
+security:
+  - machineToken: []
+paths:
+  /v1/health:
+    get:
+      summary: Is the Agent alive, and which versions does it run
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/facts:
+    get:
+      summary: What this machine is and how much room it has
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/workloads:
+    get:
+      summary: Local VMs and containers
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/WorkloadList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create a workload (runs the local space check first)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/WorkloadCreate' } } }
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: not enough room or capability, content: { application/json: { schema: { $ref: '#/components/schemas/Refusal' } } } }
+        '413': { $ref: '#/components/responses/TooLarge' }
+  /v1/workloads/{id}/start:
+    post:
+      summary: Start a workload
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/workloads/{id}/stop:
+    post:
+      summary: Stop a workload
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/workloads/{id}:
+    delete:
+      summary: Delete a workload. The Agent backs up its disk first.
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/bundle/install:
+    post:
+      summary: Install or upgrade the chat bundle on the machine or in a workload
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BundleInstall' } } }
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/commands/{id}:
+    get:
+      summary: Status and result of a long command
+      parameters: [ { $ref: '#/components/parameters/CommandId' } ]
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Command' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/agents/enroll:
+    post:
+      summary: Root endpoint. Exchange a one-time enrollment token for a permanent machine token.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/EnrollRequest' } } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/EnrollResponse' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/agents/heartbeat:
+    post:
+      summary: Root endpoint. Facts and workload states, every 15 seconds.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Heartbeat' } } }
+      responses:
+        '204': { description: recorded }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+components:
+  securitySchemes:
+    machineToken: { type: http, scheme: bearer }
+  parameters:
+    CommandIdHeader:
+      name: X-Command-Id
+      in: header
+      required: false
+      description: Makes a retry safe. The same id never runs twice. The Agent makes one up when it is missing.
+      schema: { $ref: '#/components/schemas/Id' }
+    WorkloadId:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/Id' }
+    CommandId:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/Id' }
+  responses:
+    Unauthorized: { description: missing or wrong token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Invalid: { description: input failed validation, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: no such thing, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooLarge: { description: request body too large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Id:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    Name:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    Error:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Refusal:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, resource, needed, free]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [not_enough_room, missing_capability] }
+            message: { type: string }
+            resource: { type: string, enum: [ram_mb, disk_gb, capability] }
+            needed: { type: integer, minimum: 0 }
+            free: { type: integer, minimum: 0 }
+    Health:
+      type: object
+      required: [status, agent_version, contract_version]
+      additionalProperties: false
+      properties:
+        status: { type: string, enum: [ok] }
+        agent_version: { type: string }
+        contract_version: { type: string }
+        bundle_version: { type: string, nullable: true }
+    Facts:
+      type: object
+      required: [os, arch, cpu_cores, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb, gpu, capabilities]
+      additionalProperties: false
+      properties:
+        os: { type: string, enum: [macos, linux, windows] }
+        arch: { type: string, enum: [arm64, aarch64, x86_64] }
+        cpu_cores: { type: integer, minimum: 1 }
+        ram_total_mb: { type: integer, minimum: 1 }
+        disk_total_gb: { type: integer, minimum: 1 }
+        free_ram_mb: { type: integer, minimum: 0 }
+        free_disk_gb: { type: integer, minimum: 0 }
+        gpu:
+          type: array
+          items:
+            type: object
+            required: [vendor, model]
+            additionalProperties: false
+            properties:
+              vendor: { type: string }
+              model: { type: string }
+              memory_mb: { type: integer, minimum: 0 }
+        capabilities:
+          type: object
+          required: [vm, container, gpu_in_vm, gpu_in_container]
+          additionalProperties: false
+          properties:
+            vm: { type: boolean }
+            container: { type: boolean }
+            gpu_in_vm: { type: boolean }
+            gpu_in_container: { type: boolean }
+    Workload:
+      type: object
+      required: [id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, bundle_version]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        name: { $ref: '#/components/schemas/Name' }
+        kind: { type: string, enum: [vm, container] }
+        state: { type: string, enum: [provisioning, running, stopped, failed, deleting] }
+        cpu: { type: integer, minimum: 1 }
+        ram_mb: { type: integer, minimum: 1 }
+        disk_gb: { type: integer, minimum: 1 }
+        gpu_mode: { type: string, enum: [none, container, passthrough] }
+        address: { type: string, nullable: true }
+        bundle_version: { type: string, nullable: true }
+    WorkloadList:
+      type: object
+      required: [workloads]
+      additionalProperties: false
+      properties:
+        workloads:
+          type: array
+          items: { $ref: '#/components/schemas/Workload' }
+    WorkloadCreate:
+      type: object
+      required: [command_id, name, kind, cpu, ram_mb, disk_gb]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        name: { $ref: '#/components/schemas/Name' }
+        kind: { type: string, enum: [vm, container] }
+        cpu: { type: integer, minimum: 1, maximum: 64 }
+        ram_mb: { type: integer, minimum: 512, maximum: 1048576 }
+        disk_gb: { type: integer, minimum: 1, maximum: 100000 }
+        gpu_mode: { type: string, enum: [none, container, passthrough], default: none }
+        image: { type: string, pattern: '^[a-z0-9][a-z0-9._:/-]{0,127}$' }
+    BundleInstall:
+      type: object
+      required: [command_id, version, sha256]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        version: { type: string, pattern: '^[0-9]+\.[0-9]+\.[0-9]+$' }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        workload_id: { $ref: '#/components/schemas/Id' }
+    CommandAccepted:
+      type: object
+      required: [command_id, state]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        state: { type: string, enum: [queued, running, succeeded, failed] }
+    Command:
+      type: object
+      required: [command_id, type, state]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        type: { type: string, enum: [create, start, stop, delete, bundle_install] }
+        state: { type: string, enum: [queued, running, succeeded, failed] }
+        workload_id: { $ref: '#/components/schemas/Id' }
+        result:
+          type: object
+          nullable: true
+          additionalProperties: true
+    EnrollRequest:
+      type: object
+      required: [enrollment_token, name]
+      additionalProperties: false
+      properties:
+        enrollment_token: { type: string, minLength: 16, maxLength: 256 }
+        name: { $ref: '#/components/schemas/Name' }
+    EnrollResponse:
+      type: object
+      required: [machine_token, heartbeat_seconds]
+      additionalProperties: false
+      properties:
+        machine_token: { type: string, minLength: 32 }
+        heartbeat_seconds: { type: integer, minimum: 1 }
+    Heartbeat:
+      type: object
+      required: [facts, workloads]
+      additionalProperties: false
+      properties:
+        facts: { $ref: '#/components/schemas/Facts' }
+        workloads:
+          type: array
+          items: { $ref: '#/components/schemas/Workload' }
+        bundle_version: { type: string, nullable: true }

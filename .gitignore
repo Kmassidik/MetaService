@@ -1,1 +1,10 @@
 docs
+__pycache__/
+*.pyc
+node_modules/
+target/
+dist/
+root.env
+*.env
+!root.env.example
+.DS_Store
