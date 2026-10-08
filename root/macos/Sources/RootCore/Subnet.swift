@@ -52,4 +52,11 @@ public struct Subnet: Equatable, CustomStringConvertible {
 
 public enum IPv4 {
     public static func isValid(_ text: String) -> Bool { Subnet.address(text) != nil }
+
+    /// The only places the Root may send commands: this machine itself, or a private network address.
+    public static func isLoopbackOrPrivate(_ text: String) -> Bool {
+        guard let value = Subnet.address(text) else { return false }
+        let first = value >> 24, second = (value >> 16) & 0xFF
+        return first == 127 || first == 10 || (first == 172 && (16...31).contains(second)) || (first == 192 && second == 168)
+    }
 }

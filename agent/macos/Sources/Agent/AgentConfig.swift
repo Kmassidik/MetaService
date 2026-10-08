@@ -22,13 +22,20 @@ struct AgentConfig {
     var ramAllowanceMb: Int?
     var diskAllowanceGb: Int?
     var badTokenLimit = 10
+    var containerPath: String?
+    var heartbeatSeconds = 15
+    var defaultImage = AppleContainer.defaultImage
+    var backupDirectory: String?
 
+    /// What the Agent shows the Root (heartbeats).
     var tokenFile: String { stateDirectory + "/agent.token" }
+    /// What the Root shows the Agent (commands). The Agent API accepts only this.
+    var commandTokenFile: String { stateDirectory + "/command.token" }
     var settingsFile: String { stateDirectory + "/agent.json" }
 
     static let version = "0.1.0"
     private static let valued = ["--state-dir", "--port", "--bind", "--engine", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb",
-                                 "--disk-allowance-gb", "--bad-token-limit", "--root", "--name", "--enrollment-token-file"]
+                                 "--disk-allowance-gb", "--bad-token-limit", "--heartbeat-seconds", "--container-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file"]
 
     static func parse(_ arguments: [String]) throws -> AgentConfig {
         var config = AgentConfig()
@@ -71,6 +78,10 @@ struct AgentConfig {
         reserveDiskGb = try number(options["--disk-reserve-gb"], range: 0...100_000_000)
         ramAllowanceMb = try number(options["--ram-allowance-mb"], range: 1...100_000_000)
         diskAllowanceGb = try number(options["--disk-allowance-gb"], range: 1...100_000_000)
+        containerPath = options["--container-path"]
+        heartbeatSeconds = try number(options["--heartbeat-seconds"], range: 1...3600) ?? heartbeatSeconds
+        defaultImage = options["--default-image"] ?? defaultImage
+        backupDirectory = options["--backup-dir"]
         badTokenLimit = try number(options["--bad-token-limit"], range: 1...1_000_000) ?? badTokenLimit
     }
 

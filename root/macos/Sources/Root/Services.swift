@@ -12,10 +12,13 @@ struct Services {
     let audit: AuditStore
     let scans: ScanStore
     let scanService: ScanService
+    let secrets: SecretBox
+    let commands: CommandStore
+    let workloads: WorkloadService
     let throttle: Throttle
     let google: GoogleAuth
 
-    init(config: RootConfig, database: Database, clock: Clock = SystemClock()) {
+    init(config: RootConfig, database: Database, secrets: SecretBox, clock: Clock = SystemClock()) {
         self.config = config
         self.clock = clock
         machines = MachineStore(database)
@@ -26,5 +29,8 @@ struct Services {
         scanService = ScanService(config: config, clock: clock, store: scans, audit: audit)
         throttle = Throttle(clock: clock)
         google = GoogleAuth(config: config, clock: clock)
+        self.secrets = secrets
+        commands = CommandStore(database)
+        workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets), clock: clock)
     }
 }

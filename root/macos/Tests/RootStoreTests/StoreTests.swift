@@ -22,7 +22,7 @@ final class StoreTests: XCTestCase {
     }
 
     func testMigrationsRunOnceAndKeepData() throws {
-        try MachineStore(database).enroll(name: "a", tokenHash: "h1", ip: nil, now: now)
+        try MachineStore(database).enroll(name: "a", tokenHash: "h1", commandTokenSealed: "sealed", ip: nil, now: now)
         try Migrations.migrate(database)
         XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM machines").first?.int("n"), 1)
         XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), Migrations.latest)
@@ -70,14 +70,14 @@ final class StoreTests: XCTestCase {
     }
 
     func testCannotInviteAnExistingMachine() throws {
-        try MachineStore(database).enroll(name: "dgx", tokenHash: "h", ip: nil, now: now)
+        try MachineStore(database).enroll(name: "dgx", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
         XCTAssertThrowsError(try EnrollmentStore(database).create(machineName: "dgx", now: now)) { XCTAssertEqual($0 as? EnrollmentError, .machineExists) }
     }
 
     func testMachineEnrollAuthenticateRemove() throws {
         let machines = MachineStore(database)
-        try machines.enroll(name: "mini", tokenHash: "hash-1", ip: "10.0.0.5", now: now)
-        XCTAssertThrowsError(try machines.enroll(name: "mini", tokenHash: "hash-2", ip: nil, now: now)) { XCTAssertEqual($0 as? MachineError, .exists) }
+        try machines.enroll(name: "mini", tokenHash: "hash-1", commandTokenSealed: "sealed", ip: "10.0.0.5", now: now)
+        XCTAssertThrowsError(try machines.enroll(name: "mini", tokenHash: "hash-2", commandTokenSealed: "sealed", ip: nil, now: now)) { XCTAssertEqual($0 as? MachineError, .exists) }
         XCTAssertEqual(try machines.authenticate(tokenHash: "hash-1"), "mini")
         XCTAssertNil(try machines.authenticate(tokenHash: "hash-x"))
         try machines.remove(id: "mini")
@@ -87,7 +87,7 @@ final class StoreTests: XCTestCase {
 
     func testHeartbeatStoresFactsAndReplacesWorkloads() throws {
         let machines = MachineStore(database)
-        try machines.enroll(name: "mini", tokenHash: "h", ip: nil, now: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
         try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: "192.0.2.7", now: now)
         var seen = try machines.get(id: "mini", now: now)
         XCTAssertEqual(seen.state, "online")
@@ -102,7 +102,7 @@ final class StoreTests: XCTestCase {
 
     func testStateTurnsOfflineAndBusy() throws {
         let machines = MachineStore(database)
-        try machines.enroll(name: "mini", tokenHash: "h", ip: nil, now: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
         XCTAssertEqual(try machines.get(id: "mini", now: now).state, "offline", "never seen")
         try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: nil, now: now)
         XCTAssertEqual(try machines.get(id: "mini", now: now.addingTimeInterval(30)).state, "online")
@@ -115,7 +115,7 @@ final class StoreTests: XCTestCase {
     func testHostileTextIsStoredAsTextAndTablesSurvive() throws {
         let machines = MachineStore(database)
         let hostile = "x'; DROP TABLE machines; --"
-        try machines.enroll(name: "mini", tokenHash: hostile, ip: hostile, now: now)
+        try machines.enroll(name: "mini", tokenHash: hostile, commandTokenSealed: "sealed", ip: hostile, now: now)
         XCTAssertEqual(try machines.authenticate(tokenHash: hostile), "mini")
         XCTAssertEqual(try machines.get(id: "mini", now: now).ip, hostile)
         XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM machines").first?.int("n"), 1)
@@ -123,7 +123,7 @@ final class StoreTests: XCTestCase {
 
     func testRemovingAMachineRemovesItsWorkloads() throws {
         let machines = MachineStore(database)
-        try machines.enroll(name: "mini", tokenHash: "h", ip: nil, now: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
         try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: nil, now: now)
         try machines.remove(id: "mini")
         XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM workloads").first?.int("n"), 0)
@@ -178,7 +178,7 @@ final class ScanStoreTests: XCTestCase {
 
     func testResultsAreStoredSortedAndMarkedManaged() throws {
         let scans = ScanStore(database)
-        try MachineStore(database).enroll(name: "mini", tokenHash: "h", ip: "192.168.100.9", now: now)
+        try MachineStore(database).enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: "192.168.100.9", now: now)
         let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
         try scans.finish(runId: id, findings: [finding("192.168.100.40", mac: "AA:BB:CC:00:00:40"), finding("192.168.100.9")], sources: ["router": "ok", "nmap": "ok"], now: now)
         let run = try XCTUnwrap(try scans.latest())

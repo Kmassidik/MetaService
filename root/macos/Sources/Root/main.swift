@@ -1,4 +1,5 @@
 import Foundation
+import MSCore
 import RootStore
 
 do {
@@ -7,7 +8,10 @@ do {
                                             withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     let database = try Database(path: config.databasePath)
     try Migrations.migrate(database)
-    let app = buildApplication(services: Services(config: config, database: database))
+    let secrets = try SecretBox.loadOrCreate(path: (config.databasePath as NSString).deletingLastPathComponent + "/root.key")
+    let services = Services(config: config, database: database, secrets: secrets)
+    services.workloads.resume()
+    let app = buildApplication(services: services)
     try await app.runService()
 } catch {
     FileHandle.standardError.write(Data("metaservice-root: \(error)\n".utf8))

@@ -62,7 +62,7 @@ def check_the_agent_refuses_a_token_file_others_can_read_or_none_at_all():
             one.start()
         except AssertionError:
             code, text = one.early_exit
-            expect(code != 0 and ("mode 600" in text or "no machine token" in text), f"{kwargs}: exit {code}: {text[:100]}")
+            expect(code != 0 and ("mode 600" in text or "no token in" in text), f"{kwargs}: exit {code}: {text[:100]}")
             continue
         finally:
             one.stop()
@@ -89,12 +89,14 @@ def check_enrolling_then_heartbeats_put_this_mac_on_the_roots_list():
         write_secret(token_file, invite)
         code, out, text = run_cli(["enroll", "--root", f"http://127.0.0.1:{root.port}", "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
         expect(code == 0, f"enroll failed: {code} {text[:150]}")
-        mode = stat.S_IMODE(os.stat(os.path.join(state, "agent.token")).st_mode)
-        expect(mode == 0o600, f"the saved token has mode {oct(mode)}")
+        for name in ("agent.token", "command.token"):
+            mode = stat.S_IMODE(os.stat(os.path.join(state, name)).st_mode)
+            expect(mode == 0o600, f"{name} has mode {oct(mode)}")
+        expect(open(os.path.join(state, "agent.token")).read() != open(os.path.join(state, "command.token")).read(), "the two tokens are the same")
         reuse = run_cli(["enroll", "--root", f"http://127.0.0.1:{root.port}", "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
         expect(reuse[0] != 0, "a used enrollment token enrolled twice")
-        one = RunningAgent(with_token=False)
-        one.state, one.token = state, open(os.path.join(state, "agent.token")).read().strip()
+        one = RunningAgent(with_token=False, extra=["--heartbeat-seconds", "1"])
+        one.state, one.token = state, open(os.path.join(state, "command.token")).read().strip()
         one.start()
         try:
             machine = wait_for(lambda: (m := operator.request("GET", "/api/machines/this-mac").body) and m["state"] == "online" and m, 20, "the Root never saw a heartbeat")
@@ -111,6 +113,7 @@ def check_enrolling_then_heartbeats_put_this_mac_on_the_roots_list():
 def check_a_missing_root_does_not_stop_the_agent():
     with agent() as one:
         write_secret(os.path.join(one.state, "agent.json"), '{"root": "http://127.0.0.1:9", "name": "x"}')
+        write_secret(os.path.join(one.state, "agent.token"), "x" * 43)
         one.stop()
         one.start()
         expect(one.call("GET", "/v1/health")[0] == 200, "the Agent stopped serving because the Root is unreachable")

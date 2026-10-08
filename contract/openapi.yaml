@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: MetaService Root-Agent contract
-  version: 1.0.0
+  version: 1.1.0
   description: >
     The one API every MetaService Agent implements, and the part of the Root that Agents call.
     An Agent that passes contract/tests works with the Root, whatever language it is written in.
-    JSON only. Every request carries the machine token as a Bearer token.
+    JSON only. Every request carries a Bearer token: the Agent's command token when the Root calls an Agent,
+    the machine token when an Agent calls the Root (heartbeat). Each side keeps the other's token secret.
     Every response carries the header X-MetaService-Contract with the contract version.
 servers:
   - url: http://127.0.0.1:9101
@@ -278,10 +279,11 @@ components:
         name: { $ref: '#/components/schemas/Name' }
     EnrollResponse:
       type: object
-      required: [machine_token, heartbeat_seconds]
+      required: [machine_token, command_token, heartbeat_seconds]
       additionalProperties: false
       properties:
-        machine_token: { type: string, minLength: 32 }
+        machine_token: { type: string, minLength: 32, description: the Agent shows this to the Root (heartbeats) }
+        command_token: { type: string, minLength: 32, description: the Root shows this to the Agent (commands) }
         heartbeat_seconds: { type: integer, minimum: 1 }
     Heartbeat:
       type: object

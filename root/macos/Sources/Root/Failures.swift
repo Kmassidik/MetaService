@@ -30,6 +30,16 @@ enum Json {
         return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(data: try encoder.encode(value))))
     }
 
+    /// A refusal that carries the numbers behind it, in the contract's shape.
+    static func refusal(_ refusal: PlacementRefusal) -> Response {
+        let status: HTTPResponse.Status = refusal.code == "machine_not_found" ? .notFound : .conflict
+        let body: [String: Any] = ["error": ["code": refusal.code, "message": refusal.message, "resource": refusal.resource, "needed": refusal.needed, "free": refusal.free]]
+        var headers = HTTPFields()
+        headers[.contentType] = "application/json"
+        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
+    }
+
     static func failure(_ failure: ApiFailure) -> Response {
         let body = ["error": ["code": failure.code, "message": failure.message]]
         var headers = HTTPFields()
@@ -46,6 +56,8 @@ struct ErrorMiddleware: RouterMiddleware {
             return try await next(request, context)
         } catch let failure as ApiFailure {
             return Json.failure(failure)
+        } catch let refusal as PlacementRefusal {
+            return Json.refusal(refusal)
         } catch let error as InputError {
             return Json.failure(.invalid(error.message))
         } catch let error as HTTPError {

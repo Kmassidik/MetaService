@@ -4,7 +4,7 @@ public enum CommandFailure: Error {
     case missing
     case timedOut
     case tooMuchOutput
-    case failed(Int32)
+    case failed(Int32, String)
 }
 
 /// Runs one program with an argument list (never through a shell), with a time limit and an output limit.
@@ -24,7 +24,10 @@ public enum CommandRunner {
         process.arguments = arguments
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
+        let errors = Pipe()
+        let tail = Tail(limit: 4096)
+        errors.fileHandleForReading.readabilityHandler = { handle in tail.append(handle.availableData) }
+        process.standardError = errors
         process.standardInput = FileHandle.nullDevice
         try process.run()
         let timer = DispatchSource.makeTimerSource()
@@ -41,9 +44,24 @@ public enum CommandRunner {
             guard collected.count <= maxOutput else { process.terminate(); throw CommandFailure.tooMuchOutput }
         }
         process.waitUntilExit()
+        errors.fileHandleForReading.readabilityHandler = nil
         guard !timedOut.isSet else { throw CommandFailure.timedOut }
-        guard process.terminationStatus == 0 else { throw CommandFailure.failed(process.terminationStatus) }
+        guard process.terminationStatus == 0 else { throw CommandFailure.failed(process.terminationStatus, tail.text) }
         return collected
+    }
+
+    /// Keeps the last few KB of what a program wrote to stderr, to say why it failed.
+    private final class Tail: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        private let limit: Int
+        init(limit: Int) { self.limit = limit }
+        func append(_ more: Data) {
+            lock.lock(); defer { lock.unlock() }
+            data.append(more)
+            if data.count > limit { data = data.suffix(limit) }
+        }
+        var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
     }
 
     private final class Flag: @unchecked Sendable {

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, getSession, listMachines, removeMachine, signOut } from './lib/api.js'
+  import { ApiError, authStatus, getSession, listCommands, listMachines, removeMachine, signOut, workloadAction } from './lib/api.js'
   import { summarize } from './lib/format.js'
   import SignIn from './components/SignIn.svelte'
   import TopBar from './components/TopBar.svelte'
@@ -9,6 +9,9 @@
   import AddMachine from './components/AddMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
   import ScanView from './components/ScanView.svelte'
+  import NewWorkload from './components/NewWorkload.svelte'
+  import ConfirmDelete from './components/ConfirmDelete.svelte'
+  import Activity from './components/Activity.svelte'
 
   const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
@@ -21,6 +24,11 @@
   let view = $state('machines')
   let banner = $state('')
   let adding = $state(false)
+  let commands = $state([])
+  let creating = $state(false)
+  let deleting = $state(null)
+  let deleteBusy = $state(false)
+  let deleteFailure = $state('')
   let removing = $state(null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
@@ -45,7 +53,7 @@
   async function refresh() {
     if (phase !== 'ready') return
     try {
-      machines = await listMachines()
+      ;[machines, commands] = await Promise.all([listMachines(), listCommands()])
       banner = ''
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -70,6 +78,30 @@
     operator = null
     machines = []
     await start()
+  }
+
+  /** Start or stop a workload; the result shows up in the activity list. */
+  async function act(machine, workload, action) {
+    try {
+      await workloadAction(machine.id, workload.id, action)
+      await refresh()
+    } catch (error) {
+      banner = error instanceof ApiError ? error.message : 'Something went wrong.'
+    }
+  }
+
+  async function confirmDelete() {
+    deleteBusy = true
+    deleteFailure = ''
+    try {
+      await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
+      deleting = null
+      await refresh()
+    } catch (error) {
+      deleteFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
+    } finally {
+      deleteBusy = false
+    }
   }
 
   async function confirmRemove() {
@@ -118,14 +150,20 @@
       {:else}
         <div class="intro">
           <Summary {counts} />
-          <button class="btn primary" type="button" onclick={() => (adding = true)}>Add a machine</button>
+          <span class="buttons">
+            <button class="btn" type="button" onclick={() => (adding = true)}>Add a machine</button>
+            <button class="btn primary" type="button" onclick={() => (creating = true)}>New workload</button>
+          </span>
         </div>
         {#if banner}<p class="banner" role="status">{banner}</p>{/if}
-        <MachineList {machines} {now} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} />
+        <MachineList {machines} {now} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <Activity {commands} {now} />
       {/if}
     </main>
   </div>
   <AddMachine open={adding} onClose={() => (adding = false)} onCreated={refresh} />
+  <NewWorkload open={creating} {machines} onClose={() => (creating = false)} onCreated={refresh} />
+  <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />
 {/if}
 
@@ -133,6 +171,7 @@
   .page { max-width: 1240px; margin-inline: auto; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
   main { display: grid; gap: 18px; }
   .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .buttons { display: inline-flex; gap: 10px; flex-wrap: wrap; }
   .banner { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
   .center { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; }
 </style>

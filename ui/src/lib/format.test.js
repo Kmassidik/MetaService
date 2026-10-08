@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName } from './format.js'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName } from './format.js'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
 const ago = (ms) => new Date(now - ms).toISOString()
@@ -76,4 +76,29 @@ test('source messages', () => {
   assert.equal(sourceProblem('missing'), 'not installed')
   assert.equal(sourceProblem('something-new'), 'did not run')
   assert.equal(sourceName('agent_probe'), 'Agent check')
+})
+
+const good = { name: 'demo', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' }
+
+test('workload form rules match the Root', () => {
+  assert.equal(workloadProblem(good), null)
+  assert.equal(workloadProblem({ ...good, ramGb: 0.5 }), null)
+  for (const change of [{ name: 'Bad Name' }, { name: '' }, { kind: 'metal' }, { cpu: 0 }, { cpu: 65 }, { cpu: 1.5 }, { ramGb: 0.4 }, { ramGb: 'lots' }, { diskGb: 0 }, { diskGb: 100001 }, { diskGb: 2.5 }]) {
+    assert.notEqual(workloadProblem({ ...good, ...change }), null, JSON.stringify(change))
+  }
+})
+
+test('workload body is what the Root expects', () => {
+  assert.deepEqual(workloadBody(good), { name: 'demo', kind: 'vm', cpu: 2, ram_mb: 2048, disk_gb: 20 })
+  assert.deepEqual(workloadBody({ ...good, machine: 'dgx', ramGb: 0.5 }), { name: 'demo', kind: 'vm', cpu: 2, ram_mb: 512, disk_gb: 20, machine: 'dgx' })
+})
+
+test('command outcomes', () => {
+  assert.equal(commandOutcome({ state: 'running' }), 'working…')
+  assert.equal(commandOutcome({ state: 'failed', result: { error: 'no room' } }), 'no room')
+  assert.equal(commandOutcome({ state: 'failed' }), 'failed')
+  assert.equal(commandOutcome({ state: 'succeeded', result: { backup_id: 'w-1.tar' } }), 'backup kept: w-1.tar')
+  assert.equal(commandOutcome({ state: 'succeeded', result: { backup_id: 'none' } }), 'done')
+  assert.equal(commandName('delete'), 'Delete')
+  assert.equal(commandName('odd'), 'odd')
 })

@@ -1,9 +1,10 @@
 import Hummingbird
 import HTTPTypes
+import MSCore
 
 /// Headers every response carries. The API answers JSON only, so its policy allows nothing to load.
 struct SecurityHeadersMiddleware: RouterMiddleware {
-    static let contractVersion = "1.0.0"
+    static let contractVersion = ContractVersion.current
     static let csp = HTTPField.Name("Content-Security-Policy")!
     static let apiPolicy = "default-src 'none'; frame-ancestors 'none'"
 

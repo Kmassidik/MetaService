@@ -13,8 +13,10 @@ enum Enroller {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["enrollment_token": token, "name": name])
         let (data, response) = try await RootLink.session.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200, let reply = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let machineToken = reply["machine_token"] as? String else { throw ConfigError(description: "the Root refused the enrollment (wrong, used or expired token, or wrong address)") }
-        try save(machineToken: machineToken, root: root, name: name, config: config)
+              let machineToken = reply["machine_token"] as? String, let commandToken = reply["command_token"] as? String else {
+            throw ConfigError(description: "the Root refused the enrollment (wrong, used or expired token, or wrong address)")
+        }
+        try save(machineToken: machineToken, commandToken: commandToken, root: root, name: name, config: config)
         print("enrolled as \(name); token saved in \(config.stateDirectory)")
     }
 
@@ -30,9 +32,10 @@ enum Enroller {
         return text
     }
 
-    private static func save(machineToken: String, root: String, name: String, config: AgentConfig) throws {
+    private static func save(machineToken: String, commandToken: String, root: String, name: String, config: AgentConfig) throws {
         try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try write(machineToken, to: config.tokenFile)
+        try write(commandToken, to: config.commandTokenFile)
         let settings = try JSONSerialization.data(withJSONObject: ["root": root, "name": name])
         try write(String(decoding: settings, as: UTF8.self), to: config.settingsFile)
     }

@@ -10,12 +10,15 @@ echo "== macOS agent";    (cd agent/macos && swift test 2>&1 | swift_summary; sw
 echo "== contract (fake agent, then the suite's own mutants)"
 nix develop --command python3 -m contract.tests.run_fake | tail -1
 nix develop --command python3 -m contract.tests.mutation | tail -5
-echo "== contract against the macOS agent"
+echo "== contract against the macOS agent (simulated engine, then the Apple engine on a fake container program)"
 nix develop --command python3 -m contract.tests.run_macos_agent | tail -1
+nix develop --command python3 -m contract.tests.run_macos_agent --apple | tail -1
 echo "== macOS agent checks"
 nix develop --command python3 -m contract.agent_tests.runner | tail -1
 echo "== root checks"
 nix develop --command python3 -m contract.root_tests.runner | tail -1
+echo "== root and agents together"
+nix develop --command python3 -m contract.system_tests.runner | tail -1
 echo "== panel (UI)"
 nix develop --command bash -c 'cd ui && npm run check --silent && npm test --silent 2>&1 | grep -E "^ℹ (pass|fail)" && npm run build --silent && node e2e/panel.e2e.mjs | tail -1'
 echo "all tests passed"

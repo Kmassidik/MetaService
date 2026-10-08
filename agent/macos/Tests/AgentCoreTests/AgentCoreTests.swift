@@ -125,6 +125,18 @@ final class AgentCoreTests: XCTestCase {
         XCTAssertNotNil(ledger.find("c3"), "updating an entry does not push others out")
     }
 
+    func testLedgerSurvivesARestartAndFailsWhatWasRunning() {
+        var saved: [Command] = []
+        let first = CommandLedger(persist: { saved = $0 })
+        first.record(Command(commandId: "done", type: .create, state: .succeeded, workloadId: "w-1"))
+        first.record(Command(commandId: "busy", type: .delete, state: .running, workloadId: "w-1"))
+        let second = CommandLedger(restored: saved)
+        XCTAssertEqual(second.find("done")?.state, .succeeded)
+        XCTAssertEqual(second.find("busy")?.state, .failed)
+        XCTAssertEqual(second.find("busy")?.result?["error"], "the Agent restarted before this finished")
+        XCTAssertNil(second.find("nope"))
+    }
+
     func testGpuParsing() {
         let json = Data("""
         {"SPDisplaysDataType":[{"sppci_model":"Apple M2 Pro","spdisplays_vendor":"sppci_vendor_Apple"},

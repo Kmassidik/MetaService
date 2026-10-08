@@ -24,7 +24,7 @@ public struct Health: Encodable, Equatable {
 
 public enum Contract {
     /// The version of contract/openapi.yaml this Agent implements.
-    public static let version = "1.0.0"
+    public static let version = ContractVersion.current
 }
 
 /// Everything the Agent does, in one place, on top of an Engine. HTTP and the system probes live outside of it.
@@ -38,6 +38,8 @@ public actor AgentService {
     private var inflight: [String: Workload] = [:]
     private var deleting: Set<String> = []
     private var machineBundleVersion: String?
+    /// Called when something about the workloads changed, so the Root can hear about it without waiting for the next heartbeat.
+    public nonisolated(unsafe) var onChange: (@Sendable () -> Void)?
 
     public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, ledger: CommandLedger = CommandLedger(),
                 osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
@@ -101,6 +103,7 @@ public actor AgentService {
         }
         inflight[id] = nil
         ledger.record(done)
+        onChange?()
     }
 
     public func start(commandId: String, id: String) async throws -> Command { try await setRunning(commandId, id, .start, running: true) }
@@ -120,6 +123,7 @@ public actor AgentService {
             command.result = ["error": "the machine could not change the workload"]
         }
         ledger.record(command)
+        onChange?()
         return command
     }
 
@@ -147,6 +151,7 @@ public actor AgentService {
         }
         deleting.remove(id)
         ledger.record(done)
+        onChange?()
     }
 
     /// Stub until the real installer (task 7): records the version so the Root can see it.

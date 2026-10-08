@@ -8,7 +8,7 @@ INJECTION_NAMES = [
 
 
 def _base(ctx, **overrides):
-    body = {"command_id": ctx.new_id("c"), "name": ctx.new_id("w"), "kind": "container", "cpu": 1, "ram_mb": 512, "disk_gb": 1}
+    body = {"command_id": ctx.new_id("c"), "name": ctx.new_id("w"), "kind": ctx.kind(), "cpu": 1, "ram_mb": 512, "disk_gb": 1}
     body.update(overrides)
     return body
 
@@ -30,7 +30,7 @@ def check_create_flow(ctx):
     expect(len(found) == 1, "the new workload is not in the list")
     expect_schema("Workload", found[0], "listed workload")
     sizes = (found[0]["cpu"], found[0]["ram_mb"], found[0]["disk_gb"], found[0]["name"], found[0]["kind"])
-    expect(sizes == (2, 1024, 3, body["name"], "container"), f"the workload does not match the request: {found[0]}")
+    expect(sizes == (2, 1024, 3, body["name"], ctx.kind()), f"the workload does not match the request: {found[0]}")
 
 
 def check_create_is_idempotent(ctx):
@@ -118,7 +118,7 @@ def check_disk_is_counted_and_returned(ctx):
     before = ctx.facts()["free_disk_gb"]
     workload_id, _ = ctx.create_small(disk_gb=4)
     expect(ctx.facts()["free_disk_gb"] == before - 4, "free disk did not drop by the workload's disk")
-    ctx.delete(f"/v1/workloads/{workload_id}")
+    ctx.wait_for(ctx.delete(f"/v1/workloads/{workload_id}").body["command_id"])
     expect(ctx.facts()["free_disk_gb"] == before, "free disk did not come back after delete")
 
 

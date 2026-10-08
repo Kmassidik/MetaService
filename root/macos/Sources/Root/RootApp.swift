@@ -11,6 +11,7 @@ func buildApplication(services: Services) -> some ApplicationProtocol {
     router.get("/health") { _, _ in try Json.response(["status": "ok"]) }
     AgentRoutes(services: services, guards: guards).register(on: router.group())
     OperatorRoutes(services: services, guards: guards).register(on: router.group())
+    WorkloadRoutes(services: services, guards: guards).register(on: router.group())
     ScanRoutes(services: services, guards: guards).register(on: router.group())
     AuthRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())

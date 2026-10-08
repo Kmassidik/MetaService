@@ -70,3 +70,40 @@ final class SharedRulesTests: XCTestCase {
         XCTAssertThrowsError(try object.int("count", range: 2...5))
     }
 }
+
+final class SecretBoxTests: XCTestCase {
+    private func path() -> String { NSTemporaryDirectory() + "ms-key-\(UUID().uuidString)" }
+
+    func testSealAndOpenRoundTripWithFreshNonces() throws {
+        let box = try SecretBox.loadOrCreate(path: path())
+        let first = try box.seal("machine-secret"), second = try box.seal("machine-secret")
+        XCTAssertNotEqual(first, second)
+        XCTAssertFalse(first.contains("machine-secret"))
+        XCTAssertEqual(try box.open(first), "machine-secret")
+    }
+
+    func testTamperedOrForeignDataDoesNotOpen() throws {
+        let box = try SecretBox.loadOrCreate(path: path()), other = try SecretBox.loadOrCreate(path: path())
+        let sealed = try box.seal("x")
+        XCTAssertThrowsError(try other.open(sealed))
+        XCTAssertThrowsError(try box.open(String(sealed.dropLast(2)) + "AA"))
+        for junk in ["", "not base64 !!", "AAAA"] { XCTAssertThrowsError(try box.open(junk), junk) }
+    }
+
+    func testTheKeyFileIsCreatedPrivateAndReused() throws {
+        let file = path()
+        let first = try SecretBox.loadOrCreate(path: file)
+        XCTAssertEqual(((try FileManager.default.attributesOfItem(atPath: file))[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertEqual(try SecretBox.loadOrCreate(path: file).open(try first.seal("again")), "again")
+    }
+
+    func testALooseOrBrokenKeyFileIsRefused() throws {
+        let file = path()
+        _ = try SecretBox.loadOrCreate(path: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file)
+        XCTAssertThrowsError(try SecretBox.loadOrCreate(path: file)) { XCTAssertEqual($0 as? SecretBoxError, .looseKeyFile) }
+        let broken = path()
+        FileManager.default.createFile(atPath: broken, contents: Data("short".utf8), attributes: [.posixPermissions: 0o600])
+        XCTAssertThrowsError(try SecretBox.loadOrCreate(path: broken)) { XCTAssertEqual($0 as? SecretBoxError, .badKeyFile) }
+    }
+}

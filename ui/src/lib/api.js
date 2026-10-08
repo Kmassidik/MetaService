@@ -28,8 +28,17 @@ async function call(method, path, body) {
   }
   if (response.status === 204) return null
   const data = await response.json().catch(() => null)
-  if (!response.ok) throw new ApiError(response.status, data?.error?.code ?? 'error', data?.error?.message ?? 'Request failed.')
+  if (!response.ok) throw withNumbers(new ApiError(response.status, data?.error?.code ?? 'error', data?.error?.message ?? 'Request failed.'), data?.error)
   return data
+}
+
+const UNITS = { ram_mb: 'MB RAM', disk_gb: 'GB disk' }
+
+function withNumbers(error, detail) {
+  if (detail && Number.isInteger(detail.needed) && Number.isInteger(detail.free) && UNITS[detail.resource]) {
+    error.numbers = { needed: detail.needed, free: detail.free, unit: UNITS[detail.resource] }
+  }
+  return error
 }
 
 /** The signed-in operator, or null when not signed in. Also stores the CSRF token. */
@@ -54,3 +63,16 @@ export const scanSetup = () => call('GET', '/api/scan/setup')
 export const startScan = () => call('POST', '/api/scans')
 export const latestScan = async () => (await call('GET', '/api/scans/latest')).scan
 export const addFromScan = (runId, items) => call('POST', `/api/scans/${runId}/add`, { items })
+
+export const createWorkload = (body) => call('POST', '/api/workloads', body)
+export const listCommands = async () => (await call('GET', '/api/commands?limit=15')).commands
+
+export function workloadAction(machine, workload, action) {
+  const body = action === 'delete' ? { confirm: true } : undefined
+  return call('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/${action}`, body)
+}
+
+/** The numbers behind a refusal, when the Root gave them. */
+export function refusalText(error) {
+  return error.numbers ? `${error.message}: needs ${error.numbers.needed} ${error.numbers.unit}, the best machine has ${error.numbers.free} free.` : error.message
+}

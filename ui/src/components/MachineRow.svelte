@@ -3,7 +3,7 @@
   import Meter from './Meter.svelte'
   import { archName, formatGb, formatMb, osName, relativeTime } from '../lib/format.js'
 
-  let { machine, now, onRemove } = $props()
+  let { machine, now, onRemove, onAct, onDelete } = $props()
   const WORKLOAD_TONE = { running: 'online', stopped: 'offline' }
   let open = $state(false)
   const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
@@ -52,6 +52,11 @@
               <StatePill state={WORKLOAD_TONE[workload.state] ?? 'busy'} label={workload.state} />
               <span class="muted nums">{workload.cpu} cpu · {formatMb(workload.ram_mb)} · {formatGb(workload.disk_gb)} · {gpuLabel(workload.gpu_mode)}</span>
               {#if workload.address}<span class="mono muted">{workload.address}</span>{/if}
+              <span class="wl-actions">
+                {#if workload.state === 'running'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
+                {#if workload.state === 'stopped'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
+                <button class="btn small danger" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
+              </span>
             </li>
           {/each}
         </ul>
@@ -95,6 +100,8 @@
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
   .caps { font-size: 13px; }
+  .wl-actions { display: inline-flex; gap: 6px; margin-left: auto; }
+  .small { min-height: 30px; padding: 0 10px; font-size: 13px; }
 
   @media (max-width: 900px) {
     .row { grid-template-columns: 1fr 1fr; padding: 16px; gap: 14px 12px; }

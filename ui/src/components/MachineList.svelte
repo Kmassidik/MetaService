@@ -1,7 +1,7 @@
 <script>
   import MachineRow from './MachineRow.svelte'
 
-  let { machines, now, onRemove, onAdd } = $props()
+  let { machines, now, onRemove, onAdd, onAct, onDelete } = $props()
 </script>
 
 {#if machines.length === 0}
@@ -16,7 +16,7 @@
       <span>Machine</span><span>Platform</span><span>State</span><span>Memory</span><span>Disk</span><span>Workloads</span><span>Last seen</span><span></span>
     </div>
     {#each machines as machine (machine.id)}
-      <MachineRow {machine} {now} {onRemove} />
+      <MachineRow {machine} {now} {onRemove} {onAct} {onDelete} />
     {/each}
   </section>
 {/if}

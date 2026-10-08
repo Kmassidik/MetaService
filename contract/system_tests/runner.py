@@ -1,10 +1,10 @@
-"""Run the macOS Agent checks: python -m contract.agent_tests.runner  (needs the Agent build and the fake-auth Root build)"""
+"""Run the Root + Agent end-to-end checks: python -m contract.system_tests.runner"""
 import sys
 import time
 
-from contract.agent_tests import checks_agent, checks_apple
+from contract.system_tests import checks_workloads
 
-ALL_CHECKS = checks_agent.CHECKS + checks_apple.CHECKS
+ALL_CHECKS = checks_workloads.CHECKS
 
 
 def main():

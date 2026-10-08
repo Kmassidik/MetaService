@@ -86,6 +86,10 @@ class Context:
     def facts(self):
         return self.get("/v1/facts").body
 
+    def kind(self):
+        """The kind of workload this machine can run: a container when it can, otherwise a VM."""
+        return "container" if self.facts()["capabilities"]["container"] else "vm"
+
     def workloads(self):
         return self.get("/v1/workloads").body["workloads"]
 
@@ -100,7 +104,7 @@ class Context:
         raise CheckFailed(f"command {command_id} did not reach {state} in {COMMAND_WAIT_SECONDS}s")
 
     def create_small(self, **overrides):
-        body = {"command_id": self.new_id("c"), "name": self.new_id("w"), "kind": "container",
+        body = {"command_id": self.new_id("c"), "name": self.new_id("w"), "kind": self.kind(),
                 "cpu": 1, "ram_mb": 512, "disk_gb": 1}
         body.update(overrides)
         reply = self.post("/v1/workloads", body)

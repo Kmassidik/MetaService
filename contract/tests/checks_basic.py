@@ -24,7 +24,7 @@ def check_wrong_token_is_401(ctx):
 
 def check_wrong_token_changes_nothing(ctx):
     before = ctx.workloads()
-    body = {"command_id": ctx.new_id("c"), "name": ctx.new_id("w"), "kind": "container", "cpu": 1, "ram_mb": 512, "disk_gb": 1}
+    body = {"command_id": ctx.new_id("c"), "name": ctx.new_id("w"), "kind": ctx.kind(), "cpu": 1, "ram_mb": 512, "disk_gb": 1}
     ctx.post("/v1/workloads", body, token="wrong")
     expect(ctx.workloads() == before, "a request with the wrong token created something")
 

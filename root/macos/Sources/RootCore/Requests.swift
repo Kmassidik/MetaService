@@ -99,9 +99,12 @@ public struct HeartbeatRequest: Equatable {
     public let facts: FactsReport
     public let workloads: [WorkloadReport]
     public let bundleVersion: String?
+    /// Where the Root can reach this Agent's API, when the Agent says so.
+    public let agentPort: Int?
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["facts", "workloads", "bundle_version"])
+        let object = try StrictObject(data: body, allowed: ["facts", "workloads", "bundle_version", "agent_port"])
+        agentPort = object.has("agent_port") ? try object.int("agent_port", range: 1...65535) : nil
         facts = try FactsReport(try object.object("facts", allowed: FactsReport.keys))
         workloads = try object.objects("workloads", allowed: WorkloadReport.keys, maxCount: WorkloadReport.maxPerMachine).map(WorkloadReport.init)
         bundleVersion = try Self.version(object)
@@ -143,5 +146,39 @@ public struct AddScanRequest: Equatable {
         guard !list.isEmpty else { throw InputError("pick at least one device") }
         items = try list.map { AddScanItem(resultId: try $0.int("result_id", range: 1...Int(Int32.max)), name: try $0.id("name")) }
         guard Set(items.map(\.name)).count == items.count, Set(items.map(\.resultId)).count == items.count else { throw InputError("names and devices must be different from each other") }
+    }
+}
+
+/// An operator asking for a workload. Placement decides the machine unless one is named.
+public struct CreateWorkloadOperatorRequest: Equatable {
+    public let name: String
+    public let kind: String
+    public let cpu: Int
+    public let ramMb: Int
+    public let diskGb: Int
+    public let gpuMode: String
+    public let machine: String?
+    public let image: String?
+
+    private static let imagePattern = #/^[a-z0-9][a-z0-9._:\/-]{0,127}$/#
+
+    public init(body: Data) throws {
+        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "image"])
+        name = try object.id("name")
+        kind = try object.choice("kind", among: ["vm", "container"])
+        cpu = try object.int("cpu", range: 1...64)
+        ramMb = try object.int("ram_mb", range: 512...1_048_576)
+        diskGb = try object.int("disk_gb", range: 1...100_000)
+        gpuMode = object.has("gpu_mode") ? try object.choice("gpu_mode", among: ["none", "container", "passthrough"]) : "none"
+        machine = object.has("machine") ? try object.id("machine") : nil
+        image = object.has("image") ? try object.string("image", pattern: Self.imagePattern, maxLength: 128, minLength: 1) : nil
+    }
+}
+
+/// Deleting asks for an explicit yes in the request body, so a stray call cannot do it.
+public struct ConfirmRequest: Equatable {
+    public init(body: Data) throws {
+        let object = try StrictObject(data: body, allowed: ["confirm"])
+        guard try object.bool("confirm") else { throw InputError("confirm must be true") }
     }
 }

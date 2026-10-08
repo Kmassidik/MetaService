@@ -1,4 +1,5 @@
-"""Run every conformance check against the real macOS Agent (simulated engine), started on a free port with a throwaway token."""
+"""Run every conformance check against the real macOS Agent, started on a free port with a throwaway token.
+With --apple the Agent drives a fake `container` program through the Apple engine; otherwise it uses the simulated engine."""
 import os
 import pathlib
 import secrets
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import time
 
+from contract.agent_tests.support import FakeContainerWorld
 from contract.tests.runner import run_checks
 
 BINARY = pathlib.Path(__file__).resolve().parents[2] / "agent" / "macos" / ".build" / "debug" / "metaservice-agent"
@@ -38,14 +40,19 @@ def wait_until_up(port, process):
 
 
 def main():
+    engine = "apple" if "--apple" in sys.argv else "simulated"
     state = tempfile.mkdtemp(prefix="ms-agent-")
     token = secrets.token_hex(24)
-    token_file = os.path.join(state, "agent.token")
+    token_file = os.path.join(state, "command.token")
     pathlib.Path(token_file).write_text(token)
     os.chmod(token_file, 0o600)
     port = free_port()
-    process = subprocess.Popen([str(BINARY), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--engine", "simulated"] + BUDGET_ARGS,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    extra, env = [], os.environ.copy()
+    if engine == "apple":
+        world = FakeContainerWorld()
+        extra, env = world.agent_args(), {**os.environ, **world.env}
+    process = subprocess.Popen([str(BINARY), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--engine", engine] + extra + BUDGET_ARGS,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
         wait_until_up(port, process)
         failures = run_checks(f"http://127.0.0.1:{port}", token)

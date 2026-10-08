@@ -1,12 +1,18 @@
 import Foundation
 import RootCore
 
+public struct AgentEndpoint: Equatable {
+    public let ip: String
+    public let port: Int
+    public let sealedCommandToken: String
+}
+
 public enum MachineError: Error, Equatable {
     case exists
     case notFound
 }
 
-public struct MachineStore {
+public struct MachineStore: @unchecked Sendable {
     private let database: Database
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -15,10 +21,11 @@ public struct MachineStore {
 
     // MARK: enrolling and authenticating
 
-    public func enroll(name: String, tokenHash: String, ip: String?, now: Date) throws {
+    /// `commandTokenSealed` is the token the Root shows the Agent when it sends commands, already encrypted by the caller.
+    public func enroll(name: String, tokenHash: String, commandTokenSealed: String, ip: String?, now: Date) throws {
         do {
-            try database.execute("INSERT INTO machines (id, name, ip, token_hash, enrolled_at) VALUES (?, ?, ?, ?, ?)",
-                                 [.text(name), .text(name), ip.map(SQLValue.text) ?? .null, .text(tokenHash), .int(Int(now.timeIntervalSince1970))])
+            try database.execute("INSERT INTO machines (id, name, ip, token_hash, command_token_sealed, enrolled_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                 [.text(name), .text(name), ip.map(SQLValue.text) ?? .null, .text(tokenHash), .text(commandTokenSealed), .int(Int(now.timeIntervalSince1970))])
         } catch let error as DatabaseError where error.isConstraint {
             throw MachineError.exists
         }
@@ -27,6 +34,13 @@ public struct MachineStore {
     /// The machine id that owns this token hash, or nil.
     public func authenticate(tokenHash: String) throws -> String? {
         try database.query("SELECT id FROM machines WHERE token_hash = ?", [.text(tokenHash)]).first?.string("id")
+    }
+
+    /// Where and how to call this machine's Agent, or nil if it has not been heard from.
+    public func endpoint(id: String) throws -> AgentEndpoint? {
+        guard let row = try database.query("SELECT ip, agent_port, command_token_sealed FROM machines WHERE id = ?", [.text(id)]).first,
+              let ip = row.optionalString("ip"), let sealed = row.optionalString("command_token_sealed") else { return nil }
+        return AgentEndpoint(ip: ip, port: row.int("agent_port"), sealedCommandToken: sealed)
     }
 
     public func remove(id: String) throws {
@@ -42,11 +56,13 @@ public struct MachineStore {
         try database.transaction {
             try database.execute("""
                 UPDATE machines SET ip = COALESCE(?, ip), os = ?, arch = ?, cpu_cores = ?, ram_total_mb = ?, disk_total_gb = ?,
-                  free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, bundle_version = ?, last_seen = ?
+                  free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, bundle_version = ?, last_seen = ?,
+                  agent_port = COALESCE(?, agent_port)
                 WHERE id = ?
                 """, [ip.map(SQLValue.text) ?? .null, .text(facts.os), .text(facts.arch), .int(facts.cpuCores), .int(facts.ramTotalMb),
                       .int(facts.diskTotalGb), .int(facts.freeRamMb), .int(facts.freeDiskGb), .text(try json(facts.gpu)),
-                      .text(try json(facts.capabilities)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds), .text(machineId)])
+                      .text(try json(facts.capabilities)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
+                      request.agentPort.map(SQLValue.int) ?? .null, .text(machineId)])
             try replaceWorkloads(machineId: machineId, reports: request.workloads, at: seconds)
         }
     }

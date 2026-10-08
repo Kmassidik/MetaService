@@ -1,6 +1,6 @@
 // End-to-end test of the panel in a real browser against a real Root (test build with the fake sign-in door).
 // Needs: the test Root build (root/macos/run-tests.sh builds it), Google Chrome (or CHROME_PATH), and `npm install` in ui/.
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { networkInterfaces, tmpdir } from 'node:os'
@@ -11,6 +11,7 @@ import puppeteer from 'puppeteer-core'
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../..')
 const binary = join(repo, 'root/macos/.build-fake/debug/metaservice-root')
+const agentBinary = join(repo, 'agent/macos/.build/debug/metaservice-agent')
 const chrome = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const EMAIL = 'kurnia@example.com'
 const XSS = '<img src=x onerror="window.__xss=1">'
@@ -59,10 +60,13 @@ async function startRoot() {
 }
 
 /** Sign in as the operator with plain fetch, invite a machine and enroll it as an Agent; returns the machine token. */
+let operatorSession = null
+
 async function seed(base) {
   const login = await fetch(`${base}/auth/fake`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ email: EMAIL }), redirect: 'manual' })
   const cookie = login.headers.get('set-cookie').split(';')[0]
   const session = await (await fetch(`${base}/api/session`, { headers: { Cookie: cookie } })).json()
+  operatorSession = { cookie, csrf: session.csrf_token }
   const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: base, 'X-CSRF-Token': session.csrf_token }, body: JSON.stringify(body) })
   for (const name of ['dgx-spark', 'mac-mini']) {
     const invite = await (await write('/api/enrollments', { name })).json()
@@ -82,6 +86,73 @@ function heartbeat(name) {
 }
 
 const { base, child } = await startRoot()
+/** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
+async function startAgent(base) {
+  const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-agent-'))
+  const headers = { 'Content-Type': 'application/json', Cookie: operatorSession.cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }
+  const invite = await (await fetch(`${base}/api/enrollments`, { method: 'POST', headers, body: JSON.stringify({ name: 'agent-mac', ip: '127.0.0.1' }) })).json()
+  const tokenFile = join(dir, 'enroll.token')
+  writeFileSync(tokenFile, invite.enrollment_token)
+  chmodSync(tokenFile, 0o600)
+  const enrolled = spawnSync(agentBinary, ['enroll', '--root', base.replace('localhost', '127.0.0.1'), '--name', 'agent-mac', '--enrollment-token-file', tokenFile, '--state-dir', dir])
+  if (enrolled.status !== 0) throw new Error('agent enroll failed: ' + enrolled.stderr)
+  const port = await freePort()
+  return spawn(agentBinary, ['run', '--state-dir', dir, '--port', String(port), '--bind', '127.0.0.1', '--engine', 'simulated', '--heartbeat-seconds', '1',
+    '--ram-allowance-mb', '16384', '--ram-reserve-mb', '4096', '--disk-allowance-gb', '200', '--disk-reserve-gb', '10'], { stdio: 'ignore' })
+}
+
+async function workloadScenario() {
+  const agent = await startAgent(base)
+  try {
+    await page.waitForFunction(() => document.body.innerText.includes('agent-mac'), { timeout: 20000 })
+    await click('New workload')
+    await page.waitForSelector('dialog[open] #wl-name')
+    await page.type('dialog[open] #wl-name', 'Bad Name')
+    check('a bad workload name disables Create and explains', (await page.evaluate(() => document.querySelector('dialog[open] button[type=submit]').disabled)) && (await text()).includes('Use lowercase letters'))
+    await page.$eval('dialog[open] #wl-name', (input) => { input.value = ''; input.dispatchEvent(new Event('input')) })
+    await page.type('dialog[open] #wl-name', 'build-box')
+    await page.evaluate(() => {
+      const select = [...document.querySelectorAll('dialog[open] label')].find((l) => l.innerText.startsWith('Machine')).querySelector('select')
+      select.value = 'agent-mac'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await click('Create')
+    await page.waitForFunction(() => !document.querySelector('dialog[open]'), { timeout: 10000 })
+    await page.waitForFunction(() => /Create\s+build-box[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
+    check('a new workload shows in recent activity as succeeded', true)
+    await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('agent-mac')).querySelector('button').click())
+    await page.waitForFunction(() => document.body.innerText.includes('build-box'), { timeout: 15000 })
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'workloads.png'), fullPage: true })
+    check('the workload appears under its machine', (await text()).includes('build-box'))
+    await click('Stop')
+    await page.waitForFunction(() => document.body.innerText.includes('Start'), { timeout: 15000 })
+    check('Stop turns the button into Start', true)
+    await click('Start')
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Stop'), { timeout: 15000 })
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Delete').click())
+    await page.waitForSelector('dialog[open]')
+    check('delete says a backup is made first', (await text()).includes('makes a backup of it first'))
+    await click('Back up and delete')
+    await page.waitForFunction(() => !document.body.innerText.includes('build-box') || /Delete\s+[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
+    await page.waitForFunction(() => document.body.innerText.includes('No workloads reported'), { timeout: 20000 })
+    check('a deleted workload disappears', true)
+    await click('New workload')
+    await page.waitForSelector('dialog[open] #wl-name')
+    await page.type('dialog[open] #wl-name', 'too-big')
+    await page.evaluate(() => {
+      const ram = [...document.querySelectorAll('dialog[open] label')].find((l) => l.innerText.startsWith('RAM')).querySelector('input')
+      ram.value = '500'
+      ram.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('Create')
+    await page.waitForFunction(() => document.body.innerText.includes('best machine has'), { timeout: 10000 })
+    check('a request that fits nowhere shows the numbers', (await text()).includes('needs 512000 MB RAM'))
+    await click('Cancel')
+  } finally {
+    agent.kill()
+  }
+}
+
 async function scanScenario() {
   await click('Find machines')
   await page.waitForFunction(() => document.body.innerText.includes('Looks at'))
@@ -114,11 +185,11 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => message.type() === 'error' && !message.text().includes('401') && errors.push(message.text()))
+  page.on('console', (message) => message.type() === 'error' && !/status of (401|409)/.test(message.text()) && errors.push(message.text()))
   await page.evaluateOnNewDocument(() => document.addEventListener('securitypolicyviolation', (event) => (window.__csp = (window.__csp ?? 0) + 1 && event.violatedDirective)))
   text = () => page.evaluate(() => document.body.innerText)
   click = async (label) => {
-    const handle = await page.evaluateHandle((wanted) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === wanted), label)
+    const handle = await page.evaluateHandle((wanted) => [...(document.querySelector('dialog[open]') ?? document).querySelectorAll('button')].find((b) => b.textContent.trim() === wanted), label)
     await handle.asElement().click()
   }
 
@@ -161,6 +232,7 @@ try {
   await page.waitForFunction(() => !document.body.innerText.includes('mac-mini'), { timeout: 5000 })
   check('a removed machine disappears', !(await text()).includes('mac-mini'))
 
+  await workloadScenario()
   if (localPrefix()) await scanScenario()
 
   await page.setViewport({ width: 390, height: 844 })
@@ -168,8 +240,8 @@ try {
   check('no sideways scrolling on a phone', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 
   await click('Sign out')
-  await page.waitForFunction(() => !document.body.innerText.includes('dgx-spark'))
-  check('signing out returns to the sign-in page', (await text()).includes('Google sign-in'))
+  await page.waitForFunction(() => document.body.innerText.includes('Google sign-in'), { timeout: 10000 })
+  check('signing out returns to the sign-in page', !(await text()).includes('dgx-spark'))
   check('no script errors and no policy violations', errors.length === 0 && (await page.evaluate(() => window.__csp)) === undefined, errors.join(' | '))
 } finally {
   await browser.close()

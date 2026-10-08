@@ -54,6 +54,11 @@ public enum Migrations {
             );
             """) }),
         (3, { try $0.exec("ALTER TABLE enrollments ADD COLUMN expected_ip TEXT;") }),
+        (4, { try $0.exec("""
+            ALTER TABLE machines ADD COLUMN command_token_sealed TEXT;
+            ALTER TABLE machines ADD COLUMN agent_port INTEGER NOT NULL DEFAULT 9101;
+            CREATE INDEX commands_by_state ON commands (state);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

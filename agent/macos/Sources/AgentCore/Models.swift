@@ -126,7 +126,7 @@ public struct Workload: Encodable, Equatable {
 public enum CommandType: String, Codable { case create, start, stop, delete, bundleInstall = "bundle_install" }
 public enum CommandState: String, Codable { case queued, running, succeeded, failed }
 
-public struct Command: Encodable, Equatable {
+public struct Command: Codable, Equatable {
     public let commandId: String
     public let type: CommandType
     public var state: CommandState

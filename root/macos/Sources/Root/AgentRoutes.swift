@@ -23,10 +23,11 @@ struct AgentRoutes {
             try services.audit.record(actor: "agent:\(body.name)", action: "machine.enroll_refused", detail: ["from": context.remoteIP], at: now)
             throw ApiFailure.unauthorized("enrollment refused")
         }
-        let machineToken = Tokens.random()
-        try services.machines.enroll(name: body.name, tokenHash: Tokens.sha256Hex(machineToken), ip: context.remoteIP, now: now)
+        let machineToken = Tokens.random(), commandToken = Tokens.random()
+        try services.machines.enroll(name: body.name, tokenHash: Tokens.sha256Hex(machineToken), commandTokenSealed: try services.secrets.seal(commandToken),
+                                     ip: context.remoteIP, now: now)
         try services.audit.record(actor: "agent:\(body.name)", action: "machine.enroll", target: body.name, detail: ["from": context.remoteIP], at: now)
-        return try Json.response(EnrollReply(machineToken: machineToken, heartbeatSeconds: MachineStates.heartbeatSeconds))
+        return try Json.response(EnrollReply(machineToken: machineToken, commandToken: commandToken, heartbeatSeconds: MachineStates.heartbeatSeconds))
     }
 
     func heartbeat(_ request: Request, context: RootContext) async throws -> Response {
@@ -39,5 +40,6 @@ struct AgentRoutes {
 
 private struct EnrollReply: Encodable {
     let machineToken: String
+    let commandToken: String
     let heartbeatSeconds: Int
 }
