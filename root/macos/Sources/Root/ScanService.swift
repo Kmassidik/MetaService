@@ -14,7 +14,7 @@ final class ScanService: @unchecked Sendable {
     private let clock: Clock
     private let store: ScanStore
     private let audit: AuditStore
-    private let router: RouterOSClient?
+    private let router: RouterReader?
     private static let sweepSeconds: TimeInterval = 120
     private static let probeSeconds: TimeInterval = 60
     private static let probeBatch = 100
@@ -25,7 +25,7 @@ final class ScanService: @unchecked Sendable {
         self.clock = clock
         self.store = store
         self.audit = audit
-        router = RouterOSClient(config: config)
+        router = RouterReaders.make(config: config)
     }
 
     var subnet: Subnet? { config.scanSubnet ?? SubnetDetector.detect() }

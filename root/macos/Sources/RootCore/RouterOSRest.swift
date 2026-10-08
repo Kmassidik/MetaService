@@ -1,24 +1,31 @@
 import Foundation
 
+/// Turns rows of RouterOS values (from the REST JSON or from the binary API) into scan entries.
+public enum RouterOSRows {
+    public static func leases(_ rows: [[String: String]]) -> [RouterEntry] {
+        rows.compactMap { row in
+            guard row["disabled"] != "true", row["status"] == nil || row["status"] == "bound", let ip = row["address"], Subnet.address(ip) != nil else { return nil }
+            return RouterEntry(ip: ip, mac: row["mac-address"].flatMap(MacAddress.normalize), hostname: row["host-name"] ?? row["comment"])
+        }
+    }
+
+    public static func arp(_ rows: [[String: String]]) -> [RouterEntry] {
+        rows.compactMap { row in
+            guard row["disabled"] != "true", row["complete"] != "false", let ip = row["address"], Subnet.address(ip) != nil else { return nil }
+            return RouterEntry(ip: ip, mac: row["mac-address"].flatMap(MacAddress.normalize), hostname: nil)
+        }
+    }
+}
+
 /// Reads the JSON the MikroTik REST API (RouterOS 7) returns for `/ip/dhcp-server/lease` and `/ip/arp`.
 public enum RouterOSRest {
     public static let leasePath = "/rest/ip/dhcp-server/lease"
     public static let arpPath = "/rest/ip/arp"
     private static let maxRows = 5000
 
-    public static func leases(from json: Data) -> [RouterEntry] {
-        rows(json).compactMap { row in
-            guard row["disabled"] != "true", row["status"] == nil || row["status"] == "bound", let ip = row["address"], Subnet.address(ip) != nil else { return nil }
-            return RouterEntry(ip: ip, mac: row["mac-address"].flatMap(MacAddress.normalize), hostname: row["host-name"] ?? row["comment"])
-        }
-    }
+    public static func leases(from json: Data) -> [RouterEntry] { RouterOSRows.leases(rows(json)) }
 
-    public static func arp(from json: Data) -> [RouterEntry] {
-        rows(json).compactMap { row in
-            guard row["disabled"] != "true", row["complete"] != "false", let ip = row["address"], Subnet.address(ip) != nil else { return nil }
-            return RouterEntry(ip: ip, mac: row["mac-address"].flatMap(MacAddress.normalize), hostname: nil)
-        }
-    }
+    public static func arp(from json: Data) -> [RouterEntry] { RouterOSRows.arp(rows(json)) }
 
     /// RouterOS sends every value as a string, and a list of objects. Anything else is an empty list.
     private static func rows(_ json: Data) -> [[String: String]] {

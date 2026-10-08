@@ -122,10 +122,10 @@ enum ConfigLoader {
         config.routerURL = try env["ROUTER_URL"].map(routerHost)
     }
 
-    /// The router must be a plain IPv4 address over http or https. Whether it sits inside the scan subnet is checked when a scan starts.
+    /// The router must be a plain IPv4 address (http or https for RouterOS 7, api or api-ssl for the binary API). Whether it sits inside the scan subnet is checked when a scan starts.
     static func routerHost(_ text: String) throws -> String {
-        guard let url = URL(string: text), ["http", "https"].contains(url.scheme), let host = url.host, IPv4.isValid(host), url.user == nil else {
-            throw ConfigError(description: "ROUTER_URL must be http(s) with an IPv4 address and no credentials in it")
+        guard let url = URL(string: text), ["http", "https", "api", "api-ssl"].contains(url.scheme), let host = url.host, IPv4.isValid(host), url.user == nil else {
+            throw ConfigError(description: "ROUTER_URL must be http, https, api or api-ssl with an IPv4 address and no credentials in it")
         }
         return text
     }

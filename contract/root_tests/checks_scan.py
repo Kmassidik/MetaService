@@ -6,6 +6,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 
+from contract.root_tests.fakes import fake_router_api
 from contract.root_tests.fakes.fake_router import PASSWORD, USER, make_router
 from contract.root_tests.support import Browser, RunningRoot, expect, local_private_ip, running
 
@@ -18,17 +19,20 @@ class Skip(Exception):
 
 
 @contextmanager
-def scan_root(router_password=PASSWORD, with_router=True, nmap="fake", nmap_env=None, extra_env_lines=""):
+def scan_root(router_password=PASSWORD, with_router=True, nmap="fake", nmap_env=None, extra_env_lines="", router_kind="rest"):
     ip = local_private_ip()
     if ip is None:
         raise Skip("no private LAN address on this machine")
     prefix = ip.rsplit(".", 1)[0]
     log = tempfile.mktemp(prefix="ms-nmap-log-")
-    server = make_router(ip, prefix) if with_router else None
+    server = None
+    if with_router:
+        server = make_router(ip, prefix) if router_kind == "rest" else fake_router_api.make_router(ip, prefix, old_login=router_kind == "api-old")
     lines = ["ALLOWED_EMAILS=kurnia@example.com", f"SCAN_SUBNET={prefix}.0/24", f"ARP_PATH={FAKES / 'fake_arp.py'}"]
     lines.append(f"NMAP_PATH={FAKES / 'fake_nmap.py'}" if nmap == "fake" else "NMAP_PATH=/nonexistent/nmap")
     if with_router:
-        lines += [f"ROUTER_URL=http://{ip}:{server.server_address[1]}", f"ROUTER_USER={USER}", f"ROUTER_PASSWORD={router_password}"]
+        scheme = "http" if router_kind == "rest" else "api"
+        lines += [f"ROUTER_URL={scheme}://{ip}:{server.server_address[1]}", f"ROUTER_USER={USER}", f"ROUTER_PASSWORD={router_password}"]
     env = {"FAKE_NMAP_LOG": log, "FAKE_ARP_PREFIX": prefix, **(nmap_env or {})}
     root = RunningRoot(env_text="\n".join(lines + [extra_env_lines]) + "\n", process_env=env).start()
     root.scan_prefix, root.scan_log = prefix, log
@@ -148,6 +152,28 @@ def check_a_wrong_router_password_does_not_break_the_scan():
         expect(b"wrong" not in operator.request("GET", "/api/scans/latest").raw, "the router password is in a reply")
 
 
+def check_the_binary_api_works_for_routeros_6():
+    for kind in ("api", "api-old"):
+        with scan_root(router_kind=kind) as root:
+            operator = Browser(root)
+            operator.sign_in()
+            scan = start_and_wait(operator)
+            expect(scan["state"] == "done" and scan["sources"]["router"] == "ok", f"{kind}: sources {scan['sources']}")
+            found = by_ip(scan)
+            expect(found["50"]["hostname"] == "printer" and "router" in found["60"]["seen_by"], f"{kind}: {found.get('50')}")
+            expect("99" not in {row["ip"].rsplit(".", 1)[1] for row in scan["results"] if row["ip"].startswith("10.")}, f"{kind}: an outside address got in")
+
+
+def check_the_binary_api_refuses_a_wrong_password_without_leaking_it():
+    for kind in ("api", "api-old"):
+        with scan_root(router_kind=kind, router_password="wrong") as root:
+            operator = Browser(root)
+            operator.sign_in()
+            scan = start_and_wait(operator)
+            expect(scan["state"] == "done" and scan["sources"]["router"] == "refused_401", f"{kind}: sources {scan['sources']}")
+            expect(b"wrong" not in operator.request("GET", "/api/scans/latest").raw, f"{kind}: the password is in a reply")
+
+
 def check_a_scan_works_without_a_router():
     with scan_root(with_router=False) as root:
         operator = Browser(root)
@@ -245,7 +271,8 @@ def check_bad_scan_settings_stop_the_root_from_starting():
 CHECKS = [
     check_scan_setup_describes_what_is_available, check_a_scan_merges_router_nmap_and_arp, check_hostile_device_names_are_cleaned,
     check_a_scan_only_targets_the_configured_subnet, check_only_one_scan_runs_at_a_time, check_scans_need_a_session_and_csrf,
-    check_scans_are_rate_limited, check_a_wrong_router_password_does_not_break_the_scan, check_a_scan_works_without_a_router,
+    check_scans_are_rate_limited, check_a_wrong_router_password_does_not_break_the_scan, check_the_binary_api_works_for_routeros_6,
+    check_the_binary_api_refuses_a_wrong_password_without_leaking_it, check_a_scan_works_without_a_router,
     check_a_scan_works_without_nmap_and_fails_with_nothing, check_a_failing_nmap_is_reported_not_hidden,
     check_adding_found_devices_makes_pinned_tokens, check_add_refuses_bad_requests, check_a_pinned_invite_works_only_from_its_address,
     check_bad_scan_settings_stop_the_root_from_starting,

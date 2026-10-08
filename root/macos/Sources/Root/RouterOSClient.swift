@@ -2,16 +2,9 @@ import CryptoKit
 import Foundation
 import RootCore
 
-enum RouterFailure: Error {
-    case notConfigured
-    case unreachable
-    case refused(Int)
-    case badReply
-}
-
 /// Reads DHCP leases and the ARP table from a MikroTik with its REST API (RouterOS 7), using a read-only account.
 /// An https router with its own certificate is trusted only if the certificate fingerprint in ROUTER_CERT_SHA256 matches.
-final class RouterOSClient: @unchecked Sendable {
+final class RouterOSClient: RouterReader, @unchecked Sendable {
     private let base: URL
     private let authorization: String
     private let session: URLSession
