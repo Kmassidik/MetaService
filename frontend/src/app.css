@@ -199,3 +199,5 @@ table.restable{width:100%;border-collapse:collapse;font-size:13px}
   .grid,.body{padding:16px}
   .phead{padding:16px}
 }
+
+.id{font-family:var(--mono);font-size:11px;color:var(--m50)}

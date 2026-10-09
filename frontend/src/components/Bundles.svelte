@@ -20,7 +20,7 @@
         </li>
       {/each}
     </ul>
-    <p class="muted note">Machines and workloads that already have the chat follow the pinned version within a few seconds. A first install is always your request.</p>
+    <p class="muted note">Machines and VMs that already have the chat follow the pinned version within a few seconds. A first install is always your request.</p>
   {/if}
 </section>
 

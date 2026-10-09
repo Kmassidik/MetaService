@@ -7,6 +7,11 @@
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   const WORKLOAD_TONE = { running: 'online', stopped: 'offline' }
   let open = $state(false)
+  /** This machine is the one the control plane runs on: it reaches the Root over its own loopback address. */
+  /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
+  const isParent = $derived(machine.ip === '127.0.0.1')
+  const chip = $derived(machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch))
+  const vmCount = $derived(machine.workloads.length)
   const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
 </script>
 
@@ -14,15 +19,16 @@
   <div class="ch">
     <div class="row1">
       <span class="nm">{machine.name}</span>
-      <span class="id">{machine.ip ?? 'address unknown'}</span>
+      {#if isParent}<span class="tag run">Parent</span>{/if}
       <StatePill state={machine.state} />
       {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
     </div>
+    <div class="where">{machine.ip ?? 'address unknown'}</div>
     <div class="specs">
-      <span>{osName(machine.os)} · {archName(machine.arch)}</span>
+      <span>{osName(machine.os)} · {chip}</span>
       <span>{machine.cpu_cores ?? '–'} cores</span>
-      <span>{machine.workloads.length} {machine.workloads.length === 1 ? 'workload' : 'workloads'}</span>
-      <span class:stale={flag.stale}>{flag.text}</span>
+      <span>{vmCount === 0 ? 'No VMs yet' : vmCount === 1 ? '1 VM' : `${vmCount} VMs`}</span>
+      {#if machine.bundle_version}<span class:stale={flag.stale}>{flag.text}</span>{/if}
     </div>
   </div>
 
@@ -33,7 +39,7 @@
 
   {#if machine.problems?.length}
     <div class="problems" role="alert">
-      <strong>No new workloads are placed on {machine.name} until this is fixed.</strong>
+      <strong>VMs can't be created on this machine yet.</strong>
       <ul>
         {#each machine.problems as problem (problem.code)}
           <li><span>{problem.message}</span><span class="fix">{problem.fix}</span></li>
@@ -51,11 +57,12 @@
   {#if open}
     <div class="detail">
       <div class="chatbar">
-        <button class="btn line sm" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'} on {machine.name}</button>
+        <span class="id" class:stale={flag.stale}>Chat on this machine: {flag.text.replace(/^no chat$/, 'not installed')}</span>
+        <button class="btn line sm" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>
         {#if machine.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
       </div>
       {#if machine.workloads.length === 0}
-        <p class="muted">No workloads reported by this machine.</p>
+        <p class="muted">No VMs on this machine yet.</p>
       {:else}
         <ul class="hairlist">
           {#each machine.workloads as workload (workload.id)}
@@ -79,8 +86,8 @@
       {/if}
       {#if machine.capabilities}
         <p class="id">
-          Can run: {machine.capabilities.vm ? 'VMs' : ''}{machine.capabilities.vm && machine.capabilities.container ? ', ' : ''}{machine.capabilities.container ? 'containers' : ''}
-          · GPU in VM: {machine.capabilities.gpu_in_vm ? 'yes' : 'no'} · GPU in container: {machine.capabilities.gpu_in_container ? 'yes' : 'no'}
+          Can run: {machine.capabilities.vm || machine.capabilities.container ? [machine.capabilities.vm && 'VMs', machine.capabilities.container && 'containers'].filter(Boolean).join(' and ') : 'nothing yet'}
+          · GPU in a VM: {machine.capabilities.gpu_in_vm ? 'yes' : 'no'} · GPU in a container: {machine.capabilities.gpu_in_container ? 'yes' : 'no'}
         </p>
       {/if}
       {#if machine.gpu.length}
@@ -92,6 +99,8 @@
 
 <style>
   .card.offline { opacity: 0.7; }
+  .where { font-family: var(--mono); font-size: 11px; color: var(--m50); margin-top: 3px; }
+  .nm { overflow-wrap: anywhere; }
   .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--gray); }
   .problems { display: grid; gap: 6px; padding: 12px 16px; background: var(--warnbg); color: var(--warn); border-bottom: 1px solid var(--warn); font-size: 13px; }
   .problems ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

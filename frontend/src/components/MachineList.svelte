@@ -6,7 +6,7 @@
 
 {#if machines.length === 0}
   <div class="empty">
-    No machines yet. Add the first one, then install the Agent on it with the enrollment token you get here.
+    No machines yet. Add the first one, and it will show up here.
     <button class="btn green sm" type="button" onclick={onAdd}>＋ Add a machine</button>
   </div>
 {:else}

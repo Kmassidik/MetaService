@@ -45,7 +45,7 @@
     <div class="brand"><span class="sq"></span>MetaService</div>
     <div>
       <h1>One panel for <span class="hl">every machine</span>.</h1>
-      <p class="lede">Register machines, create VMs and containers on them, and open the chat on each one. Macs and Linux boxes, one place.</p>
+      <p class="lede">Add your machines, create VMs and containers on them, and open the chat on each one. Macs and Linux, one place.</p>
     </div>
     <span class="lede small">Root · Agents · VMs</span>
   </div>

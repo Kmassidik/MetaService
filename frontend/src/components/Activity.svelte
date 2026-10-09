@@ -7,7 +7,7 @@
 <section class="activity" aria-label="Recent activity">
   <h2>Recent activity</h2>
   {#if commands.length === 0}
-    <p class="muted">Nothing yet. Requests to create, start, stop or delete workloads show up here.</p>
+    <p class="muted">Nothing yet. Requests to create, start, stop or delete VMs show up here.</p>
   {:else}
     <ul>
       {#each commands as command (command.id)}

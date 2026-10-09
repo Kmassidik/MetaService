@@ -31,6 +31,8 @@
   let commands = $state([])
   let bundles = $state(null)
   let brain = $state(null)
+  /** False until the first answer from the Root, so an empty list is never shown while the data is still on its way. */
+  let loaded = $state(false)
   let openLink = $state(null)
   let creating = $state(false)
   let deleting = $state(null)
@@ -40,6 +42,9 @@
   let removeBusy = $state(false)
   let removeFailure = $state('')
   const counts = $derived(summarize(machines))
+  /** A VM can be created only on a machine that is online and has nothing that stops it. */
+  const canCreate = $derived(machines.some((machine) => machine.state !== 'offline' && !machine.problems?.length))
+  const cannotCreateReason = $derived(machines.length === 0 ? 'Add a machine first.' : 'No machine is ready yet: see the notice on your machine.')
 
   async function start() {
     try {
@@ -63,6 +68,7 @@
     try {
       ;[machines, commands, bundles, brain] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus()])
       banner = ''
+      loaded = true
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         await restart()
@@ -83,6 +89,7 @@
   /** Back to the sign-in screen first, so no page reads data of a session that has ended. */
   async function restart() {
     phase = 'loading'
+    loaded = false
     machines = []
     await start()
   }
@@ -182,6 +189,9 @@
   <div class="shell">
     <Sidebar active={page} {username} onSignOut={leave} />
     <main class="main">
+      {#if !loaded}
+        <div class="phead"><h1>Loading…</h1></div>
+      {:else}
       {#if page === 'scan'}
         <div class="phead"><h1>Find machines</h1><span class="crumb"><a href="#/">Machines</a> › Scan</span></div>
         <div class="body"><ScanView /></div>
@@ -199,12 +209,14 @@
           <h1>Machines</h1><span class="crumb">{counts.online} of {counts.machines} online</span>
           <div class="sp">
             <button class="btn line sm" type="button" onclick={() => (adding = true)}>Add a machine</button>
-            <button class="btn green sm" type="button" onclick={() => (creating = true)}>＋ New workload</button>
+            <button class="btn green sm" type="button" disabled={!canCreate} title={canCreate ? '' : cannotCreateReason} onclick={() => (creating = true)}>＋ Create a VM</button>
+            {#if !canCreate}<span class="id" role="status">{cannotCreateReason}</span>{/if}
           </div>
         </div>
         <Summary {counts} />
         {#if banner}<p class="banner" role="status">{banner}</p>{/if}
         <MachineList {machines} {now} pinned={bundles?.pinned} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+      {/if}
       {/if}
     </main>
   </div>

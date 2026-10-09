@@ -35,7 +35,7 @@
   }
 </script>
 
-<Dialog {open} title="New workload" {onClose}>
+<Dialog {open} title="Create a VM" {onClose}>
   <form onsubmit={submit} novalidate>
     <label for="wl-name">Name</label>
     <input id="wl-name" bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder="build-box" aria-invalid={problem ? 'true' : 'false'} />
@@ -53,7 +53,7 @@
         {#each machines as machine (machine.id)}<option value={machine.id}>{machine.name}{machine.state === 'offline' ? ' (offline)' : ''}</option>{/each}
       </select>
     </label>
-    <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The Root picks the machine with the most room left, and the machine checks its own space again.'}</p>
+    <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The machine with the most room left is picked, and it checks its own space again.'}</p>
     {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
     <div class="row">
       <button class="btn line" type="button" onclick={onClose}>Cancel</button>

@@ -4,7 +4,7 @@
   let { target, busy, failure, onCancel, onConfirm } = $props()
 </script>
 
-<Dialog open={target !== null} title="Delete this workload?" onClose={onCancel}>
+<Dialog open={target !== null} title="Delete this VM?" onClose={onCancel}>
   {#if target}
     <p><strong>{target.workload.name}</strong> on <strong>{target.machine.name}</strong> will be stopped and deleted. The machine makes a backup of it first and keeps that backup;
       if the backup fails, nothing is deleted.</p>
