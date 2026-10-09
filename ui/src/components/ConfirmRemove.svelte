@@ -10,7 +10,7 @@
       To manage it again it must enroll with a new token.</p>
     {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
     <div class="row">
-      <button class="btn" type="button" onclick={onCancel}>Keep it</button>
+      <button class="btn line" type="button" onclick={onCancel}>Keep it</button>
       <button class="btn danger" type="button" disabled={busy} onclick={onConfirm}>{busy ? 'Removing…' : 'Remove machine'}</button>
     </div>
   {/if}

@@ -96,15 +96,6 @@ def _on_port(port, method, path):
     return status
 
 
-def check_no_sign_in_routes_exist_anymore():
-    with running() as root:
-        browser = Browser(root)
-        for method, path in (("GET", "/auth/login"), ("GET", "/auth/callback"), ("GET", "/auth/status"), ("POST", "/auth/logout"), ("POST", "/auth/fake")):
-            reply = browser.request(method, path, body={} if method == "POST" else None)
-            expect(reply.status == 404, f"{method} {path} gave {reply.status}")
-        expect(not [name for name, _ in browser.request("GET", "/api/session").headers if name.lower() == "set-cookie"], "the panel sets a cookie")
-
-
 def check_the_operator_listener_refuses_to_leave_this_machine():
     for flag, value in (("--bind", "0.0.0.0"), ("--bind", "192.168.100.40"), ("--bind", "::")):
         root = RunningRoot(extra_args=["--ui-dir", "/nonexistent-ui", flag, value])
@@ -158,6 +149,6 @@ def check_ui_files_are_served_with_a_strict_page_policy():
 CHECKS = [check_ui_files_are_served_with_a_strict_page_policy, 
     check_health_is_public_and_minimal, check_security_headers_on_every_reply, check_unknown_paths_and_methods_are_clean_404s,
     check_operator_endpoints_refuse_a_foreign_host_name, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
-    check_errors_reveal_nothing_inside, check_each_listener_serves_only_its_own_routes, check_no_sign_in_routes_exist_anymore,
+    check_errors_reveal_nothing_inside, check_each_listener_serves_only_its_own_routes,
     check_the_operator_listener_refuses_to_leave_this_machine, check_root_refuses_an_env_file_others_can_read,
 ]

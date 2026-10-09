@@ -58,8 +58,8 @@
       <span class="nums">{new Date(invite.expires_at).toLocaleTimeString()}</span>. It is not shown again.</p>
     <code class="token mono">{invite.enrollment_token}</code>
     <div class="row">
-      <button class="btn" type="button" onclick={copy}>{copied ? 'Copied' : 'Copy token'}</button>
-      <button class="btn primary" type="button" onclick={onClose}>Done</button>
+      <button class="btn line" type="button" onclick={copy}>{copied ? 'Copied' : 'Copy token'}</button>
+      <button class="btn green" type="button" onclick={onClose}>Done</button>
     </div>
   {:else}
     <form onsubmit={submit} novalidate>
@@ -68,8 +68,8 @@
       <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'Lowercase letters, numbers and dashes. This is how the machine appears here.'}</p>
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
       <div class="row">
-        <button class="btn" type="button" onclick={onClose}>Cancel</button>
-        <button class="btn primary" type="submit" disabled={busy || !name || !!problem}>{busy ? 'Creating…' : 'Create token'}</button>
+        <button class="btn line" type="button" onclick={onClose}>Cancel</button>
+        <button class="btn green" type="submit" disabled={busy || !name || !!problem}>{busy ? 'Creating…' : 'Create token'}</button>
       </div>
     </form>
   {/if}

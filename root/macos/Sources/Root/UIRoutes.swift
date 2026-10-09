@@ -18,6 +18,7 @@ struct UIRoutes {
     func register(on group: RouterGroup<RootContext>) {
         group.get("/", use: serve)
         group.get("/assets/{path+}", use: serve)
+        group.get("/fonts/{path+}", use: serve)
         group.get("/favicon.svg", use: serve)
     }
 

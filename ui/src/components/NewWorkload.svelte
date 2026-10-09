@@ -56,8 +56,8 @@
     <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The Root picks the machine with the most room left, and the machine checks its own space again.'}</p>
     {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
     <div class="row">
-      <button class="btn" type="button" onclick={onClose}>Cancel</button>
-      <button class="btn primary" type="submit" disabled={busy || !ready}>{busy ? 'Asking…' : 'Create'}</button>
+      <button class="btn line" type="button" onclick={onClose}>Cancel</button>
+      <button class="btn green" type="submit" disabled={busy || !ready}>{busy ? 'Asking…' : 'Create'}</button>
     </div>
   </form>
 </Dialog>

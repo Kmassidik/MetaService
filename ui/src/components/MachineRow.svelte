@@ -10,35 +10,25 @@
   const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
 </script>
 
-<article class="row" class:offline={machine.state === 'offline'}>
-  <div class="cell name" data-label="Machine">
-    <strong>{machine.name}</strong>
-    <span class="mono muted">{machine.ip ?? 'address unknown'}</span>
-    {#if machine.problems?.length}<span class="tag needs">Needs setup</span>{/if}
+<article class="card" class:offline={machine.state === 'offline'}>
+  <div class="ch">
+    <div class="row1">
+      <span class="nm">{machine.name}</span>
+      <span class="id">{machine.ip ?? 'address unknown'}</span>
+      <StatePill state={machine.state} />
+      {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
+    </div>
+    <div class="specs">
+      <span>{osName(machine.os)} · {archName(machine.arch)}</span>
+      <span>{machine.cpu_cores ?? '–'} cores</span>
+      <span>{machine.workloads.length} {machine.workloads.length === 1 ? 'workload' : 'workloads'}</span>
+      <span class:stale={flag.stale}>{flag.text}</span>
+    </div>
   </div>
-  <div class="cell" data-label="Platform">
-    <span>{osName(machine.os)} <span class="tag">{archName(machine.arch)}</span></span>
-    <span class="muted nums">{machine.cpu_cores ?? '–'} cores</span>
-  </div>
-  <div class="cell" data-label="State">
-    <StatePill state={machine.state} />
-  </div>
-  <div class="cell" data-label="Memory">
+
+  <div class="meters">
     <Meter label="Memory" free={machine.free_ram_mb} total={machine.ram_total_mb} format={formatMb} />
-  </div>
-  <div class="cell" data-label="Disk">
     <Meter label="Disk" free={machine.free_disk_gb} total={machine.disk_total_gb} format={formatGb} />
-  </div>
-  <div class="cell" data-label="Workloads">
-    <span class="nums">{machine.workloads.length} {machine.workloads.length === 1 ? 'workload' : 'workloads'}</span>
-    <span class:stale={flag.stale} class="muted">{flag.text}</span>
-  </div>
-  <div class="cell" data-label="Last seen">
-    <span class="nums">{relativeTime(machine.last_seen, now)}</span>
-  </div>
-  <div class="cell actions">
-    <button class="btn" type="button" aria-expanded={open} onclick={() => (open = !open)}>{open ? 'Hide' : 'Details'}</button>
-    <button class="btn danger" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
   </div>
 
   {#if machine.problems?.length}
@@ -52,95 +42,65 @@
     </div>
   {/if}
 
+  <div class="acts">
+    <button class="btn line sm" type="button" aria-expanded={open} onclick={() => (open = !open)}>{open ? 'Hide' : 'Details'}</button>
+    <span class="id seen">seen {relativeTime(machine.last_seen, now)}</span>
+    <button class="btn danger sm del" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
+  </div>
+
   {#if open}
     <div class="detail">
       <div class="chatbar">
-        <button class="btn small" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'} on {machine.name}</button>
-        {#if machine.bundle_version}<button class="btn small" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
+        <button class="btn line sm" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'} on {machine.name}</button>
+        {#if machine.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
       </div>
       {#if machine.workloads.length === 0}
         <p class="muted">No workloads reported by this machine.</p>
       {:else}
-        <ul>
+        <ul class="hairlist">
           {#each machine.workloads as workload (workload.id)}
             <li>
               <strong>{workload.name}</strong>
               <span class="tag">{workload.kind}</span>
               <StatePill state={WORKLOAD_TONE[workload.state] ?? 'busy'} label={workload.state} />
-              <span class="muted nums">{workload.cpu} cpu · {formatMb(workload.ram_mb)} · {formatGb(workload.disk_gb)} · {gpuLabel(workload.gpu_mode)}</span>
-              {#if workload.address}<span class="mono muted">{workload.address}</span>{/if}
-              <span class="muted">{bundleFlag(workload.bundle_version, pinned).text}</span>
+              <span class="id nums">{workload.cpu} cpu · {formatMb(workload.ram_mb)} · {formatGb(workload.disk_gb)} · {gpuLabel(workload.gpu_mode)}</span>
+              {#if workload.address}<span class="id">{workload.address}</span>{/if}
+              <span class="id">{bundleFlag(workload.bundle_version, pinned).text}</span>
               <span class="wl-actions">
-                {#if workload.state === 'running'}<button class="btn small" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
-                {#if workload.bundle_version}<button class="btn small" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-                {#if workload.state === 'running'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
-                {#if workload.state === 'stopped'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
-                <button class="btn small danger" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
+                {#if workload.state === 'running'}<button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
+                {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
+                {#if workload.state === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
+                {#if workload.state === 'stopped'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
+                <button class="btn danger sm" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
               </span>
             </li>
           {/each}
         </ul>
       {/if}
       {#if machine.capabilities}
-        <p class="muted caps">
+        <p class="id">
           Can run: {machine.capabilities.vm ? 'VMs' : ''}{machine.capabilities.vm && machine.capabilities.container ? ', ' : ''}{machine.capabilities.container ? 'containers' : ''}
           · GPU in VM: {machine.capabilities.gpu_in_vm ? 'yes' : 'no'} · GPU in container: {machine.capabilities.gpu_in_container ? 'yes' : 'no'}
         </p>
       {/if}
       {#if machine.gpu.length}
-        <p class="muted caps">GPU: {machine.gpu.map((gpu) => `${gpu.vendor} ${gpu.model}`).join(', ')}</p>
+        <p class="id">GPU: {machine.gpu.map((gpu) => `${gpu.vendor} ${gpu.model}`).join(', ')}</p>
       {/if}
     </div>
   {/if}
 </article>
 
 <style>
-  .row {
-    display: grid;
-    grid-template-columns: minmax(150px, 1.3fr) minmax(130px, 1fr) 110px minmax(150px, 1.2fr) minmax(150px, 1.2fr) minmax(100px, 0.8fr) 90px 170px;
-    gap: 14px;
-    align-items: center;
-    padding: 14px 18px;
-    border-top: 1px solid var(--line);
-  }
-  .row.offline .name strong { color: var(--muted); }
-  .cell { display: grid; gap: 2px; min-width: 0; }
-  .name strong { font-size: 16px; overflow-wrap: anywhere; }
-  .tag {
-    display: inline-block;
-    padding: 0 7px;
-    border-radius: 6px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .tag.needs { justify-self: start; background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
-  .problems { grid-column: 1 / -1; display: grid; gap: 6px; padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
-  .problems ul { gap: 4px; }
+  .card.offline { opacity: 0.7; }
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--gray); }
+  .problems { display: grid; gap: 6px; padding: 12px 16px; background: var(--warnbg); color: var(--warn); border-bottom: 1px solid var(--warn); font-size: 13px; }
+  .problems ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   .problems li { display: grid; gap: 2px; }
-  .fix { color: var(--fg); font-size: 13px; }
-  .actions { display: flex; gap: 8px; justify-content: flex-end; }
-  .detail { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px; display: grid; gap: 8px; }
-  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
-  .caps { font-size: 13px; }
+  .fix { color: var(--black); font-family: var(--mono); font-size: 11px; }
+  .acts .seen { margin-left: 4px; }
+  .stale { color: var(--warn); font-weight: 700; }
+  .detail { border-top: 1px solid var(--gray); padding: 14px 16px; display: grid; gap: 10px; }
   .chatbar { display: flex; gap: 8px; flex-wrap: wrap; }
-  .stale { color: var(--warn); font-weight: 600; }
-  .wl-actions { display: inline-flex; gap: 6px; margin-left: auto; }
-  .small { min-height: 30px; padding: 0 10px; font-size: 13px; }
-
-  @media (max-width: 900px) {
-    .row { grid-template-columns: 1fr 1fr; padding: 16px; gap: 14px 12px; }
-    .name { grid-column: 1 / -1; }
-    .cell[data-label]::before {
-      content: attr(data-label);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--muted);
-    }
-    .name[data-label]::before { content: none; }
-    .actions { grid-column: 1 / -1; justify-content: flex-start; }
-  }
+  .wl-actions { display: inline-flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .hairlist li { padding: 10px 12px; }
 </style>

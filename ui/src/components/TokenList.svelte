@@ -18,7 +18,7 @@
       <div class="head">
         <strong>{invite.name}</strong>
         <span class="mono muted">{invite.ip ?? ''}</span>
-        <button class="btn" type="button" onclick={() => copy(invite)}>{copied === invite.name ? 'Copied' : 'Copy token'}</button>
+        <button class="btn line" type="button" onclick={() => copy(invite)}>{copied === invite.name ? 'Copied' : 'Copy token'}</button>
       </div>
       <code class="token mono">{invite.enrollment_token}</code>
     </li>

@@ -77,13 +77,16 @@ async function startRoot() {
   throw new Error('Root did not start')
 }
 
-/** With plain fetch: ask for the CSRF token, invite two machines and enroll them as Agents would (on the Agent listener). */
+const ADMIN = { username: 'admin', password: 'correct horse battery' }
+
+/** With plain fetch: create the admin login (first run), invite two machines and enroll them as Agents would (on the Agent listener). */
 let operatorSession = null
 
 async function seed(base) {
-  const session = await (await fetch(`${base}/api/session`)).json()
-  operatorSession = { csrf: session.csrf_token }
-  const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base, 'X-CSRF-Token': session.csrf_token }, body: JSON.stringify(body) })
+  const made = await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ ...ADMIN, confirm: ADMIN.password }) })
+  const cookie = made.headers.get('set-cookie').split(';')[0]
+  operatorSession = { cookie, csrf: (await made.json()).csrf_token }
+  const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }, body: JSON.stringify(body) })
   for (const name of ['dgx-spark', 'mac-mini']) {
     const invite = await (await write('/api/enrollments', { name })).json()
     const enrolled = await (await fetch(`${agentBase}/v1/agents/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollment_token: invite.enrollment_token, name }) })).json()
@@ -108,7 +111,7 @@ const { base, agentBase, child } = await startRoot()
 /** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
 async function startAgent(base, name = 'agent-mac') {
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-agent-'))
-  const headers = { 'Content-Type': 'application/json', Origin: base, 'X-CSRF-Token': operatorSession.csrf }
+  const headers = { 'Content-Type': 'application/json', Cookie: operatorSession.cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }
   const invite = await (await fetch(`${base}/api/enrollments`, { method: 'POST', headers, body: JSON.stringify({ name, ip: '127.0.0.1' }) })).json()
   const tokenFile = join(dir, 'enroll.token')
   writeFileSync(tokenFile, invite.enrollment_token)
@@ -121,11 +124,14 @@ async function startAgent(base, name = 'agent-mac') {
     '--chat-port', String(await freePort()), '--chat-bind', '127.0.0.1'], { stdio: 'ignore' })
 }
 
+/** Moves between the panel's pages the way a person does: through the address. */
+const go = async (hash) => { await page.evaluate((h) => { location.hash = h }, hash); await new Promise((r) => setTimeout(r, 300)) }
+
 async function workloadScenario() {
   const agent = await startAgent(base)
   try {
     await page.waitForFunction(() => document.body.innerText.includes('agent-mac'), { timeout: 20000 })
-    await click('New workload')
+    await click('＋ New workload')
     await page.waitForSelector('dialog[open] #wl-name')
     await page.type('dialog[open] #wl-name', 'Bad Name')
     check('a bad workload name disables Create and explains', (await page.evaluate(() => document.querySelector('dialog[open] button[type=submit]').disabled)) && (await text()).includes('Use lowercase letters'))
@@ -138,8 +144,10 @@ async function workloadScenario() {
     })
     await click('Create')
     await page.waitForFunction(() => !document.querySelector('dialog[open]'), { timeout: 10000 })
+    await go('#/activity')
     await page.waitForFunction(() => /Create\s+build-box[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
     check('a new workload shows in recent activity as succeeded', true)
+    await go('#/')
     await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('agent-mac')).querySelector('button').click())
     await page.waitForFunction(() => document.body.innerText.includes('build-box'), { timeout: 15000 })
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'workloads.png'), fullPage: true })
@@ -156,7 +164,7 @@ async function workloadScenario() {
     await page.waitForFunction(() => !document.body.innerText.includes('build-box') || /Delete\s+[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
     await page.waitForFunction(() => document.body.innerText.includes('No workloads reported'), { timeout: 20000 })
     check('a deleted workload disappears', true)
-    await click('New workload')
+    await click('＋ New workload')
     await page.waitForSelector('dialog[open] #wl-name')
     await page.type('dialog[open] #wl-name', 'too-big')
     await page.evaluate(() => {
@@ -179,9 +187,12 @@ async function bundleScenario() {
     await page.waitForFunction(() => document.body.innerText.includes('chat-mac'), { timeout: 20000 })
     await page.waitForFunction(() => document.body.innerText.includes('Chat bundle'))
     const pinTo = async (version) => page.evaluate((v) => [...document.querySelectorAll('section[aria-label="Chat bundle"] li')].find((li) => li.innerText.includes(v)).querySelector('button').click(), version)
+    await go('#/bundle')
+    await page.waitForFunction(() => document.body.innerText.includes('Chat bundle'))
     await pinTo('0.1.0')
     await page.waitForFunction(() => /0\.1\.0[\s\S]*pinned/.test(document.body.innerText), { timeout: 10000 })
     check('pinning a version marks it pinned', true)
+    await go('#/')
     await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('chat-mac')).querySelector('button').click())
     await click('Install chat on chat-mac')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 30000 })
@@ -190,10 +201,14 @@ async function bundleScenario() {
     await page.waitForSelector('dialog[open] a')
     check('the chat link opens in a new tab without leaking the referrer', (await page.$eval('dialog[open] a', (a) => a.rel)).includes('noopener'))
     await click('Close')
+    await go('#/bundle')
     await pinTo('0.2.0')
+    await go('#/')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.2.0'), { timeout: 60000 })
     check('a newer pin upgrades the installed chat by itself', true)
+    await go('#/bundle')
     await click('Roll back to 0.1.0')
+    await go('#/')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 60000 })
     check('a rollback puts the older chat back', true)
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'bundles.png'), fullPage: true })
@@ -203,6 +218,7 @@ async function bundleScenario() {
 }
 
 async function brainScenario() {
+  await go('#/ai')
   await page.waitForFunction(() => document.body.innerText.includes('AI provider'))
   const shown = await text()
   check('the AI card says configured with the model and host but never the key', shown.includes('Configured') && shown.includes('fake-model') && shown.includes('127.0.0.1') && !shown.includes(AI_KEY))
@@ -219,7 +235,7 @@ async function brainScenario() {
 }
 
 async function scanScenario() {
-  await click('Find machines')
+  await go('#/scan')
   await page.waitForFunction(() => document.body.innerText.includes('Looks at'))
   await click('Scan now')
   await page.waitForFunction(() => document.body.innerText.includes('Unknown device'), { timeout: 20000 })
@@ -239,7 +255,7 @@ async function scanScenario() {
   check('adding a found device gives a one-time token', scanToken.length >= 43)
   await click('Done')
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
-  await click('Machines')
+  await go('#/')
 }
 
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-first-run'] })
@@ -260,12 +276,24 @@ try {
 
   await seed(base)
   await page.goto(base, { waitUntil: 'networkidle0' })
+  const gate = await text()
+  check('the first thing shown is the sign-in page, with no machines and no Google', /operator sign in/i.test(gate) && !gate.includes('dgx-spark') && !/google/i.test(gate))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'login.png') })
+  await page.type('input[name=username]', ADMIN.username)
+  await page.type('input[name=password]', 'a wrong password')
+  await click('Sign in')
+  await page.waitForFunction(() => document.body.innerText.includes('wrong username or password'), { timeout: 10000 })
+  check('a wrong password is refused in plain words', !(await text()).includes('dgx-spark'))
+  await page.$eval('input[name=password]', (input) => { input.value = ''; input.dispatchEvent(new Event('input')) })
+  await page.type('input[name=password]', ADMIN.password)
+  await click('Sign in')
+  await page.waitForFunction(() => document.body.innerText.includes('dgx-spark'), { timeout: 10000 })
   const body = await text()
-  check('the panel opens straight to the machines, with no sign-in anywhere', body.includes('dgx-spark') && body.includes('mac-mini') && !/sign[ -]?(in|out)|google/i.test(body))
-  check('summary counts the machines and workloads', /MACHINES\s*2/.test(body) && /WORKLOADS\s*2/.test(body), body.slice(0, 120))
+  check('the right password opens the machines', body.includes('dgx-spark') && body.includes('mac-mini') && body.includes(ADMIN.username))
+  check('summary counts the machines and workloads', /MACHINES\s*2/i.test(body) && /WORKLOADS\s*2/i.test(body), body.slice(0, 120))
 
-  check('a machine with a host problem says it needs setup and shows the fix', body.includes('Needs setup') && body.includes('is not trusted') && body.includes('metaservice-agent setup --yes'))
-  check('only the machine that reported a problem is marked', (body.match(/Needs setup/g) ?? []).length === 1)
+  check('a machine with a host problem says it needs setup and shows the fix', /needs setup/i.test(body) && body.includes('is not trusted') && body.includes('metaservice-agent setup --yes'))
+  check('only the machine that reported a problem is marked', (body.match(/needs setup/gi) ?? []).length === 1)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'needs-setup.png'), fullPage: true })
 
   await click('Details')
@@ -306,6 +334,9 @@ try {
   await page.reload({ waitUntil: 'networkidle0' })
   check('no sideways scrolling on a phone', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 
+  await click('Sign out')
+  await page.waitForFunction(() => /operator sign in/i.test(document.body.innerText), { timeout: 10000 })
+  check('signing out returns to the sign-in page and shows nothing', !(await text()).includes('dgx-spark'))
   check('no script errors and no policy violations', errors.length === 0 && (await page.evaluate(() => window.__csp)) === undefined, errors.join(' | '))
 } finally {
   await browser.close()

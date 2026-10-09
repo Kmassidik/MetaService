@@ -10,7 +10,7 @@
       if the backup fails, nothing is deleted.</p>
     {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
     <div class="row">
-      <button class="btn" type="button" onclick={onCancel}>Keep it</button>
+      <button class="btn line" type="button" onclick={onCancel}>Keep it</button>
       <button class="btn danger" type="button" disabled={busy} onclick={onConfirm}>{busy ? 'Asking…' : 'Back up and delete'}</button>
     </div>
   {/if}

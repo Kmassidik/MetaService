@@ -5,7 +5,7 @@
 <section class="bundles" aria-label="Chat bundle">
   <div class="top">
     <h2>Chat bundle</h2>
-    <button class="btn" type="button" disabled={!overview?.previous} onclick={onRollback}>Roll back{overview?.previous ? ` to ${overview.previous}` : ''}</button>
+    <button class="btn line" type="button" disabled={!overview?.previous} onclick={onRollback}>Roll back{overview?.previous ? ` to ${overview.previous}` : ''}</button>
   </div>
   {#if !overview || overview.bundles.length === 0}
     <p class="muted">No bundle files on the Root machine yet. Put a built bundle in its bundle folder.</p>
@@ -16,7 +16,7 @@
           <strong>{bundle.version}</strong>
           <span class="muted">{bundle.platform} · {Math.max(1, Math.round(bundle.size / 1024))} KB</span>
           <span class="mono muted sha">{bundle.sha256.slice(0, 12)}</span>
-          {#if bundle.pinned}<span class="pinned">pinned</span>{:else}<button class="btn small" type="button" onclick={() => onPin(bundle.version)}>Pin</button>{/if}
+          {#if bundle.pinned}<span class="pinned">pinned</span>{:else}<button class="btn line sm" type="button" onclick={() => onPin(bundle.version)}>Pin</button>{/if}
         </li>
       {/each}
     </ul>

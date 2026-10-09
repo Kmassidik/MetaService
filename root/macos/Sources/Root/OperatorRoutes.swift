@@ -3,7 +3,7 @@ import Hummingbird
 import RootCore
 import RootStore
 
-/// What the control panel calls. No sign-in: reads need the right Host, writes also need the CSRF header and the exact Origin.
+/// What the control panel calls. Every route needs the operator's session; writes also need the exact Origin and the session's CSRF header.
 struct OperatorRoutes {
     let services: Services
     let guards: Guards
@@ -20,8 +20,8 @@ struct OperatorRoutes {
     }
 
     func session(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorRead(request)
-        return try Json.response(SessionReply(csrfToken: services.csrfToken))
+        let caller = try guards.operatorRead(request)
+        return try Json.response(SessionReply(username: caller.name, csrfToken: caller.csrfToken))
     }
 
     func listMachines(_ request: Request, context: RootContext) async throws -> Response {
@@ -80,6 +80,7 @@ struct OperatorRoutes {
 }
 
 private struct SessionReply: Encodable {
+    let username: String
     let csrfToken: String
 }
 

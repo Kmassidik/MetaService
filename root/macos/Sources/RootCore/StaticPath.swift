@@ -16,7 +16,7 @@ public enum StaticPath {
     }
 
     public static func isHashedAsset(_ file: String) -> Bool {
-        file.hasPrefix("assets/")
+        file.hasPrefix("assets/") || file.hasPrefix("fonts/")
     }
 
     public static func contentType(for file: String) -> String? {

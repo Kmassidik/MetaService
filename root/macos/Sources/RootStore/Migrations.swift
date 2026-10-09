@@ -76,6 +76,10 @@ public enum Migrations {
             """) }),
         (7, { try $0.exec("ALTER TABLE machines ADD COLUMN problems_json TEXT NOT NULL DEFAULT '[]';") }),
         (8, { try $0.exec("DROP TABLE IF EXISTS sessions;") }),
+        (9, { try $0.exec("""
+            CREATE TABLE admin (id INTEGER PRIMARY KEY CHECK (id = 1), username TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, iterations INTEGER NOT NULL);
+            CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, csrf_token TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

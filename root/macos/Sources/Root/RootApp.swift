@@ -3,11 +3,12 @@ import RootStore
 
 /// Two listeners, so that what needs no sign-in never shares an address with what is open to the network.
 ///
-/// Operator listener (this machine only, no sign-in): the panel and /api. Reads need the right Host, writes also the exact Origin and the CSRF header.
+/// Operator listener (this machine only): the panel and /api. The operator signs in with the admin login; reads also need the right Host, writes the exact Origin and the session's CSRF header.
 /// Agent listener (reachable by Agents and chats): /health, enroll, heartbeat, bundle download and the AI proxy. Each route needs its own token or key.
 func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     let router = baseRouter()
     let guards = Guards(services: services)
+    AuthRoutes(services: services, guards: guards).register(on: router.group())
     OperatorRoutes(services: services, guards: guards).register(on: router.group())
     WorkloadRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).registerOperator(on: router.group())

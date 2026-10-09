@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte'
-  import { ApiError, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, testBrain, workloadAction } from './lib/api.js'
+  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.js'
   import { summarize } from './lib/format.js'
-  import TopBar from './components/TopBar.svelte'
+  import Login from './components/Login.svelte'
+  import Sidebar from './components/Sidebar.svelte'
   import Summary from './components/Summary.svelte'
   import MachineList from './components/MachineList.svelte'
   import AddMachine from './components/AddMachine.svelte'
@@ -19,9 +20,12 @@
   const CLOCK_MS = 5_000
 
   let phase = $state('loading')
+  let username = $state('')
+  let configured = $state(true)
   let machines = $state([])
   let now = $state(Date.now())
-  let view = $state('machines')
+  let route = $state(location.hash.replace(/^#/, '') || '/')
+  const page = $derived(({ '/scan': 'scan', '/bundle': 'bundle', '/ai': 'ai', '/activity': 'activity' })[route] ?? 'machines')
   let banner = $state('')
   let adding = $state(false)
   let commands = $state([])
@@ -39,9 +43,15 @@
 
   async function start() {
     try {
-      await getSession()
-      phase = 'ready'
-      await refresh()
+      const who = await getSession()
+      if (who) {
+        username = who
+        phase = 'ready'
+        await refresh()
+        return
+      }
+      configured = (await authStatus()).configured
+      phase = 'signedOut'
     } catch (error) {
       banner = error instanceof ApiError && error.status === 0 ? 'Cannot reach the Root.' : 'Something went wrong.'
       phase = 'error'
@@ -54,8 +64,27 @@
       ;[machines, commands, bundles, brain] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus()])
       banner = ''
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        await restart()
+        return
+      }
       banner = 'Cannot reach the Root. Showing the last data.'
     }
+  }
+
+  async function leave() {
+    try {
+      await signOut()
+    } finally {
+      await restart()
+    }
+  }
+
+  /** Back to the sign-in screen first, so no page reads data of a session that has ended. */
+  async function restart() {
+    phase = 'loading'
+    machines = []
+    await start()
   }
 
   async function testProvider() {
@@ -123,6 +152,8 @@
   }
 
   onMount(() => {
+    const onRoute = () => (route = location.hash.replace(/^#/, '') || '/')
+    addEventListener('hashchange', onRoute)
     start()
     const refreshTimer = setInterval(() => !document.hidden && refresh(), REFRESH_MS)
     const clockTimer = setInterval(() => (now = Date.now()), CLOCK_MS)
@@ -132,6 +163,7 @@
       clearInterval(refreshTimer)
       clearInterval(clockTimer)
       document.removeEventListener('visibilitychange', wake)
+      removeEventListener('hashchange', onRoute)
     }
   })
 </script>
@@ -141,27 +173,38 @@
 {:else if phase === 'error'}
   <main class="center">
     <p role="alert">{banner}</p>
-    <button class="btn" type="button" onclick={start}>Try again</button>
+    <button class="btn line" type="button" onclick={start}>Try again</button>
   </main>
+{:else if phase === 'signedOut'}
+  <Login {configured} onDone={start} />
 {:else}
-  <div class="page">
-    <TopBar {view} onView={(next) => (view = next)} />
-    <main>
-      {#if view === 'scan'}
-        <ScanView />
+  <div class="announce">MetaService · control panel</div>
+  <div class="shell">
+    <Sidebar active={page} {username} onSignOut={leave} />
+    <main class="main">
+      {#if page === 'scan'}
+        <div class="phead"><h1>Find machines</h1><span class="crumb"><a href="#/">Machines</a> › Scan</span></div>
+        <div class="body"><ScanView /></div>
+      {:else if page === 'bundle'}
+        <div class="phead"><h1>Chat bundle</h1></div>
+        <div class="body"><Bundles overview={bundles} onPin={pin} onRollback={rollback} /></div>
+      {:else if page === 'ai'}
+        <div class="phead"><h1>AI provider</h1></div>
+        <div class="body"><Brain status={brain} onTest={testProvider} /></div>
+      {:else if page === 'activity'}
+        <div class="phead"><h1>Activity</h1></div>
+        <div class="body"><Activity {commands} {now} /></div>
       {:else}
-        <div class="intro">
-          <Summary {counts} />
-          <span class="buttons">
-            <button class="btn" type="button" onclick={() => (adding = true)}>Add a machine</button>
-            <button class="btn primary" type="button" onclick={() => (creating = true)}>New workload</button>
-          </span>
+        <div class="phead">
+          <h1>Machines</h1><span class="crumb">{counts.online} of {counts.machines} online</span>
+          <div class="sp">
+            <button class="btn line sm" type="button" onclick={() => (adding = true)}>Add a machine</button>
+            <button class="btn green sm" type="button" onclick={() => (creating = true)}>＋ New workload</button>
+          </div>
         </div>
+        <Summary {counts} />
         {#if banner}<p class="banner" role="status">{banner}</p>{/if}
         <MachineList {machines} {now} pinned={bundles?.pinned} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
-        <Bundles overview={bundles} onPin={pin} onRollback={rollback} />
-        <Brain status={brain} onTest={testProvider} />
-        <Activity {commands} {now} />
       {/if}
     </main>
   </div>
@@ -173,10 +216,5 @@
 {/if}
 
 <style>
-  .page { max-width: 1240px; margin-inline: auto; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
-  main { display: grid; gap: 18px; }
-  .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .buttons { display: inline-flex; gap: 10px; flex-wrap: wrap; }
-  .banner { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
   .center { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; }
 </style>

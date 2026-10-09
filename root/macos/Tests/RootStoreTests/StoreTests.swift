@@ -129,8 +129,34 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM workloads").first?.int("n"), 0)
     }
 
-    func testThereAreNoSessionsAnymore() throws {
-        XCTAssertEqual(try database.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").count, 0)
+    func testSessions() throws {
+        let sessions = SessionStore(database)
+        let made = try sessions.create(username: "admin", now: now)
+        XCTAssertEqual(try sessions.lookup(token: made.token, now: now)?.username, "admin")
+        XCTAssertEqual(try sessions.lookup(token: made.token, now: now)?.csrfToken, made.csrf)
+        XCTAssertNil(try sessions.lookup(token: "wrong", now: now))
+        XCTAssertNil(try sessions.lookup(token: made.token, now: now.addingTimeInterval(SessionStore.lifetime + 1)))
+        try sessions.delete(token: made.token)
+        XCTAssertNil(try sessions.lookup(token: made.token, now: now))
+    }
+
+    func testSessionTokenIsStoredHashed() throws {
+        let made = try SessionStore(database).create(username: "admin", now: now)
+        XCTAssertNotEqual(try database.query("SELECT token_hash FROM sessions").first?.string("token_hash"), made.token)
+    }
+
+    func testTheAdminAccountIsCreatedOnceAndOnlyAHashIsKept() throws {
+        let admin = AdminStore(database)
+        XCTAssertFalse(admin.isConfigured)
+        XCTAssertTrue(try admin.create(username: "admin", password: "a long enough password"))
+        XCTAssertTrue(admin.isConfigured)
+        XCTAssertFalse(try admin.create(username: "intruder", password: "another password!"), "a second account must never replace the first")
+        let record = try XCTUnwrap(try admin.get())
+        XCTAssertEqual(record.username, "admin")
+        XCTAssertTrue(PasswordHash.matches(password: "a long enough password", salt: record.salt, iterations: record.iterations, expected: record.hash))
+        XCTAssertFalse(PasswordHash.matches(password: "another password!", salt: record.salt, iterations: record.iterations, expected: record.hash))
+        let stored = try database.query("SELECT salt, hash FROM admin").map { $0.string("salt") + $0.string("hash") }.joined()
+        XCTAssertFalse(stored.contains("a long enough password"))
     }
 }
 

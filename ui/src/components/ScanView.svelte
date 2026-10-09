@@ -96,7 +96,7 @@
         {:else}Looking for the network…{/if}
       </p>
     </div>
-    <button class="btn primary" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan now'}</button>
+    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan now'}</button>
   </div>
 
   {#if setup && !setup.router_configured}
@@ -141,7 +141,7 @@
     </div>
     <div class="actions">
       <span class="muted">{chosen.length} picked</span>
-      <button class="btn primary" type="button" disabled={adding || chosen.length === 0 || problems.length > 0} onclick={addChosen}>
+      <button class="btn green" type="button" disabled={adding || chosen.length === 0 || problems.length > 0} onclick={addChosen}>
         {adding ? 'Creating…' : 'Create enrollment tokens'}
       </button>
     </div>
@@ -153,7 +153,7 @@
   {#if invites}
     <p>Each token works once, only from the address that was scanned, and is not shown again. Use it when you install the Agent on that machine.</p>
     <TokenList {invites} />
-    <div class="done"><button class="btn primary" type="button" onclick={() => (invites = null)}>Done</button></div>
+    <div class="done"><button class="btn green" type="button" onclick={() => (invites = null)}>Done</button></div>
   {/if}
 </Dialog>
 

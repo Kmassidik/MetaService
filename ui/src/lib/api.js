@@ -29,7 +29,7 @@ async function call(method, path, body, retried = false) {
   if (response.status === 204) return null
   const data = await response.json().catch(() => null)
   // The Root makes a new CSRF token each time it starts, so a panel left open across a restart asks for the new one and tries once more.
-  if (response.status === 403 && method !== 'GET' && !retried) {
+  if (response.status === 403 && method !== 'GET' && !retried && !path.startsWith('/api/auth/')) {
     await getSession()
     return call(method, path, body, true)
   }
@@ -46,10 +46,34 @@ function withNumbers(error, detail) {
   return error
 }
 
-/** Asks the Root for the CSRF token every write must carry. There is no sign-in: the panel only works from the machine the Root runs on. */
+/** The signed-in operator's name, or null when not signed in. Also stores the session's CSRF token. */
 export async function getSession() {
-  csrfToken = (await call('GET', '/api/session')).csrf_token
+  try {
+    const session = await call('GET', '/api/session')
+    csrfToken = session.csrf_token
+    return session.username
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null
+    throw error
+  }
 }
+
+export const authStatus = () => call('GET', '/api/auth/status')
+
+/** First run: creates the admin login and signs in. */
+export async function setupAdmin(username, password, confirm) {
+  const reply = await call('POST', '/api/auth/setup', { username, password, confirm })
+  csrfToken = reply.csrf_token
+  return reply.username
+}
+
+export async function login(username, password) {
+  const reply = await call('POST', '/api/auth/login', { username, password })
+  csrfToken = reply.csrf_token
+  return reply.username
+}
+
+export const signOut = () => call('POST', '/api/auth/logout')
 
 export const listMachines = async () => (await call('GET', '/api/machines')).machines
 export const inviteMachine = (name) => call('POST', '/api/enrollments', { name })

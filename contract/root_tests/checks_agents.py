@@ -159,10 +159,10 @@ def check_tokens_work_only_where_they_belong():
     with running() as root:
         operator = Browser(root)
         token = enrolled_machine(operator, "mini")
-        as_machine = Browser(root).request("POST", "/api/enrollments", {"name": "other"}, headers={"Authorization": f"Bearer {token}"})
-        expect(as_machine.status == 403, f"a machine token worked as the CSRF token on an operator write: {as_machine.status}")
+        as_machine = Browser(root, auto_login=False).request("POST", "/api/enrollments", {"name": "other"}, headers={"Authorization": f"Bearer {token}"})
+        expect(as_machine.status == 401, f"a machine token opened an operator endpoint: {as_machine.status}")
         as_operator = operator.request("POST", "/v1/agents/heartbeat", good_heartbeat(), headers={"X-CSRF-Token": operator.csrf()})
-        expect(as_operator.status == 401, f"the operator's CSRF token was accepted as a machine token: {as_operator.status}")
+        expect(as_operator.status == 401, f"an operator session was accepted as a machine: {as_operator.status}")
 
 
 def check_removing_a_machine_revokes_its_token():

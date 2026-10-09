@@ -20,8 +20,8 @@ struct Services {
     let brain: BrainStore
     let brainService: BrainService
     let throttle: Throttle
-    /// Sent to the panel by /api/session and required on every write. Another site cannot read it, so it cannot send it.
-    let csrfToken = Tokens.random()
+    let admin: AdminStore
+    let sessions: SessionStore
 
     init(config: RootConfig, database: Database, secrets: SecretBox, clock: Clock = SystemClock()) {
         self.config = config
@@ -29,6 +29,8 @@ struct Services {
         machines = MachineStore(database)
         enrollments = EnrollmentStore(database)
         audit = AuditStore(database)
+        admin = AdminStore(database)
+        sessions = SessionStore(database)
         scans = ScanStore(database)
         scanService = ScanService(config: config, clock: clock, store: scans, audit: audit)
         throttle = Throttle(clock: clock)

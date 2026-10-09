@@ -32,6 +32,8 @@ struct RootConfig {
     var aiMaxTokens = BrainRules.defaultMaxTokens
     var capabilitySeconds = BrainRules.defaultCapabilitySeconds
 
+    var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
+    var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
     var aiConfigured: Bool { [aiBaseURL, aiApiKey, aiModel].allSatisfy { $0?.isEmpty == false } }
 
     static let defaultDirectory = ("~/.metaservice" as NSString).expandingTildeInPath

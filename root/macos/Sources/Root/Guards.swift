@@ -7,6 +7,7 @@ import RootStore
 
 struct OperatorCaller {
     let name: String
+    let csrfToken: String
 }
 
 /// The checks that sit in front of routes: who is calling, may they write, how big is the body.
@@ -19,27 +20,30 @@ struct Guards {
 
     // MARK: operators
 
-    /// The one operator. There is no sign-in: the listener is only reachable from this machine, and access from outside is a proxy's job.
-    static let operatorName = "operator"
-
-    /// For anything the panel reads: the request must be addressed to this machine's own name, which stops DNS rebinding.
+    /// For anything the panel reads: the request must be addressed to this machine's own name (stops DNS rebinding) and carry a valid session.
     func operatorRead(_ request: Request) throws -> OperatorCaller {
-        guard OperatorGate.hostMatches(header: request.head.authority, publicURL: services.config.publicBaseURL) else {
-            throw ApiFailure.forbidden("request host not allowed")
-        }
-        return OperatorCaller(name: Self.operatorName)
+        try requireHost(request)
+        guard let cookie = Cookies.value(named: services.config.sessionCookieName, header: request.headers[.cookie]),
+              let session = try services.sessions.lookup(token: cookie, now: services.clock.now) else { throw ApiFailure.unauthorized() }
+        return OperatorCaller(name: session.username, csrfToken: session.csrfToken)
     }
 
-    /// For anything that changes state: the same host check, plus the exact Origin and the CSRF header, which another site cannot send.
+    /// For anything that changes state: the same checks, plus the exact Origin and this session's CSRF header, which another site cannot send.
     func operatorWrite(_ request: Request) throws -> OperatorCaller {
         let caller = try operatorRead(request)
         guard Origin.matches(header: request.headers[.origin], expected: services.config.publicBaseURL) else {
             throw ApiFailure.forbidden("request origin not allowed")
         }
-        guard let sent = request.headers[Self.csrfHeader], Tokens.constantTimeEqual(sent, services.csrfToken) else {
+        guard let sent = request.headers[Self.csrfHeader], Tokens.constantTimeEqual(sent, caller.csrfToken) else {
             throw ApiFailure.forbidden("missing or wrong CSRF token")
         }
         return caller
+    }
+
+    func requireHost(_ request: Request) throws {
+        guard OperatorGate.hostMatches(header: request.head.authority, publicURL: services.config.publicBaseURL) else {
+            throw ApiFailure.forbidden("request host not allowed")
+        }
     }
 
     // MARK: machines

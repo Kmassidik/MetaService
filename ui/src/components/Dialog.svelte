@@ -9,23 +9,14 @@
 </script>
 
 <dialog bind:this={element} onclose={onClose} aria-labelledby="dialog-title">
-  <div class="body">
-    <h2 id="dialog-title">{title}</h2>
-    {@render children()}
-  </div>
+  <div class="modal-head"><h3 id="dialog-title">{title}</h3></div>
+  <div class="modal-body">{@render children()}</div>
 </dialog>
 
 <style>
-  dialog {
-    width: min(480px, calc(100vw - 32px));
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: var(--shadow);
-  }
-  dialog::backdrop { background: rgb(8 12 20 / 55%); }
-  .body { display: grid; gap: 14px; padding: 24px; }
-  h2 { font-size: 20px; }
+  dialog { width: min(520px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--black); background: var(--white); color: var(--black); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+  dialog::backdrop { background: rgba(17, 17, 17, 0.6); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--gray); }
+  .modal-head h3 { font-family: var(--mono); font-size: 13px; font-weight: 700; margin: 0; }
+  .modal-body { padding: 20px 22px; display: grid; gap: 14px; }
 </style>

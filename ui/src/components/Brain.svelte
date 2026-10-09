@@ -26,7 +26,7 @@
 <section class="brain" aria-label="AI provider">
   <div class="top">
     <h2>AI provider</h2>
-    <button class="btn" type="button" disabled={!status?.configured || busy} onclick={test}>{busy ? 'Testing…' : 'Test connection'}</button>
+    <button class="btn line" type="button" disabled={!status?.configured || busy} onclick={test}>{busy ? 'Testing…' : 'Test connection'}</button>
   </div>
   {#if !status}
     <p class="muted">Loading…</p>

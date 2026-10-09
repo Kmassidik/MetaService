@@ -24,9 +24,14 @@ def expect(condition, message):
         raise CheckFailed(message)
 
 
+ADMIN_USER = "admin"
+ADMIN_PASSWORD = "correct horse battery"
+
+
 class Reply:
     def __init__(self, status, headers, raw):
         self.status, self.headers, self.raw = status, headers, raw
+        self.cookies = [value for name, value in headers if name.lower() == "set-cookie"]
         try:
             self.body = json.loads(raw) if raw else None
         except ValueError:
@@ -83,12 +88,20 @@ class RunningRoot:
 
 
 class Browser:
-    """One HTTP client for both listeners. Paths under /v1/ go to the Agent listener, everything else to the operator listener. Never follows redirects."""
+    """One HTTP client for both listeners. Paths under /v1/ go to the Agent listener, everything else to the operator listener. Never follows redirects.
+    It keeps its own cookies. With auto_login it creates the admin account (first run) or signs in before its first operator request."""
 
-    def __init__(self, root):
+    def __init__(self, root, auto_login=True):
         self.root = root
+        self.cookies = {}
+        self.auto_login = auto_login
 
-    def request(self, method, path, body=None, headers=None, raw=None, origin="default"):
+    def _needs_login(self, path):
+        return self.auto_login and not self.cookies and not path.startswith(("/v1/", "/health", "/api/auth/"))
+
+    def request(self, method, path, body=None, headers=None, raw=None, origin="default", cookies=True):
+        if self._needs_login(path):
+            self.sign_in()
         data = raw if raw is not None else (None if body is None else json.dumps(body).encode())
         sent = dict(headers or {})
         on_agent_listener = path.startswith("/v1/")
@@ -99,6 +112,8 @@ class Browser:
             sent["Origin"] = self.root.base
         elif origin not in ("default", None):
             sent["Origin"] = origin
+        if cookies and self.cookies and "Cookie" not in sent:
+            sent["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
         if data is not None:
             sent.setdefault("Content-Type", "application/json")
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
@@ -106,6 +121,25 @@ class Browser:
         response = connection.getresponse()
         reply = Reply(response.status, response.getheaders(), response.read())
         connection.close()
+        self._remember(reply)
+        return reply
+
+    def _remember(self, reply):
+        for line in reply.cookies:
+            name, _, rest = line.partition("=")
+            if "Max-Age=0" in line:
+                self.cookies.pop(name, None)
+            else:
+                self.cookies[name] = rest.split(";", 1)[0]
+
+    def sign_in(self, username=ADMIN_USER, password=ADMIN_PASSWORD):
+        """Creates the admin account if this Root has none yet, then signs in (setup signs in by itself)."""
+        configured = self.request("GET", "/api/auth/status").body["configured"]
+        if configured:
+            reply = self.request("POST", "/api/auth/login", {"username": username, "password": password})
+        else:
+            reply = self.request("POST", "/api/auth/setup", {"username": username, "password": password, "confirm": password})
+        expect(reply.status in (200, 201), f"sign-in gave {reply.status}: {reply.raw[:120]!r}")
         return reply
 
     def csrf(self):
