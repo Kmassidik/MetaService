@@ -55,6 +55,11 @@ pub struct Service {
     on_change: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
+/// The cause of a failed action goes to the Agent's own log and never to the Root, because it can name paths and program output.
+fn log_failure(action: &str, target: &str, error: &dyn std::fmt::Debug) {
+    eprintln!("{action} of {target} failed: {error:?}");
+}
+
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
     tokio::task::spawn_blocking(work).await.expect("a blocking task panicked")
 }
@@ -139,7 +144,10 @@ impl Service {
         let made = blocking({ let id = id.clone(); move || engine.create(&id, &request) }).await;
         match made {
             Ok(_) => finish(&mut command, true, [("workload_id", id.as_str())]),
-            Err(_) => finish(&mut command, false, [("error", "the machine could not create the workload")]),
+            Err(error) => {
+                log_failure("create", &id, &error);
+                finish(&mut command, false, [("error", "the machine could not create the workload")]);
+            }
         }
         self.flight.lock().unwrap().inflight.remove(&id);
         self.ledger.record(command);
@@ -157,7 +165,10 @@ impl Service {
         let target = id.to_string();
         match blocking(move || engine.set_running(&target, running)).await {
             Ok(()) => finish(&mut command, true, [("state", if running { "running" } else { "stopped" })]),
-            Err(_) => finish(&mut command, false, [("error", "the machine could not change the workload")]),
+            Err(error) => {
+                log_failure("start or stop", id, &error);
+                finish(&mut command, false, [("error", "the machine could not change the workload")]);
+            }
         }
         self.ledger.record(command.clone());
         self.changed();
@@ -186,7 +197,10 @@ impl Service {
         let outcome = blocking(move || engine.backup(&target).and_then(|backup| engine.delete(&target).map(|_| backup))).await;
         match outcome {
             Ok(backup) => finish(&mut command, true, [("backup_id", backup.as_str())]),
-            Err(_) => finish(&mut command, false, [("error", "the machine could not delete the workload")]),
+            Err(error) => {
+                log_failure("delete", &id, &error);
+                finish(&mut command, false, [("error", "the machine could not delete the workload")]);
+            }
         }
         self.flight.lock().unwrap().deleting.remove(&id);
         self.ledger.record(command);
@@ -219,7 +233,10 @@ impl Service {
                 command.state = CommandState::Succeeded;
                 command.result = Some(result);
             }
-            Err(_) => finish(&mut command, false, [("error", "the bundle could not be installed")]),
+            Err(error) => {
+                log_failure("bundle install", command.workload_id.as_deref().unwrap_or("machine"), &error);
+                finish(&mut command, false, [("error", "the bundle could not be installed")]);
+            }
         }
         self.ledger.record(command);
         self.changed();
