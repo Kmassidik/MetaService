@@ -4,9 +4,10 @@ __pycache__/
 node_modules/
 target/
 dist/
-root.env
+control-plane/.env
+control-plane/state/
 *.env
-!root.env.example
+!control-plane/.env.example
 .DS_Store
 .build/
 .build-fake/

@@ -1,13 +1,13 @@
 #!/bin/sh
 # Runs every test in the repo. Needs Xcode's Swift, Nix, and Google Chrome (for the browser test). Stops at the first failure.
 set -e
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 # Runs a command, shows its last lines, and stops the whole script if it printed a failure.
 steady() { out="$("$@" 2>&1)" || { echo "$out" | tail -8; echo "FAILED: $*"; exit 1; }; echo "$out" | tail -1; case "$out" in *" 0 failed"*|*OK*) ;; *) echo "$out" | tail -8; echo "FAILED: $*"; exit 1;; esac; }
 swift_summary() { grep -E "Executed [0-9]+ tests|error:" | tail -1; }
 
 echo "== shared rules";   (cd shared/metaservice-shared && swift test 2>&1 | swift_summary)
-echo "== root";           (cd control-plane/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
+echo "== root";           (cd control-plane && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== macOS agent";    (cd agent/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== linux agent (Rust)"
 (cd agent/linux && nix develop --command bash -c 'cargo build 2>&1 | tail -1; cargo build 2>&1 | tail -1; cargo test 2>&1 | grep -E "test result" ; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1')

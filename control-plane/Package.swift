@@ -7,7 +7,7 @@ let package = Package(
     products: [.executable(name: "metaservice-root", targets: ["Root"])],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
-        .package(path: "../../shared/metaservice-shared"),
+        .package(path: "../shared/metaservice-shared"),
     ],
     targets: [
         // Pure rules, no I/O: validation, tokens, states, throttling, cookies. Testable on their own.
