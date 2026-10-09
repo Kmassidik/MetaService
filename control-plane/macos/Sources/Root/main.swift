@@ -13,6 +13,7 @@ do {
     let setupGate = try SetupGate.prepare(configured: config.setupToken, adminExists: AdminStore(database).isConfigured, directory: stateDirectory)
     if setupGate.isOpen {
         print("metaservice-root: first run. Create the admin login in the panel with the setup token from ROOT_SETUP_TOKEN in the env file, or from \(setupGate.path) (mode 600).")
+        fflush(stdout)
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
     services.workloads.resume()
