@@ -16,7 +16,7 @@ struct RootConfig {
     var agentListenBind = "127.0.0.1"
     var publicBaseURL = "http://localhost:9100"
     var databasePath: String
-    var uiDirectory = "ui/dist"
+    var uiDirectory = "frontend/dist"
     var bundleDirectory: String?
     var scanSubnet: Subnet?
     var nmapPath: String?

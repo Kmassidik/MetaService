@@ -3,7 +3,7 @@ import Hummingbird
 import NIOCore
 import RootCore
 
-/// Serves the built panel UI (ui/dist). Only GET, only files inside the UI folder, with a strict page policy.
+/// Serves the built panel UI (frontend/dist). Only GET, only files inside the UI folder, with a strict page policy.
 struct UIRoutes {
     let directory: URL
 

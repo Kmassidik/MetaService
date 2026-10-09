@@ -1,4 +1,4 @@
-"""Run the Root black-box checks: python -m contract.root_tests.runner  (needs both Root builds, see root/macos/run-tests.sh)"""
+"""Run the Root black-box checks: python -m contract.root_tests.runner  (needs both Root builds, see control-plane/macos)"""
 import sys
 import time
 

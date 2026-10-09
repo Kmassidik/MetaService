@@ -1,5 +1,5 @@
 // End-to-end test of the panel in a real browser against a real Root. The panel has no sign-in: it only works from the machine the Root runs on.
-// Needs: the Root build (`swift build` in root/macos), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in ui/.
+// Needs: the Root build (`swift build` in control-plane/macos), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in ui/.
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
@@ -11,7 +11,7 @@ import puppeteer from 'puppeteer-core'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../..')
-const binary = join(repo, 'root/macos/.build/debug/metaservice-root')
+const binary = join(repo, 'control-plane/macos/.build/debug/metaservice-root')
 const agentBinary = join(repo, 'agent/macos/.build/debug/metaservice-agent')
 const chrome = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const AI_KEY = 'sk-e2e-not-a-real-key-0123456789'
@@ -69,7 +69,7 @@ async function startRoot() {
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
   const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1',
-    '--public-url', base, '--ui-dir', join(repo, 'ui/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
+    '--public-url', base, '--ui-dir', join(repo, 'frontend/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
     if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child }
     await new Promise((r) => setTimeout(r, 100))

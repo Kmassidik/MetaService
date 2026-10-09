@@ -7,7 +7,7 @@ steady() { out="$("$@" 2>&1)" || { echo "$out" | tail -8; echo "FAILED: $*"; exi
 swift_summary() { grep -E "Executed [0-9]+ tests|error:" | tail -1; }
 
 echo "== shared rules";   (cd shared/metaservice-shared && swift test 2>&1 | swift_summary)
-echo "== root";           (cd root/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
+echo "== root";           (cd control-plane/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== macOS agent";    (cd agent/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== linux agent (Rust)"
 (cd agent/linux && nix develop --command bash -c 'cargo build 2>&1 | tail -1; cargo build 2>&1 | tail -1; cargo test 2>&1 | grep -E "test result" ; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1')
@@ -29,5 +29,6 @@ steady nix develop --command python3 -m unittest discover -s bundles/chat/tests
 echo "== root and agents together"
 steady nix develop --command python3 -m contract.system_tests.runner
 echo "== panel (UI)"
-nix develop --command bash -c 'cd ui && npm run check --silent && npm test --silent 2>&1 | grep -E "^ℹ (pass|fail)" && npm run build --silent && node e2e/panel.e2e.mjs | tail -1'
+nix develop --command bash -c 'cd frontend && npm run check --silent && npm test --silent >/dev/null 2>&1 && npm run build --silent' || { echo "FAILED: panel checks, unit tests or build"; exit 1; }
+steady nix develop --command bash -c 'cd frontend && node e2e/panel.e2e.mjs'
 echo "all tests passed"

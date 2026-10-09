@@ -10,7 +10,7 @@ import time
 from contextlib import contextmanager
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PACKAGE = REPO / "root" / "macos"
+PACKAGE = REPO / "control-plane" / "macos"
 BINARY = PACKAGE / ".build" / "debug" / "metaservice-root"
 START_WAIT_SECONDS = 15
 
