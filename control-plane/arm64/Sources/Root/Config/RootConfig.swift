@@ -27,6 +27,8 @@ struct RootConfig {
     var routerPassword: String?
     var routerCertSha256: String?
     var setupToken: String?
+    /// The computer the control plane runs on is listed as the first machine. Tests turn this off.
+    var localMachine = true
     var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
@@ -62,6 +64,11 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
+            if name == "--no-local-machine" {
+                result[name] = "1"
+                index += 1
+                continue
+            }
             guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
@@ -80,6 +87,7 @@ enum ConfigLoader {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad agent port") }
             config.agentListenPort = port
         }
+        config.localMachine = options["--no-local-machine"] == nil
         config.bind = options["--bind"] ?? config.bind
         config.agentListenBind = options["--agent-bind"] ?? config.agentListenBind
         guard OperatorGate.isLoopback(config.bind) else {

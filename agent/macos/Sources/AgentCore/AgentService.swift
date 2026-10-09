@@ -67,7 +67,7 @@ public actor AgentService {
 
     public func facts() async throws -> Facts {
         let all = try await workloads()
-        return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities)
+        return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities, problems: engine.problems)
     }
 
     public func workloads() async throws -> [Workload] {

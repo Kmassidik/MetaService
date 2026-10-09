@@ -178,18 +178,20 @@ def check_the_budget_counts_apple_workloads():
         expect(status == 409 and reply["error"]["code"] == "missing_capability", "a container was accepted on a machine that only runs VMs")
 
 
-def check_the_agent_will_not_start_without_the_container_program():
+def check_without_the_container_program_the_agent_runs_and_says_what_is_missing():
     from contract.agent_tests.support import RunningAgent
-    one = RunningAgent(extra=["--engine", "apple", "--container-path", "/nonexistent/container"])
+    agent = RunningAgent(extra=["--engine", "apple", "--container-path", "/nonexistent/container"]).start()
     try:
-        one.start()
-    except AssertionError:
-        code, text = one.early_exit
-        expect(code != 0 and "container" in text, f"exit {code}: {text[:100]}")
-        return
+        status, facts = agent.call("GET", "/v1/facts")
+        expect(status == 200 and facts["os"] == "macos" and facts["cpu_cores"] >= 1, f"the machine's real facts are missing: {status} {facts}")
+        expect([p["code"] for p in facts["problems"]] == ["container_tool_missing"], f"problems: {facts['problems']}")
+        expect("container" in facts["problems"][0]["message"] and facts["problems"][0]["fix"], f"problem text: {facts['problems'][0]}")
+        expect(facts["capabilities"] == {"vm": False, "container": False, "gpu_in_vm": False, "gpu_in_container": False}, f"capabilities {facts['capabilities']}")
+        status, reply = agent.call("POST", "/v1/workloads", {"command_id": "c-no", **BODY})
+        expect(status == 409 and reply["error"]["code"] == "missing_capability", f"a workload was accepted without the tool: {status} {reply}")
+        expect(agent.call("GET", "/v1/workloads")[1] == {"workloads": []}, "workloads should be empty")
     finally:
-        one.stop()
-    raise AssertionError("the Agent started without the container program")
+        agent.stop()
 
 
 CHECKS = [
@@ -198,5 +200,5 @@ CHECKS = [
     check_start_and_stop_go_through_the_tool, check_changes_made_outside_the_agent_show_up, check_delete_backs_up_first_and_keeps_the_backup,
     check_a_failed_or_empty_backup_stops_the_delete, check_deleting_something_already_gone_just_clears_the_record,
     check_everything_survives_an_agent_restart, check_a_command_running_when_the_agent_dies_is_reported_failed, check_the_budget_counts_apple_workloads,
-    check_the_agent_will_not_start_without_the_container_program,
+    check_without_the_container_program_the_agent_runs_and_says_what_is_missing,
 ]

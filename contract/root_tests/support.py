@@ -47,7 +47,7 @@ class RunningRoot:
     def __init__(self, binary=BINARY, env_text=None, env_mode=0o600, extra_args=None, process_env=None):
         self.binary = binary
         self.process_env = process_env
-        self.extra_args = extra_args if extra_args is not None else ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-")]
+        self.extra_args = extra_args if extra_args is not None else ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-"), "--no-local-machine"]
         self.dir = tempfile.mkdtemp(prefix="ms-root-")
         self.port = _free_port()
         self.agent_port = _free_port()

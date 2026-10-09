@@ -50,14 +50,28 @@ public struct MachineSpecs: Equatable {
 }
 
 /// The facts the Root receives: the specs plus how much room is left for workloads.
+/// Something on this machine that stops it from running workloads, with the way to fix it. Reported in the facts; the Root places nothing here until it is gone.
+public struct HostProblem: Encodable, Equatable {
+    public let code: String
+    public let message: String
+    public let fix: String
+
+    public init(code: String, message: String, fix: String) {
+        self.code = code
+        self.message = message
+        self.fix = fix
+    }
+}
+
 public struct Facts: Encodable, Equatable {
     public let specs: MachineSpecs
     public let freeRamMb: Int
     public let freeDiskGb: Int
     public let capabilities: Capabilities
+    public let problems: [HostProblem]
 
     enum CodingKeys: String, CodingKey {
-        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities
+        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -71,9 +85,11 @@ public struct Facts: Encodable, Equatable {
         try box.encode(freeDiskGb, forKey: .freeDiskGb)
         try box.encode(specs.gpu, forKey: .gpu)
         try box.encode(capabilities, forKey: .capabilities)
+        try box.encode(problems, forKey: .problems)
     }
 
-    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities) {
+    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities, problems: [HostProblem] = []) {
+        self.problems = problems
         self.specs = specs
         self.freeRamMb = freeRamMb
         self.freeDiskGb = freeDiskGb

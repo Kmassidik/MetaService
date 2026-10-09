@@ -92,3 +92,19 @@ final class RequestsTests: XCTestCase {
     }
 
 }
+
+final class LocalMachineNameTests: XCTestCase {
+    func testAHostNameBecomesAValidMachineName() {
+        XCTAssertEqual(LocalMachineName.make(from: "MacBook-Pro-mac.local"), "macbook-pro-mac")
+        XCTAssertEqual(LocalMachineName.make(from: "Kurnia's MacBook Pro"), "kurnia-s-macbook-pro")
+        XCTAssertEqual(LocalMachineName.make(from: "mac-studio"), "mac-studio")
+        XCTAssertEqual(LocalMachineName.make(from: "dgx.spark.lan"), "dgx")
+    }
+
+    func testOddHostNamesFallBackAndNeverBreakTheRules() {
+        for odd in ["", ".", "---", "...", "日本語", "-", " "] { XCTAssertEqual(LocalMachineName.make(from: odd), LocalMachineName.fallback, odd) }
+        let long = LocalMachineName.make(from: String(repeating: "a", count: 200))
+        XCTAssertTrue(long.count <= 63 && Ids.isValid(long))
+        XCTAssertTrue(Ids.isValid(LocalMachineName.make(from: "-Weird_Name--")))
+    }
+}

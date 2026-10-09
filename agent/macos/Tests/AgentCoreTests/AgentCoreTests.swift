@@ -154,9 +154,32 @@ final class AgentCoreTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let object = try JSONSerialization.jsonObject(with: encoder.encode(facts)) as! [String: Any]
-        XCTAssertEqual(Set(object.keys), ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities"])
+        XCTAssertEqual(Set(object.keys), ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems"])
         XCTAssertEqual(Set((object["capabilities"] as! [String: Any]).keys), ["vm", "container", "gpu_in_vm", "gpu_in_container"])
         let workload = try JSONSerialization.jsonObject(with: encoder.encode(running(512, 1))) as! [String: Any]
         XCTAssertTrue(workload["address"] is NSNull && workload["bundle_version"] is NSNull)
+    }
+}
+
+final class UnavailableEngineTests: XCTestCase {
+    private let problem = HostProblem(code: "container_tool_missing", message: "tool missing", fix: "install it")
+
+    func testItReportsTheProblemAndCannotRunAnything() async throws {
+        let engine = UnavailableEngine(problem: problem)
+        XCTAssertEqual(engine.problems, [problem])
+        XCTAssertEqual(engine.capabilities, Capabilities(vm: false, container: false, gpuInVm: false, gpuInContainer: false))
+        let workloads = try await engine.list()
+        XCTAssertTrue(workloads.isEmpty)
+        do {
+            try await engine.delete(id: "w-1")
+            XCTFail("a delete must fail")
+        } catch EngineError.notFound {}
+    }
+
+    func testTheProblemIsPartOfTheFactsTheRootReads() throws {
+        let specs = MachineSpecs(os: "macos", arch: "arm64", cpuCores: 10, ramTotalMb: 32768, diskTotalGb: 500, gpu: [])
+        let facts = Facts(specs: specs, freeRamMb: 1, freeDiskGb: 2, capabilities: Capabilities(vm: false, container: false, gpuInVm: false, gpuInContainer: false), problems: [problem])
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(facts)) as? [String: Any])
+        XCTAssertEqual((json["problems"] as? [[String: String]])?.first?["code"], "container_tool_missing")
     }
 }

@@ -16,6 +16,8 @@ do {
         fflush(stdout)
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
+    let stateDirectory = (config.databasePath as NSString).deletingLastPathComponent
+    if config.localMachine { try LocalMachine.prepare(services: services, directory: stateDirectory) }
     services.workloads.resume()
     services.bundleService.start()
     let operatorApp = buildOperatorApplication(services: services)

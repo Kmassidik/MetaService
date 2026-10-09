@@ -68,7 +68,7 @@ async function startRoot() {
   writeFileSync(env, `${scanLines}AI_BASE_URL=${provider.base}\nAI_API_KEY=${AI_KEY}\nAI_DEFAULT_MODEL=fake-model\n`)
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
-  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1',
+  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1', '--no-local-machine',
     '--public-url', base, '--ui-dir', join(repo, 'frontend/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
     if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child, dir }
