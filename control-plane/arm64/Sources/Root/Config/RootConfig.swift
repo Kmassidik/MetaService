@@ -58,7 +58,13 @@ enum ConfigLoader {
             try apply(try parseEnv(String(contentsOfFile: envPath, encoding: .utf8)), to: &config)
         }
         try applyOptions(options, to: &config)
+        config.agentBinary = absolutePath(config.agentBinary)
         return config
+    }
+
+    /// A path from wherever the Root was started, written out in full: the Agent is started later by other code, and macOS cannot find it through a path like "../../agent/...".
+    static func absolutePath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
     }
 
     static func parseOptions(_ arguments: [String]) throws -> [String: String] {

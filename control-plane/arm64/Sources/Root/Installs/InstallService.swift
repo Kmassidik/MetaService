@@ -72,7 +72,7 @@ final class InstallService: @unchecked Sendable {
             if request.chat { try await stepAsync(id, "chat") { try await installChat(request.name, actor: actor) } }
             finish(id, .done, error: nil, warning: warning(for: request.name))
         } catch {
-            finish(id, .failed, error: (error as? InstallFailure)?.message ?? "something went wrong")
+            finish(id, .failed, error: Self.explain(error))
         }
     }
 
@@ -130,7 +130,7 @@ final class InstallService: @unchecked Sendable {
         do {
             mark(id, stepId, .done, try work())
         } catch {
-            mark(id, stepId, .failed, (error as? InstallFailure)?.message)
+            mark(id, stepId, .failed, Self.explain(error))
             throw error
         }
     }
@@ -140,7 +140,7 @@ final class InstallService: @unchecked Sendable {
         do {
             mark(id, stepId, .done, try await work())
         } catch {
-            mark(id, stepId, .failed, (error as? InstallFailure)?.message)
+            mark(id, stepId, .failed, Self.explain(error))
             throw error
         }
     }
@@ -186,6 +186,14 @@ final class InstallService: @unchecked Sendable {
         let text = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw InstallFailure("could not enroll: " + String(text.suffix(200)).trimmingCharacters(in: .whitespacesAndNewlines)) }
+    }
+}
+
+extension InstallService {
+    /// An install failure the operator can act on: our own message as it is, anything else with what went wrong underneath.
+    static func explain(_ error: Error) -> String {
+        if let failure = error as? InstallFailure { return failure.message }
+        return "the install stopped: \(error.localizedDescription)"
     }
 }
 

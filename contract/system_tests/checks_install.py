@@ -9,13 +9,13 @@ from contract.tests.bundle_source import BundleSource
 
 
 @contextmanager
-def install_root(with_bundles=False, binary=None):
+def install_root(with_bundles=False, binary=None, cwd=None):
     agent_port, chat_port = _free_port(), _free_port()
     bundles = BundleSource("unused") if with_bundles else None
     extra = ["--ui-dir", "/nonexistent-ui", "--agent-binary", str(binary or MACOS_BINARY), "--local-agent-port", str(agent_port), "--local-chat-port", str(chat_port)]
     if bundles:
         extra += ["--bundle-dir", str(bundles.dir)]
-    root = RunningRoot(extra_args=extra).start()
+    root = RunningRoot(extra_args=extra, cwd=cwd).start()
     root.local_agent_port, root.local_chat_port = agent_port, chat_port
     try:
         yield root, Browser(root)
@@ -101,6 +101,15 @@ def check_an_install_with_the_chat_fails_clearly_when_there_is_no_chat_bundle():
         expect([s["state"] for s in job["steps"]] == ["done", "done", "done", "failed"], f"steps: {job['steps']}")
 
 
+def check_an_install_works_when_the_program_is_given_as_a_path_from_the_folder_the_control_plane_starts_in():
+    """How the run script starts it: from control-plane/arm64, with the Agent at ../../agent/macos/... (this once failed with 'the file does not exist')."""
+    repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    relative = "../../agent/macos/" + os.path.relpath(str(MACOS_BINARY), os.path.join(repo, "agent", "macos"))
+    with install_root(binary=relative, cwd=os.path.join(repo, "control-plane", "arm64")) as (root, operator):
+        job = finished(operator, install(operator, name="rel-path"))
+        expect(job["state"] == "done", f"install: {job['state']} {job.get('error')}")
+
+
 def check_the_agent_stops_with_the_control_plane_and_comes_back_when_it_starts_again():
     with install_root() as (root, operator):
         finished(operator, install(operator))
@@ -159,5 +168,5 @@ def check_removing_an_installed_machine_stops_its_agent_and_forgets_its_settings
 
 CHECKS = [check_the_form_gets_a_name_and_sensible_limits_and_needs_a_login, check_bad_requests_and_a_missing_program_are_refused_and_nothing_is_created,
           check_an_install_without_the_chat_starts_the_agent_and_the_machine_reports_in, check_an_install_with_the_chat_also_installs_the_chat_and_pins_a_version,
-          check_an_install_with_the_chat_fails_clearly_when_there_is_no_chat_bundle, check_the_settings_from_the_form_are_kept_shown_and_applied_to_the_agent,
+          check_an_install_with_the_chat_fails_clearly_when_there_is_no_chat_bundle, check_an_install_works_when_the_program_is_given_as_a_path_from_the_folder_the_control_plane_starts_in, check_the_settings_from_the_form_are_kept_shown_and_applied_to_the_agent,
           check_bad_settings_are_refused_and_nothing_is_installed, check_removing_an_installed_machine_stops_its_agent_and_forgets_its_settings, check_the_agent_stops_with_the_control_plane_and_comes_back_when_it_starts_again]
