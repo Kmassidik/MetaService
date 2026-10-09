@@ -12,7 +12,7 @@ import tarfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXED_TIME = 946684800  # 2000-01-01, so file times never change the checksum
-FILES = ["service/chat.py", "web/index.html", "web/chat.js", "web/chat.css", "VERSION"]
+FILES = ["service/chat.py", "service/brain.py", "web/index.html", "web/chat.js", "web/chat.css", "VERSION"]
 
 
 def manifest(version):

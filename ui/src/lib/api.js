@@ -84,3 +84,6 @@ export const installBundle = (machine, workload) =>
   call('POST', `/api/machines/${encodeURIComponent(machine)}/bundle/install`, workload ? { workload } : {})
 export const chatLink = async (machine, workload) =>
   (await call('GET', `/api/chat-link?machine=${encodeURIComponent(machine)}${workload ? `&workload=${encodeURIComponent(workload)}` : ''}`)).url
+
+export const brainStatus = () => call('GET', '/api/brain')
+export const testBrain = () => call('POST', '/api/brain/test')

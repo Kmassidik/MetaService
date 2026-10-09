@@ -37,14 +37,25 @@ struct Guards {
 
     /// The machine id behind the Bearer token. Too many bad tokens from one address locks that address out for a minute.
     func machine(_ request: Request, context: RootContext) throws -> String {
-        let lockKey = "badtoken:\(context.remoteIP)"
-        guard !services.throttle.isFull(lockKey, limit: Self.badTokenLimit) else { throw ApiFailure.tooMany }
-        guard let token = Self.bearer(request), let id = try services.machines.authenticate(tokenHash: Tokens.sha256Hex(token)) else {
-            _ = services.throttle.allow(lockKey, limit: Self.badTokenLimit, seconds: Self.badTokenWindow)
+        let token = try bearerOrRefuse(request, context: context)
+        guard let id = try services.machines.authenticate(tokenHash: Tokens.sha256Hex(token)) else {
+            _ = services.throttle.allow(Self.badTokenKey(context), limit: Self.badTokenLimit, seconds: Self.badTokenWindow)
             throw ApiFailure.unauthorized("missing or wrong token")
         }
         return id
     }
+
+    /// The Bearer token of a request, after checking this address is not locked out for sending too many bad ones.
+    func bearerOrRefuse(_ request: Request, context: RootContext) throws -> String {
+        guard !services.throttle.isFull(Self.badTokenKey(context), limit: Self.badTokenLimit) else { throw ApiFailure.tooMany }
+        guard let token = Self.bearer(request) else {
+            _ = services.throttle.allow(Self.badTokenKey(context), limit: Self.badTokenLimit, seconds: Self.badTokenWindow)
+            throw ApiFailure.unauthorized("missing or wrong token")
+        }
+        return token
+    }
+
+    static func badTokenKey(_ context: RootContext) -> String { "badtoken:\(context.remoteIP)" }
 
     static func bearer(_ request: Request) -> String? {
         guard let header = request.headers[.authorization], header.hasPrefix("Bearer "), header.count <= 600 else { return nil }

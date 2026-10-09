@@ -18,6 +18,8 @@ struct Services {
     let bundles: BundleStore
     let chatAccess: ChatAccessStore
     let bundleService: BundleService
+    let brain: BrainStore
+    let brainService: BrainService
     let throttle: Throttle
     let google: GoogleAuth
 
@@ -36,6 +38,8 @@ struct Services {
         commands = CommandStore(database)
         bundles = BundleStore(database, directory: config.bundleDirectory ?? (config.databasePath as NSString).deletingLastPathComponent + "/bundles")
         chatAccess = ChatAccessStore(database)
+        brain = BrainStore(database)
+        brainService = BrainService(config: config)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets), clock: clock,
                                     bundles: bundles, chatAccess: chatAccess, secrets: secrets)
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, clock: clock)

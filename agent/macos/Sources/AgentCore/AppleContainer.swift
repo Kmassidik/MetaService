@@ -48,13 +48,14 @@ public enum AppleContainer {
     install -o metachat -g metachat -m 600 /tmp/metaservice-chat.key /opt/metaservice/chat.key
     rm -f /tmp/metaservice-chat.tar.gz /tmp/metaservice-chat.key
     ln -sfn "$dir" /opt/metaservice/chat/current
+    brain=""; if [ -n "$MS_BRAIN_URL" ]; then brain="--brain-url $MS_BRAIN_URL"; fi
     cat > /etc/systemd/system/metaservice-chat.service <<UNIT
     [Unit]
     Description=MetaService chat
     After=network.target
     [Service]
     User=metachat
-    ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key
+    ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key $brain
     Restart=always
     NoNewPrivileges=true
     ProtectSystem=strict

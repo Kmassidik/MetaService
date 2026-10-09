@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, workloadAction } from './lib/api.js'
+  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.js'
   import { summarize } from './lib/format.js'
   import SignIn from './components/SignIn.svelte'
   import TopBar from './components/TopBar.svelte'
@@ -12,6 +12,7 @@
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import Activity from './components/Activity.svelte'
+  import Brain from './components/Brain.svelte'
   import Bundles from './components/Bundles.svelte'
   import ChatLink from './components/ChatLink.svelte'
 
@@ -28,6 +29,7 @@
   let adding = $state(false)
   let commands = $state([])
   let bundles = $state(null)
+  let brain = $state(null)
   let openLink = $state(null)
   let creating = $state(false)
   let deleting = $state(null)
@@ -57,7 +59,7 @@
   async function refresh() {
     if (phase !== 'ready') return
     try {
-      ;[machines, commands, bundles] = await Promise.all([listMachines(), listCommands(), bundleOverview()])
+      ;[machines, commands, bundles, brain] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus()])
       banner = ''
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -66,6 +68,11 @@
       }
       banner = 'Cannot reach the Root. Showing the last data.'
     }
+  }
+
+  async function testProvider() {
+    await testBrain()
+    await refresh()
   }
 
   async function leave() {
@@ -183,6 +190,7 @@
         {#if banner}<p class="banner" role="status">{banner}</p>{/if}
         <MachineList {machines} {now} pinned={bundles?.pinned} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
         <Bundles overview={bundles} onPin={pin} onRollback={rollback} />
+        <Brain status={brain} onTest={testProvider} />
         <Activity {commands} {now} />
       {/if}
     </main>

@@ -24,11 +24,17 @@ struct RootConfig {
     var routerUser: String?
     var routerPassword: String?
     var routerCertSha256: String?
+    var aiBaseURL: String?
+    var aiApiKey: String?
+    var aiModel: String?
+    var aiMaxTokens = BrainRules.defaultMaxTokens
+    var capabilitySeconds = BrainRules.defaultCapabilitySeconds
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
     var oauthCookieName: String { cookiesAreSecure ? "__Host-ms_oauth" : "ms_oauth" }
     var googleConfigured: Bool { googleClientId?.isEmpty == false && googleClientSecret?.isEmpty == false }
+    var aiConfigured: Bool { [aiBaseURL, aiApiKey, aiModel].allSatisfy { $0?.isEmpty == false } }
     var callbackURL: String { publicBaseURL + "/auth/callback" }
 
     static let defaultDirectory = ("~/.metaservice" as NSString).expandingTildeInPath
@@ -88,7 +94,8 @@ enum ConfigLoader {
             guard !trimmed.hasPrefix("#"), let equals = trimmed.firstIndex(of: "=") else { continue }
             let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
             let value = trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
-            values[key] = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            let unquoted = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            if !unquoted.isEmpty { values[key] = unquoted } // a blank value means "not set", so the example file can be copied as it is
         }
         return values
     }
@@ -104,6 +111,26 @@ enum ConfigLoader {
             config.port = port
         }
         try applyScan(env, to: &config)
+        try applyBrain(env, to: &config)
+    }
+
+    /// The AI provider. The key lives only in this file; a half-filled set of settings is refused so a typo is not mistaken for "not configured".
+    static func applyBrain(_ env: [String: String], to config: inout RootConfig) throws {
+        config.aiBaseURL = env["AI_BASE_URL"].flatMap { $0.isEmpty ? nil : $0 }
+        config.aiApiKey = env["AI_API_KEY"].flatMap { $0.isEmpty ? nil : $0 }
+        config.aiModel = env["AI_DEFAULT_MODEL"].flatMap { $0.isEmpty ? nil : $0 }
+        config.aiMaxTokens = try number(env["AI_MAX_TOKENS"], named: "AI_MAX_TOKENS", in: BrainRules.maxTokensRange, default: config.aiMaxTokens)
+        config.capabilitySeconds = try number(env["AI_CAPABILITY_SECONDS"], named: "AI_CAPABILITY_SECONDS", in: BrainRules.capabilitySecondsRange, default: config.capabilitySeconds)
+        let given = [config.aiBaseURL, config.aiApiKey, config.aiModel].compactMap { $0 }
+        guard !given.isEmpty else { return }
+        guard given.count == 3 else { throw ConfigError(description: "AI_BASE_URL, AI_API_KEY and AI_DEFAULT_MODEL must all be set, or none of them") }
+        guard BrainRules.isAcceptableBaseURL(config.aiBaseURL!) else { throw ConfigError(description: "AI_BASE_URL must be https (or http to a private address) with no credentials in it") }
+    }
+
+    private static func number(_ text: String?, named name: String, in range: ClosedRange<Int>, default fallback: Int) throws -> Int {
+        guard let text else { return fallback }
+        guard let value = Int(text), range.contains(value) else { throw ConfigError(description: "\(name) must be a whole number from \(range.lowerBound) to \(range.upperBound)") }
+        return value
     }
 
     /// Scan settings. The subnet and the router must be private addresses; an operator can never type a target.

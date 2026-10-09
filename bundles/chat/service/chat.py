@@ -3,7 +3,8 @@
 
 Standard library only, so the same file runs on macOS and Linux with no install step beyond Python 3.
 Every API call needs the access key (Authorization: Bearer ...). The page itself holds no secrets.
-v0 does not talk to an AI yet: it answers with a plain message that says so (the brain arrives in a later task).
+With --brain-url the replies come from the AI through the Root's proxy (see brain.py); without it, or while the Root has no AI set up,
+the chat answers with a plain message that says so.
 """
 import argparse
 import hmac
@@ -16,6 +17,9 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import brain as brain_client  # noqa: E402
 
 MAX_BODY_BYTES = 16 * 1024
 MAX_MESSAGE_CHARS = 4000
@@ -73,7 +77,19 @@ def answer(message, version, host):
     return f"Chat {version} is running on {host}. The AI is not connected yet, so all I can do is repeat you: {message}"
 
 
-def make_handler(key, web_dir, version, host):
+def reply_to(message, brain, version, host):
+    """The AI's answer through the Root, or the plain v0 message when there is no brain or the Root has none set up."""
+    if brain is None:
+        return 200, answer(message, version, host)
+    try:
+        return 200, brain.reply(message)
+    except brain_client.BrainNotConfigured:
+        return 200, answer(message, version, host)
+    except brain_client.BrainUnavailable as problem:
+        return 502, str(problem)
+
+
+def make_handler(key, web_dir, version, host, brain=None):
     limiter = Limiter(MESSAGES_PER_MINUTE)
 
     class Handler(BaseHTTPRequestHandler):
@@ -129,7 +145,10 @@ def make_handler(key, web_dir, version, host):
                 return self._error(400, "invalid_input", "send {\"message\": \"text\"} with up to 4000 characters")
             if not limiter.allow():
                 return self._error(429, "rate_limited", "slow down")
-            self._json(200, {"reply": answer(message, version, host)})
+            status, text = reply_to(message, brain, version, host)
+            if status != 200:
+                return self._error(status, "brain_unavailable", text)
+            self._json(200, {"reply": text})
 
         def do_PUT(self):
             self._error(404, "not_found", "no such thing")
@@ -145,12 +164,15 @@ def main(argv=None):
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--web-dir", default=str(pathlib.Path(__file__).resolve().parent.parent / "web"))
+    parser.add_argument("--brain-url", help="address of the Root; replies then come from the AI through its proxy")
     parser.add_argument("--version", default=(pathlib.Path(__file__).resolve().parent.parent / "VERSION").read_text().strip())
     args = parser.parse_args(argv)
     # A parent that ignores these signals passes that on to its children; chat must still stop when asked to.
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    server = ThreadingHTTPServer((args.bind, args.port), make_handler(read_key(args.key_file), args.web_dir, args.version, socket.gethostname()))
+    key = read_key(args.key_file)
+    brain = brain_client.Brain(args.brain_url, key) if args.brain_url else None
+    server = ThreadingHTTPServer((args.bind, args.port), make_handler(key, args.web_dir, args.version, socket.gethostname(), brain))
     print(f"chat {args.version} on {args.bind}:{server.server_address[1]}", flush=True)
     server.serve_forever()
 

@@ -67,6 +67,13 @@ public enum Migrations {
             CREATE TABLE bundle_pins (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, pinned_at INTEGER NOT NULL, actor TEXT NOT NULL);
             CREATE TABLE chat_access (target TEXT PRIMARY KEY, key_sealed TEXT NOT NULL, port INTEGER NOT NULL, updated_at INTEGER NOT NULL);
             """) }),
+        (6, { try $0.exec("""
+            CREATE TABLE brain_capabilities (token_hash TEXT PRIMARY KEY, machine TEXT NOT NULL, workload TEXT, expires_at INTEGER NOT NULL);
+            CREATE TABLE brain_usage (
+              machine TEXT NOT NULL, workload TEXT NOT NULL, requests INTEGER NOT NULL, prompt_tokens INTEGER NOT NULL, completion_tokens INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL, PRIMARY KEY (machine, workload)
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

@@ -13,6 +13,7 @@ func buildApplication(services: Services) -> some ApplicationProtocol {
     OperatorRoutes(services: services, guards: guards).register(on: router.group())
     WorkloadRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).register(on: router.group())
+    BrainRoutes(services: services, guards: guards).register(on: router.group())
     ScanRoutes(services: services, guards: guards).register(on: router.group())
     AuthRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())

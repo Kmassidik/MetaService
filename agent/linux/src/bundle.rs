@@ -33,13 +33,14 @@ chown -R root:root /opt/metaservice/chat
 install -o metachat -g metachat -m 600 /tmp/metaservice-chat.key /opt/metaservice/chat.key
 rm -f /tmp/metaservice-chat.tar.gz /tmp/metaservice-chat.key
 ln -sfn "$dir" /opt/metaservice/chat/current
+brain=""; if [ -n "$MS_BRAIN_URL" ]; then brain="--brain-url $MS_BRAIN_URL"; fi
 cat > /etc/systemd/system/metaservice-chat.service <<UNIT
 [Unit]
 Description=MetaService chat
 After=network.target
 [Service]
 User=metachat
-ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key
+ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key $brain
 Restart=always
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -122,10 +123,19 @@ impl BundleInstaller {
     fn chat_arguments(&self, version: &str, key_file: &Path) -> Vec<String> {
         let folder = self.config.state_dir.join("bundles").join(version);
         let bind = self.config.chat_bind.clone().unwrap_or_else(|| self.config.bind.clone());
-        vec![
+        let mut arguments = vec![
             folder.join("service/chat.py").display().to_string(), "--port".into(), self.config.chat_port.to_string(), "--bind".into(), bind, "--key-file".into(),
             key_file.display().to_string(), "--web-dir".into(), folder.join("web").display().to_string(), "--version".into(), version.to_string(),
-        ]
+        ];
+        if let Some(url) = self.brain_url() {
+            arguments.extend(["--brain-url".to_string(), url]);
+        }
+        arguments
+    }
+
+    /// Where the chat asks for AI replies: the Root this Agent reports to. An address, not a secret.
+    fn brain_url(&self) -> Option<String> {
+        self.root.as_ref().map(|root| root.trim_end_matches('/').to_string())
     }
 
     fn healthy(&self, version: &str) -> bool {
@@ -187,7 +197,7 @@ impl BundleInstaller {
         let failed = |e: crate::models::EngineError| format!("{e:?}");
         self.engine.push(workload, &archive.display().to_string(), "/tmp/metaservice-chat.tar.gz").map_err(failed)?;
         self.engine.push(workload, &key_path.display().to_string(), "/tmp/metaservice-chat.key").map_err(failed)?;
-        let environment = [("MS_VERSION".to_string(), request.version.clone()), ("MS_PORT".to_string(), self.config.chat_port.to_string())];
+        let environment = [("MS_VERSION".to_string(), request.version.clone()), ("MS_PORT".to_string(), self.config.chat_port.to_string()), ("MS_BRAIN_URL".to_string(), self.brain_url().unwrap_or_default())];
         self.engine.exec(workload, &["sh".into(), "-c".into(), WORKLOAD_SCRIPT.into()], &environment).map_err(failed)?;
         self.engine.set_bundle_version(workload, &request.version).map_err(failed)
     }

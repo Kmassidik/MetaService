@@ -129,6 +129,11 @@ public struct ChatAccessStore {
         try database.query("SELECT key_sealed, port FROM chat_access WHERE target = ?", [.text(target)]).first.map { ($0.string("key_sealed"), $0.int("port")) }
     }
 
+    /// Every chat key, as (target, sealed key). A few rows at most: one per machine and workload that has the chat.
+    public func all() throws -> [(target: String, sealedKey: String)] {
+        try database.query("SELECT target, key_sealed FROM chat_access").map { ($0.string("target"), $0.string("key_sealed")) }
+    }
+
     public func remove(target: String) throws {
         try database.execute("DELETE FROM chat_access WHERE target = ? OR target LIKE ? ESCAPE '\\'", [.text(target), .text(target.replacingOccurrences(of: "%", with: "") + "/%")])
     }

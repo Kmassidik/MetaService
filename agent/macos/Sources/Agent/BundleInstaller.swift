@@ -133,7 +133,13 @@ actor BundleInstaller: BundleInstalling {
 
     private func chatArguments(version: String, keyFile: String) -> [String] {
         let folder = config.stateDirectory + "/bundles/\(version)"
-        return [folder + "/service/chat.py", "--port", String(config.chatPort), "--bind", config.chatBind ?? config.bind, "--key-file", keyFile, "--web-dir", folder + "/web", "--version", version]
+        let base = [folder + "/service/chat.py", "--port", String(config.chatPort), "--bind", config.chatBind ?? config.bind, "--key-file", keyFile, "--web-dir", folder + "/web", "--version", version]
+        return base + (brainURL.map { ["--brain-url", $0] } ?? [])
+    }
+
+    /// Where the chat asks for AI replies: the Root this Agent reports to. It is an address, not a secret.
+    private var brainURL: String? {
+        root.map { $0.absoluteString.hasSuffix("/") ? String($0.absoluteString.dropLast()) : $0.absoluteString }
     }
 
     private func keyFile(for target: String, key: String) -> String {
@@ -173,7 +179,7 @@ actor BundleInstaller: BundleInstalling {
         defer { try? FileManager.default.removeItem(atPath: keyPath) }
         try await engine.push(id: workload, hostPath: archive, containerPath: "/tmp/metaservice-chat.tar.gz")
         try await engine.push(id: workload, hostPath: keyPath, containerPath: "/tmp/metaservice-chat.key")
-        _ = try await engine.exec(id: workload, arguments: ["sh", "-c", AppleContainer.bundleInstallScript], environment: ["MS_VERSION": request.version, "MS_PORT": String(config.chatPort)])
+        _ = try await engine.exec(id: workload, arguments: ["sh", "-c", AppleContainer.bundleInstallScript], environment: ["MS_VERSION": request.version, "MS_PORT": String(config.chatPort), "MS_BRAIN_URL": brainURL ?? ""])
         try await engine.setBundleVersion(id: workload, version: request.version)
     }
 

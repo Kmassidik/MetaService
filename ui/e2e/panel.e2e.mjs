@@ -2,6 +2,7 @@
 // Needs: the test Root build (root/macos/run-tests.sh builds it), Google Chrome (or CHROME_PATH), and `npm install` in ui/.
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
 import { networkInterfaces, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -14,6 +15,7 @@ const binary = join(repo, 'root/macos/.build-fake/debug/metaservice-root')
 const agentBinary = join(repo, 'agent/macos/.build/debug/metaservice-agent')
 const chrome = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const EMAIL = 'kurnia@example.com'
+const AI_KEY = 'sk-e2e-not-a-real-key-0123456789'
 const XSS = '<img src=x onerror="window.__xss=1">'
 
 const FAKES = join(repo, 'contract/root_tests/fakes')
@@ -41,7 +43,21 @@ async function freePort() {
   })
 }
 
+/** A stand-in AI provider. Flip `provider.failing` to make it refuse. */
+const provider = { failing: false, server: null, base: '' }
+async function startProvider() {
+  provider.server = createHttpServer((request, response) => {
+    request.resume()
+    const good = !provider.failing && request.headers.authorization === `Bearer ${AI_KEY}`
+    response.writeHead(good ? 200 : 500, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(good ? { choices: [{ message: { content: 'ok' } }], usage: { prompt_tokens: 9, completion_tokens: 1 } } : { error: 'nope' }))
+  })
+  await new Promise((done) => provider.server.listen(0, '127.0.0.1', done))
+  provider.base = `http://127.0.0.1:${provider.server.address().port}/v1`
+}
+
 async function startRoot() {
+  await startProvider()
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-'))
   const bundleDir = join(dir, 'bundles')
   for (const version of ['0.1.0', '0.2.0']) spawnSync('python3', [join(repo, 'bundles/chat/build.py'), '--version', version, '--out', bundleDir])
@@ -49,7 +65,7 @@ async function startRoot() {
   const env = join(dir, 'root.env')
   const prefix = localPrefix()
   const scanLines = prefix ? `SCAN_SUBNET=${prefix}.0/24\nNMAP_PATH=${FAKES}/fake_nmap.py\nARP_PATH=${FAKES}/fake_arp.py\n` : ''
-  writeFileSync(env, `ALLOWED_EMAILS=${EMAIL}\n${scanLines}`)
+  writeFileSync(env, `ALLOWED_EMAILS=${EMAIL}\n${scanLines}AI_BASE_URL=${provider.base}\nAI_API_KEY=${AI_KEY}\nAI_DEFAULT_MODEL=fake-model\n`)
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
   const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1',
@@ -185,6 +201,22 @@ async function bundleScenario() {
   }
 }
 
+async function brainScenario() {
+  await page.waitForFunction(() => document.body.innerText.includes('AI provider'))
+  const shown = await text()
+  check('the AI card says configured with the model and host but never the key', shown.includes('Configured') && shown.includes('fake-model') && shown.includes('127.0.0.1') && !shown.includes(AI_KEY))
+  await click('Test connection')
+  await page.waitForFunction(() => document.body.innerText.includes('Connected: the provider answered'), { timeout: 15000 })
+  await page.waitForFunction(() => /root[\s\S]*1 reply[\s\S]*9 tokens in/.test(document.body.innerText), { timeout: 15000 })
+  check('a good test says so and the use shows up', true)
+  provider.failing = true
+  await click('Test connection')
+  await page.waitForFunction(() => document.body.innerText.includes('did not answer'), { timeout: 15000 })
+  check('a failing provider is reported in plain words without its details', !(await text()).includes('nope'))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'brain.png'), fullPage: true })
+  provider.failing = false
+}
+
 async function scanScenario() {
   await click('Find machines')
   await page.waitForFunction(() => document.body.innerText.includes('Looks at'))
@@ -217,7 +249,7 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => message.type() === 'error' && !/status of (401|409)/.test(message.text()) && errors.push(message.text()))
+  page.on('console', (message) => message.type() === 'error' && !/status of (401|409|502)/.test(message.text()) && errors.push(message.text()))
   await page.evaluateOnNewDocument(() => document.addEventListener('securitypolicyviolation', (event) => (window.__csp = (window.__csp ?? 0) + 1 && event.violatedDirective)))
   text = () => page.evaluate(() => document.body.innerText)
   click = async (label) => {
@@ -266,6 +298,7 @@ try {
 
   await workloadScenario()
   await bundleScenario()
+  await brainScenario()
   if (localPrefix()) await scanScenario()
 
   await page.setViewport({ width: 390, height: 844 })
@@ -279,6 +312,7 @@ try {
 } finally {
   await browser.close()
   child.kill()
+  provider.server?.close()
 }
 const failed = results.filter((ok) => !ok).length
 console.log(`\n${results.length - failed} passed, ${failed} failed`)

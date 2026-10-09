@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 import threading
 import unittest
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE / "service"))
@@ -138,7 +138,7 @@ class BuildTest(unittest.TestCase):
         with tarfile.open(path) as archive:
             members = archive.getmembers()
             names = sorted(m.name for m in members)
-            self.assertEqual(names, ["VERSION", "manifest.json", "service/chat.py", "web/chat.css", "web/chat.js", "web/index.html"])
+            self.assertEqual(names, ["VERSION", "manifest.json", "service/brain.py", "service/chat.py", "web/chat.css", "web/chat.js", "web/index.html"])
             for member in members:
                 self.assertTrue(member.isfile() and not member.name.startswith("/") and ".." not in member.name, member.name)
                 self.assertEqual((member.uid, member.gid), (0, 0))
@@ -149,3 +149,107 @@ class BuildTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeRoot(BaseHTTPRequestHandler):
+    """Stands in for the Root's proxy. Class attributes steer it; `calls` records what the chat sent."""
+    capability_status, chat_status, expires_in = 200, 200, 600
+    calls = []
+
+    def log_message(self, *args):
+        return
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+        FakeRoot.calls.append((self.path, self.headers.get("Authorization"), body))
+        if self.path == "/v1/brain/capability":
+            return self._reply(FakeRoot.capability_status, {"capability": "cap-1", "expires_in": FakeRoot.expires_in})
+        if self.path == "/v1/brain/chat":
+            ok = self.headers.get("Authorization") == "Bearer cap-1"
+            return self._reply(FakeRoot.chat_status if ok else 401, {"reply": "from the AI: " + json.loads(body)["message"]})
+        self._reply(404, {})
+
+    def _reply(self, status, payload):
+        raw = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+
+class BrainTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.root = ThreadingHTTPServer(("127.0.0.1", 0), FakeRoot)
+        threading.Thread(target=cls.root.serve_forever, daemon=True).start()
+        cls.url = f"http://127.0.0.1:{cls.root.server_address[1]}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.root.shutdown()
+
+    def setUp(self):
+        FakeRoot.capability_status, FakeRoot.chat_status, FakeRoot.expires_in = 200, 200, 600
+        FakeRoot.calls = []
+        self.now = [0.0]
+        self.brain = chat.brain_client.Brain(self.url, KEY, clock=lambda: self.now[0])
+
+    def test_the_chat_key_buys_a_capability_and_the_capability_buys_the_reply(self):
+        self.assertEqual(self.brain.reply("hi"), "from the AI: hi")
+        self.assertEqual([call[0] for call in FakeRoot.calls], ["/v1/brain/capability", "/v1/brain/chat"])
+        self.assertEqual(FakeRoot.calls[0][1], f"Bearer {KEY}")
+        self.assertEqual(FakeRoot.calls[1][1], "Bearer cap-1")
+        self.assertNotIn(KEY.encode(), FakeRoot.calls[1][2])
+
+    def test_the_capability_is_reused_until_shortly_before_it_expires(self):
+        self.brain.reply("a")
+        self.now[0] = 500
+        self.brain.reply("b")
+        self.assertEqual(sum(call[0] == "/v1/brain/capability" for call in FakeRoot.calls), 1)
+        self.now[0] = 575
+        self.brain.reply("c")
+        self.assertEqual(sum(call[0] == "/v1/brain/capability" for call in FakeRoot.calls), 2)
+
+    def test_a_refused_capability_is_replaced_once(self):
+        self.brain.capability, self.brain.renew_at = "stale", 1e9
+        self.assertEqual(self.brain.reply("hi"), "from the AI: hi")
+        self.assertEqual([call[0] for call in FakeRoot.calls], ["/v1/brain/chat", "/v1/brain/capability", "/v1/brain/chat"])
+
+    def test_a_root_without_an_ai_falls_back_to_the_plain_message(self):
+        FakeRoot.capability_status = 503
+        status, text = chat.reply_to("hi", self.brain, "9.9.9", "testhost")
+        self.assertEqual(status, 200)
+        self.assertIn("not connected", text)
+
+    def test_a_busy_or_broken_root_is_reported_without_details(self):
+        FakeRoot.chat_status = 429
+        status, text = chat.reply_to("hi", self.brain, "9.9.9", "testhost")
+        self.assertEqual((status, text), (502, "the AI is busy, try again in a moment"))
+        status, text = chat.reply_to("hi", chat.brain_client.Brain("http://127.0.0.1:1", KEY), "9.9.9", "testhost")
+        self.assertEqual((status, text), (502, "the Root cannot be reached"))
+
+    def test_the_root_address_must_be_plain_http_or_https(self):
+        for bad in ["file:///etc/passwd", "ftp://x", "http://user:pw@host", "http://host?x=1", "http://", "nonsense"]:
+            with self.assertRaises(SystemExit, msg=bad):
+                chat.brain_client.check_root_url(bad)
+        self.assertEqual(chat.brain_client.check_root_url("http://10.0.0.5:9100/"), "http://10.0.0.5:9100")
+
+    def test_a_redirect_from_the_root_is_not_followed(self):
+        class Bounce(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                return
+
+            def do_POST(self):
+                self.send_response(307)
+                self.send_header("Location", "http://127.0.0.1:1/steal")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Bounce)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            brain = chat.brain_client.Brain(f"http://127.0.0.1:{server.server_address[1]}", KEY)
+            with self.assertRaises(chat.brain_client.BrainUnavailable):
+                brain.reply("hi")
+        finally:
+            server.shutdown()

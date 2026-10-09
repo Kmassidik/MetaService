@@ -118,7 +118,9 @@ def check_a_workload_gets_the_bundle_through_copy_and_exec_with_no_key_in_the_ar
         copies = [c for c in calls if c[0] == "cp"]
         runs = [c for c in calls if c[0] == "exec"]
         expect(len(copies) == 2 and len(runs) == 1, f"calls: {[c[0] for c in calls]}")
-        expect(runs[0][:3] == ["exec", "-e", "MS_PORT=" + runs[0][2].split("=")[1]] and "MS_VERSION=" + V1 in runs[0], f"exec call: {runs[0][:6]}")
+        passed = {item.split("=")[0]: item.split("=", 1)[1] for item in runs[0] if item.startswith("MS_")}
+        expect(runs[0][:2] == ["exec", "-e"] and passed.get("MS_VERSION") == V1 and passed.get("MS_PORT", "").isdigit(), f"exec call: {runs[0][:8]}")
+        expect(passed.get("MS_BRAIN_URL") == f"http://127.0.0.1:{w.root.port}", f"the chat was not pointed at the Root: {passed}")
         opened = link(w, "mini", workload)
         expect(opened.status == 200, f"workload link: {opened.status}")
         key = opened.body["url"].split("#k=")[1]
