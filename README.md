@@ -7,4 +7,6 @@ One central **Root** registers machines on a network and manages them. Each regi
 
 Root → Machines → Agents → VMs.
 
-Status: early planning. Nothing is built yet.
+A machine can be added only if it is reachable over SSH (key login) from the Root's network.
+
+Status: in development. The Root, the macOS and Linux Agents, the chat bundle and the AI proxy are built and tested locally.
