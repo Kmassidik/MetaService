@@ -220,7 +220,7 @@
       {/if}
     </main>
   </div>
-  <AddMachine open={adding} onClose={() => (adding = false)} onCreated={refresh} />
+  <AddMachine open={adding} onClose={() => (adding = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   <NewWorkload open={creating} {machines} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />

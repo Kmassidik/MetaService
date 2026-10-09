@@ -33,7 +33,7 @@ class Machine:
 class World:
     def __init__(self, root_env=None, with_bundles=False):
         self.bundles = BundleSource("unused") if with_bundles else None
-        extra = ["--ui-dir", "/nonexistent-ui", "--no-local-machine"] + (["--bundle-dir", str(self.bundles.dir)] if self.bundles else [])
+        extra = ["--ui-dir", "/nonexistent-ui"] + (["--bundle-dir", str(self.bundles.dir)] if self.bundles else [])
         self.root = RunningRoot(env_text=root_env, extra_args=extra).start()
         self.operator = Browser(self.root)
         self.machines = {}

@@ -76,7 +76,9 @@ export async function login(username, password) {
 export const signOut = () => call('POST', '/api/auth/logout')
 
 export const listMachines = async () => (await call('GET', '/api/machines')).machines
-export const inviteMachine = (name) => call('POST', '/api/enrollments', { name })
+export const installDefaults = () => call('GET', '/api/installs/defaults')
+export const startInstall = (body) => call('POST', '/api/installs', body)
+export const installProgress = (id) => call('GET', `/api/installs/${encodeURIComponent(id)}`)
 export const removeMachine = (id) => call('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 
 export const scanSetup = () => call('GET', '/api/scan/setup')

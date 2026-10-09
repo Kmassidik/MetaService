@@ -16,8 +16,7 @@ do {
         fflush(stdout)
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
-    let stateDirectory = (config.databasePath as NSString).deletingLastPathComponent
-    if config.localMachine { try LocalMachine.prepare(services: services, directory: stateDirectory) }
+    services.localAgents.resume()
     services.workloads.resume()
     services.bundleService.start()
     let operatorApp = buildOperatorApplication(services: services)
@@ -28,6 +27,7 @@ do {
         try await group.next()
         group.cancelAll()
     }
+    services.localAgents.stopAll()
 } catch {
     FileHandle.standardError.write(Data("metaservice-root: \(error)\n".utf8))
     exit(1)

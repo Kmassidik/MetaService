@@ -27,8 +27,10 @@ struct RootConfig {
     var routerPassword: String?
     var routerCertSha256: String?
     var setupToken: String?
-    /// The computer the control plane runs on is listed as the first machine. Tests turn this off.
-    var localMachine = true
+    /// The MetaService program that "Add machine" installs on this computer, and the ports the Agent and its chat use here.
+    var agentBinary = "../../agent/macos/.build/debug/metaservice-agent"
+    var localAgentPort = 9101
+    var localChatPort = 9200
     var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
@@ -64,12 +66,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            if name == "--no-local-machine" {
-                result[name] = "1"
-                index += 1
-                continue
-            }
-            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--local-agent-port", "--local-chat-port", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -87,7 +84,9 @@ enum ConfigLoader {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad agent port") }
             config.agentListenPort = port
         }
-        config.localMachine = options["--no-local-machine"] == nil
+        config.agentBinary = options["--agent-binary"] ?? config.agentBinary
+        config.localAgentPort = try port(options["--local-agent-port"], default: config.localAgentPort)
+        config.localChatPort = try port(options["--local-chat-port"], default: config.localChatPort)
         config.bind = options["--bind"] ?? config.bind
         config.agentListenBind = options["--agent-bind"] ?? config.agentListenBind
         guard OperatorGate.isLoopback(config.bind) else {
@@ -96,6 +95,12 @@ enum ConfigLoader {
         config.publicBaseURL = options["--public-url"] ?? config.publicBaseURL
         config.uiDirectory = options["--ui-dir"] ?? config.uiDirectory
         config.bundleDirectory = options["--bundle-dir"] ?? config.bundleDirectory
+    }
+
+    private static func port(_ text: String?, default fallback: Int) throws -> Int {
+        guard let text else { return fallback }
+        guard let value = Int(text), (1...65535).contains(value) else { throw ConfigError(description: "bad port \(text)") }
+        return value
     }
 
     /// A file holding secrets must not be readable by anyone but its owner.
@@ -122,6 +127,7 @@ enum ConfigLoader {
         config.publicBaseURL = env["PUBLIC_BASE_URL"] ?? config.publicBaseURL
         config.bind = env["ROOT_BIND"] ?? config.bind
         config.agentListenBind = env["ROOT_AGENT_BIND"] ?? config.agentListenBind
+        config.agentBinary = env["AGENT_BINARY"] ?? config.agentBinary
         if let text = env["ROOT_AGENT_PORT"] {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_AGENT_PORT") }
             config.agentListenPort = port

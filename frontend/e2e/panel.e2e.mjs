@@ -68,7 +68,7 @@ async function startRoot() {
   writeFileSync(env, `${scanLines}AI_BASE_URL=${provider.base}\nAI_API_KEY=${AI_KEY}\nAI_DEFAULT_MODEL=fake-model\n`)
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
-  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1', '--no-local-machine',
+  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1', '--agent-binary', agentBinary, '--local-agent-port', String(await freePort()), '--local-chat-port', String(await freePort()),
     '--public-url', base, '--ui-dir', join(repo, 'frontend/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
     if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child, dir }
@@ -338,22 +338,30 @@ try {
   check('hostile workload text is shown as text, not run', (await page.evaluate(() => window.__xss)) === undefined && (await page.$('img[src="x"]')) === null)
 
   await click('Add a machine')
-  await page.waitForSelector('dialog[open] input')
-  await page.type('dialog[open] input', 'Bad Name!')
-  check('a bad name disables the button and explains why',
-    (await page.evaluate(() => document.querySelector('dialog[open] button[type=submit]').disabled)) && (await text()).includes('Use lowercase letters'))
-  await page.$eval('dialog[open] input', (input) => { input.value = '' })
-  await page.type('dialog[open] input', 'pc-itx')
-  await click('Create token')
-  await page.waitForSelector('dialog[open] code')
-  const token = await page.$eval('dialog[open] code', (code) => code.textContent.trim())
-  check('a valid name shows a one-time token', token.length >= 43, token)
+  await page.waitForSelector('dialog[open] #machine-name')
+  await page.waitForFunction(() => document.querySelector('dialog[open] #machine-name').value !== '', { timeout: 10000 })
+  const suggested = await page.$eval('dialog[open] #machine-name', (input) => input.value)
+  const reserve = Number(await page.$eval('dialog[open] input[type=number]', (input) => input.value))
+  check('the form suggests a name and recommended limits', /^[a-z0-9][a-z0-9-]*$/.test(suggested) && reserve > 0, `${suggested} ${reserve}`)
+  const setName = async (value) => {
+    await page.$eval('dialog[open] #machine-name', (input) => { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })) })
+    await page.type('dialog[open] #machine-name', value)
+  }
+  await setName('Bad Name!')
+  check('a bad name disables Install and explains why',
+    (await page.evaluate(() => [...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'Install').disabled)) && (await text()).includes('Use lowercase letters'))
+  await setName('e2e-this')
+  check('the chat is offered and on by default when a chat bundle exists', await page.$eval('dialog[open] input[type=checkbox]', (box) => box.checked && !box.disabled))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'add-machine.png') })
+  await click('Install')
+  await page.waitForFunction(() => /(Done\. e2e-this is ready|Installed, but you can't create VMs on e2e-this)/.test(document.body.innerText), { timeout: 150000 })
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'add-machine-done.png') })
+  const finished = await text()
+  check('the install shows every step, with the chat, and ends ready', ['Check the request', 'Install and start MetaService', 'Wait for the machine to report in', 'Install the chat'].every((label) => finished.includes(label)))
   await click('Done')
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
-  await click('Add a machine')
-  await page.waitForSelector('dialog[open] input')
-  check('the token is not shown again', !(await text()).includes(token))
-  await click('Cancel')
+  await page.waitForFunction(() => document.body.innerText.includes('e2e-this'), { timeout: 15000 })
+  check('the installed machine is in the list', true)
 
   await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Remove mac-mini').click())
   await page.waitForSelector('dialog[open]')

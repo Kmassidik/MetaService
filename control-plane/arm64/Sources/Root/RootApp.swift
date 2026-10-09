@@ -10,6 +10,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     let guards = Guards(services: services)
     AuthRoutes(services: services, guards: guards).register(on: router.group())
     OperatorRoutes(services: services, guards: guards).register(on: router.group())
+    InstallRoutes(services: services, guards: guards).register(on: router.group())
     WorkloadRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).registerOperator(on: router.group())
     BrainRoutes(services: services, guards: guards).registerOperator(on: router.group())

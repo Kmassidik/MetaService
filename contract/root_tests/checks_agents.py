@@ -121,30 +121,6 @@ def check_heartbeat_rejects_every_broken_problem_list():
         expect("<img" in operator.request("GET", "/api/machines/mini").body["problems"][0]["message"], "hostile text must come back as plain JSON text")
 
 
-def check_the_computer_running_the_control_plane_is_invited_as_the_first_machine():
-    import json, os, re, stat, tempfile
-    ui = tempfile.mkdtemp(prefix="ms-no-ui-")
-    with running(extra_args=["--ui-dir", ui]) as root:
-        path = os.path.join(root.dir, "local-agent.json")
-        expect(os.path.exists(path) and stat.S_IMODE(os.stat(path).st_mode) == 0o600, "no private invite file for the local Agent")
-        invite = json.load(open(path))
-        expect(set(invite) == {"name", "token"} and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", invite["name"]) and len(invite["token"]) >= 43, f"invite file: {invite.keys()}")
-        agent = Browser(root, auto_login=False)
-        wrong_name = agent.request("POST", "/v1/agents/enroll", {"enrollment_token": invite["token"], "name": "someone-else"}, origin=None)
-        expect(wrong_name.status == 401, f"the invite worked for another name: {wrong_name.status}")
-        done = agent.request("POST", "/v1/agents/enroll", {"enrollment_token": invite["token"], "name": invite["name"]}, origin=None)
-        expect(done.status == 200 and "machine_token" in done.body, f"the local invite was refused: {done.status} {done.raw[:80]!r}")
-        expect(agent.request("POST", "/v1/agents/enroll", {"enrollment_token": invite["token"], "name": invite["name"]}, origin=None).status == 401, "the invite worked twice")
-        listed = Browser(root).request("GET", "/api/machines").body["machines"]
-        expect([m["name"] for m in listed] == [invite["name"]], f"the machine list: {listed}")
-
-
-def check_with_the_no_local_machine_option_nobody_is_invited():
-    import os
-    with running() as root:
-        expect(not os.path.exists(os.path.join(root.dir, "local-agent.json")), "an invite was made although the option is on")
-
-
 def check_heartbeat_rejects_every_broken_shape():
     with running() as root:
         operator = Browser(root)
@@ -240,7 +216,7 @@ CHECKS = [
     check_invite_then_enroll_gives_a_long_token, check_an_enrollment_token_works_once_and_only_for_its_name, check_enroll_refusals_look_the_same,
     check_bad_machine_names_are_rejected_when_inviting, check_cannot_invite_a_name_that_is_already_enrolled,
     check_a_new_machine_is_offline_until_its_first_heartbeat, check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy,
-    check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workloads_until_it_clears, check_heartbeat_rejects_every_broken_problem_list, check_the_computer_running_the_control_plane_is_invited_as_the_first_machine, check_with_the_no_local_machine_option_nobody_is_invited,
+    check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workloads_until_it_clears, check_heartbeat_rejects_every_broken_problem_list,
     check_heartbeat_rejects_every_broken_shape, check_hostile_text_in_a_heartbeat_comes_back_as_json_text, check_tokens_work_only_where_they_belong,
     check_removing_a_machine_revokes_its_token, check_hostile_ids_in_paths_are_404_not_errors,
     check_audit_records_actions_newest_first_and_cannot_be_changed, check_the_enroll_token_is_not_written_to_the_audit_log,
