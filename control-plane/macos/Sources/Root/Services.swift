@@ -21,10 +21,12 @@ struct Services {
     let brainService: BrainService
     let throttle: Throttle
     let admin: AdminStore
+    let setupGate: SetupGate
     let sessions: SessionStore
 
-    init(config: RootConfig, database: Database, secrets: SecretBox, clock: Clock = SystemClock()) {
+    init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
+        self.setupGate = setupGate
         self.clock = clock
         machines = MachineStore(database)
         enrollments = EnrollmentStore(database)

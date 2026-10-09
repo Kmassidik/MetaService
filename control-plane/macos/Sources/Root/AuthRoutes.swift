@@ -28,17 +28,26 @@ struct AuthRoutes {
     func status(_ request: Request, context: RootContext) async throws -> Response {
         try guards.requireHost(request)
         let signedIn = (try? guards.operatorRead(request)) != nil
-        return try Json.response(Status(configured: services.admin.isConfigured, signedIn: signedIn))
+        return try Json.response(Status(configured: services.admin.isConfigured, signedIn: signedIn, setupTokenRequired: services.setupGate.isOpen))
     }
 
     func setup(_ request: Request, context: RootContext) async throws -> Response {
         try guards.requireHost(request)
         try requireOrigin(request)
         try guards.limit("setup", per: context, max: Self.setupPerMinute, seconds: 60)
+        let lockKey = "setup-token:\(context.remoteIP)"
+        guard !services.throttle.isFull(lockKey, limit: Self.attemptsBeforeLockout) else { throw ApiFailure.tooMany }
         let body = try Credentials(body: try await guards.body(request), needsConfirm: true)
+        guard !services.admin.isConfigured else { throw ApiFailure(status: .conflict, code: "already_set_up", message: "the admin login already exists") }
+        guard services.setupGate.accepts(body.setupToken ?? "") else {
+            _ = services.throttle.allow(lockKey, limit: Self.attemptsBeforeLockout, seconds: Self.lockoutSeconds)
+            try services.audit.record(actor: "unknown", action: "auth.setup_denied", detail: ["from": context.remoteIP], at: services.clock.now)
+            throw ApiFailure.forbidden("setup is locked: ask the operator for the setup token")
+        }
         guard try services.admin.create(username: body.username, password: body.password) else {
             throw ApiFailure(status: .conflict, code: "already_set_up", message: "the admin login already exists")
         }
+        services.setupGate.close()
         try services.audit.record(actor: body.username, action: "auth.setup", at: services.clock.now)
         return try signIn(username: body.username, status: .created)
     }
@@ -99,6 +108,7 @@ struct AuthRoutes {
     private struct Status: Encodable {
         let configured: Bool
         let signedIn: Bool
+        let setupTokenRequired: Bool
     }
 
     private struct Reply: Encodable {
@@ -109,9 +119,11 @@ struct AuthRoutes {
     private struct Credentials {
         let username: String
         let password: String
+        let setupToken: String?
 
         init(body: Data, needsConfirm: Bool) throws {
-            let object = try StrictObject(data: body, allowed: needsConfirm ? ["username", "password", "confirm"] : ["username", "password"])
+            let object = try StrictObject(data: body, allowed: needsConfirm ? ["username", "password", "confirm", "setup_token"] : ["username", "password"])
+            setupToken = needsConfirm ? try object.string("setup_token", maxLength: 200, minLength: 1) : nil
             username = try object.string("username", pattern: AuthRoutes.usernamePattern, maxLength: 32, minLength: 3)
             password = try object.string("password", maxLength: PasswordHash.maxLength, minLength: needsConfirm ? PasswordHash.minLength : 1)
             if needsConfirm {

@@ -9,7 +9,12 @@ do {
     let database = try Database(path: config.databasePath)
     try Migrations.migrate(database)
     let secrets = try SecretBox.loadOrCreate(path: (config.databasePath as NSString).deletingLastPathComponent + "/root.key")
-    let services = Services(config: config, database: database, secrets: secrets)
+    let stateDirectory = (config.databasePath as NSString).deletingLastPathComponent
+    let setupGate = try SetupGate.prepare(configured: config.setupToken, adminExists: AdminStore(database).isConfigured, directory: stateDirectory)
+    if setupGate.isOpen {
+        print("metaservice-root: first run. Create the admin login in the panel with the setup token from ROOT_SETUP_TOKEN in the env file, or from \(setupGate.path) (mode 600).")
+    }
+    let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
     services.workloads.resume()
     services.bundleService.start()
     let operatorApp = buildOperatorApplication(services: services)

@@ -83,6 +83,12 @@ class RunningRoot:
             self.process.terminate()
             self.process.wait(timeout=5)
 
+    def setup_token(self):
+        """The first-run token the Root wrote next to its database (the operator reads it from there or from the env file)."""
+        if getattr(self, "_setup_token", None) is None:  # the file is gone once the admin exists, so remember what it held
+            self._setup_token = pathlib.Path(self.dir, "setup.token").read_text().strip()
+        return self._setup_token
+
     def exit_text(self):
         return self.early_exit
 
@@ -138,7 +144,7 @@ class Browser:
         if configured:
             reply = self.request("POST", "/api/auth/login", {"username": username, "password": password})
         else:
-            reply = self.request("POST", "/api/auth/setup", {"username": username, "password": password, "confirm": password})
+            reply = self.request("POST", "/api/auth/setup", {"username": username, "password": password, "confirm": password, "setup_token": self.root.setup_token()})
         expect(reply.status in (200, 201), f"sign-in gave {reply.status}: {reply.raw[:120]!r}")
         return reply
 

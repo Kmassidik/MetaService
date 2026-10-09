@@ -26,6 +26,7 @@ struct RootConfig {
     var routerUser: String?
     var routerPassword: String?
     var routerCertSha256: String?
+    var setupToken: String?
     var aiBaseURL: String?
     var aiApiKey: String?
     var aiModel: String?
@@ -121,6 +122,10 @@ enum ConfigLoader {
         }
         try applyScan(env, to: &config)
         try applyBrain(env, to: &config)
+        if let token = env["ROOT_SETUP_TOKEN"] {
+            guard token.count >= SetupGate.minLength else { throw ConfigError(description: "ROOT_SETUP_TOKEN must be at least \(SetupGate.minLength) characters") }
+            config.setupToken = token
+        }
     }
 
     /// The AI provider. The key lives only in this file; a half-filled set of settings is refused so a typo is not mistaken for "not configured".

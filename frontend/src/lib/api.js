@@ -61,8 +61,8 @@ export async function getSession() {
 export const authStatus = () => call('GET', '/api/auth/status')
 
 /** First run: creates the admin login and signs in. */
-export async function setupAdmin(username, password, confirm) {
-  const reply = await call('POST', '/api/auth/setup', { username, password, confirm })
+export async function setupAdmin(username, password, confirm, setupToken) {
+  const reply = await call('POST', '/api/auth/setup', { username, password, confirm, setup_token: setupToken })
   csrfToken = reply.csrf_token
   return reply.username
 }

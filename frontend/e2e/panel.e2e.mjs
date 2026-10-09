@@ -1,7 +1,7 @@
 // End-to-end test of the panel in a real browser against a real Root. The panel has no sign-in: it only works from the machine the Root runs on.
 // Needs: the Root build (`swift build` in control-plane/macos), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in ui/.
 import { spawn, spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
 import { networkInterfaces, tmpdir } from 'node:os'
@@ -71,7 +71,7 @@ async function startRoot() {
   const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1',
     '--public-url', base, '--ui-dir', join(repo, 'frontend/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
-    if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child }
+    if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child, dir }
     await new Promise((r) => setTimeout(r, 100))
   }
   throw new Error('Root did not start')
@@ -79,11 +79,11 @@ async function startRoot() {
 
 const ADMIN = { username: 'admin', password: 'correct horse battery' }
 
-/** With plain fetch: create the admin login (first run), invite two machines and enroll them as Agents would (on the Agent listener). */
+/** With plain fetch: sign in as the admin made on the first-run page, invite two machines and enroll them as Agents would (on the Agent listener). */
 let operatorSession = null
 
 async function seed(base) {
-  const made = await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ ...ADMIN, confirm: ADMIN.password }) })
+  const made = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify(ADMIN) })
   const cookie = made.headers.get('set-cookie').split(';')[0]
   operatorSession = { cookie, csrf: (await made.json()).csrf_token }
   const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }, body: JSON.stringify(body) })
@@ -107,7 +107,7 @@ function heartbeat(name) {
 /** The one machine that reports a host problem, to check the panel shows it with its fix. */
 const PROBLEM = { code: 'bridge_blocked_by_firewall', message: 'VMs cannot get an IPv4 address: the bridge incusbr0 is not trusted.', fix: 'As root, run: metaservice-agent setup --yes' }
 
-const { base, agentBase, child } = await startRoot()
+const { base, agentBase, child, dir: rootDir } = await startRoot()
 /** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
 async function startAgent(base, name = 'agent-mac') {
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-agent-'))
@@ -179,6 +179,38 @@ async function workloadScenario() {
   } finally {
     agent.kill()
   }
+}
+
+/** The first visit: the setup page asks for the token, shows whether the two passwords match, and has an eye to show them. */
+async function firstRun() {
+  await page.goto(base, { waitUntil: 'networkidle0' })
+  const first = await text()
+  check('a new Root asks to create the admin login and asks for the setup token', /first run/i.test(first) && /setup token/i.test(first) && !first.includes('dgx-spark'))
+  const token = readFileSync(join(rootDir, 'setup.token'), 'utf8').trim()
+  await page.type('input[name=username]', ADMIN.username)
+  await page.type('input[name=password]', ADMIN.password)
+  await page.type('input[name=confirm]', 'not the same')
+  await page.waitForFunction(() => document.body.innerText.includes('are different'))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'first-run.png') })
+  check('different passwords are called out and the button is disabled', await page.evaluate(() => document.querySelector('button[type=submit]').disabled))
+  check('the password is hidden until the eye is pressed', (await page.$eval('input[name=password]', (i) => i.type)) === 'password')
+  await page.click('button[aria-label="Show password"]')
+  check('the eye shows the password', (await page.$eval('input[name=password]', (i) => i.type)) === 'text')
+  await page.click('button[aria-label="Hide password"]')
+  await page.$eval('input[name=confirm]', (input) => { input.value = ''; input.dispatchEvent(new Event('input')) })
+  await page.type('input[name=confirm]', ADMIN.password)
+  await page.waitForFunction(() => document.body.innerText.includes('are the same'))
+  await page.type('input[name=setup_token]', 'a wrong setup token 0123456789')
+  await click('Create admin login')
+  await page.waitForFunction(() => /setup is locked/i.test(document.body.innerText), { timeout: 10000 })
+  check('a wrong setup token is refused', /setup is locked/i.test(await text()))
+  await page.$eval('input[name=setup_token]', (input) => { input.value = ''; input.dispatchEvent(new Event('input')) })
+  await page.type('input[name=setup_token]', token)
+  await click('Create admin login')
+  await page.waitForFunction(() => document.body.innerText.includes('No machines yet'), { timeout: 10000 })
+  check('the right setup token creates the admin and opens the panel', true)
+  await click('Sign out')
+  await page.waitForFunction(() => /operator sign in/i.test(document.body.innerText), { timeout: 10000 })
 }
 
 async function bundleScenario() {
@@ -266,7 +298,7 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => message.type() === 'error' && !/status of (401|409|502)/.test(message.text()) && errors.push(message.text()))
+  page.on('console', (message) => message.type() === 'error' && !/status of (401|403|409|502)/.test(message.text()) && errors.push(message.text()))
   await page.evaluateOnNewDocument(() => document.addEventListener('securitypolicyviolation', (event) => (window.__csp = (window.__csp ?? 0) + 1 && event.violatedDirective)))
   text = () => page.evaluate(() => document.body.innerText)
   click = async (label) => {
@@ -274,6 +306,7 @@ try {
     await handle.asElement().click()
   }
 
+  await firstRun()
   await seed(base)
   await page.goto(base, { waitUntil: 'networkidle0' })
   const gate = await text()
