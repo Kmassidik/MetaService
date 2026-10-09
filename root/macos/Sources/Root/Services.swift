@@ -15,6 +15,9 @@ struct Services {
     let secrets: SecretBox
     let commands: CommandStore
     let workloads: WorkloadService
+    let bundles: BundleStore
+    let chatAccess: ChatAccessStore
+    let bundleService: BundleService
     let throttle: Throttle
     let google: GoogleAuth
 
@@ -31,6 +34,10 @@ struct Services {
         google = GoogleAuth(config: config, clock: clock)
         self.secrets = secrets
         commands = CommandStore(database)
-        workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets), clock: clock)
+        bundles = BundleStore(database, directory: config.bundleDirectory ?? (config.databasePath as NSString).deletingLastPathComponent + "/bundles")
+        chatAccess = ChatAccessStore(database)
+        workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets), clock: clock,
+                                    bundles: bundles, chatAccess: chatAccess, secrets: secrets)
+        bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, clock: clock)
     }
 }

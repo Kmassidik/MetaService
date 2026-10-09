@@ -126,3 +126,10 @@ export function commandOutcome(command) {
   if (command.result?.backup_id && command.result.backup_id !== 'none') return `backup kept: ${command.result.backup_id}`
   return 'done'
 }
+
+/** What to say about a bundle version next to the pinned one: nothing, "no chat", or "needs 0.2.0". */
+export function bundleFlag(installed, pinned) {
+  if (!installed) return { text: 'no chat', stale: false }
+  if (!pinned || installed === pinned) return { text: `chat ${installed}`, stale: false }
+  return { text: `chat ${installed}, needs ${pinned}`, stale: true }
+}

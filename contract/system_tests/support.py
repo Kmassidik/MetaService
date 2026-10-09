@@ -5,7 +5,8 @@ import sqlite3
 from contextlib import contextmanager
 
 from contract.agent_tests.support import FakeContainerWorld, RunningAgent, run_cli, wait_for, write_secret
-from contract.root_tests.support import Browser, RunningRoot, expect, ALLOWED_EMAIL
+from contract.root_tests.support import Browser, RunningRoot, expect, ALLOWED_EMAIL, _free_port
+from contract.tests.bundle_source import BundleSource
 
 
 class Machine:
@@ -30,8 +31,10 @@ class Machine:
 
 
 class World:
-    def __init__(self, root_env=None):
-        self.root = RunningRoot(env_text=root_env).start()
+    def __init__(self, root_env=None, with_bundles=False):
+        self.bundles = BundleSource("unused") if with_bundles else None
+        extra = ["--ui-dir", "/nonexistent-ui"] + (["--bundle-dir", str(self.bundles.dir)] if self.bundles else [])
+        self.root = RunningRoot(env_text=root_env, extra_args=extra).start()
         self.operator = Browser(self.root)
         self.operator.sign_in()
         self.machines = {}
@@ -45,7 +48,7 @@ class World:
         expect(code == 0, f"enroll of {name} failed: {text[:150]}")
         agent.token = open(os.path.join(agent.state, "command.token")).read().strip()
         budget = ["--ram-allowance-mb", str(ram_mb), "--ram-reserve-mb", str(ram_reserve), "--disk-allowance-gb", str(disk_gb), "--disk-reserve-gb", str(disk_reserve),
-                  "--heartbeat-seconds", str(heartbeat)]
+                  "--heartbeat-seconds", str(heartbeat), "--chat-port", str(_free_port()), "--chat-bind", "127.0.0.1"]
         engine_args, env = [], {}
         if engine == "apple":
             container = container or FakeContainerWorld()
@@ -78,6 +81,8 @@ class World:
         return sqlite3.connect(os.path.join(self.root.dir, "root.sqlite3"))
 
     def stop(self):
+        if self.bundles:
+            self.bundles.stop()
         for machine in self.machines.values():
             machine.agent.stop()
         self.root.stop()

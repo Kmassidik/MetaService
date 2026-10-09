@@ -10,7 +10,9 @@ import tempfile
 import time
 
 from contract.agent_tests.support import FakeContainerWorld
+from contract.tests.bundle_source import BundleSource
 from contract.tests.runner import run_checks
+from contract.tests.support import Bundles
 
 BINARY = pathlib.Path(__file__).resolve().parents[2] / "agent" / "macos" / ".build" / "debug" / "metaservice-agent"
 START_WAIT_SECONDS = 20
@@ -46,19 +48,28 @@ def main():
     token_file = os.path.join(state, "command.token")
     pathlib.Path(token_file).write_text(token)
     os.chmod(token_file, 0o600)
+    machine_token = secrets.token_hex(24)
+    source = BundleSource(machine_token)
+    for name, text in (("agent.token", machine_token), ("agent.json", f'{{"root": "{source.url}", "name": "conformance"}}')):
+        pathlib.Path(state, name).write_text(text)
+        os.chmod(pathlib.Path(state, name), 0o600)
     port = free_port()
     extra, env = [], os.environ.copy()
     if engine == "apple":
         world = FakeContainerWorld()
         extra, env = world.agent_args(), {**os.environ, **world.env}
-    process = subprocess.Popen([str(BINARY), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--engine", engine] + extra + BUDGET_ARGS,
+    process = subprocess.Popen([str(BINARY), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--engine", engine, "--chat-port", str(free_port())] + extra + BUDGET_ARGS,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
         wait_until_up(port, process)
-        failures = run_checks(f"http://127.0.0.1:{port}", token)
+        failures = run_checks(f"http://127.0.0.1:{port}", token, bundle=Bundles(source.versions, source.sha, verifies=True))
     finally:
+        source.stop()
         process.terminate()
         process.wait(timeout=5)
+    if failures:
+        log = os.path.join(state, "chat.log")
+        print(f"\nAgent state kept in {state}\nchat.log: {open(log).read()[-500:] if os.path.exists(log) else '(none)'}\nAgent stderr: {process.stderr.read().decode()[-500:]}")
     sys.exit(1 if failures else 0)
 
 

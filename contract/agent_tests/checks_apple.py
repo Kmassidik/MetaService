@@ -133,16 +133,28 @@ def check_deleting_something_already_gone_just_clears_the_record():
 
 
 def check_everything_survives_an_agent_restart():
-    with apple_agent() as agent:
-        workload_id = make(agent, "c-keep")["result"]["workload_id"]
-        agent.call("POST", "/v1/bundle/install", {"command_id": "c-b", "version": "1.4.0", "sha256": "a" * 64, "workload_id": workload_id})
-        wait_command(agent, "c-b")
-        agent.stop()
-        agent.start()
-        listed = workloads(agent)
-        expect(len(listed) == 1 and listed[0]["id"] == workload_id and listed[0]["bundle_version"] == "1.4.0", f"after restart: {listed}")
-        again = agent.call("POST", "/v1/workloads", {"command_id": "c-keep", **BODY})
-        expect(again[0] == 202 and again[1]["state"] == "succeeded" and len(workloads(agent)) == 1, f"a repeated command id after a restart made another workload: {again}")
+    from contract.tests.bundle_source import BundleSource
+    import json
+    from contract.agent_tests.support import write_secret
+    source = BundleSource("machine-token-for-the-test-source-0001")
+    try:
+        with apple_agent(extra=["--chat-port", str(__import__("contract.root_tests.support", fromlist=["_free_port"])._free_port()), "--chat-bind", "127.0.0.1"]) as agent:
+            workload_id = make(agent, "c-keep")["result"]["workload_id"]
+            agent.stop()
+            write_secret(os.path.join(agent.state, "agent.token"), "machine-token-for-the-test-source-0001")
+            write_secret(os.path.join(agent.state, "agent.json"), json.dumps({"root": source.url, "name": "x"}))
+            agent.start()
+            version = source.versions[0]
+            agent.call("POST", "/v1/bundle/install", {"command_id": "c-b", "version": version, "sha256": source.sha[version], "workload_id": workload_id})
+            wait_command(agent, "c-b")
+            agent.stop()
+            agent.start()
+            listed = workloads(agent)
+            expect(len(listed) == 1 and listed[0]["id"] == workload_id and listed[0]["bundle_version"] == version, f"after restart: {listed}")
+            again = agent.call("POST", "/v1/workloads", {"command_id": "c-keep", **BODY})
+            expect(again[0] == 202 and again[1]["state"] == "succeeded" and len(workloads(agent)) == 1, f"a repeated command id after a restart made another workload: {again}")
+    finally:
+        source.stop()
 
 
 def check_a_command_running_when_the_agent_dies_is_reported_failed():

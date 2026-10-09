@@ -47,6 +47,7 @@ struct OperatorRoutes {
         } catch MachineError.notFound {
             throw ApiFailure.notFound
         }
+        try services.chatAccess.remove(target: id)
         try services.audit.record(actor: session.email, action: "machine.remove", target: id, at: services.clock.now)
         return Response(status: .noContent)
     }

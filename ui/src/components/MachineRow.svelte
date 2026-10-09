@@ -1,9 +1,10 @@
 <script>
   import StatePill from './StatePill.svelte'
   import Meter from './Meter.svelte'
-  import { archName, formatGb, formatMb, osName, relativeTime } from '../lib/format.js'
+  import { archName, bundleFlag, formatGb, formatMb, osName, relativeTime } from '../lib/format.js'
 
-  let { machine, now, onRemove, onAct, onDelete } = $props()
+  let { machine, now, pinned, onRemove, onAct, onDelete, onInstall, onOpenChat } = $props()
+  const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   const WORKLOAD_TONE = { running: 'online', stopped: 'offline' }
   let open = $state(false)
   const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
@@ -29,7 +30,7 @@
   </div>
   <div class="cell" data-label="Workloads">
     <span class="nums">{machine.workloads.length} {machine.workloads.length === 1 ? 'workload' : 'workloads'}</span>
-    <span class="muted">bundle {machine.bundle_version ?? '–'}</span>
+    <span class:stale={flag.stale} class="muted">{flag.text}</span>
   </div>
   <div class="cell" data-label="Last seen">
     <span class="nums">{relativeTime(machine.last_seen, now)}</span>
@@ -41,6 +42,10 @@
 
   {#if open}
     <div class="detail">
+      <div class="chatbar">
+        <button class="btn small" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'} on {machine.name}</button>
+        {#if machine.bundle_version}<button class="btn small" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
+      </div>
       {#if machine.workloads.length === 0}
         <p class="muted">No workloads reported by this machine.</p>
       {:else}
@@ -52,7 +57,10 @@
               <StatePill state={WORKLOAD_TONE[workload.state] ?? 'busy'} label={workload.state} />
               <span class="muted nums">{workload.cpu} cpu · {formatMb(workload.ram_mb)} · {formatGb(workload.disk_gb)} · {gpuLabel(workload.gpu_mode)}</span>
               {#if workload.address}<span class="mono muted">{workload.address}</span>{/if}
+              <span class="muted">{bundleFlag(workload.bundle_version, pinned).text}</span>
               <span class="wl-actions">
+                {#if workload.state === 'running'}<button class="btn small" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
+                {#if workload.bundle_version}<button class="btn small" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
                 {#if workload.state === 'running'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
                 {#if workload.state === 'stopped'}<button class="btn small" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
                 <button class="btn small danger" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
@@ -100,6 +108,8 @@
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
   .caps { font-size: 13px; }
+  .chatbar { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stale { color: var(--warn); font-weight: 600; }
   .wl-actions { display: inline-flex; gap: 6px; margin-left: auto; }
   .small { min-height: 30px; padding: 0 10px; font-size: 13px; }
 

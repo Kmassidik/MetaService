@@ -9,8 +9,8 @@ from contract.tests.support import CheckFailed, Client, Context
 ALL_CHECKS = checks_basic.CHECKS + checks_workloads.CHECKS + checks_bundle.CHECKS
 
 
-def run_checks(base_url, token, out=sys.stdout):
-    context = Context(Client(base_url, token))
+def run_checks(base_url, token, out=sys.stdout, bundle=None):
+    context = Context(Client(base_url, token), bundle)
     failures = 0
     for check in ALL_CHECKS:
         failures += _run_one(check, context, out)

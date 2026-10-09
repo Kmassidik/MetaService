@@ -28,6 +28,51 @@ public enum AppleContainer {
     public static func delete(_ id: String) -> [String] { ["delete", "--force", name(for: id)] }
     public static func inspect(_ id: String) -> [String] { ["inspect", name(for: id)] }
     public static func export(_ id: String, to path: String) -> [String] { ["export", "--output", path, name(for: id)] }
+    public static func copyIn(_ id: String, from hostPath: String, to containerPath: String) -> [String] { ["cp", hostPath, "\(name(for: id)):\(containerPath)"] }
+
+    /// Environment values go in as separate `-e NAME=value` pairs; they are never part of the program text.
+    public static func exec(_ id: String, arguments: [String], environment: [String: String]) -> [String] {
+        ["exec"] + environment.sorted { $0.key < $1.key }.flatMap { ["-e", "\($0.key)=\($0.value)"] } + [name(for: id)] + arguments
+    }
+
+    /// Installs the chat bundle inside a workload: python3 if missing, a locked-down user, the files, a systemd service, and a health check.
+    /// Fixed text. The version and port arrive as MS_VERSION and MS_PORT; the archive and key were copied in beforehand.
+    public static let bundleInstallScript = """
+    set -e
+    command -v python3 >/dev/null || { export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 >/dev/null; }
+    id -u metachat >/dev/null 2>&1 || useradd --system --home-dir /opt/metaservice --shell /usr/sbin/nologin metachat
+    dir="/opt/metaservice/chat/$MS_VERSION"
+    rm -rf "$dir"; mkdir -p "$dir"
+    tar -xzf /tmp/metaservice-chat.tar.gz -C "$dir" --no-same-owner
+    chown -R root:root /opt/metaservice/chat
+    install -o metachat -g metachat -m 600 /tmp/metaservice-chat.key /opt/metaservice/chat.key
+    rm -f /tmp/metaservice-chat.tar.gz /tmp/metaservice-chat.key
+    ln -sfn "$dir" /opt/metaservice/chat/current
+    cat > /etc/systemd/system/metaservice-chat.service <<UNIT
+    [Unit]
+    Description=MetaService chat
+    After=network.target
+    [Service]
+    User=metachat
+    ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key
+    Restart=always
+    NoNewPrivileges=true
+    ProtectSystem=strict
+    ProtectHome=true
+    PrivateTmp=true
+    [Install]
+    WantedBy=multi-user.target
+    UNIT
+    systemctl daemon-reload
+    systemctl enable metaservice-chat >/dev/null 2>&1
+    systemctl restart metaservice-chat
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      python3 -c "import json,sys,urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:$MS_PORT/health', timeout=2))['version'] == '$MS_VERSION' else 1)" 2>/dev/null && exit 0
+      sleep 1
+    done
+    exit 1
+    """
+
     public static let listAll = ["list", "--all", "--format", "json"]
     public static let systemStatus = ["system", "status"]
     public static let systemStart = ["system", "start"]

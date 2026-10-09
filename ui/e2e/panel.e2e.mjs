@@ -43,6 +43,8 @@ async function freePort() {
 
 async function startRoot() {
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-'))
+  const bundleDir = join(dir, 'bundles')
+  for (const version of ['0.1.0', '0.2.0']) spawnSync('python3', [join(repo, 'bundles/chat/build.py'), '--version', version, '--out', bundleDir])
   const port = await freePort()
   const env = join(dir, 'root.env')
   const prefix = localPrefix()
@@ -51,7 +53,7 @@ async function startRoot() {
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
   const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1',
-    '--public-url', base, '--ui-dir', join(repo, 'ui/dist')], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
+    '--public-url', base, '--ui-dir', join(repo, 'ui/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
     if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, child }
     await new Promise((r) => setTimeout(r, 100))
@@ -87,18 +89,19 @@ function heartbeat(name) {
 
 const { base, child } = await startRoot()
 /** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
-async function startAgent(base) {
+async function startAgent(base, name = 'agent-mac') {
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-agent-'))
   const headers = { 'Content-Type': 'application/json', Cookie: operatorSession.cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }
-  const invite = await (await fetch(`${base}/api/enrollments`, { method: 'POST', headers, body: JSON.stringify({ name: 'agent-mac', ip: '127.0.0.1' }) })).json()
+  const invite = await (await fetch(`${base}/api/enrollments`, { method: 'POST', headers, body: JSON.stringify({ name, ip: '127.0.0.1' }) })).json()
   const tokenFile = join(dir, 'enroll.token')
   writeFileSync(tokenFile, invite.enrollment_token)
   chmodSync(tokenFile, 0o600)
-  const enrolled = spawnSync(agentBinary, ['enroll', '--root', base.replace('localhost', '127.0.0.1'), '--name', 'agent-mac', '--enrollment-token-file', tokenFile, '--state-dir', dir])
+  const enrolled = spawnSync(agentBinary, ['enroll', '--root', base.replace('localhost', '127.0.0.1'), '--name', name, '--enrollment-token-file', tokenFile, '--state-dir', dir])
   if (enrolled.status !== 0) throw new Error('agent enroll failed: ' + enrolled.stderr)
   const port = await freePort()
   return spawn(agentBinary, ['run', '--state-dir', dir, '--port', String(port), '--bind', '127.0.0.1', '--engine', 'simulated', '--heartbeat-seconds', '1',
-    '--ram-allowance-mb', '16384', '--ram-reserve-mb', '4096', '--disk-allowance-gb', '200', '--disk-reserve-gb', '10'], { stdio: 'ignore' })
+    '--ram-allowance-mb', '16384', '--ram-reserve-mb', '4096', '--disk-allowance-gb', '200', '--disk-reserve-gb', '10',
+    '--chat-port', String(await freePort()), '--chat-bind', '127.0.0.1'], { stdio: 'ignore' })
 }
 
 async function workloadScenario() {
@@ -148,6 +151,35 @@ async function workloadScenario() {
     await page.waitForFunction(() => document.body.innerText.includes('best machine has'), { timeout: 10000 })
     check('a request that fits nowhere shows the numbers', (await text()).includes('needs 512000 MB RAM'))
     await click('Cancel')
+  } finally {
+    agent.kill()
+  }
+}
+
+async function bundleScenario() {
+  const agent = await startAgent(base, 'chat-mac')
+  try {
+    await page.waitForFunction(() => document.body.innerText.includes('chat-mac'), { timeout: 20000 })
+    await page.waitForFunction(() => document.body.innerText.includes('Chat bundle'))
+    const pinTo = async (version) => page.evaluate((v) => [...document.querySelectorAll('section[aria-label="Chat bundle"] li')].find((li) => li.innerText.includes(v)).querySelector('button').click(), version)
+    await pinTo('0.1.0')
+    await page.waitForFunction(() => /0\.1\.0[\s\S]*pinned/.test(document.body.innerText), { timeout: 10000 })
+    check('pinning a version marks it pinned', true)
+    await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('chat-mac')).querySelector('button').click())
+    await click('Install chat on chat-mac')
+    await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 30000 })
+    check('installing the chat shows its version on the machine', true)
+    await click('Open chat')
+    await page.waitForSelector('dialog[open] a')
+    check('the chat link opens in a new tab without leaking the referrer', (await page.$eval('dialog[open] a', (a) => a.rel)).includes('noopener'))
+    await click('Close')
+    await pinTo('0.2.0')
+    await page.waitForFunction(() => document.body.innerText.includes('chat 0.2.0'), { timeout: 60000 })
+    check('a newer pin upgrades the installed chat by itself', true)
+    await click('Roll back to 0.1.0')
+    await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 60000 })
+    check('a rollback puts the older chat back', true)
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'bundles.png'), fullPage: true })
   } finally {
     agent.kill()
   }
@@ -233,6 +265,7 @@ try {
   check('a removed machine disappears', !(await text()).includes('mac-mini'))
 
   await workloadScenario()
+  await bundleScenario()
   if (localPrefix()) await scanScenario()
 
   await page.setViewport({ width: 390, height: 844 })

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName } from './format.js'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag } from './format.js'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
 const ago = (ms) => new Date(now - ms).toISOString()
@@ -101,4 +101,11 @@ test('command outcomes', () => {
   assert.equal(commandOutcome({ state: 'succeeded', result: { backup_id: 'none' } }), 'done')
   assert.equal(commandName('delete'), 'Delete')
   assert.equal(commandName('odd'), 'odd')
+})
+
+test('bundle flags', () => {
+  assert.deepEqual(bundleFlag(null, '0.2.0'), { text: 'no chat', stale: false })
+  assert.deepEqual(bundleFlag('0.2.0', '0.2.0'), { text: 'chat 0.2.0', stale: false })
+  assert.deepEqual(bundleFlag('0.1.0', '0.2.0'), { text: 'chat 0.1.0, needs 0.2.0', stale: true })
+  assert.deepEqual(bundleFlag('0.1.0', null), { text: 'chat 0.1.0', stale: false })
 })

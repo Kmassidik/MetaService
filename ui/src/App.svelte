@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, getSession, listCommands, listMachines, removeMachine, signOut, workloadAction } from './lib/api.js'
+  import { ApiError, authStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, workloadAction } from './lib/api.js'
   import { summarize } from './lib/format.js'
   import SignIn from './components/SignIn.svelte'
   import TopBar from './components/TopBar.svelte'
@@ -12,6 +12,8 @@
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import Activity from './components/Activity.svelte'
+  import Bundles from './components/Bundles.svelte'
+  import ChatLink from './components/ChatLink.svelte'
 
   const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
@@ -25,6 +27,8 @@
   let banner = $state('')
   let adding = $state(false)
   let commands = $state([])
+  let bundles = $state(null)
+  let openLink = $state(null)
   let creating = $state(false)
   let deleting = $state(null)
   let deleteBusy = $state(false)
@@ -53,7 +57,7 @@
   async function refresh() {
     if (phase !== 'ready') return
     try {
-      ;[machines, commands] = await Promise.all([listMachines(), listCommands()])
+      ;[machines, commands, bundles] = await Promise.all([listMachines(), listCommands(), bundleOverview()])
       banner = ''
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -85,6 +89,27 @@
     try {
       await workloadAction(machine.id, workload.id, action)
       await refresh()
+    } catch (error) {
+      banner = error instanceof ApiError ? error.message : 'Something went wrong.'
+    }
+  }
+
+  async function tryAction(work) {
+    try {
+      await work()
+      await refresh()
+    } catch (error) {
+      banner = error instanceof ApiError ? error.message : 'Something went wrong.'
+    }
+  }
+
+  const pin = (version) => tryAction(() => pinBundle(version))
+  const rollback = () => tryAction(() => rollbackBundle())
+  const install = (machine, workload) => tryAction(() => installBundle(machine.id, workload?.id))
+
+  async function openChat(machine, workload) {
+    try {
+      openLink = await chatLink(machine.id, workload?.id)
     } catch (error) {
       banner = error instanceof ApiError ? error.message : 'Something went wrong.'
     }
@@ -156,12 +181,14 @@
           </span>
         </div>
         {#if banner}<p class="banner" role="status">{banner}</p>{/if}
-        <MachineList {machines} {now} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineList {machines} {now} pinned={bundles?.pinned} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <Bundles overview={bundles} onPin={pin} onRollback={rollback} />
         <Activity {commands} {now} />
       {/if}
     </main>
   </div>
   <AddMachine open={adding} onClose={() => (adding = false)} onCreated={refresh} />
+  <ChatLink link={openLink} onClose={() => (openLink = null)} />
   <NewWorkload open={creating} {machines} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />

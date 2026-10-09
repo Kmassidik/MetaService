@@ -110,6 +110,19 @@ elif command in ("list", "inspect"):
             die("no such container")
     out = [{"id": n, "status": {"state": state["containers"][n]["state"], "networks": ([{"ipv4Address": state["containers"][n]["ip"] + "/24"}] if state["containers"][n]["state"] == "running" else [])}} for n in names]
     print(json.dumps(out))
+elif command == "cp":
+    if len(args) != 3 or ":" not in args[2] or args[2].split(":", 1)[0] not in state["containers"]:
+        die("cp needs a host path and container:path of a known container", 2)
+    if state["containers"][args[2].split(":", 1)[0]]["state"] != "running":
+        die("the container must be running")
+    state["containers"][args[2].split(":", 1)[0]].setdefault("files", []).append(args[2].split(":", 1)[1])
+elif command == "exec":
+    values, positional = take_flags(args[1:], {"-e"}, set())
+    if positional[0] not in state["containers"] or state["containers"][positional[0]]["state"] != "running":
+        die("no such running container")
+    state["containers"][positional[0]].setdefault("ran", []).append({"env": values.get("-e", []), "argv": positional[1:]})
+    if os.environ.get("FAKE_CONTAINER_FAIL_EXEC"):
+        die("injected exec failure")
 elif command == "export":
     values, positional = take_flags(args[1:], {"--output"}, set())
     if positional[0] not in state["containers"]:

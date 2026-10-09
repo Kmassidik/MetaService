@@ -4,6 +4,9 @@ import Foundation
 public actor SimulatedEngine: Engine {
     public nonisolated let capabilities: Capabilities
     private var store: [String: Workload] = [:]
+    /// What was pushed and run, in order, so tests can look.
+    public private(set) var pushed: [[String]] = []
+    public private(set) var executed: [[String]] = []
 
     public init(capabilities: Capabilities = Capabilities(vm: true, container: true, gpuInVm: false, gpuInContainer: false)) {
         self.capabilities = capabilities
@@ -34,6 +37,17 @@ public actor SimulatedEngine: Engine {
 
     public func setBundleVersion(id: String, version: String) async throws {
         try change(id) { $0.bundleVersion = version }
+    }
+
+    public func push(id: String, hostPath: String, containerPath: String) async throws {
+        guard store[id] != nil else { throw EngineError.notFound }
+        pushed.append([id, hostPath, containerPath])
+    }
+
+    public func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String {
+        guard store[id] != nil else { throw EngineError.notFound }
+        executed.append(arguments)
+        return ""
     }
 
     private func change(_ id: String, _ edit: (inout Workload) -> Void) throws {

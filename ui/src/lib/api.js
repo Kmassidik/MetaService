@@ -76,3 +76,11 @@ export function workloadAction(machine, workload, action) {
 export function refusalText(error) {
   return error.numbers ? `${error.message}: needs ${error.numbers.needed} ${error.numbers.unit}, the best machine has ${error.numbers.free} free.` : error.message
 }
+
+export const bundleOverview = () => call('GET', '/api/bundles')
+export const pinBundle = (version) => call('POST', '/api/bundles/pin', { version })
+export const rollbackBundle = () => call('POST', '/api/bundles/rollback')
+export const installBundle = (machine, workload) =>
+  call('POST', `/api/machines/${encodeURIComponent(machine)}/bundle/install`, workload ? { workload } : {})
+export const chatLink = async (machine, workload) =>
+  (await call('GET', `/api/chat-link?machine=${encodeURIComponent(machine)}${workload ? `&workload=${encodeURIComponent(workload)}` : ''}`)).url

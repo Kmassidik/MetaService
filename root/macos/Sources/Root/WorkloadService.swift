@@ -11,12 +11,18 @@ final class WorkloadService: @unchecked Sendable {
     private let audit: AuditStore
     private let client: AgentClient
     private let clock: Clock
+    private let bundles: BundleStore
+    private let chatAccess: ChatAccessStore
+    private let secrets: SecretBox
     private let creating = NSLock()
     private static let pollSeconds: UInt64 = 1
     private static let giveUpAfterSeconds = 20 * 60
     private static let lostContactAfterPolls = 300
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, chatAccess: ChatAccessStore, secrets: SecretBox) {
+        self.bundles = bundles
+        self.chatAccess = chatAccess
+        self.secrets = secrets
         self.machines = machines
         self.commands = commands
         self.audit = audit
@@ -61,6 +67,21 @@ final class WorkloadService: @unchecked Sendable {
         try audit.record(actor: actor, action: "workload.\(action.rawValue)", target: machine, detail: ["workload": workload, "command": id], at: clock.now)
         let path = action == .delete ? "/v1/workloads/\(workload)" : "/v1/workloads/\(workload)/\(action.rawValue)"
         return try await send(id, machine: machine, method: action == .delete ? "DELETE" : "POST", path: path, body: nil, commandId: id)
+    }
+
+    /// Installs (or upgrades, or rolls back) the pinned chat bundle on a machine or one of its workloads.
+    func installBundle(actor: String, machine: String, workload: String?) async throws -> CommandRow {
+        guard let version = try bundles.pinned() else { throw ApiFailure(status: .conflict, code: "no_bundle_pinned", message: "pin a chat bundle version first") }
+        guard let bundle = try bundles.find(version: version, platform: "noarch") else { throw ApiFailure(status: .conflict, code: "bundle_missing", message: "the pinned bundle file is not on the Root machine") }
+        let known: MachineSummary
+        do { known = try machines.get(id: machine, now: clock.now) } catch MachineError.notFound { throw ApiFailure.notFound }
+        guard workload == nil || known.workloads.contains(where: { $0.id == workload }) else { throw ApiFailure.notFound }
+        let id = Self.newCommandId()
+        try commands.create(id: id, machine: machine, workloadId: workload, type: "bundle_install", params: ["version": version], actor: actor, now: clock.now)
+        try audit.record(actor: actor, action: "bundle.install", target: machine, detail: ["version": version, "workload": workload ?? "", "command": id], at: clock.now)
+        var body: [String: Any] = ["command_id": id, "version": version, "sha256": bundle.sha256]
+        body["workload_id"] = workload
+        return try await send(id, machine: machine, method: "POST", path: "/v1/bundle/install", body: body)
     }
 
     /// After a restart, keep following whatever was still running.
@@ -122,8 +143,17 @@ final class WorkloadService: @unchecked Sendable {
     }
 
     private func done(_ id: String, _ state: String, _ result: [String: Any]?) {
-        let text = (result ?? [:]).compactMapValues { $0 as? String }
+        var text = (result ?? [:]).compactMapValues { $0 as? String }
+        keepChatKey(id, &text)
         try? finish(id, state: state, result: text)
+    }
+
+    /// A finished install hands over the chat's access key. It goes into the sealed key store and never into the command record.
+    private func keepChatKey(_ id: String, _ result: inout [String: String]) {
+        guard let key = result.removeValue(forKey: "chat_key"), let row = try? commands.get(id), row.type == "bundle_install" else { return }
+        let target = row.workloadId.map { "\(row.machine)/\($0)" } ?? row.machine
+        guard let sealed = try? secrets.seal(key) else { return }
+        try? chatAccess.set(target: target, sealedKey: sealed, port: Int(result["port"] ?? "") ?? 9200, now: clock.now)
     }
 
     private func lost(_ id: String, _ why: String) {

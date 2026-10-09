@@ -42,21 +42,45 @@ func rootAddress(_ config: AgentConfig) -> URL? {
     return object["root"].flatMap { try? RootLink.validated($0) }
 }
 
+func makeSupervisor(_ config: AgentConfig) -> ChatSupervisor? {
+    guard let python = config.pythonPath ?? ["/usr/bin/python3", "/opt/homebrew/bin/python3", "/usr/local/bin/python3"].first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { return nil }
+    return ChatSupervisor(python: python, logPath: config.stateDirectory + "/chat.log")
+}
+
+/// When the Agent is told to stop, the chat it runs stops too.
+func stopOnSignal(_ supervisor: ChatSupervisor?) {
+    for signalNumber in [SIGTERM, SIGINT] {
+        signal(signalNumber, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+        source.setEventHandler { Task { await supervisor?.stop(); exit(0) } }
+        source.resume()
+        signalSources.append(source)
+    }
+}
+
+nonisolated(unsafe) var signalSources: [DispatchSourceSignal] = []
+
 func runAgent(_ config: AgentConfig) async throws {
     let commandToken = try readToken(config.commandTokenFile)
     let probe = await SystemProbe.measure()
     let budget = SpaceBudget(ramTotalMb: probe.specs.ramTotalMb, diskTotalGb: probe.specs.diskTotalGb, ramAllowanceMb: config.ramAllowanceMb, diskAllowanceGb: config.diskAllowanceGb,
                              reserveRamMb: config.reserveRamMb, reserveDiskGb: config.reserveDiskGb)
     let ledger = makeLedger(config)
-    let service = AgentService(engine: try makeEngine(config), budget: budget, specs: probe.specs, agentVersion: AgentConfig.version, ledger: ledger,
+    let engine = try makeEngine(config)
+    let root = rootAddress(config)
+    let machineToken = root == nil ? nil : try readToken(config.tokenFile)
+    let supervisor = ProcessInfo.processInfo.environment["MS_NO_CHAT"] == nil ? makeSupervisor(config) : nil
+    let installer = BundleInstaller(config: config, engine: engine, root: root, machineToken: machineToken, supervisor: supervisor)
+    await installer.resume()
+    stopOnSignal(supervisor)
+    let service = AgentService(engine: engine, budget: budget, specs: probe.specs, agentVersion: AgentConfig.version, ledger: ledger, installer: installer,
                                osAvailableDiskGb: { SystemProbe.availableDiskGb() })
     let router = Router(context: AgentContext.self)
     router.add(middleware: SecurityHeadersMiddleware())
     router.add(middleware: ErrorMiddleware())
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
-    if let root = rootAddress(config) {
-        let machineToken = try readToken(config.tokenFile)
+    if let root, let machineToken {
         let heartbeat = Heartbeat(root: root, token: machineToken, service: service, agentPort: config.port, seconds: config.heartbeatSeconds)
         service.onChange = { heartbeat.beatSoon() }
         Task.detached { await heartbeat.run() }

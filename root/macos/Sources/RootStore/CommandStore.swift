@@ -70,6 +70,14 @@ public struct CommandStore {
             """).map(row)
     }
 
+    /// The newest bundle install for one machine (and workload, if any), so a failing install is not retried every few seconds.
+    public func lastBundleInstall(machine: String, workloadId: String?) throws -> CommandRow? {
+        try database.query("""
+            SELECT id, machine_id, workload_id, type, params_json, state, result_json, actor, created_at, finished_at FROM commands
+            WHERE machine_id = ? AND type = 'bundle_install' AND COALESCE(workload_id, '') = ? ORDER BY created_at DESC, id DESC LIMIT 1
+            """, [.text(machine), .text(workloadId ?? "")]).first.map(row)
+    }
+
     /// RAM and disk already promised to creates that have not finished, so two quick requests cannot both take the same room.
     public func promised(machine: String) throws -> (ramMb: Int, diskGb: Int) {
         let rows = try database.query("SELECT params_json FROM commands WHERE machine_id = ? AND type = 'create' AND state IN ('queued', 'running')", [.text(machine)])

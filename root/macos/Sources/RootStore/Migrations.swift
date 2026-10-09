@@ -59,6 +59,14 @@ public enum Migrations {
             ALTER TABLE machines ADD COLUMN agent_port INTEGER NOT NULL DEFAULT 9101;
             CREATE INDEX commands_by_state ON commands (state);
             """) }),
+        (5, { try $0.exec("""
+            CREATE TABLE bundles (
+              version TEXT NOT NULL, platform TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL, file TEXT NOT NULL, added_at INTEGER NOT NULL,
+              PRIMARY KEY (version, platform)
+            );
+            CREATE TABLE bundle_pins (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, pinned_at INTEGER NOT NULL, actor TEXT NOT NULL);
+            CREATE TABLE chat_access (target TEXT PRIMARY KEY, key_sealed TEXT NOT NULL, port INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

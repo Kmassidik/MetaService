@@ -95,6 +95,16 @@ actor AppleContainerEngine: Engine {
         try records.set(id, record)
     }
 
+    func push(id: String, hostPath: String, containerPath: String) async throws {
+        guard records.all()[id] != nil else { throw EngineError.notFound }
+        _ = try await cli.run(AppleContainer.copyIn(id, from: hostPath, to: containerPath), timeout: Self.quick)
+    }
+
+    func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String {
+        guard records.all()[id] != nil else { throw EngineError.notFound }
+        return String(decoding: try await cli.run(AppleContainer.exec(id, arguments: arguments, environment: environment), timeout: Self.slow), as: UTF8.self)
+    }
+
     // MARK: helpers
 
     private func ensureSystemRunning() async throws {

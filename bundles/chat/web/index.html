@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Chat</title>
+    <link rel="stylesheet" href="/chat.css" />
+  </head>
+  <body>
+    <main>
+      <header><strong>Chat</strong><span id="state" class="muted" role="status"></span></header>
+      <ol id="log" aria-live="polite"></ol>
+      <form id="form" autocomplete="off">
+        <input id="input" type="text" maxlength="4000" placeholder="Say something" aria-label="Message" required />
+        <button type="submit">Send</button>
+      </form>
+    </main>
+    <script src="/chat.js"></script>
+  </body>
+</html>

@@ -63,11 +63,21 @@ def _reply(status, headers, raw):
     return Reply(status, dict(headers.items()), body, raw)
 
 
+class Bundles:
+    """Versions and checksums the install checks use. A real Agent gets real ones from a bundle source; the Fake Agent takes any."""
+
+    def __init__(self, versions=("1.2.3", "2.0.1"), sha=None, verifies=False):
+        self.versions = list(versions)
+        self.sha = sha or {version: "a" * 64 for version in versions}
+        self.verifies = verifies
+
+
 class Context:
     """What every check receives: a client plus a source of unique ids."""
 
-    def __init__(self, client):
+    def __init__(self, client, bundle=None):
         self.client = client
+        self.bundle = bundle or Bundles()
         self._counter = itertools.count(1)
         self._run = format(int(time.time() * 1000) % 0xFFFFFFF, "x")
 
@@ -95,13 +105,15 @@ class Context:
 
     def wait_for(self, command_id, state="succeeded"):
         deadline = time.time() + COMMAND_WAIT_SECONDS
+        last = None
         while time.time() < deadline:
             reply = self.get(f"/v1/commands/{command_id}")
             expect(reply.status == 200, f"command {command_id} lookup gave {reply.status}")
-            if reply.body["state"] == state:
-                return reply.body
+            last = reply.body
+            if last["state"] == state:
+                return last
             time.sleep(POLL_SECONDS)
-        raise CheckFailed(f"command {command_id} did not reach {state} in {COMMAND_WAIT_SECONDS}s")
+        raise CheckFailed(f"command {command_id} did not reach {state} in {COMMAND_WAIT_SECONDS}s; last seen: {last}")
 
     def create_small(self, **overrides):
         body = {"command_id": self.new_id("c"), "name": self.new_id("w"), "kind": self.kind(),

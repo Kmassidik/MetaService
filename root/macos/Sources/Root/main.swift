@@ -11,6 +11,7 @@ do {
     let secrets = try SecretBox.loadOrCreate(path: (config.databasePath as NSString).deletingLastPathComponent + "/root.key")
     let services = Services(config: config, database: database, secrets: secrets)
     services.workloads.resume()
+    services.bundleService.start()
     let app = buildApplication(services: services)
     try await app.runService()
 } catch {

@@ -153,7 +153,7 @@ class FakeEngine:
                 self.bundle_version = body["version"]
             else:
                 self._get(target)["bundle_version"] = body["version"]
-            return self._finish(body["command_id"], "bundle_install", target, {"version": body["version"]})
+            return self._finish(body["command_id"], "bundle_install", target, {"version": body["version"], "port": "9200", "chat_key": "fake-key-" + body["version"]})
 
     def _get(self, workload_id):
         found = self._workloads.get(workload_id)

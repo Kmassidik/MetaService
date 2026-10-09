@@ -27,6 +27,13 @@ public enum Contract {
     public static let version = ContractVersion.current
 }
 
+/// Puts the chat bundle on this machine or inside a workload. The result carries the version, the port and the access key.
+public protocol BundleInstalling: Sendable {
+    func install(_ request: BundleInstallRequest) async throws -> [String: String]
+    /// The version installed on this machine itself, if any.
+    func installedVersion() async -> String?
+}
+
 /// Everything the Agent does, in one place, on top of an Engine. HTTP and the system probes live outside of it.
 public actor AgentService {
     private let engine: Engine
@@ -37,12 +44,13 @@ public actor AgentService {
     private let ledger: CommandLedger
     private var inflight: [String: Workload] = [:]
     private var deleting: Set<String> = []
-    private var machineBundleVersion: String?
+    private let installer: BundleInstalling?
     /// Called when something about the workloads changed, so the Root can hear about it without waiting for the next heartbeat.
     public nonisolated(unsafe) var onChange: (@Sendable () -> Void)?
 
-    public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, ledger: CommandLedger = CommandLedger(),
+    public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, ledger: CommandLedger = CommandLedger(), installer: BundleInstalling? = nil,
                 osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
+        self.installer = installer
         self.engine = engine
         self.budget = budget
         self.specs = specs
@@ -53,8 +61,8 @@ public actor AgentService {
 
     // MARK: reading
 
-    public func health() -> Health {
-        Health(agentVersion: agentVersion, contractVersion: Contract.version, bundleVersion: machineBundleVersion)
+    public func health() async -> Health {
+        Health(agentVersion: agentVersion, contractVersion: Contract.version, bundleVersion: await installer?.installedVersion())
     }
 
     public func facts() async throws -> Facts {
@@ -154,17 +162,29 @@ public actor AgentService {
         onChange?()
     }
 
-    /// Stub until the real installer (task 7): records the version so the Root can see it.
+    /// Installs the bundle in the background. A repeat of the same command id changes nothing.
     public func installBundle(_ request: BundleInstallRequest) async throws -> Command {
         if let existing = ledger.find(request.commandId) { return existing }
         if let target = request.workloadId {
-            guard try await workloads().contains(where: { $0.id == target }) else { throw AgentError.notFound }
-            try await engine.setBundleVersion(id: target, version: request.version)
-        } else {
-            machineBundleVersion = request.version
+            guard try await workloads().contains(where: { $0.id == target && $0.state == .running }) else { throw AgentError.notFound }
         }
-        let command = Command(commandId: request.commandId, type: .bundleInstall, state: .succeeded, workloadId: request.workloadId, result: ["version": request.version])
+        let command = Command(commandId: request.commandId, type: .bundleInstall, state: .running, workloadId: request.workloadId)
         ledger.record(command)
+        Task { await self.finishInstall(command, request) }
         return command
+    }
+
+    private func finishInstall(_ started: Command, _ request: BundleInstallRequest) async {
+        var done = started
+        do {
+            guard let installer else { throw EngineError.failed("this Agent has no bundle installer") }
+            done.result = try await installer.install(request)
+            done.state = .succeeded
+        } catch {
+            done.state = .failed
+            done.result = ["error": "the bundle could not be installed"]
+        }
+        ledger.record(done)
+        onChange?()
     }
 }
