@@ -15,7 +15,7 @@ V2 = "0.2.0"
 
 
 def settings(ai, extra=""):
-    return f"ALLOWED_EMAILS=kurnia@example.com\nAI_BASE_URL={ai.base_url}\nAI_API_KEY={KEY}\nAI_DEFAULT_MODEL=fake-model\n{extra}"
+    return f"AI_BASE_URL={ai.base_url}\nAI_API_KEY={KEY}\nAI_DEFAULT_MODEL=fake-model\n{extra}"
 
 
 def chat_with_ai(w, machine="mini"):
@@ -26,7 +26,7 @@ def chat_with_ai(w, machine="mini"):
 
 
 def root_post(w, path, token, body=None):
-    connection = http.client.HTTPConnection("127.0.0.1", w.root.port, timeout=10)
+    connection = http.client.HTTPConnection("127.0.0.1", w.root.agent_port, timeout=10)
     connection.request("POST", path, json.dumps(body) if body is not None else b"", {"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     reply = connection.getresponse()
     raw = reply.read()

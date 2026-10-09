@@ -4,7 +4,7 @@ import stat
 import subprocess
 
 from contract.agent_tests.support import RunningAgent, agent, run_cli, wait_for, write_secret
-from contract.root_tests.support import Browser, expect, running as running_root, ALLOWED_EMAIL
+from contract.root_tests.support import Browser, expect, running as running_root
 
 GB = 1_000_000_000
 
@@ -82,18 +82,17 @@ def check_command_line_never_takes_secrets_as_plain_arguments():
 def check_enrolling_then_heartbeats_put_this_mac_on_the_roots_list():
     with running_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         invite = operator.write("POST", "/api/enrollments", {"name": "this-mac", "ip": "127.0.0.1"}).body["enrollment_token"]
         state = RunningAgent(with_token=False).state
         token_file = os.path.join(state, "enroll.token")
         write_secret(token_file, invite)
-        code, out, text = run_cli(["enroll", "--root", f"http://127.0.0.1:{root.port}", "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
+        code, out, text = run_cli(["enroll", "--root", root.agent_base, "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
         expect(code == 0, f"enroll failed: {code} {text[:150]}")
         for name in ("agent.token", "command.token"):
             mode = stat.S_IMODE(os.stat(os.path.join(state, name)).st_mode)
             expect(mode == 0o600, f"{name} has mode {oct(mode)}")
         expect(open(os.path.join(state, "agent.token")).read() != open(os.path.join(state, "command.token")).read(), "the two tokens are the same")
-        reuse = run_cli(["enroll", "--root", f"http://127.0.0.1:{root.port}", "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
+        reuse = run_cli(["enroll", "--root", root.agent_base, "--name", "this-mac", "--enrollment-token-file", token_file, "--state-dir", state])
         expect(reuse[0] != 0, "a used enrollment token enrolled twice")
         one = RunningAgent(with_token=False, extra=["--heartbeat-seconds", "1"])
         one.state, one.token = state, open(os.path.join(state, "command.token")).read().strip()

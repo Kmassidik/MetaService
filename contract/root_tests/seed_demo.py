@@ -1,16 +1,17 @@
-"""Fill a running test-build Root with demo machines, so the panel can be looked at.
-Usage: python3 -m contract.root_tests.seed_demo http://localhost:9100"""
+"""Fill a running Root with demo machines, so the panel can be looked at.
+Usage: python3 -m contract.root_tests.seed_demo http://localhost:9100 http://127.0.0.1:9102   (operator listener, then Agent listener)"""
 import sys
 
-from contract.root_tests.support import ALLOWED_EMAIL, Browser, good_heartbeat
+from contract.root_tests.support import Browser, good_heartbeat
 
 
 class Remote:
     """Enough of a RunningRoot for Browser, for a Root that is already running."""
 
-    def __init__(self, base):
+    def __init__(self, base, agent_base):
         self.base = base
         self.port = int(base.rsplit(":", 1)[1])
+        self.agent_port = int(agent_base.rsplit(":", 1)[1])
 
 
 MACHINES = {
@@ -36,16 +37,15 @@ def heartbeat(spec):
     return body
 
 
-def main(base):
-    operator = Browser(Remote(base))
-    operator.sign_in(ALLOWED_EMAIL)
+def main(base, agent_base):
+    operator = Browser(Remote(base, agent_base))
     for name, spec in MACHINES.items():
         invite = operator.write("POST", "/api/enrollments", {"name": name})
-        token = Browser(Remote(base)).request("POST", "/v1/agents/enroll", {"enrollment_token": invite.body["enrollment_token"], "name": name}, origin=None).body["machine_token"]
-        Browser(Remote(base)).request("POST", "/v1/agents/heartbeat", heartbeat(spec), headers={"Authorization": f"Bearer {token}"}, origin=None)
+        token = Browser(Remote(base, agent_base)).request("POST", "/v1/agents/enroll", {"enrollment_token": invite.body["enrollment_token"], "name": name}, origin=None).body["machine_token"]
+        Browser(Remote(base, agent_base)).request("POST", "/v1/agents/heartbeat", heartbeat(spec), headers={"Authorization": f"Bearer {token}"}, origin=None)
     operator.write("POST", "/api/enrollments", {"name": "pc-itx"})
     print("seeded", ", ".join(MACHINES), "(pc-itx invited only)")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2])

@@ -19,24 +19,24 @@ struct ScanRoutes {
     }
 
     func setup(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         return try Json.response(services.scanService.setup())
     }
 
     func start(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorWrite(request)
+        let caller = try guards.operatorWrite(request)
         try guards.limit("scan", per: context, max: Self.scansPerMinute, seconds: 60)
-        let id = try services.scanService.begin(actor: session.email)
+        let id = try services.scanService.begin(actor: caller.name)
         return try Json.response(Started(id: id, state: "running"), status: .accepted)
     }
 
     func latest(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         return try Json.response(Latest(scan: try services.scans.latest()))
     }
 
     func show(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         do {
             return try Json.response(Latest(scan: try services.scans.get(id: try runId(context))))
         } catch ScanError.notFound {
@@ -45,14 +45,14 @@ struct ScanRoutes {
     }
 
     func add(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorWrite(request)
+        let caller = try guards.operatorWrite(request)
         let id = try runId(context)
         let body = try AddScanRequest(body: try await guards.body(request))
         let picked = try body.items.map { item -> (AddScanItem, ScanResultRow) in
             do { return (item, try services.scans.result(runId: id, resultId: item.resultId)) } catch ScanError.notFound { throw ApiFailure.notFound }
         }
         guard picked.allSatisfy({ $0.1.machine == nil }) else { throw ApiFailure(status: .conflict, code: "machine_exists", message: "one of these devices is already enrolled") }
-        return try Json.response(Added(invites: try picked.map { try invite($0.0, $0.1, actor: session.email, run: id) }), status: .created)
+        return try Json.response(Added(invites: try picked.map { try invite($0.0, $0.1, actor: caller.name, run: id) }), status: .created)
     }
 
     private func invite(_ item: AddScanItem, _ found: ScanResultRow, actor: String, run: Int) throws -> Invite {

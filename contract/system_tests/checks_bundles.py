@@ -86,12 +86,11 @@ def check_pins_and_rollbacks_refuse_bad_requests():
         expect(pin(w, "9.9.9").status == 404, "an unknown version was pinned")
         for bad in ("1.2", "x", "1.2.3; reboot", "../1.0.0", ""):
             expect(pin(w, bad).status == 400, f"pin {bad!r} was accepted")
-        stranger = Browser(w.root)
-        expect(stranger.request("GET", "/api/bundles").status == 401, "the registry is open without a session")
+        expect(Browser(w.root).request("GET", "/api/bundles", headers={"Host": "evil.example"}).status == 403, "the registry answers a foreign Host")
         expect(w.operator.request("POST", "/api/bundles/pin", {"version": V1}).status == 403, "a pin without CSRF was accepted")
         expect(w.operator.request("POST", "/api/machines/mini/bundle/install", {}).status == 403, "an install without CSRF was accepted")
         expect(link(w, "mini").status == 404 and link(w, "ghost").status == 404 and w.operator.request("GET", "/api/chat-link?machine=..%2Fx").status == 404, "chat links for unknown targets")
-        expect(stranger.request("GET", "/api/chat-link?machine=mini").status == 401, "chat links are open without a session")
+        expect(Browser(w.root).request("GET", "/api/chat-link?machine=mini", headers={"Host": "evil.example"}).status == 403, "chat links are handed out for a foreign Host")
 
 
 def check_agents_download_only_registered_bundles_with_their_machine_token():
@@ -120,7 +119,7 @@ def check_a_workload_gets_the_bundle_through_copy_and_exec_with_no_key_in_the_ar
         expect(len(copies) == 2 and len(runs) == 1, f"calls: {[c[0] for c in calls]}")
         passed = {item.split("=")[0]: item.split("=", 1)[1] for item in runs[0] if item.startswith("MS_")}
         expect(runs[0][:2] == ["exec", "-e"] and passed.get("MS_VERSION") == V1 and passed.get("MS_PORT", "").isdigit(), f"exec call: {runs[0][:8]}")
-        expect(passed.get("MS_BRAIN_URL") == f"http://127.0.0.1:{w.root.port}", f"the chat was not pointed at the Root: {passed}")
+        expect(passed.get("MS_BRAIN_URL") == w.root.agent_base, f"the chat was not pointed at the Root: {passed}")
         opened = link(w, "mini", workload)
         expect(opened.status == 200, f"workload link: {opened.status}")
         key = opened.body["url"].split("#k=")[1]

@@ -5,6 +5,10 @@ import NIOCore
 import RootCore
 import RootStore
 
+struct OperatorCaller {
+    let name: String
+}
+
 /// The checks that sit in front of routes: who is calling, may they write, how big is the body.
 struct Guards {
     let services: Services
@@ -15,22 +19,27 @@ struct Guards {
 
     // MARK: operators
 
-    func operatorSession(_ request: Request) throws -> SessionRecord {
-        let cookie = Cookies.value(named: services.config.sessionCookieName, header: request.headers[.cookie])
-        guard let cookie, let session = try services.sessions.lookup(token: cookie, now: services.clock.now) else { throw ApiFailure.unauthorized() }
-        return session
+    /// The one operator. There is no sign-in: the listener is only reachable from this machine, and access from outside is a proxy's job.
+    static let operatorName = "operator"
+
+    /// For anything the panel reads: the request must be addressed to this machine's own name, which stops DNS rebinding.
+    func operatorRead(_ request: Request) throws -> OperatorCaller {
+        guard OperatorGate.hostMatches(header: request.head.authority, publicURL: services.config.publicBaseURL) else {
+            throw ApiFailure.forbidden("request host not allowed")
+        }
+        return OperatorCaller(name: Self.operatorName)
     }
 
-    /// For anything that changes state: a valid session, the CSRF token, and the exact Origin.
-    func operatorWrite(_ request: Request) throws -> SessionRecord {
-        let session = try operatorSession(request)
+    /// For anything that changes state: the same host check, plus the exact Origin and the CSRF header, which another site cannot send.
+    func operatorWrite(_ request: Request) throws -> OperatorCaller {
+        let caller = try operatorRead(request)
         guard Origin.matches(header: request.headers[.origin], expected: services.config.publicBaseURL) else {
             throw ApiFailure.forbidden("request origin not allowed")
         }
-        guard let sent = request.headers[Self.csrfHeader], Tokens.constantTimeEqual(sent, session.csrfToken) else {
+        guard let sent = request.headers[Self.csrfHeader], Tokens.constantTimeEqual(sent, services.csrfToken) else {
             throw ApiFailure.forbidden("missing or wrong CSRF token")
         }
-        return session
+        return caller
     }
 
     // MARK: machines

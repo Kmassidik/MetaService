@@ -1,8 +1,7 @@
 <script>
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.js'
+  import { ApiError, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, testBrain, workloadAction } from './lib/api.js'
   import { summarize } from './lib/format.js'
-  import SignIn from './components/SignIn.svelte'
   import TopBar from './components/TopBar.svelte'
   import Summary from './components/Summary.svelte'
   import MachineList from './components/MachineList.svelte'
@@ -20,8 +19,6 @@
   const CLOCK_MS = 5_000
 
   let phase = $state('loading')
-  let googleReady = $state(false)
-  let operator = $state(null)
   let machines = $state([])
   let now = $state(Date.now())
   let view = $state('machines')
@@ -42,14 +39,9 @@
 
   async function start() {
     try {
-      operator = await getSession()
-      if (operator) {
-        phase = 'ready'
-        await refresh()
-        return
-      }
-      googleReady = (await authStatus()).google === true
-      phase = 'signedOut'
+      await getSession()
+      phase = 'ready'
+      await refresh()
     } catch (error) {
       banner = error instanceof ApiError && error.status === 0 ? 'Cannot reach the Root.' : 'Something went wrong.'
       phase = 'error'
@@ -62,10 +54,6 @@
       ;[machines, commands, bundles, brain] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus()])
       banner = ''
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        await restart()
-        return
-      }
       banner = 'Cannot reach the Root. Showing the last data.'
     }
   }
@@ -73,22 +61,6 @@
   async function testProvider() {
     await testBrain()
     await refresh()
-  }
-
-  async function leave() {
-    try {
-      await signOut()
-    } finally {
-      await restart()
-    }
-  }
-
-  /** Leave the signed-in view first, then forget the operator, so no screen reads a missing operator. */
-  async function restart() {
-    phase = 'loading'
-    operator = null
-    machines = []
-    await start()
   }
 
   /** Start or stop a workload; the result shows up in the activity list. */
@@ -171,11 +143,9 @@
     <p role="alert">{banner}</p>
     <button class="btn" type="button" onclick={start}>Try again</button>
   </main>
-{:else if phase === 'signedOut'}
-  <SignIn {googleReady} />
 {:else}
   <div class="page">
-    <TopBar email={operator.email} onSignOut={leave} {view} onView={(next) => (view = next)} />
+    <TopBar {view} onView={(next) => (view = next)} />
     <main>
       {#if view === 'scan'}
         <ScanView />

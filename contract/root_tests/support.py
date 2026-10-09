@@ -1,4 +1,4 @@
-"""Helpers for the Root black-box tests: start a real Root, talk to it with cookies, no redirects followed."""
+"""Helpers for the Root black-box tests: start a real Root (two listeners: operator and Agent), talk to it, no redirects followed."""
 import http.client
 import json
 import os
@@ -11,9 +11,7 @@ from contextlib import contextmanager
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = REPO / "root" / "macos"
-FAKE_BINARY = PACKAGE / ".build-fake" / "debug" / "metaservice-root"
-PLAIN_BINARY = PACKAGE / ".build" / "debug" / "metaservice-root"
-ALLOWED_EMAIL = "kurnia@example.com"
+BINARY = PACKAGE / ".build" / "debug" / "metaservice-root"
 START_WAIT_SECONDS = 15
 
 
@@ -29,7 +27,6 @@ def expect(condition, message):
 class Reply:
     def __init__(self, status, headers, raw):
         self.status, self.headers, self.raw = status, headers, raw
-        self.cookies = [value for name, value in headers if name.lower() == "set-cookie"]
         try:
             self.body = json.loads(raw) if raw else None
         except ValueError:
@@ -42,14 +39,16 @@ class Reply:
 class RunningRoot:
     """A real Root process with its own database and env file, stopped when the check ends."""
 
-    def __init__(self, binary=FAKE_BINARY, env_text=None, env_mode=0o600, extra_args=None, process_env=None):
+    def __init__(self, binary=BINARY, env_text=None, env_mode=0o600, extra_args=None, process_env=None):
         self.binary = binary
         self.process_env = process_env
         self.extra_args = extra_args if extra_args is not None else ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-")]
         self.dir = tempfile.mkdtemp(prefix="ms-root-")
         self.port = _free_port()
+        self.agent_port = _free_port()
         self.base = f"http://localhost:{self.port}"
-        env = env_text if env_text is not None else f"ALLOWED_EMAILS={ALLOWED_EMAIL}\n"
+        self.agent_base = f"http://127.0.0.1:{self.agent_port}"
+        env = env_text if env_text is not None else ""
         self.env_file = os.path.join(self.dir, "root.env")
         pathlib.Path(self.env_file).write_text(env)
         os.chmod(self.env_file, env_mode)
@@ -58,7 +57,7 @@ class RunningRoot:
 
     def start(self):
         args = [str(self.binary), "--env-file", self.env_file, "--db", os.path.join(self.dir, "root.sqlite3"),
-                "--port", str(self.port), "--bind", "127.0.0.1", "--public-url", self.base] + self.extra_args
+                "--port", str(self.port), "--bind", "127.0.0.1", "--agent-port", str(self.agent_port), "--agent-bind", "127.0.0.1", "--public-url", self.base] + self.extra_args
         self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **(self.process_env or {})})
         self._wait_until_up()
         return self
@@ -69,7 +68,7 @@ class RunningRoot:
             if self.process.poll() is not None:
                 self.early_exit = (self.process.returncode, self.process.stderr.read().decode())
                 raise CheckFailed(f"Root exited early: {self.early_exit[1][:300]}")
-            if _port_open(self.port):
+            if _port_open(self.port) and _port_open(self.agent_port):
                 return
             time.sleep(0.05)
         raise CheckFailed("Root did not start in time")
@@ -84,43 +83,29 @@ class RunningRoot:
 
 
 class Browser:
-    """One HTTP client with its own cookies. Never follows redirects."""
+    """One HTTP client for both listeners. Paths under /v1/ go to the Agent listener, everything else to the operator listener. Never follows redirects."""
 
     def __init__(self, root):
         self.root = root
-        self.cookies = {}
 
-    def request(self, method, path, body=None, headers=None, raw=None, origin="default", cookies=True):
+    def request(self, method, path, body=None, headers=None, raw=None, origin="default"):
         data = raw if raw is not None else (None if body is None else json.dumps(body).encode())
         sent = dict(headers or {})
+        on_agent_listener = path.startswith("/v1/")
+        port = self.root.agent_port if on_agent_listener else self.root.port
+        if not on_agent_listener:
+            sent.setdefault("Host", f"localhost:{self.root.port}")
         if origin == "default" and method != "GET":
             sent["Origin"] = self.root.base
         elif origin not in ("default", None):
             sent["Origin"] = origin
-        if cookies and self.cookies and "Cookie" not in sent:
-            sent["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
         if data is not None:
             sent.setdefault("Content-Type", "application/json")
-        connection = http.client.HTTPConnection("127.0.0.1", self.root.port, timeout=15)
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
         connection.request(method, path, body=data, headers=sent)
         response = connection.getresponse()
         reply = Reply(response.status, response.getheaders(), response.read())
         connection.close()
-        self._remember(reply)
-        return reply
-
-    def _remember(self, reply):
-        for line in reply.cookies:
-            name, _, rest = line.partition("=")
-            value = rest.split(";", 1)[0]
-            if "Max-Age=0" in line:
-                self.cookies.pop(name, None)
-            else:
-                self.cookies[name] = value
-
-    def sign_in(self, email=ALLOWED_EMAIL):
-        reply = self.request("POST", "/auth/fake", {"email": email})
-        expect(reply.status == 302, f"fake sign-in gave {reply.status}: {reply.raw[:120]!r}")
         return reply
 
     def csrf(self):
@@ -146,9 +131,10 @@ def _port_open(port):
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
-def raw_exchange(root, payload, wait=3.0):
-    """Send raw bytes and return what comes back (or b'' if the server just closes)."""
-    with socket.create_connection(("127.0.0.1", root.port), timeout=wait) as sock:
+def raw_exchange(root, payload, wait=3.0, listener="agent"):
+    """Send raw bytes to a listener and return what comes back (or b'' if the server just closes)."""
+    port = root.agent_port if listener == "agent" else root.port
+    with socket.create_connection(("127.0.0.1", port), timeout=wait) as sock:
         sock.sendall(payload)
         chunks = []
         try:
@@ -172,8 +158,7 @@ def running(**kwargs):
 
 
 def enrolled_machine(browser, name="mini"):
-    """Sign in, invite a machine, enroll it as an Agent would. Returns the machine token."""
-    browser.sign_in()
+    """Invite a machine, enroll it as an Agent would. Returns the machine token."""
     invite = browser.write("POST", "/api/enrollments", {"name": name})
     expect(invite.status == 201, f"invite gave {invite.status}: {invite.raw[:120]!r}")
     reply = Browser(browser.root).request("POST", "/v1/agents/enroll", {"enrollment_token": invite.body["enrollment_token"], "name": name}, origin=None)

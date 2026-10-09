@@ -1,6 +1,6 @@
 """Headers, public endpoints, and that every protected endpoint is closed without credentials."""
 from contract import spec
-from contract.root_tests.support import PLAIN_BINARY, Browser, expect, running, RunningRoot, ALLOWED_EMAIL
+from contract.root_tests.support import Browser, expect, running, RunningRoot
 from contract.tests.support import expect_schema
 
 OPERATOR_ENDPOINTS = [
@@ -38,13 +38,16 @@ def check_unknown_paths_and_methods_are_clean_404s():
             expect_schema("Error", reply.body, f"{method} {path}")
 
 
-def check_operator_endpoints_need_a_session():
+def check_operator_endpoints_refuse_a_foreign_host_name():
+    """DNS rebinding: a page on another site that points its own name at this machine sends its own name as the Host."""
     with running() as root:
         browser = Browser(root)
         for method, path in OPERATOR_ENDPOINTS:
-            reply = browser.request(method, path, body={} if method == "POST" else None)
-            expect(reply.status == 401, f"{method} {path} without a session gave {reply.status}")
-            expect_schema("Error", reply.body, f"{method} {path}")
+            for host in ("evil.example", f"evil.example:{root.port}", f"localhost:{root.port + 1}", f"127.0.0.1:{root.port}"):
+                reply = browser.request(method, path, body={} if method == "POST" else None, headers={"Host": host})
+                expect(reply.status == 403, f"{method} {path} with Host {host} gave {reply.status}")
+                expect_schema("Error", reply.body, f"{method} {path}")
+        expect(browser.request("GET", "/api/machines").status == 200, "the right Host is refused")
 
 
 def check_agent_endpoints_need_a_token():
@@ -71,51 +74,49 @@ def check_errors_reveal_nothing_inside():
                 expect(leak not in reply.raw, f"an error reply leaks {leak!r}: {reply.raw[:120]!r}")
 
 
-def check_release_style_build_has_no_fake_door():
-    with running(binary=PLAIN_BINARY) as root:
-        reply = Browser(root).request("POST", "/auth/fake", {"email": ALLOWED_EMAIL})
-        expect(reply.status == 404, f"a build without FAKE_AUTH answers /auth/fake with {reply.status}")
-        expect("ms_session" not in Browser(root).cookies, "a session appeared without Google")
-        expect(Browser(root).request("GET", "/api/machines").status == 401, "the plain build let someone in")
-
-
-def check_auth_status_tells_the_ui_whether_google_is_set_up():
+def check_each_listener_serves_only_its_own_routes():
     with running() as root:
-        expect(Browser(root).request("GET", "/auth/status").body == {"google": False}, "status should say google is not set up")
-    env = "ALLOWED_EMAILS=kurnia@example.com\nGOOGLE_CLIENT_ID=test-client\nGOOGLE_CLIENT_SECRET=test-secret\n"
-    with running(env_text=env) as root:
-        reply = Browser(root).request("GET", "/auth/status")
-        expect(reply.body == {"google": True}, "status should say google is set up")
-        expect(b"test-secret" not in reply.raw and b"test-client" not in reply.raw, "status leaks the Google settings")
-
-
-def check_login_says_unavailable_until_google_is_configured():
-    with running() as root:
-        reply = Browser(root).request("GET", "/auth/login")
-        expect(reply.status == 503, f"/auth/login without Google settings gave {reply.status}")
-        expect_schema("Error", reply.body, "login unavailable")
-
-
-def check_login_redirects_to_google_with_pkce_when_configured():
-    env = "ALLOWED_EMAILS=kurnia@example.com\nGOOGLE_CLIENT_ID=test-client\nGOOGLE_CLIENT_SECRET=test-secret\n"
-    with running(env_text=env) as root:
-        reply = Browser(root).request("GET", "/auth/login")
-        expect(reply.status == 302, f"/auth/login gave {reply.status}")
-        location = reply.header("Location") or ""
-        for needle in ("accounts.google.com", "code_challenge_method=S256", "code_challenge=", "state=", "nonce=", "response_type=code", "client_id=test-client"):
-            expect(needle in location, f"login redirect lacks {needle}")
-        expect("test-secret" not in location, "the client secret is in the redirect")
-        cookie = reply.cookies[0]
-        expect("HttpOnly" in cookie and "SameSite=Lax" in cookie, f"oauth cookie flags are weak: {cookie}")
-
-
-def check_callback_without_a_started_login_is_refused():
-    env = "ALLOWED_EMAILS=kurnia@example.com\nGOOGLE_CLIENT_ID=test-client\nGOOGLE_CLIENT_SECRET=test-secret\n"
-    with running(env_text=env) as root:
         browser = Browser(root)
-        for path in ("/auth/callback?code=abc&state=xyz", "/auth/callback", "/auth/callback?error=access_denied&state=x"):
-            reply = browser.request("GET", path)
-            expect(reply.status in (400, 403) and not reply.cookies, f"{path} gave {reply.status} with cookies {reply.cookies}")
+        on_operator = lambda method, path, **kw: browser.request(method, path, headers={"Host": f"localhost:{root.port}"}, **kw)
+        for method, path in (("POST", "/v1/agents/enroll"), ("POST", "/v1/agents/heartbeat"), ("GET", "/v1/bundles/0.1.0/noarch"), ("POST", "/v1/brain/chat"), ("POST", "/v1/brain/capability")):
+            reply = _on_port(root.port, method, path)
+            expect(reply == 404, f"the operator listener answered {method} {path} with {reply}")
+        for method, path in (("GET", "/api/machines"), ("GET", "/api/session"), ("GET", "/api/brain"), ("GET", "/api/bundles"), ("POST", "/api/workloads"), ("GET", "/")):
+            reply = _on_port(root.agent_port, method, path)
+            expect(reply == 404, f"the Agent listener answered {method} {path} with {reply}")
+        expect(on_operator("GET", "/health").body == {"status": "ok"} and _on_port(root.agent_port, "GET", "/health") == 200, "both listeners answer /health")
+
+
+def _on_port(port, method, path):
+    import http.client
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request(method, path, body=b"{}" if method == "POST" else None, headers={"Content-Type": "application/json"})
+    status = connection.getresponse().status
+    connection.close()
+    return status
+
+
+def check_no_sign_in_routes_exist_anymore():
+    with running() as root:
+        browser = Browser(root)
+        for method, path in (("GET", "/auth/login"), ("GET", "/auth/callback"), ("GET", "/auth/status"), ("POST", "/auth/logout"), ("POST", "/auth/fake")):
+            reply = browser.request(method, path, body={} if method == "POST" else None)
+            expect(reply.status == 404, f"{method} {path} gave {reply.status}")
+        expect(not [name for name, _ in browser.request("GET", "/api/session").headers if name.lower() == "set-cookie"], "the panel sets a cookie")
+
+
+def check_the_operator_listener_refuses_to_leave_this_machine():
+    for flag, value in (("--bind", "0.0.0.0"), ("--bind", "192.168.100.40"), ("--bind", "::")):
+        root = RunningRoot(extra_args=["--ui-dir", "/nonexistent-ui", flag, value])
+        try:
+            root.start()
+        except AssertionError:
+            code, text = root.exit_text()
+            expect(code != 0 and "operator listener" in text, f"{flag} {value}: wrong refusal {code} {text[:120]}")
+            continue
+        finally:
+            root.stop()
+        raise AssertionError(f"the Root started with the operator listener on {value}")
 
 
 def check_root_refuses_an_env_file_others_can_read():
@@ -156,8 +157,7 @@ def check_ui_files_are_served_with_a_strict_page_policy():
 
 CHECKS = [check_ui_files_are_served_with_a_strict_page_policy, 
     check_health_is_public_and_minimal, check_security_headers_on_every_reply, check_unknown_paths_and_methods_are_clean_404s,
-    check_operator_endpoints_need_a_session, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
-    check_errors_reveal_nothing_inside, check_release_style_build_has_no_fake_door,
-    check_auth_status_tells_the_ui_whether_google_is_set_up, check_login_says_unavailable_until_google_is_configured, check_login_redirects_to_google_with_pkce_when_configured,
-    check_callback_without_a_started_login_is_refused, check_root_refuses_an_env_file_others_can_read,
+    check_operator_endpoints_refuse_a_foreign_host_name, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
+    check_errors_reveal_nothing_inside, check_each_listener_serves_only_its_own_routes, check_no_sign_in_routes_exist_anymore,
+    check_the_operator_listener_refuses_to_leave_this_machine, check_root_refuses_an_env_file_others_can_read,
 ]

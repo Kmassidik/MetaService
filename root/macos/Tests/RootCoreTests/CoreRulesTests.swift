@@ -2,10 +2,6 @@ import XCTest
 @testable import RootCore
 
 final class CoreRulesTests: XCTestCase {
-    func testPkceMatchesRfc7636Example() {
-        XCTAssertEqual(Pkce.challenge(for: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
-    }
-
     func testMachineStateBoundaries() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         XCTAssertEqual(MachineStates.derive(lastSeen: nil, now: now, workloadStates: []), .offline)
@@ -16,17 +12,20 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(MachineStates.derive(lastSeen: now, now: now, workloadStates: ["running", "stopped"]), .online)
     }
 
-    func testCookiesRefuseRepeats() {
-        XCTAssertEqual(Cookies.value(named: "s", header: "a=1; s=xyz; b=2"), "xyz")
-        XCTAssertNil(Cookies.value(named: "s", header: "s=one; s=two"))
-        XCTAssertNil(Cookies.value(named: "s", header: nil))
-        XCTAssertNil(Cookies.value(named: "s", header: "other=1"))
+    func testLoopbackAddressesStayOnThisMachine() {
+        for good in ["127.0.0.1", "127.1.2.3", "localhost", "::1"] { XCTAssertTrue(OperatorGate.isLoopback(good), good) }
+        for bad in ["0.0.0.0", "192.168.100.40", "10.0.0.1", "8.8.8.8", "", "127.0.0", "127.0.0.1.evil.com", "example.com", "::"] { XCTAssertFalse(OperatorGate.isLoopback(bad), bad) }
     }
 
-    func testCookieFlags() {
-        let line = Cookies.set(name: "n", value: "v", maxAge: 60, secure: true, sameSite: "Strict")
-        for part in ["HttpOnly", "Secure", "SameSite=Strict", "Path=/", "Max-Age=60"] { XCTAssertTrue(line.contains(part), part) }
-        XCTAssertFalse(Cookies.set(name: "n", value: "v", maxAge: 60, secure: false, sameSite: "Lax").contains("Secure"))
+    func testTheHostHeaderMustBeThePublicHostExactly() {
+        let url = "http://localhost:9100"
+        XCTAssertTrue(OperatorGate.hostMatches(header: "localhost:9100", publicURL: url))
+        XCTAssertTrue(OperatorGate.hostMatches(header: "LOCALHOST:9100", publicURL: url))
+        for bad: String? in [nil, "", "evil.example", "evil.example:9100", "localhost", "localhost:9101", "localhost:9100.evil.com", "127.0.0.1:9100", "localhost:9100 "] {
+            XCTAssertFalse(OperatorGate.hostMatches(header: bad, publicURL: url), bad ?? "nil")
+        }
+        XCTAssertTrue(OperatorGate.hostMatches(header: "panel.example.com", publicURL: "https://panel.example.com"))
+        XCTAssertFalse(OperatorGate.hostMatches(header: "panel.example.com:443", publicURL: "https://panel.example.com"))
     }
 
     func testOriginIsExact() {

@@ -75,6 +75,7 @@ public enum Migrations {
             );
             """) }),
         (7, { try $0.exec("ALTER TABLE machines ADD COLUMN problems_json TEXT NOT NULL DEFAULT '[]';") }),
+        (8, { try $0.exec("DROP TABLE IF EXISTS sessions;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

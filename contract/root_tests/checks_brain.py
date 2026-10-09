@@ -12,16 +12,15 @@ MODEL = "fake-model"
 def brain_root(extra="", ai=None, configured=True):
     ai = ai or make_ai(KEY)
     settings = f"AI_BASE_URL={ai.base_url}\nAI_API_KEY={KEY}\nAI_DEFAULT_MODEL={MODEL}\n" if configured else ""
-    env = f"ALLOWED_EMAILS=kurnia@example.com\n{settings}{extra}"
+    env = f"{settings}{extra}"
     with running(env_text=env) as root:
         operator = Browser(root)
-        operator.sign_in()
         yield root, operator, ai
     ai.shutdown()
 
 
 def refused_at_start(env_lines):
-    root = RunningRoot(env_text="ALLOWED_EMAILS=kurnia@example.com\n" + env_lines)
+    root = RunningRoot(env_text=env_lines)
     try:
         root.start()
     except AssertionError:
@@ -61,11 +60,10 @@ def check_the_test_button_makes_one_tiny_request_with_the_token_limit_and_is_aud
         expect("brain.test" in actions, f"audit: {actions[:8]}")
 
 
-def check_the_test_button_needs_a_session_the_csrf_token_and_the_right_origin():
+def check_the_test_button_needs_the_host_the_csrf_token_and_the_right_origin():
     with brain_root() as (root, operator, ai):
-        stranger = Browser(root)
-        expect(stranger.request("POST", "/api/brain/test").status == 401, "test without a session")
-        expect(stranger.request("GET", "/api/brain").status == 401, "status without a session")
+        expect(operator.request("GET", "/api/brain", headers={"Host": "evil.example"}).status == 403, "status for a foreign Host")
+        expect(operator.write("POST", "/api/brain/test", headers={"Host": "evil.example"}).status == 403, "test for a foreign Host")
         expect(operator.request("POST", "/api/brain/test").status == 403, "test without the CSRF token")
         expect(operator.write("POST", "/api/brain/test", origin="http://evil.example").status == 403, "test from another origin")
         expect(ai.calls == [], "the provider was called by a refused request")

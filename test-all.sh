@@ -7,7 +7,7 @@ steady() { out="$("$@" 2>&1)" || { echo "$out" | tail -8; echo "FAILED: $*"; exi
 swift_summary() { grep -E "Executed [0-9]+ tests|error:" | tail -1; }
 
 echo "== shared rules";   (cd shared/metaservice-shared && swift test 2>&1 | swift_summary)
-echo "== root";           (cd root/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1; swift build -Xswiftc -DFAKE_AUTH --scratch-path .build-fake 2>&1 | tail -1)
+echo "== root";           (cd root/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== macOS agent";    (cd agent/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== linux agent (Rust)"
 (cd agent/linux && nix develop --command bash -c 'cargo build 2>&1 | tail -1; cargo build 2>&1 | tail -1; cargo test 2>&1 | grep -E "test result" ; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1')

@@ -15,11 +15,14 @@ struct BrainRoutes {
     private static let testPrompt = "Reply with the single word: ok"
     private static let testMaxTokens = 8
 
-    func register(on group: RouterGroup<RootContext>) {
-        group.post("/v1/brain/capability", use: capability)
-        group.post("/v1/brain/chat", use: chat)
+    func registerOperator(on group: RouterGroup<RootContext>) {
         group.get("/api/brain", use: status)
         group.post("/api/brain/test", use: test)
+    }
+
+    func registerAgent(on group: RouterGroup<RootContext>) {
+        group.post("/v1/brain/capability", use: capability)
+        group.post("/v1/brain/chat", use: chat)
     }
 
     /// A chat shows its own access key and gets a capability that expires soon. Wrong keys count toward the same lockout as wrong machine tokens.
@@ -48,7 +51,7 @@ struct BrainRoutes {
     }
 
     private func status(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         let config = services.config
         let host = config.aiBaseURL.flatMap { URL(string: $0)?.host }
         return try Json.response(BrainStatus(configured: config.aiConfigured, model: config.aiConfigured ? config.aiModel : nil, host: config.aiConfigured ? host : nil,
@@ -56,11 +59,11 @@ struct BrainRoutes {
     }
 
     private func test(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorWrite(request)
+        let caller = try guards.operatorWrite(request)
         guard services.throttle.allow("brain-test", limit: Self.testsPerMinute, seconds: 60) else { throw ApiFailure.tooMany }
         let answer = try await ask(Self.testPrompt, maxTokens: Self.testMaxTokens)
         try services.brain.record(machine: "root", workload: nil, promptTokens: answer.promptTokens, completionTokens: answer.completionTokens, now: services.clock.now)
-        try services.audit.record(actor: session.email, action: "brain.test", at: services.clock.now)
+        try services.audit.record(actor: caller.name, action: "brain.test", at: services.clock.now)
         return try Json.response(["ok": true])
     }
 

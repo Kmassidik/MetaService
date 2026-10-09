@@ -28,7 +28,7 @@ def scan_root(router_password=PASSWORD, with_router=True, nmap="fake", nmap_env=
     server = None
     if with_router:
         server = make_router(ip, prefix) if router_kind == "rest" else fake_router_api.make_router(ip, prefix, old_login=router_kind == "api-old")
-    lines = ["ALLOWED_EMAILS=kurnia@example.com", f"SCAN_SUBNET={prefix}.0/24", f"ARP_PATH={FAKES / 'fake_arp.py'}"]
+    lines = [f"SCAN_SUBNET={prefix}.0/24", f"ARP_PATH={FAKES / 'fake_arp.py'}"]
     lines.append(f"NMAP_PATH={FAKES / 'fake_nmap.py'}" if nmap == "fake" else "NMAP_PATH=/nonexistent/nmap")
     if with_router:
         scheme = "http" if router_kind == "rest" else "api"
@@ -63,8 +63,7 @@ def by_ip(scan):
 def check_scan_setup_describes_what_is_available():
     with scan_root() as root:
         operator = Browser(root)
-        expect(operator.request("GET", "/api/scan/setup").status == 401, "setup is open without a session")
-        operator.sign_in()
+        expect(operator.request("GET", "/api/scan/setup", headers={"Host": "evil.example"}).status == 403, "setup answers a foreign Host")
         setup = operator.request("GET", "/api/scan/setup").body
         expect(setup == {"subnet": f"{root.scan_prefix}.0/24", "router_configured": True, "nmap_available": True}, f"setup: {setup}")
 
@@ -72,7 +71,6 @@ def check_scan_setup_describes_what_is_available():
 def check_a_scan_merges_router_nmap_and_arp():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["state"] == "done", f"scan state {scan['state']}")
         expect(scan["sources"] == {"router": "ok", "nmap": "ok", "agent_probe": "ok", "arp": "ok"}, f"sources: {scan['sources']}")
@@ -90,7 +88,6 @@ def check_a_scan_merges_router_nmap_and_arp():
 def check_hostile_device_names_are_cleaned():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         name = by_ip(start_and_wait(operator))["66"]["hostname"]
         expect("\x1b" not in name and len(name) <= 100, f"control characters survived: {name!r}")
         expect(name.startswith("<img"), "the name should be kept as plain text for the UI to escape")
@@ -99,7 +96,6 @@ def check_hostile_device_names_are_cleaned():
 def check_a_scan_only_targets_the_configured_subnet():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         start_and_wait(operator, body={"subnet": "8.8.8.0/24", "extra": "-iL /etc/passwd"})
         calls = [json.loads(line) for line in open(root.scan_log)]
         expect(calls and all("8.8.8.0/24" not in call and not any("passwd" in part for part in call) for call in calls), f"request data reached nmap: {calls}")
@@ -114,18 +110,16 @@ def check_a_scan_only_targets_the_configured_subnet():
 def check_only_one_scan_runs_at_a_time():
     with scan_root(nmap_env={"FAKE_NMAP_DELAY": "1"}) as root:
         operator = Browser(root)
-        operator.sign_in()
         first = operator.write("POST", "/api/scans")
         second = operator.write("POST", "/api/scans")
         expect((first.status, second.status) == (202, 409), f"got {(first.status, second.status)}")
         expect(second.body["error"]["code"] == "scan_running", "wrong refusal code")
 
 
-def check_scans_need_a_session_and_csrf():
+def check_scans_need_the_host_and_csrf():
     with scan_root() as root:
         operator = Browser(root)
-        expect(operator.request("POST", "/api/scans", {}).status == 401, "a scan started without a session")
-        operator.sign_in()
+        expect(operator.write("POST", "/api/scans", {}, headers={"Host": "evil.example"}).status == 403, "a scan started for a foreign Host")
         expect(operator.request("POST", "/api/scans", {}).status == 403, "a scan started without CSRF")
         expect(operator.request("GET", "/api/scans/latest").body == {"scan": None}, "latest should be null before any scan")
         expect(operator.request("GET", "/api/scans/99999").status == 404 and operator.request("GET", "/api/scans/abc").status == 404, "bad run ids should be 404")
@@ -134,7 +128,6 @@ def check_scans_need_a_session_and_csrf():
 def check_scans_are_rate_limited():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         codes = []
         for _ in range(8):
             codes.append(operator.write("POST", "/api/scans").status)
@@ -145,7 +138,6 @@ def check_scans_are_rate_limited():
 def check_a_wrong_router_password_does_not_break_the_scan():
     with scan_root(router_password="wrong") as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["state"] == "done" and scan["sources"]["router"] == "refused_401", f"sources: {scan['sources']}")
         expect(by_ip(scan)["60"]["hostname"] is None, "router data appeared although the router refused")
@@ -156,7 +148,6 @@ def check_the_binary_api_works_for_routeros_6():
     for kind in ("api", "api-old"):
         with scan_root(router_kind=kind) as root:
             operator = Browser(root)
-            operator.sign_in()
             scan = start_and_wait(operator)
             expect(scan["state"] == "done" and scan["sources"]["router"] == "ok", f"{kind}: sources {scan['sources']}")
             found = by_ip(scan)
@@ -168,7 +159,6 @@ def check_the_binary_api_refuses_a_wrong_password_without_leaking_it():
     for kind in ("api", "api-old"):
         with scan_root(router_kind=kind, router_password="wrong") as root:
             operator = Browser(root)
-            operator.sign_in()
             scan = start_and_wait(operator)
             expect(scan["state"] == "done" and scan["sources"]["router"] == "refused_401", f"{kind}: sources {scan['sources']}")
             expect(b"wrong" not in operator.request("GET", "/api/scans/latest").raw, f"{kind}: the password is in a reply")
@@ -177,7 +167,6 @@ def check_the_binary_api_refuses_a_wrong_password_without_leaking_it():
 def check_a_scan_works_without_a_router():
     with scan_root(with_router=False) as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["state"] == "done" and scan["sources"]["router"] == "not_configured", f"sources: {scan['sources']}")
         expect(operator.request("GET", "/api/scan/setup").body["router_configured"] is False, "setup says a router is configured")
@@ -186,12 +175,10 @@ def check_a_scan_works_without_a_router():
 def check_a_scan_works_without_nmap_and_fails_with_nothing():
     with scan_root(nmap="missing") as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["sources"]["nmap"] == "missing" and scan["state"] == "done" and "50" in by_ip(scan), f"router-only scan: {scan['sources']}")
     with scan_root(nmap="missing", with_router=False, extra_env_lines="ARP_PATH=/nonexistent/arp") as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["state"] == "failed", f"a scan with no working source should fail, got {scan['state']}")
 
@@ -199,7 +186,6 @@ def check_a_scan_works_without_nmap_and_fails_with_nothing():
 def check_a_failing_nmap_is_reported_not_hidden():
     with scan_root(nmap_env={"FAKE_NMAP_FAIL": "1"}) as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         expect(scan["sources"]["nmap"] == "failed" and scan["sources"]["router"] == "ok", f"sources: {scan['sources']}")
 
@@ -207,7 +193,6 @@ def check_a_failing_nmap_is_reported_not_hidden():
 def check_adding_found_devices_makes_pinned_tokens():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         found = by_ip(scan)
         reply = operator.write("POST", f"/api/scans/{scan['id']}/add", {"items": [{"result_id": found["50"]["id"], "name": "printer"}, {"result_id": found["60"]["id"], "name": "dgx-spark"}]})
@@ -225,7 +210,6 @@ def check_adding_found_devices_makes_pinned_tokens():
 def check_add_refuses_bad_requests():
     with scan_root() as root:
         operator = Browser(root)
-        operator.sign_in()
         scan = start_and_wait(operator)
         rid = by_ip(scan)["50"]["id"]
         path = f"/api/scans/{scan['id']}/add"
@@ -243,7 +227,6 @@ def check_add_refuses_bad_requests():
 def check_a_pinned_invite_works_only_from_its_address():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         wrong = operator.write("POST", "/api/enrollments", {"name": "mini", "ip": "10.1.2.3"}).body["enrollment_token"]
         right = operator.write("POST", "/api/enrollments", {"name": "dgx", "ip": "127.0.0.1"}).body["enrollment_token"]
         expect(Browser(root).request("POST", "/v1/agents/enroll", {"enrollment_token": wrong, "name": "mini"}, origin=None).status == 401, "a wrong-address token worked")
@@ -256,7 +239,7 @@ def check_bad_scan_settings_stop_the_root_from_starting():
     bad = ["SCAN_SUBNET=8.8.8.0/24", "SCAN_SUBNET=10.0.0.0/8", "SCAN_SUBNET=192.168.1.0/24; reboot", "ROUTER_URL=http://admin:pw@192.168.1.1", "ROUTER_URL=http://router.local",
            "ROUTER_URL=file:///etc/passwd", "AGENT_PORT=99999"]
     for line in bad:
-        root = RunningRoot(env_text=f"ALLOWED_EMAILS=kurnia@example.com\n{line}\n")
+        root = RunningRoot(env_text=f"{line}\n")
         try:
             root.start()
         except AssertionError:
@@ -270,7 +253,7 @@ def check_bad_scan_settings_stop_the_root_from_starting():
 
 CHECKS = [
     check_scan_setup_describes_what_is_available, check_a_scan_merges_router_nmap_and_arp, check_hostile_device_names_are_cleaned,
-    check_a_scan_only_targets_the_configured_subnet, check_only_one_scan_runs_at_a_time, check_scans_need_a_session_and_csrf,
+    check_a_scan_only_targets_the_configured_subnet, check_only_one_scan_runs_at_a_time, check_scans_need_the_host_and_csrf,
     check_scans_are_rate_limited, check_a_wrong_router_password_does_not_break_the_scan, check_the_binary_api_works_for_routeros_6,
     check_the_binary_api_refuses_a_wrong_password_without_leaking_it, check_a_scan_works_without_a_router,
     check_a_scan_works_without_nmap_and_fails_with_nothing, check_a_failing_nmap_is_reported_not_hidden,

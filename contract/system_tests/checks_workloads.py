@@ -87,13 +87,13 @@ def check_start_stop_and_a_confirmed_delete_with_a_backup():
         wait_for(lambda: w.view("mini")["workloads"] == [], 10, "the Root still lists the deleted workload")
 
 
-def check_actions_need_a_session_csrf_and_a_known_workload():
+def check_actions_need_the_host_csrf_and_a_known_workload():
     with world() as w:
         w.add_machine("mini")
         _, workload = w.make(name="demo")
         base = f"/api/machines/mini/workloads/{workload}"
-        stranger = Browser(w.root)
-        expect(stranger.request("POST", base + "/stop").status == 401 and stranger.request("POST", "/api/workloads", {}).status == 401, "an anonymous caller got through")
+        foreign = {"Host": "evil.example", "X-CSRF-Token": w.operator.csrf()}
+        expect(w.operator.request("POST", base + "/stop", headers=foreign).status == 403 and w.operator.request("POST", "/api/workloads", {}, headers=foreign).status == 403, "a foreign Host got through")
         expect(w.operator.request("POST", base + "/stop").status == 403 and w.operator.request("POST", "/api/workloads", {"name": "x"}).status == 403, "CSRF is not required")
         for path in ("/api/machines/mini/workloads/w-nope/stop", "/api/machines/ghost/workloads/w-1/stop", "/api/machines/mini/workloads/..%2Fx/stop", "/api/machines/mini/workloads/UPPER/delete"):
             reply = w.operator.write("POST", path, {"confirm": True})
@@ -150,7 +150,6 @@ def check_the_root_keeps_following_a_command_across_its_own_restart():
         w.root.stop()
         w.root.start()
         w.operator = Browser(w.root)
-        w.operator.sign_in()
         done = w.wait_command(command_id, seconds=40)
         expect(done["result"]["workload_id"], "the command finished without a result")
 
@@ -179,14 +178,14 @@ def check_commands_can_be_listed_and_read():
         expect(w.operator.request("GET", f"/api/commands/{listed[0]['id']}").status == 200, "a command cannot be read")
         for path in ("/api/commands/rc-nope", "/api/commands/..%2Fx", "/api/commands/UPPER"):
             expect(w.operator.request("GET", path).status == 404, f"{path} was not a 404")
-        expect(Browser(w.root).request("GET", "/api/commands").status == 401, "commands are readable without a session")
+        expect(Browser(w.root).request("GET", "/api/commands", headers={"Host": "evil.example"}).status == 403, "commands are readable for a foreign Host")
 
 
 CHECKS = [
     check_a_request_through_the_root_creates_a_workload_on_the_machine, check_placement_takes_the_machine_with_the_most_room_and_honors_a_choice,
     check_the_root_refuses_what_fits_nowhere_and_says_why, check_two_requests_in_a_row_cannot_take_the_same_room,
     check_a_stale_view_is_corrected_by_the_agents_own_check, check_start_stop_and_a_confirmed_delete_with_a_backup,
-    check_a_mixed_fleet_of_swift_and_rust_agents_gets_each_workload_where_it_can_run, check_actions_need_a_session_csrf_and_a_known_workload, check_an_unreachable_agent_fails_the_command_cleanly, check_the_root_never_calls_an_address_outside_the_private_network,
+    check_a_mixed_fleet_of_swift_and_rust_agents_gets_each_workload_where_it_can_run, check_actions_need_the_host_csrf_and_a_known_workload, check_an_unreachable_agent_fails_the_command_cleanly, check_the_root_never_calls_an_address_outside_the_private_network,
     check_the_root_keeps_following_a_command_across_its_own_restart, check_secrets_are_kept_apart_and_the_agent_takes_only_its_command_token,
     check_commands_can_be_listed_and_read,
 ]

@@ -7,15 +7,17 @@ struct ConfigError: Error, CustomStringConvertible {
 
 /// Settings come from a protected env file on the Root machine (never from the panel) plus a few command-line options.
 struct RootConfig {
+    /// The operator listener (panel and /api). It has no sign-in, so it only ever binds to this machine.
     var port = 9100
     var bind = "127.0.0.1"
+    /// The listener Agents and chats reach (enroll, heartbeat, bundle download, AI proxy). Every route on it needs its own token.
+    /// It stays on this machine until the operator gives it a LAN address.
+    var agentListenPort = 9102
+    var agentListenBind = "127.0.0.1"
     var publicBaseURL = "http://localhost:9100"
     var databasePath: String
     var uiDirectory = "ui/dist"
     var bundleDirectory: String?
-    var googleClientId: String?
-    var googleClientSecret: String?
-    var allowedEmails: Set<String> = []
     var scanSubnet: Subnet?
     var nmapPath: String?
     var arpPath = "/usr/sbin/arp"
@@ -30,12 +32,7 @@ struct RootConfig {
     var aiMaxTokens = BrainRules.defaultMaxTokens
     var capabilitySeconds = BrainRules.defaultCapabilitySeconds
 
-    var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
-    var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
-    var oauthCookieName: String { cookiesAreSecure ? "__Host-ms_oauth" : "ms_oauth" }
-    var googleConfigured: Bool { googleClientId?.isEmpty == false && googleClientSecret?.isEmpty == false }
     var aiConfigured: Bool { [aiBaseURL, aiApiKey, aiModel].allSatisfy { $0?.isEmpty == false } }
-    var callbackURL: String { publicBaseURL + "/auth/callback" }
 
     static let defaultDirectory = ("~/.metaservice" as NSString).expandingTildeInPath
     static let defaultEnvFile = defaultDirectory + "/root.env"
@@ -60,7 +57,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            guard ["--env-file", "--db", "--port", "--bind", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -74,7 +71,15 @@ enum ConfigLoader {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad port") }
             config.port = port
         }
+        if let text = options["--agent-port"] {
+            guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad agent port") }
+            config.agentListenPort = port
+        }
         config.bind = options["--bind"] ?? config.bind
+        config.agentListenBind = options["--agent-bind"] ?? config.agentListenBind
+        guard OperatorGate.isLoopback(config.bind) else {
+            throw ConfigError(description: "the operator listener has no sign-in, so it must bind to this machine (127.0.0.1); put a proxy with its own access control in front for remote use")
+        }
         config.publicBaseURL = options["--public-url"] ?? config.publicBaseURL
         config.uiDirectory = options["--ui-dir"] ?? config.uiDirectory
         config.bundleDirectory = options["--bundle-dir"] ?? config.bundleDirectory
@@ -101,11 +106,13 @@ enum ConfigLoader {
     }
 
     static func apply(_ env: [String: String], to config: inout RootConfig) throws {
-        config.googleClientId = env["GOOGLE_CLIENT_ID"]
-        config.googleClientSecret = env["GOOGLE_CLIENT_SECRET"]
-        config.allowedEmails = Set((env["ALLOWED_EMAILS"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty })
         config.publicBaseURL = env["PUBLIC_BASE_URL"] ?? config.publicBaseURL
         config.bind = env["ROOT_BIND"] ?? config.bind
+        config.agentListenBind = env["ROOT_AGENT_BIND"] ?? config.agentListenBind
+        if let text = env["ROOT_AGENT_PORT"] {
+            guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_AGENT_PORT") }
+            config.agentListenPort = port
+        }
         if let text = env["ROOT_PORT"] {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_PORT") }
             config.port = port

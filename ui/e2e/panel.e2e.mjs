@@ -1,5 +1,5 @@
-// End-to-end test of the panel in a real browser against a real Root (test build with the fake sign-in door).
-// Needs: the test Root build (root/macos/run-tests.sh builds it), Google Chrome (or CHROME_PATH), and `npm install` in ui/.
+// End-to-end test of the panel in a real browser against a real Root. The panel has no sign-in: it only works from the machine the Root runs on.
+// Needs: the Root build (`swift build` in root/macos), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in ui/.
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
@@ -11,10 +11,9 @@ import puppeteer from 'puppeteer-core'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../..')
-const binary = join(repo, 'root/macos/.build-fake/debug/metaservice-root')
+const binary = join(repo, 'root/macos/.build/debug/metaservice-root')
 const agentBinary = join(repo, 'agent/macos/.build/debug/metaservice-agent')
 const chrome = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const EMAIL = 'kurnia@example.com'
 const AI_KEY = 'sk-e2e-not-a-real-key-0123456789'
 const XSS = '<img src=x onerror="window.__xss=1">'
 
@@ -62,35 +61,34 @@ async function startRoot() {
   const bundleDir = join(dir, 'bundles')
   for (const version of ['0.1.0', '0.2.0']) spawnSync('python3', [join(repo, 'bundles/chat/build.py'), '--version', version, '--out', bundleDir])
   const port = await freePort()
+  const agentPort = await freePort()
   const env = join(dir, 'root.env')
   const prefix = localPrefix()
   const scanLines = prefix ? `SCAN_SUBNET=${prefix}.0/24\nNMAP_PATH=${FAKES}/fake_nmap.py\nARP_PATH=${FAKES}/fake_arp.py\n` : ''
-  writeFileSync(env, `ALLOWED_EMAILS=${EMAIL}\n${scanLines}AI_BASE_URL=${provider.base}\nAI_API_KEY=${AI_KEY}\nAI_DEFAULT_MODEL=fake-model\n`)
+  writeFileSync(env, `${scanLines}AI_BASE_URL=${provider.base}\nAI_API_KEY=${AI_KEY}\nAI_DEFAULT_MODEL=fake-model\n`)
   chmodSync(env, 0o600)
   const base = `http://localhost:${port}`
-  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1',
+  const child = spawn(binary, ['--env-file', env, '--db', join(dir, 'db.sqlite3'), '--port', String(port), '--bind', '127.0.0.1', '--agent-port', String(agentPort), '--agent-bind', '127.0.0.1',
     '--public-url', base, '--ui-dir', join(repo, 'ui/dist'), '--bundle-dir', bundleDir], { stdio: 'ignore', env: { ...process.env, FAKE_ARP_PREFIX: prefix ?? '' } })
   for (let i = 0; i < 100; i++) {
-    if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, child }
+    if (await fetch(`${base}/health`).then((r) => r.ok, () => false)) return { base, agentBase: `http://127.0.0.1:${agentPort}`, child }
     await new Promise((r) => setTimeout(r, 100))
   }
   throw new Error('Root did not start')
 }
 
-/** Sign in as the operator with plain fetch, invite a machine and enroll it as an Agent; returns the machine token. */
+/** With plain fetch: ask for the CSRF token, invite two machines and enroll them as Agents would (on the Agent listener). */
 let operatorSession = null
 
 async function seed(base) {
-  const login = await fetch(`${base}/auth/fake`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ email: EMAIL }), redirect: 'manual' })
-  const cookie = login.headers.get('set-cookie').split(';')[0]
-  const session = await (await fetch(`${base}/api/session`, { headers: { Cookie: cookie } })).json()
-  operatorSession = { cookie, csrf: session.csrf_token }
-  const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: base, 'X-CSRF-Token': session.csrf_token }, body: JSON.stringify(body) })
+  const session = await (await fetch(`${base}/api/session`)).json()
+  operatorSession = { csrf: session.csrf_token }
+  const write = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base, 'X-CSRF-Token': session.csrf_token }, body: JSON.stringify(body) })
   for (const name of ['dgx-spark', 'mac-mini']) {
     const invite = await (await write('/api/enrollments', { name })).json()
-    const enrolled = await (await fetch(`${base}/v1/agents/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollment_token: invite.enrollment_token, name }) })).json()
+    const enrolled = await (await fetch(`${agentBase}/v1/agents/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollment_token: invite.enrollment_token, name }) })).json()
     const beat = heartbeat(name)
-    await fetch(`${base}/v1/agents/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${enrolled.machine_token}` }, body: JSON.stringify(beat) })
+    await fetch(`${agentBase}/v1/agents/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${enrolled.machine_token}` }, body: JSON.stringify(beat) })
   }
 }
 
@@ -106,16 +104,16 @@ function heartbeat(name) {
 /** The one machine that reports a host problem, to check the panel shows it with its fix. */
 const PROBLEM = { code: 'bridge_blocked_by_firewall', message: 'VMs cannot get an IPv4 address: the bridge incusbr0 is not trusted.', fix: 'As root, run: metaservice-agent setup --yes' }
 
-const { base, child } = await startRoot()
+const { base, agentBase, child } = await startRoot()
 /** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
 async function startAgent(base, name = 'agent-mac') {
   const dir = mkdtempSync(join(tmpdir(), 'ms-e2e-agent-'))
-  const headers = { 'Content-Type': 'application/json', Cookie: operatorSession.cookie, Origin: base, 'X-CSRF-Token': operatorSession.csrf }
+  const headers = { 'Content-Type': 'application/json', Origin: base, 'X-CSRF-Token': operatorSession.csrf }
   const invite = await (await fetch(`${base}/api/enrollments`, { method: 'POST', headers, body: JSON.stringify({ name, ip: '127.0.0.1' }) })).json()
   const tokenFile = join(dir, 'enroll.token')
   writeFileSync(tokenFile, invite.enrollment_token)
   chmodSync(tokenFile, 0o600)
-  const enrolled = spawnSync(agentBinary, ['enroll', '--root', base.replace('localhost', '127.0.0.1'), '--name', name, '--enrollment-token-file', tokenFile, '--state-dir', dir])
+  const enrolled = spawnSync(agentBinary, ['enroll', '--root', agentBase, '--name', name, '--enrollment-token-file', tokenFile, '--state-dir', dir])
   if (enrolled.status !== 0) throw new Error('agent enroll failed: ' + enrolled.stderr)
   const port = await freePort()
   return spawn(agentBinary, ['run', '--state-dir', dir, '--port', String(port), '--bind', '127.0.0.1', '--engine', 'simulated', '--heartbeat-seconds', '1',
@@ -260,14 +258,10 @@ try {
     await handle.asElement().click()
   }
 
-  await page.goto(base, { waitUntil: 'networkidle0' })
-  check('signed-out page shows the sign-in card and no machines', (await text()).includes('MetaService') && !(await text()).includes('dgx-spark'))
-
   await seed(base)
-  await page.evaluate(() => fetch('/auth/fake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'kurnia@example.com' }) }))
   await page.goto(base, { waitUntil: 'networkidle0' })
   const body = await text()
-  check('signed-in page lists the machines', body.includes('dgx-spark') && body.includes('mac-mini') && body.includes(EMAIL))
+  check('the panel opens straight to the machines, with no sign-in anywhere', body.includes('dgx-spark') && body.includes('mac-mini') && !/sign[ -]?(in|out)|google/i.test(body))
   check('summary counts the machines and workloads', /MACHINES\s*2/.test(body) && /WORKLOADS\s*2/.test(body), body.slice(0, 120))
 
   check('a machine with a host problem says it needs setup and shows the fix', body.includes('Needs setup') && body.includes('is not trusted') && body.includes('metaservice-agent setup --yes'))
@@ -312,9 +306,6 @@ try {
   await page.reload({ waitUntil: 'networkidle0' })
   check('no sideways scrolling on a phone', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 
-  await click('Sign out')
-  await page.waitForFunction(() => document.body.innerText.includes('Google sign-in'), { timeout: 10000 })
-  check('signing out returns to the sign-in page', !(await text()).includes('dgx-spark'))
   check('no script errors and no policy violations', errors.length === 0 && (await page.evaluate(() => window.__csp)) === undefined, errors.join(' | '))
 } finally {
   await browser.close()

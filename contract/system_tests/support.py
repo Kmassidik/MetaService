@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 
 from contract.agent_tests.support import FakeContainerWorld, FakeIncusWorld, LINUX_BINARY, RunningAgent, run_cli, wait_for, write_secret
-from contract.root_tests.support import Browser, RunningRoot, expect, ALLOWED_EMAIL, _free_port
+from contract.root_tests.support import Browser, RunningRoot, expect, _free_port
 from contract.tests.bundle_source import BundleSource
 
 
@@ -36,7 +36,6 @@ class World:
         extra = ["--ui-dir", "/nonexistent-ui"] + (["--bundle-dir", str(self.bundles.dir)] if self.bundles else [])
         self.root = RunningRoot(env_text=root_env, extra_args=extra).start()
         self.operator = Browser(self.root)
-        self.operator.sign_in()
         self.machines = {}
 
     def add_machine(self, name, engine="simulated", flavor="swift", ram_mb=20000, ram_reserve=4000, disk_gb=300, disk_reserve=10, heartbeat=1, container=None):
@@ -45,7 +44,7 @@ class World:
         agent = RunningAgent(with_token=False, binary=binary)
         token_file = os.path.join(agent.state, "enroll.token")
         write_secret(token_file, invite)
-        code, _, text = run_cli(["enroll", "--root", f"http://127.0.0.1:{self.root.port}", "--name", name, "--enrollment-token-file", token_file, "--state-dir", agent.state], binary=binary)
+        code, _, text = run_cli(["enroll", "--root", self.root.agent_base, "--name", name, "--enrollment-token-file", token_file, "--state-dir", agent.state], binary=binary)
         expect(code == 0, f"enroll of {name} failed: {text[:150]}")
         agent.token = open(os.path.join(agent.state, "command.token")).read().strip()
         budget = ["--ram-allowance-mb", str(ram_mb), "--ram-reserve-mb", str(ram_reserve), "--disk-allowance-gb", str(disk_gb), "--disk-reserve-gb", str(disk_reserve),

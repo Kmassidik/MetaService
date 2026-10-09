@@ -12,8 +12,14 @@ do {
     let services = Services(config: config, database: database, secrets: secrets)
     services.workloads.resume()
     services.bundleService.start()
-    let app = buildApplication(services: services)
-    try await app.runService()
+    let operatorApp = buildOperatorApplication(services: services)
+    let agentApp = buildAgentApplication(services: services)
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        group.addTask { try await operatorApp.runService() }
+        group.addTask { try await agentApp.runService() }
+        try await group.next()
+        group.cancelAll()
+    }
 } catch {
     FileHandle.standardError.write(Data("metaservice-root: \(error)\n".utf8))
     exit(1)

@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-async function call(method, path, body) {
+async function call(method, path, body, retried = false) {
   const headers = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken ?? ''
@@ -28,6 +28,11 @@ async function call(method, path, body) {
   }
   if (response.status === 204) return null
   const data = await response.json().catch(() => null)
+  // The Root makes a new CSRF token each time it starts, so a panel left open across a restart asks for the new one and tries once more.
+  if (response.status === 403 && method !== 'GET' && !retried) {
+    await getSession()
+    return call(method, path, body, true)
+  }
   if (!response.ok) throw withNumbers(new ApiError(response.status, data?.error?.code ?? 'error', data?.error?.message ?? 'Request failed.'), data?.error)
   return data
 }
@@ -41,23 +46,14 @@ function withNumbers(error, detail) {
   return error
 }
 
-/** The signed-in operator, or null when not signed in. Also stores the CSRF token. */
+/** Asks the Root for the CSRF token every write must carry. There is no sign-in: the panel only works from the machine the Root runs on. */
 export async function getSession() {
-  try {
-    const session = await call('GET', '/api/session')
-    csrfToken = session.csrf_token
-    return { email: session.email }
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return null
-    throw error
-  }
+  csrfToken = (await call('GET', '/api/session')).csrf_token
 }
 
-export const authStatus = () => call('GET', '/auth/status')
 export const listMachines = async () => (await call('GET', '/api/machines')).machines
 export const inviteMachine = (name) => call('POST', '/api/enrollments', { name })
 export const removeMachine = (id) => call('DELETE', `/api/machines/${encodeURIComponent(id)}`)
-export const signOut = () => call('POST', '/auth/logout')
 
 export const scanSetup = () => call('GET', '/api/scan/setup')
 export const startScan = () => call('POST', '/api/scans')

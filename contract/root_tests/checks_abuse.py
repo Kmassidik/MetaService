@@ -22,18 +22,9 @@ def check_bad_machine_tokens_lock_the_address_out():
         expect(good.status == 429, f"the lockout let a correct token through: {good.status}")
 
 
-def check_login_attempts_are_rate_limited():
-    env = "ALLOWED_EMAILS=kurnia@example.com\nGOOGLE_CLIENT_ID=test-client\nGOOGLE_CLIENT_SECRET=test-secret\n"
-    with running(env_text=env) as root:
-        browser = Browser(root)
-        codes = [browser.request("GET", "/auth/login").status for _ in range(33)]
-        expect(codes[:30] == [302] * 30 and 429 in codes[30:], f"login codes: {codes}")
-
-
 def check_oversized_bodies_get_413():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         big = b'{"name":"' + b"a" * BIG_BODY_BYTES + b'"}'
         expect(operator.write("POST", "/api/enrollments", raw=big).status == 413, "a 70 KB operator body was not refused")
         expect(Browser(root).request("POST", "/v1/agents/enroll", raw=big, origin=None).status == 413, "a 70 KB enroll body was not refused")
@@ -71,7 +62,7 @@ def check_conflicting_content_lengths_are_refused():
 
 
 CHECKS = [
-    check_enroll_attempts_are_rate_limited, check_bad_machine_tokens_lock_the_address_out, check_login_attempts_are_rate_limited,
+    check_enroll_attempts_are_rate_limited, check_bad_machine_tokens_lock_the_address_out,
     check_oversized_bodies_get_413, check_a_huge_declared_length_is_refused_at_once, check_a_huge_header_does_not_hurt,
     check_garbage_and_half_requests_do_not_kill_the_root, check_conflicting_content_lengths_are_refused,
 ]

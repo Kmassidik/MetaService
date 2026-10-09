@@ -1,7 +1,7 @@
 """Enrollment, heartbeat, machine listing, removal and the audit trail."""
 import copy
 
-from contract.root_tests.support import ALLOWED_EMAIL, Browser, enrolled_machine, expect, good_heartbeat, running
+from contract.root_tests.support import Browser, enrolled_machine, expect, good_heartbeat, running
 from contract.tests.support import expect_schema
 
 INJECTION_NAMES = ["UPPER", "has space", "semi;colon", "$(reboot)", "`id`", "a/b", "../etc", "-lead", "", "x'; DROP TABLE machines;--",
@@ -15,7 +15,6 @@ def _beat(token, body, root):
 def check_invite_then_enroll_gives_a_long_token():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         invite = operator.write("POST", "/api/enrollments", {"name": "dgx"})
         expect(invite.status == 201 and len(invite.body["enrollment_token"]) >= 43, f"invite: {invite.status} {invite.body}")
         reply = Browser(root).request("POST", "/v1/agents/enroll", {"enrollment_token": invite.body["enrollment_token"], "name": "dgx"}, origin=None)
@@ -26,7 +25,6 @@ def check_invite_then_enroll_gives_a_long_token():
 def check_an_enrollment_token_works_once_and_only_for_its_name():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         token = operator.write("POST", "/api/enrollments", {"name": "dgx"}).body["enrollment_token"]
         agent = Browser(root)
         wrong_name = agent.request("POST", "/v1/agents/enroll", {"enrollment_token": token, "name": "other"}, origin=None)
@@ -47,7 +45,6 @@ def check_enroll_refusals_look_the_same():
 def check_bad_machine_names_are_rejected_when_inviting():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         for name in INJECTION_NAMES:
             reply = operator.write("POST", "/api/enrollments", {"name": name})
             expect(reply.status == 400, f"name {name[:20]!r} gave {reply.status}")
@@ -94,7 +91,6 @@ def check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workload
     with running() as root:
         operator = Browser(root)
         token = enrolled_machine(operator, "mini")
-        operator.sign_in()
         _beat(token, good_heartbeat(), root)
         expect(operator.request("GET", "/api/machines/mini").body["problems"] == [], "a ready machine lists problems")
         body = good_heartbeat()
@@ -122,7 +118,7 @@ def check_heartbeat_rejects_every_broken_problem_list():
         hostile = good_heartbeat()
         hostile["facts"]["problems"] = [{**PROBLEM, "message": "<img src=x onerror=alert(1)>"}]
         _beat(token, hostile, root)
-        expect(operator.sign_in() is not None and "<img" in operator.request("GET", "/api/machines/mini").body["problems"][0]["message"], "hostile text must come back as plain JSON text")
+        expect("<img" in operator.request("GET", "/api/machines/mini").body["problems"][0]["message"], "hostile text must come back as plain JSON text")
 
 
 def check_heartbeat_rejects_every_broken_shape():
@@ -163,10 +159,10 @@ def check_tokens_work_only_where_they_belong():
     with running() as root:
         operator = Browser(root)
         token = enrolled_machine(operator, "mini")
-        as_machine = Browser(root).request("GET", "/api/machines", headers={"Authorization": f"Bearer {token}"}, origin=None)
-        expect(as_machine.status == 401, f"a machine token opened an operator endpoint: {as_machine.status}")
+        as_machine = Browser(root).request("POST", "/api/enrollments", {"name": "other"}, headers={"Authorization": f"Bearer {token}"})
+        expect(as_machine.status == 403, f"a machine token worked as the CSRF token on an operator write: {as_machine.status}")
         as_operator = operator.request("POST", "/v1/agents/heartbeat", good_heartbeat(), headers={"X-CSRF-Token": operator.csrf()})
-        expect(as_operator.status == 401, f"an operator session was accepted as a machine: {as_operator.status}")
+        expect(as_operator.status == 401, f"the operator's CSRF token was accepted as a machine token: {as_operator.status}")
 
 
 def check_removing_a_machine_revokes_its_token():
@@ -182,7 +178,6 @@ def check_removing_a_machine_revokes_its_token():
 def check_hostile_ids_in_paths_are_404_not_errors():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         for item in ("nope", "..%2Fetc", "UPPER", "%00", "x'%3B%20DROP%20TABLE%20machines%3B--", "a" * 80, "%24%28id%29"):
             reply = operator.request("GET", f"/api/machines/{item}")
             expect(reply.status == 404, f"id {item[:25]} gave {reply.status}")
@@ -196,7 +191,7 @@ def check_audit_records_actions_newest_first_and_cannot_be_changed():
         operator.write("DELETE", "/api/machines/mini")
         entries = operator.request("GET", "/api/audit").body["entries"]
         actions = [entry["action"] for entry in entries]
-        for wanted in ("auth.login", "enrollment.create", "machine.enroll", "machine.remove"):
+        for wanted in ("enrollment.create", "machine.enroll", "machine.remove"):
             expect(wanted in actions, f"no {wanted} entry in {actions}")
         expect(actions.index("machine.remove") < actions.index("machine.enroll"), "audit is not newest first")
         ids = [entry["id"] for entry in entries]
@@ -211,7 +206,6 @@ def check_audit_records_actions_newest_first_and_cannot_be_changed():
 def check_the_enroll_token_is_not_written_to_the_audit_log():
     with running() as root:
         operator = Browser(root)
-        operator.sign_in()
         token = operator.write("POST", "/api/enrollments", {"name": "mini"}).body["enrollment_token"]
         Browser(root).request("POST", "/v1/agents/enroll", {"enrollment_token": token, "name": "mini"}, origin=None)
         raw = operator.request("GET", "/api/audit").raw

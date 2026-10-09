@@ -8,7 +8,6 @@ struct Services {
     let clock: Clock
     let machines: MachineStore
     let enrollments: EnrollmentStore
-    let sessions: SessionStore
     let audit: AuditStore
     let scans: ScanStore
     let scanService: ScanService
@@ -21,19 +20,18 @@ struct Services {
     let brain: BrainStore
     let brainService: BrainService
     let throttle: Throttle
-    let google: GoogleAuth
+    /// Sent to the panel by /api/session and required on every write. Another site cannot read it, so it cannot send it.
+    let csrfToken = Tokens.random()
 
     init(config: RootConfig, database: Database, secrets: SecretBox, clock: Clock = SystemClock()) {
         self.config = config
         self.clock = clock
         machines = MachineStore(database)
         enrollments = EnrollmentStore(database)
-        sessions = SessionStore(database)
         audit = AuditStore(database)
         scans = ScanStore(database)
         scanService = ScanService(config: config, clock: clock, store: scans, audit: audit)
         throttle = Throttle(clock: clock)
-        google = GoogleAuth(config: config, clock: clock)
         self.secrets = secrets
         commands = CommandStore(database)
         bundles = BundleStore(database, directory: config.bundleDirectory ?? (config.databasePath as NSString).deletingLastPathComponent + "/bundles")

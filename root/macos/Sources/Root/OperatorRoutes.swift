@@ -3,7 +3,7 @@ import Hummingbird
 import RootCore
 import RootStore
 
-/// What the control panel calls. Every route needs a signed-in operator; writes also need CSRF and the exact Origin.
+/// What the control panel calls. No sign-in: reads need the right Host, writes also need the CSRF header and the exact Origin.
 struct OperatorRoutes {
     let services: Services
     let guards: Guards
@@ -20,17 +20,17 @@ struct OperatorRoutes {
     }
 
     func session(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorSession(request)
-        return try Json.response(SessionReply(email: session.email, csrfToken: session.csrfToken))
+        _ = try guards.operatorRead(request)
+        return try Json.response(SessionReply(csrfToken: services.csrfToken))
     }
 
     func listMachines(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         return try Json.response(MachineList(machines: try services.machines.list(now: services.clock.now)))
     }
 
     func getMachine(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         let id = try machineId(context)
         do {
             return try Json.response(try services.machines.get(id: id, now: services.clock.now))
@@ -40,7 +40,7 @@ struct OperatorRoutes {
     }
 
     func removeMachine(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorWrite(request)
+        let caller = try guards.operatorWrite(request)
         let id = try machineId(context)
         do {
             try services.machines.remove(id: id)
@@ -48,12 +48,12 @@ struct OperatorRoutes {
             throw ApiFailure.notFound
         }
         try services.chatAccess.remove(target: id)
-        try services.audit.record(actor: session.email, action: "machine.remove", target: id, at: services.clock.now)
+        try services.audit.record(actor: caller.name, action: "machine.remove", target: id, at: services.clock.now)
         return Response(status: .noContent)
     }
 
     func createEnrollment(_ request: Request, context: RootContext) async throws -> Response {
-        let session = try guards.operatorWrite(request)
+        let caller = try guards.operatorWrite(request)
         let body = try CreateEnrollmentRequest(body: try await guards.body(request))
         let made: (token: String, expires: Date)
         do {
@@ -61,13 +61,13 @@ struct OperatorRoutes {
         } catch EnrollmentError.machineExists {
             throw ApiFailure(status: .conflict, code: "machine_exists", message: "a machine with that name is already enrolled")
         }
-        try services.audit.record(actor: session.email, action: "enrollment.create", target: body.name, at: services.clock.now)
+        try services.audit.record(actor: caller.name, action: "enrollment.create", target: body.name, at: services.clock.now)
         let reply = EnrollmentReply(name: body.name, enrollmentToken: made.token, expiresAt: ISO8601DateFormatter().string(from: made.expires))
         return try Json.response(reply, status: .created)
     }
 
     func audit(_ request: Request, context: RootContext) async throws -> Response {
-        _ = try guards.operatorSession(request)
+        _ = try guards.operatorRead(request)
         let limit = request.uri.queryParameters.get("limit", as: Int.self) ?? Self.defaultAuditPage
         let before = request.uri.queryParameters.get("before", as: Int.self)
         return try Json.response(AuditList(entries: try services.audit.list(limit: limit, before: before)))
@@ -80,7 +80,6 @@ struct OperatorRoutes {
 }
 
 private struct SessionReply: Encodable {
-    let email: String
     let csrfToken: String
 }
 

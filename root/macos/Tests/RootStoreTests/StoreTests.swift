@@ -129,23 +129,8 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM workloads").first?.int("n"), 0)
     }
 
-    func testSessions() throws {
-        let sessions = SessionStore(database)
-        let made = try sessions.create(email: "k@example.com", now: now)
-        XCTAssertEqual(try sessions.lookup(token: made.token, now: now)?.email, "k@example.com")
-        XCTAssertEqual(try sessions.lookup(token: made.token, now: now)?.csrfToken, made.csrf)
-        XCTAssertNil(try sessions.lookup(token: "wrong", now: now))
-        XCTAssertNil(try sessions.lookup(token: made.token, now: now.addingTimeInterval(SessionStore.lifetime + 1)))
-        try sessions.delete(token: made.token)
-        XCTAssertNil(try sessions.lookup(token: made.token, now: now))
-        let stored = try database.query("SELECT token_hash FROM sessions").count
-        XCTAssertEqual(stored, 0)
-    }
-
-    func testSessionTokenIsStoredHashed() throws {
-        let made = try SessionStore(database).create(email: "k@example.com", now: now)
-        let stored = try database.query("SELECT token_hash FROM sessions").first?.string("token_hash")
-        XCTAssertNotEqual(stored, made.token)
+    func testThereAreNoSessionsAnymore() throws {
+        XCTAssertEqual(try database.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").count, 0)
     }
 }
 

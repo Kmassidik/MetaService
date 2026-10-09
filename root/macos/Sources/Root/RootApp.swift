@@ -1,21 +1,36 @@
 import Hummingbird
 import RootStore
 
-/// The route table. Public: /health and the Agent enroll door. Everything else checks a session or a machine token.
-func buildApplication(services: Services) -> some ApplicationProtocol {
+/// Two listeners, so that what needs no sign-in never shares an address with what is open to the network.
+///
+/// Operator listener (this machine only, no sign-in): the panel and /api. Reads need the right Host, writes also the exact Origin and the CSRF header.
+/// Agent listener (reachable by Agents and chats): /health, enroll, heartbeat, bundle download and the AI proxy. Each route needs its own token or key.
+func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
+    let router = baseRouter()
+    let guards = Guards(services: services)
+    OperatorRoutes(services: services, guards: guards).register(on: router.group())
+    WorkloadRoutes(services: services, guards: guards).register(on: router.group())
+    BundleRoutes(services: services, guards: guards).registerOperator(on: router.group())
+    BrainRoutes(services: services, guards: guards).registerOperator(on: router.group())
+    ScanRoutes(services: services, guards: guards).register(on: router.group())
+    UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
+    return Application(router: router, configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
+}
+
+func buildAgentApplication(services: Services) -> some ApplicationProtocol {
+    let router = baseRouter()
+    let guards = Guards(services: services)
+    AgentRoutes(services: services, guards: guards).register(on: router.group())
+    BundleRoutes(services: services, guards: guards).registerAgent(on: router.group())
+    BrainRoutes(services: services, guards: guards).registerAgent(on: router.group())
+    return Application(router: router, configuration: .init(address: .hostname(services.config.agentListenBind, port: services.config.agentListenPort)))
+}
+
+private func baseRouter() -> Router<RootContext> {
     let router = Router(context: RootContext.self)
     // First added is outermost: the headers must wrap the error mapping, so refusals carry them too.
     router.add(middleware: SecurityHeadersMiddleware())
     router.add(middleware: ErrorMiddleware())
-    let guards = Guards(services: services)
     router.get("/health") { _, _ in try Json.response(["status": "ok"]) }
-    AgentRoutes(services: services, guards: guards).register(on: router.group())
-    OperatorRoutes(services: services, guards: guards).register(on: router.group())
-    WorkloadRoutes(services: services, guards: guards).register(on: router.group())
-    BundleRoutes(services: services, guards: guards).register(on: router.group())
-    BrainRoutes(services: services, guards: guards).register(on: router.group())
-    ScanRoutes(services: services, guards: guards).register(on: router.group())
-    AuthRoutes(services: services, guards: guards).register(on: router.group())
-    UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
-    return Application(router: router, configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
+    return router
 }
