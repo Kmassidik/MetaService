@@ -149,6 +149,7 @@ def apple_agent(world=None, **kwargs):
 
 
 FAKE_INCUS = pathlib.Path(__file__).parent / "fakes" / "fake_incus.py"
+FAKE_FIREWALL = pathlib.Path(__file__).parent / "fakes" / "fake_firewall_cmd.py"
 
 
 class FakeIncusWorld:
@@ -161,6 +162,21 @@ class FakeIncusWorld:
         self.backups = os.path.join(self.dir, "backups")
         pathlib.Path(self.log_file).write_text("")
         self.env = {"FAKE_INCUS_STATE": self.state_file, "FAKE_INCUS_LOG": self.log_file, **switches}
+
+    def with_firewall(self, zone, running=True):
+        """Puts a fake `firewall-cmd` first in the Agent's PATH. Change the zone later with set_zone()."""
+        bin_dir = os.path.join(self.dir, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        link = os.path.join(bin_dir, "firewall-cmd")
+        if not os.path.exists(link):
+            os.symlink(FAKE_FIREWALL, link)
+        self.zone_file = os.path.join(self.dir, "zone")
+        self.set_zone(zone)
+        self.env.update({"PATH": bin_dir + os.pathsep + os.environ["PATH"], "FAKE_FIREWALL_ZONE_FILE": self.zone_file, "FAKE_FIREWALL_RUNNING": "1" if running else "0"})
+        return self
+
+    def set_zone(self, zone):
+        pathlib.Path(self.zone_file).write_text(zone + "\n")
 
     def agent_args(self):
         return ["--engine", "incus", "--incus-path", str(FAKE_INCUS), "--backup-dir", self.backups]

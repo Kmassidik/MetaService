@@ -1,11 +1,15 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
-use crate::models::{Capabilities, EngineError, GpuMode, Kind, State, Workload};
+use crate::models::{Capabilities, EngineError, GpuMode, Kind, Problem, State, Workload};
 use crate::validate::CreateRequest;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub trait Engine: Send + Sync {
     fn capabilities(&self) -> Capabilities;
+    /// What on this machine stops it from running workloads right now. Empty means ready.
+    fn problems(&self) -> Vec<Problem> {
+        Vec::new()
+    }
     fn list(&self) -> Result<Vec<Workload>, EngineError>;
     fn create(&self, id: &str, request: &CreateRequest) -> Result<Workload, EngineError>;
     fn set_running(&self, id: &str, running: bool) -> Result<(), EngineError>;

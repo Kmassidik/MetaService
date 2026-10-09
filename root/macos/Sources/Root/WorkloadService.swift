@@ -96,7 +96,8 @@ final class WorkloadService: @unchecked Sendable {
             let promised = (try? commands.promised(machine: machine.id)) ?? (ramMb: 0, diskGb: 0)
             return PlacementMachine(id: machine.id, online: machine.state != "offline",
                                     capabilities: machine.capabilities,
-                                    freeRamMb: max(0, (machine.freeRamMb ?? 0) - promised.ramMb), freeDiskGb: max(0, (machine.freeDiskGb ?? 0) - promised.diskGb))
+                                    freeRamMb: max(0, (machine.freeRamMb ?? 0) - promised.ramMb), freeDiskGb: max(0, (machine.freeDiskGb ?? 0) - promised.diskGb),
+                                    hasProblems: !machine.problems.isEmpty)
         }
     }
 

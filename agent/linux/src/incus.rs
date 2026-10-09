@@ -1,7 +1,8 @@
 //! Workloads as Incus instances: VMs and containers, one engine. Every call is the `incus` program with a fixed argument list;
 //! nothing a user typed can become a flag, because names and ids are checked against the id pattern and the image against the image pattern first.
 use crate::engine::Engine;
-use crate::models::{Capabilities, EngineError, GpuMode, Kind, State, Workload};
+use crate::models::{Capabilities, EngineError, GpuMode, Kind, Problem, State, Workload};
+use crate::preflight::{self, HostProbe, NoHostChecks};
 use crate::validate::CreateRequest;
 use serde_json::Value;
 use std::io::Read;
@@ -52,6 +53,7 @@ pub struct IncusEngine {
     backup_dir: PathBuf,
     default_image: String,
     wait_seconds: u64,
+    probe: Arc<dyn HostProbe>,
 }
 
 fn name_of(id: &str) -> String {
@@ -64,7 +66,13 @@ fn args(items: &[&str]) -> Vec<String> {
 
 impl IncusEngine {
     pub fn new(runner: Arc<dyn Runner>, capabilities: Capabilities, backup_dir: PathBuf, default_image: String, wait_seconds: u64) -> Self {
-        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds }
+        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks) }
+    }
+
+    /// Lets the engine look at the host (the firewall) when it reports problems.
+    pub fn with_probe(mut self, probe: Arc<dyn HostProbe>) -> Self {
+        self.probe = probe;
+        self
     }
 
     fn find(&self, id: &str) -> Result<Option<Workload>, EngineError> {
@@ -143,6 +151,10 @@ fn address_of(item: &Value) -> Option<String> {
 impl Engine for IncusEngine {
     fn capabilities(&self) -> Capabilities {
         self.capabilities
+    }
+
+    fn problems(&self) -> Vec<Problem> {
+        preflight::incus_host(self.runner.as_ref(), self.probe.as_ref())
     }
 
     fn list(&self) -> Result<Vec<Workload>, EngineError> {

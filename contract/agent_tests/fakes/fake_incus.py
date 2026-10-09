@@ -65,6 +65,11 @@ if command == "list":
         network = {"eth0": {"addresses": [{"family": "inet", "address": item["ip"], "scope": "global"}]}} if running else {}
         out.append({"name": name, "status": item["status"], "type": item["type"], "config": item["config"], "state": {"network": network} if running else None})
     print(json.dumps(out))
+elif command == "network":
+    values, positional = flags(args[1:], {"--format"})
+    if positional != ["list"]:
+        die("only network list is supported here", 2)
+    print("docker0,bridge,NO,,,,0,\nenp44s0,physical,NO,,,,0,\nincusbr0,bridge,YES,10.77.0.1/24,,,1,CREATED")
 elif command == "launch":
     time.sleep(float(os.environ.get("FAKE_INCUS_RUN_DELAY", "0")))
     values, positional = flags(args[1:], {"-c", "-d"}, {"--vm"})

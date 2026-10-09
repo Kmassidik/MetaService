@@ -6,6 +6,8 @@ use std::path::PathBuf;
 pub enum Verb {
     Run,
     Enroll { root: String, name: String, token_file: Option<String> },
+    /// One-time host setup. Shows the plan; changes the machine only with `yes`.
+    Setup { yes: bool, user: Option<String> },
 }
 
 #[derive(Clone, Debug)]
@@ -33,7 +35,7 @@ pub const VERSION: &str = "0.1.0";
 pub const DEFAULT_IMAGE: &str = "images:ubuntu/24.04";
 const VALUED: &[&str] = &[
     "--state-dir", "--port", "--bind", "--engine", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb", "--disk-allowance-gb", "--bad-token-limit",
-    "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--incus-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file",
+    "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--incus-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file", "--user",
 ];
 
 impl Config {
@@ -52,7 +54,8 @@ impl Config {
                 name: options.get("--name").cloned().ok_or("enroll needs --root and --name")?,
                 token_file: options.get("--enrollment-token-file").cloned(),
             },
-            other => return Err(format!("unknown command {other}; use run or enroll")),
+            "setup" => Verb::Setup { yes: options.contains_key("--yes"), user: options.get("--user").cloned() },
+            other => return Err(format!("unknown command {other}; use run, enroll or setup")),
         };
         Ok(config)
     }
@@ -70,6 +73,10 @@ impl Config {
         let mut found = HashMap::new();
         let mut items = arguments.iter();
         while let Some(name) = items.next() {
+            if name == "--yes" {
+                found.insert(name.clone(), String::new());
+                continue;
+            }
             let value = items.next().filter(|_| VALUED.contains(&name.as_str())).ok_or_else(|| format!("unknown or incomplete option {name}"))?;
             found.insert(name.clone(), value.clone());
         }
@@ -140,6 +147,9 @@ mod tests {
 
     #[test]
     fn enroll_never_takes_the_token_as_a_plain_argument() {
+        let setup = parse(&["setup", "--yes", "--user", "kurnia"]).unwrap();
+        assert!(matches!(setup.verb, Verb::Setup { yes: true, user: Some(ref u) } if u == "kurnia"));
+        assert!(matches!(parse(&["setup"]).unwrap().verb, Verb::Setup { yes: false, user: None }));
         let config = parse(&["enroll", "--root", "http://10.0.0.1:9100", "--name", "dgx", "--enrollment-token-file", "/tmp/t"]).unwrap();
         assert!(matches!(config.verb, Verb::Enroll { ref name, token_file: Some(_), .. } if name == "dgx"));
     }

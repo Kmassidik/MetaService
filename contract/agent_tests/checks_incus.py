@@ -178,10 +178,48 @@ def check_the_agent_will_not_start_without_incus():
     raise AssertionError("the Agent started without incus")
 
 
+def problem_codes(agent):
+    status, facts = agent.call("GET", "/v1/facts")
+    expect(status == 200, f"facts gave {status}")
+    return [p["code"] for p in facts["problems"]]
+
+
+def check_a_bridge_the_firewall_blocks_is_reported_with_the_fix_and_clears_when_fixed():
+    world = FakeIncusWorld().with_firewall("no zone")
+    agent = incus_agent(world)
+    try:
+        expect(problem_codes(agent) == ["bridge_blocked_by_firewall"], f"problems: {problem_codes(agent)}")
+        problem = agent.call("GET", "/v1/facts")[1]["problems"][0]
+        expect("incusbr0" in problem["message"] and "setup --yes" in problem["fix"], f"problem text: {problem}")
+        world.set_zone("trusted")
+        expect(problem_codes(agent) == [], "the problem stayed after the zone was fixed")
+    finally:
+        agent.stop()
+
+
+def check_a_ready_host_reports_no_problems_with_or_without_a_firewall():
+    for world in (FakeIncusWorld().with_firewall("trusted"), FakeIncusWorld().with_firewall("no zone", running=False), FakeIncusWorld()):
+        agent = incus_agent(world)
+        try:
+            expect(problem_codes(agent) == [], f"problems: {problem_codes(agent)}")
+        finally:
+            agent.stop()
+
+
+def check_incus_that_cannot_be_used_is_reported_as_the_one_problem():
+    world = FakeIncusWorld(FAKE_INCUS_FAIL="network list").with_firewall("no zone")
+    agent = incus_agent(world)
+    try:
+        expect(problem_codes(agent) == ["incus_unreachable"], f"problems: {problem_codes(agent)}")
+    finally:
+        agent.stop()
+
+
 CHECKS = [
     check_create_runs_one_fixed_launch_and_the_instance_carries_the_numbers, check_vms_need_kvm_and_gpu_modes_need_a_gpu,
     check_a_failed_launch_leaves_nothing_and_frees_the_budget, check_start_and_stop_go_through_the_tool,
     check_changes_made_outside_the_agent_show_up_and_strangers_do_not, check_delete_backs_up_first_and_keeps_the_backup,
     check_a_failed_or_empty_backup_stops_the_delete, check_everything_survives_an_agent_restart_and_a_workload_gets_the_bundle,
-    check_the_agent_will_not_start_without_incus,
+    check_the_agent_will_not_start_without_incus, check_a_bridge_the_firewall_blocks_is_reported_with_the_fix_and_clears_when_fixed,
+    check_a_ready_host_reports_no_problems_with_or_without_a_firewall, check_incus_that_cannot_be_used_is_reported_as_the_one_problem,
 ]

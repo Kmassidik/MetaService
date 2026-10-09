@@ -74,6 +74,7 @@ public enum Migrations {
               updated_at INTEGER NOT NULL, PRIMARY KEY (machine, workload)
             );
             """) }),
+        (7, { try $0.exec("ALTER TABLE machines ADD COLUMN problems_json TEXT NOT NULL DEFAULT '[]';") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

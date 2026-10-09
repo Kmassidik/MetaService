@@ -89,9 +89,11 @@ impl Service {
 
     pub async fn facts(&self) -> Result<Facts, Failure> {
         let all = self.workloads().await?;
+        let engine = self.engine.clone();
+        let problems = blocking(move || engine.problems()).await;
         Ok(Facts {
             os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: self.specs.ram_total_mb, disk_total_gb: self.specs.disk_total_gb,
-            free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities: self.engine.capabilities(),
+            free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities: self.engine.capabilities(), problems,
         })
     }
 

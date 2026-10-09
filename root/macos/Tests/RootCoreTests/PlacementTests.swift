@@ -30,6 +30,13 @@ final class PlacementTests: XCTestCase {
         XCTAssertThrowsError(try Placement.choose([machine("a", ram: 9999, disk: 99)], wish(only: "nope"))) { XCTAssertEqual(($0 as? PlacementRefusal)?.code, "machine_not_found") }
     }
 
+    func testAMachineWithAProblemIsNeverChosenEvenWithMoreRoom() throws {
+        let broken = PlacementMachine(id: "broken", online: true, capabilities: everything, freeRamMb: 99999, freeDiskGb: 999, hasProblems: true)
+        XCTAssertEqual(try Placement.choose([broken, machine("ready", ram: 4096, disk: 50)], wish()), "ready")
+        XCTAssertThrowsError(try Placement.choose([broken], wish())) { XCTAssertEqual(($0 as? PlacementRefusal)?.code, "machine_needs_setup") }
+        XCTAssertThrowsError(try Placement.choose([broken, machine("off", online: false, ram: 9999, disk: 99)], wish())) { XCTAssertEqual(($0 as? PlacementRefusal)?.code, "machine_needs_setup") }
+    }
+
     func testCapabilitiesDecide() throws {
         let pool = [machine("mac", caps: vmOnly, ram: 90000, disk: 900), machine("dgx", caps: everything, ram: 8000, disk: 900)]
         XCTAssertEqual(try Placement.choose(pool, wish(kind: "container")), "dgx", "the Mac cannot run containers even with more room")

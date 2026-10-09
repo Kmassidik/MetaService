@@ -19,6 +19,19 @@ public struct GpuInfo: Equatable, Codable {
     public let memoryMb: Int?
 }
 
+/// Something on the machine itself that stops it from running workloads, with the way to fix it. Reported by the Agent in its facts.
+public struct HostProblem: Equatable, Codable {
+    public let code: String
+    public let message: String
+    public let fix: String
+
+    public init(code: String, message: String, fix: String) {
+        self.code = code
+        self.message = message
+        self.fix = fix
+    }
+}
+
 public struct Capabilities: Equatable, Codable {
     public let vm: Bool
     public let container: Bool
@@ -36,9 +49,12 @@ public struct FactsReport: Equatable {
     public let freeDiskGb: Int
     public let gpu: [GpuInfo]
     public let capabilities: Capabilities
+    public let problems: [HostProblem]
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems"]
     static let maxGpus = 16
+    static let maxProblems = 20
+    private static let codePattern = #/^[a-z0-9_]{1,64}$/#
 
     init(_ object: StrictObject) throws {
         os = try object.choice("os", among: ["macos", "linux", "windows"])
@@ -52,6 +68,12 @@ public struct FactsReport: Equatable {
         let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container"])
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"))
+        problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
+    }
+
+    private static func problem(_ item: StrictObject) throws -> HostProblem {
+        HostProblem(code: try item.string("code", pattern: codePattern, maxLength: 64, minLength: 1), message: try item.string("message", maxLength: 300, minLength: 1),
+                    fix: try item.string("fix", maxLength: 500))
     }
 
     private static func gpuInfo(_ item: StrictObject) throws -> GpuInfo {

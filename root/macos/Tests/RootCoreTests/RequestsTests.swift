@@ -45,6 +45,30 @@ final class RequestsTests: XCTestCase {
         XCTAssertEqual(beat.facts.gpu.first?.memoryMb, 131072)
     }
 
+    func testHostProblemsAreReadAndDefaultToNone() throws {
+        XCTAssertEqual(try HeartbeatRequest(body: data(Self.goodHeartbeat())).facts.problems, [])
+        var body = Self.goodHeartbeat()
+        var facts = body["facts"] as! [String: Any]
+        facts["problems"] = [["code": "bridge_blocked_by_firewall", "message": "VMs get no IPv4", "fix": "Run setup"]]
+        body["facts"] = facts
+        XCTAssertEqual(try HeartbeatRequest(body: data(body)).facts.problems, [HostProblem(code: "bridge_blocked_by_firewall", message: "VMs get no IPv4", fix: "Run setup")])
+    }
+
+    func testBrokenHostProblemsAreRefused() {
+        let bad: [Any] = [
+            [["code": "Bad Code", "message": "m", "fix": "f"]], [["code": "ok", "message": "", "fix": "f"]], [["code": "ok", "message": "m"]],
+            [["code": "ok", "message": "m", "fix": "f", "extra": 1]], [["code": "ok", "message": String(repeating: "x", count: 301), "fix": "f"]],
+            [["code": "ok", "message": "m", "fix": String(repeating: "x", count: 501)]], "text", (0..<21).map { _ in ["code": "ok", "message": "m", "fix": "f"] },
+        ]
+        for item in bad {
+            var body = Self.goodHeartbeat()
+            var facts = body["facts"] as! [String: Any]
+            facts["problems"] = item
+            body["facts"] = facts
+            XCTAssertThrowsError(try HeartbeatRequest(body: data(body)), "\(item)")
+        }
+    }
+
     func testHeartbeatRejectsEachBrokenField() {
         let mutations: [(String, (inout [String: Any]) -> Void)] = [
             ("unknown top field", { $0["extra"] = 1 }),

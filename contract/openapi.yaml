@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MetaService Root-Agent contract
-  version: 1.1.0
+  version: 1.2.0
   description: >
     The one API every MetaService Agent implements, and the part of the Root that Agents call.
     An Agent that passes contract/tests works with the Root, whatever language it is written in.
@@ -205,6 +205,20 @@ components:
             container: { type: boolean }
             gpu_in_vm: { type: boolean }
             gpu_in_container: { type: boolean }
+        problems:
+          description: >
+            Things on the machine that stop it from running workloads, each with the way to fix it. Empty or missing means ready.
+            The Root shows them and places nothing on a machine that has any.
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [code, message, fix]
+            additionalProperties: false
+            properties:
+              code: { type: string, pattern: '^[a-z0-9_]{1,64}$' }
+              message: { type: string, minLength: 1, maxLength: 300 }
+              fix: { type: string, maxLength: 500 }
     Workload:
       type: object
       required: [id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, bundle_version]

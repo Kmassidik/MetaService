@@ -87,6 +87,44 @@ def check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy():
         expect(operator.request("GET", "/api/machines/mini").body["state"] == "busy", "provisioning did not make the machine busy")
 
 
+PROBLEM = {"code": "bridge_blocked_by_firewall", "message": "VMs cannot get an IPv4 address", "fix": "Run: metaservice-agent setup --yes"}
+
+
+def check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workloads_until_it_clears():
+    with running() as root:
+        operator = Browser(root)
+        token = enrolled_machine(operator, "mini")
+        operator.sign_in()
+        _beat(token, good_heartbeat(), root)
+        expect(operator.request("GET", "/api/machines/mini").body["problems"] == [], "a ready machine lists problems")
+        body = good_heartbeat()
+        body["facts"]["problems"] = [PROBLEM]
+        expect(_beat(token, body, root).status == 204, "a heartbeat with problems was refused")
+        expect(operator.request("GET", "/api/machines/mini").body["problems"] == [PROBLEM], "the problem was not stored")
+        refused = operator.write("POST", "/api/workloads", {"name": "demo", "kind": "vm", "cpu": 1, "ram_mb": 1024, "disk_gb": 5})
+        expect(refused.status == 409 and refused.body["error"]["code"] == "machine_needs_setup", f"create: {refused.status} {refused.body}")
+        _beat(token, good_heartbeat(), root)
+        expect(operator.request("GET", "/api/machines/mini").body["problems"] == [], "the problem stayed after it was fixed")
+        again = operator.write("POST", "/api/workloads", {"name": "demo", "kind": "vm", "cpu": 1, "ram_mb": 1024, "disk_gb": 5})
+        expect(again.body is None or again.body.get("error", {}).get("code") != "machine_needs_setup", "a fixed machine is still refused")
+
+
+def check_heartbeat_rejects_every_broken_problem_list():
+    with running() as root:
+        operator = Browser(root)
+        token = enrolled_machine(operator, "mini")
+        broken = [[{**PROBLEM, "code": "Bad Code"}], [{**PROBLEM, "message": ""}], [{"code": "x"}], [{**PROBLEM, "extra": 1}], [PROBLEM] * 21,
+                  [{**PROBLEM, "fix": "x" * 501}], "text", {"a": 1}]
+        for item in broken:
+            body = good_heartbeat()
+            body["facts"]["problems"] = item
+            expect(_beat(token, body, root).status == 400, f"accepted {str(item)[:60]}")
+        hostile = good_heartbeat()
+        hostile["facts"]["problems"] = [{**PROBLEM, "message": "<img src=x onerror=alert(1)>"}]
+        _beat(token, hostile, root)
+        expect(operator.sign_in() is not None and "<img" in operator.request("GET", "/api/machines/mini").body["problems"][0]["message"], "hostile text must come back as plain JSON text")
+
+
 def check_heartbeat_rejects_every_broken_shape():
     with running() as root:
         operator = Browser(root)
@@ -184,6 +222,7 @@ CHECKS = [
     check_invite_then_enroll_gives_a_long_token, check_an_enrollment_token_works_once_and_only_for_its_name, check_enroll_refusals_look_the_same,
     check_bad_machine_names_are_rejected_when_inviting, check_cannot_invite_a_name_that_is_already_enrolled,
     check_a_new_machine_is_offline_until_its_first_heartbeat, check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy,
+    check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workloads_until_it_clears, check_heartbeat_rejects_every_broken_problem_list,
     check_heartbeat_rejects_every_broken_shape, check_hostile_text_in_a_heartbeat_comes_back_as_json_text, check_tokens_work_only_where_they_belong,
     check_removing_a_machine_revokes_its_token, check_hostile_ids_in_paths_are_404_not_errors,
     check_audit_records_actions_newest_first_and_cannot_be_changed, check_the_enroll_token_is_not_written_to_the_audit_log,

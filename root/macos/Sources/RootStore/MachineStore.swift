@@ -56,12 +56,12 @@ public struct MachineStore: @unchecked Sendable {
         try database.transaction {
             try database.execute("""
                 UPDATE machines SET ip = COALESCE(?, ip), os = ?, arch = ?, cpu_cores = ?, ram_total_mb = ?, disk_total_gb = ?,
-                  free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, bundle_version = ?, last_seen = ?,
+                  free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, problems_json = ?, bundle_version = ?, last_seen = ?,
                   agent_port = COALESCE(?, agent_port)
                 WHERE id = ?
                 """, [ip.map(SQLValue.text) ?? .null, .text(facts.os), .text(facts.arch), .int(facts.cpuCores), .int(facts.ramTotalMb),
                       .int(facts.diskTotalGb), .int(facts.freeRamMb), .int(facts.freeDiskGb), .text(try json(facts.gpu)),
-                      .text(try json(facts.capabilities)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
+                      .text(try json(facts.capabilities)), .text(try json(facts.problems)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
                       request.agentPort.map(SQLValue.int) ?? .null, .text(machineId)])
             try replaceWorkloads(machineId: machineId, reports: request.workloads, at: seconds)
         }
@@ -84,7 +84,7 @@ public struct MachineStore: @unchecked Sendable {
     public func list(now: Date) throws -> [MachineSummary] {
         let rows = try database.query("""
             SELECT id, name, ip, os, arch, cpu_cores, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
-                   gpu_json, capabilities_json, agent_version, bundle_version, last_seen
+                   gpu_json, capabilities_json, problems_json, agent_version, bundle_version, last_seen
             FROM machines ORDER BY name
             """)
         return try rows.map { try summary($0, now: now) }
@@ -93,7 +93,7 @@ public struct MachineStore: @unchecked Sendable {
     public func get(id: String, now: Date) throws -> MachineSummary {
         let rows = try database.query("""
             SELECT id, name, ip, os, arch, cpu_cores, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
-                   gpu_json, capabilities_json, agent_version, bundle_version, last_seen
+                   gpu_json, capabilities_json, problems_json, agent_version, bundle_version, last_seen
             FROM machines WHERE id = ?
             """, [.text(id)])
         guard let row = rows.first else { throw MachineError.notFound }
@@ -110,6 +110,7 @@ public struct MachineStore: @unchecked Sendable {
             diskTotalGb: row.optionalInt("disk_total_gb"), freeRamMb: row.optionalInt("free_ram_mb"), freeDiskGb: row.optionalInt("free_disk_gb"),
             gpu: (try? decoder.decode([GpuInfo].self, from: Data(row.string("gpu_json").utf8))) ?? [],
             capabilities: try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8)),
+            problems: (try? decoder.decode([HostProblem].self, from: Data(row.string("problems_json").utf8))) ?? [],
             agentVersion: row.optionalString("agent_version"), bundleVersion: row.optionalString("bundle_version"),
             state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads)
     }

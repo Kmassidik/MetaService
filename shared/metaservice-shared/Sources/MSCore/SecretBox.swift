@@ -51,5 +51,5 @@ public struct SecretBox: Sendable {
 
 public enum ContractVersion {
     /// The version of contract/openapi.yaml. Root and Agents both send it with every reply.
-    public static let current = "1.1.0"
+    public static let current = "1.2.0"
 }

@@ -10,7 +10,7 @@ echo "== shared rules";   (cd shared/metaservice-shared && swift test 2>&1 | swi
 echo "== root";           (cd root/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1; swift build -Xswiftc -DFAKE_AUTH --scratch-path .build-fake 2>&1 | tail -1)
 echo "== macOS agent";    (cd agent/macos && swift test 2>&1 | swift_summary; swift build 2>&1 | tail -1)
 echo "== linux agent (Rust)"
-(cd agent/linux && nix develop --command bash -c 'cargo test 2>&1 | grep -E "test result" ; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1')
+(cd agent/linux && nix develop --command bash -c 'cargo build 2>&1 | tail -1; cargo build 2>&1 | tail -1; cargo test 2>&1 | grep -E "test result" ; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1')
 echo "== contract (fake agent, then the suite's own mutants)"
 steady nix develop --command python3 -m contract.tests.run_fake
 nix develop --command python3 -m contract.tests.mutation | tail -5

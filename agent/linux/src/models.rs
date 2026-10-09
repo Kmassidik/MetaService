@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub const CONTRACT_VERSION: &str = "1.1.0";
+pub const CONTRACT_VERSION: &str = "1.2.0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +70,14 @@ pub struct Specs {
     pub gpu: Vec<Gpu>,
 }
 
+/// Something on the machine that stops it from running workloads, and how to fix it. Part of the facts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Problem {
+    pub code: String,
+    pub message: String,
+    pub fix: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Facts {
     pub os: String,
@@ -81,6 +89,7 @@ pub struct Facts {
     pub free_disk_gb: u64,
     pub gpu: Vec<Gpu>,
     pub capabilities: Capabilities,
+    pub problems: Vec<Problem>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

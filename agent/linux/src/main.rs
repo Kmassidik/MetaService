@@ -11,7 +11,9 @@ mod http;
 mod incus;
 mod ledger;
 mod models;
+mod preflight;
 mod service;
+mod setup;
 mod supervisor;
 mod validate;
 
@@ -23,12 +25,35 @@ fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let result = Config::parse(&arguments).and_then(|config| match config.verb.clone() {
         Verb::Enroll { root, name, token_file } => enroll::run(&config, &root, &name, token_file.as_deref()),
+        Verb::Setup { yes, user } => run_setup(yes, user),
         Verb::Run => run(config),
     });
     if let Err(message) = result {
         eprintln!("metaservice-agent: {message}");
         std::process::exit(1);
     }
+}
+
+/// `setup`: print the plan for this distro, and apply it only with --yes and as root.
+fn run_setup(yes: bool, user: Option<String>) -> Result<(), String> {
+    let os_release = std::fs::read_to_string("/etc/os-release").map_err(|e| format!("cannot read /etc/os-release: {e}"))?;
+    let family = setup::family_from_os_release(&os_release).ok_or("this Linux family is not supported by setup yet (Fedora/RHEL and Debian/Ubuntu are)")?;
+    let user = user.or_else(|| std::env::var("SUDO_USER").ok()).ok_or("say which user runs the Agent: --user NAME")?;
+    let steps = setup::plan(family, &user)?;
+    println!("Setup plan for this machine (the Agent runs as {user}):");
+    for (number, step) in steps.iter().enumerate() {
+        println!("  {}. {}", number + 1, step.describe());
+    }
+    if !yes {
+        println!("Nothing was changed. Run again as root with --yes to apply.");
+        return Ok(());
+    }
+    if unsafe { libc::geteuid() } != 0 {
+        return Err("setup --yes must run as root".into());
+    }
+    setup::execute(&steps, &setup::RealHost, &mut |line| println!("{line}"))?;
+    println!("Done. Log in again so the new group applies, then start the Agent.");
+    Ok(())
 }
 
 fn root_address(config: &Config) -> Option<String> {
@@ -44,7 +69,7 @@ fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine:
         .filter(|p| std::path::Path::new(p).is_file()).ok_or("the `incus` program was not found; install Incus or pass --incus-path")?;
     let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: !specs.gpu.is_empty() };
     let backups = config.backup_dir.clone().unwrap_or_else(|| config.state_dir.join("backups"));
-    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120)))
+    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe))))
 }
 
 fn run(config: Config) -> Result<(), String> {

@@ -97,11 +97,14 @@ async function seed(base) {
 function heartbeat(name) {
   return {
     facts: { os: name === 'mac-mini' ? 'macos' : 'linux', arch: 'aarch64', cpu_cores: 10, ram_total_mb: 32768, disk_total_gb: 1000, free_ram_mb: 20000, free_disk_gb: 700, gpu: [],
-      capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false } },
+      capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }, problems: name === 'dgx-spark' ? [PROBLEM] : [] },
     workloads: [{ id: 'wl-1', name: 'demo', kind: 'vm', state: 'running', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'none', address: XSS, bundle_version: '1.0.0' }],
     bundle_version: '1.0.0',
   }
 }
+
+/** The one machine that reports a host problem, to check the panel shows it with its fix. */
+const PROBLEM = { code: 'bridge_blocked_by_firewall', message: 'VMs cannot get an IPv4 address: the bridge incusbr0 is not trusted.', fix: 'As root, run: metaservice-agent setup --yes' }
 
 const { base, child } = await startRoot()
 /** A real Agent (simulated engine, small known budget) enrolled as "agent-mac" so the Root has someone to send commands to. */
@@ -266,6 +269,10 @@ try {
   const body = await text()
   check('signed-in page lists the machines', body.includes('dgx-spark') && body.includes('mac-mini') && body.includes(EMAIL))
   check('summary counts the machines and workloads', /MACHINES\s*2/.test(body) && /WORKLOADS\s*2/.test(body), body.slice(0, 120))
+
+  check('a machine with a host problem says it needs setup and shows the fix', body.includes('Needs setup') && body.includes('is not trusted') && body.includes('metaservice-agent setup --yes'))
+  check('only the machine that reported a problem is marked', (body.match(/Needs setup/g) ?? []).length === 1)
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'needs-setup.png'), fullPage: true })
 
   await click('Details')
   await page.waitForFunction(() => document.body.innerText.includes('<img src=x'))

@@ -14,6 +14,7 @@
   <div class="cell name" data-label="Machine">
     <strong>{machine.name}</strong>
     <span class="mono muted">{machine.ip ?? 'address unknown'}</span>
+    {#if machine.problems?.length}<span class="tag needs">Needs setup</span>{/if}
   </div>
   <div class="cell" data-label="Platform">
     <span>{osName(machine.os)} <span class="tag">{archName(machine.arch)}</span></span>
@@ -39,6 +40,17 @@
     <button class="btn" type="button" aria-expanded={open} onclick={() => (open = !open)}>{open ? 'Hide' : 'Details'}</button>
     <button class="btn danger" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
   </div>
+
+  {#if machine.problems?.length}
+    <div class="problems" role="alert">
+      <strong>No new workloads are placed on {machine.name} until this is fixed.</strong>
+      <ul>
+        {#each machine.problems as problem (problem.code)}
+          <li><span>{problem.message}</span><span class="fix">{problem.fix}</span></li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 
   {#if open}
     <div class="detail">
@@ -103,6 +115,11 @@
     font-size: 12px;
     font-weight: 600;
   }
+  .tag.needs { justify-self: start; background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  .problems { grid-column: 1 / -1; display: grid; gap: 6px; padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
+  .problems ul { gap: 4px; }
+  .problems li { display: grid; gap: 2px; }
+  .fix { color: var(--fg); font-size: 13px; }
   .actions { display: flex; gap: 8px; justify-content: flex-end; }
   .detail { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px; display: grid; gap: 8px; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
