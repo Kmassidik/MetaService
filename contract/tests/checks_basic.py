@@ -32,7 +32,7 @@ def check_wrong_token_changes_nothing(ctx):
 def check_contract_header_on_every_reply(ctx):
     replies = [ctx.get("/v1/health"), ctx.client.request("GET", "/v1/health", token=None), ctx.get("/v1/nope")]
     for reply in replies:
-        expect(reply.headers.get(spec.CONTRACT_HEADER) == spec.CONTRACT_VERSION,
+        expect({k.lower(): v for k, v in reply.headers.items()}.get(spec.CONTRACT_HEADER.lower()) == spec.CONTRACT_VERSION,
                f"status {reply.status} lacks the {spec.CONTRACT_HEADER} header")
 
 

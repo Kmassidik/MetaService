@@ -116,6 +116,20 @@ def check_an_unreachable_agent_fails_the_command_cleanly():
         expect(w.create(name="again").status == 202, "the failed request still holds room")
 
 
+def check_a_mixed_fleet_of_swift_and_rust_agents_gets_each_workload_where_it_can_run():
+    with world() as w:
+        w.add_machine("mac", engine="apple")
+        w.add_machine("linux", engine="incus", flavor="rust")
+        machine, container_id = w.make(name="box", kind="container")
+        expect(machine == "linux", f"a container went to {machine}; the Mac cannot run one")
+        done = w.wait_command(w.operator.write("POST", f"/api/machines/linux/workloads/{container_id}/delete", {"confirm": True}).body["command"]["id"])
+        expect(os.path.getsize(os.path.join(w.machines["linux"].container.backups, done["result"]["backup_id"])) > 0, "no backup from the Linux machine")
+        wait_for(lambda: w.view("linux")["workloads"] == [], 15, "the Linux machine still lists the deleted workload")
+        expect(w.view("linux")["os"] in ("linux", "macos") and w.view("mac")["os"] == "macos", "the machine kinds did not reach the Root")
+        reply = w.create(name="vmbox", kind="vm")
+        expect(reply.status == 202 and reply.body["command"]["machine"] == "mac", f"a VM request went to {reply.body}")
+
+
 def check_the_root_never_calls_an_address_outside_the_private_network():
     with world() as w:
         mini = w.add_machine("mini")
@@ -172,7 +186,7 @@ CHECKS = [
     check_a_request_through_the_root_creates_a_workload_on_the_machine, check_placement_takes_the_machine_with_the_most_room_and_honors_a_choice,
     check_the_root_refuses_what_fits_nowhere_and_says_why, check_two_requests_in_a_row_cannot_take_the_same_room,
     check_a_stale_view_is_corrected_by_the_agents_own_check, check_start_stop_and_a_confirmed_delete_with_a_backup,
-    check_actions_need_a_session_csrf_and_a_known_workload, check_an_unreachable_agent_fails_the_command_cleanly, check_the_root_never_calls_an_address_outside_the_private_network,
+    check_a_mixed_fleet_of_swift_and_rust_agents_gets_each_workload_where_it_can_run, check_actions_need_a_session_csrf_and_a_known_workload, check_an_unreachable_agent_fails_the_command_cleanly, check_the_root_never_calls_an_address_outside_the_private_network,
     check_the_root_keeps_following_a_command_across_its_own_restart, check_secrets_are_kept_apart_and_the_agent_takes_only_its_command_token,
     check_commands_can_be_listed_and_read,
 ]

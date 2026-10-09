@@ -1,5 +1,6 @@
-"""Run every conformance check against the real macOS Agent, started on a free port with a throwaway token.
-With --apple the Agent drives a fake `container` program through the Apple engine; otherwise it uses the simulated engine."""
+"""Run every conformance check against a real Agent, started on a free port with a throwaway token.
+With --apple (macOS Agent) or --incus (Linux Agent) the Agent drives a fake `container` or `incus` program through its real engine;
+otherwise it uses the simulated engine. Used by run_macos_agent (Swift) and run_linux_agent (Rust)."""
 import os
 import pathlib
 import secrets
@@ -9,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from contract.agent_tests.support import FakeContainerWorld
+from contract.agent_tests.support import FakeContainerWorld, FakeIncusWorld
 from contract.tests.bundle_source import BundleSource
 from contract.tests.runner import run_checks
 from contract.tests.support import Bundles
@@ -41,8 +42,8 @@ def wait_until_up(port, process):
     raise SystemExit("the Agent did not start in time")
 
 
-def main():
-    engine = "apple" if "--apple" in sys.argv else "simulated"
+def main(binary=BINARY):
+    engine = "apple" if "--apple" in sys.argv else "incus" if "--incus" in sys.argv else "simulated"
     state = tempfile.mkdtemp(prefix="ms-agent-")
     token = secrets.token_hex(24)
     token_file = os.path.join(state, "command.token")
@@ -55,10 +56,11 @@ def main():
         os.chmod(pathlib.Path(state, name), 0o600)
     port = free_port()
     extra, env = [], os.environ.copy()
-    if engine == "apple":
-        world = FakeContainerWorld()
+    if engine in ("apple", "incus"):
+        world = FakeContainerWorld() if engine == "apple" else FakeIncusWorld()
         extra, env = world.agent_args(), {**os.environ, **world.env}
-    process = subprocess.Popen([str(BINARY), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--engine", engine, "--chat-port", str(free_port())] + extra + BUDGET_ARGS,
+    engine_flags = [] if extra else ["--engine", "simulated"]
+    process = subprocess.Popen([str(binary), "run", "--state-dir", state, "--port", str(port), "--bind", "127.0.0.1", "--chat-port", str(free_port())] + engine_flags + extra + BUDGET_ARGS,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
         wait_until_up(port, process)

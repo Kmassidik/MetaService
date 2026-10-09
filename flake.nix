@@ -13,6 +13,15 @@
         # Python for the contract conformance tests and the Fake Agent (test tools only).
         python = pkgs.python3.withPackages (ps: [ ps.jsonschema ps.pyyaml ]);
       in {
+        # `nix build .#metaservice-agent-linux` builds the Rust Agent for the machine it runs on (do this on the Linux machine).
+        packages.metaservice-agent-linux = pkgs.rustPlatform.buildRustPackage {
+          pname = "metaservice-agent";
+          version = "0.1.0";
+          src = ./agent/linux;
+          cargoLock.lockFile = ./agent/linux/Cargo.lock;
+          doCheck = false;
+        };
+
         # `nix develop` gives every build tool, pinned by flake.lock. Swift is not here:
         # on macOS it stays the system toolchain (Xcode Command Line Tools).
         devShells.default = pkgs.mkShell {

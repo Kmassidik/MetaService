@@ -16,8 +16,8 @@ def sysctl(name):
 def check_facts_describe_this_mac():
     with agent() as one:
         status, facts = one.call("GET", "/v1/facts")
-        expect(status == 200 and facts["os"] == "macos", f"facts: {status} {facts}")
-        expect(facts["arch"] in ("arm64", "x86_64"), f"arch {facts['arch']}")
+        expect(status == 200 and facts["os"] in ("macos", "linux"), f"facts: {status} {facts}")
+        expect(facts["arch"] in ("arm64", "aarch64", "x86_64"), f"arch {facts['arch']}")
         expect(facts["cpu_cores"] == sysctl("hw.activecpu"), f"cores {facts['cpu_cores']} vs {sysctl('hw.activecpu')}")
         expect(facts["ram_total_mb"] == sysctl("hw.memsize") // (1024 * 1024), "RAM total is not what the machine reports")
         expect(10 <= facts["disk_total_gb"] <= 100_000, f"disk total {facts['disk_total_gb']}")
@@ -101,7 +101,7 @@ def check_enrolling_then_heartbeats_put_this_mac_on_the_roots_list():
         try:
             machine = wait_for(lambda: (m := operator.request("GET", "/api/machines/this-mac").body) and m["state"] == "online" and m, 20, "the Root never saw a heartbeat")
             facts = one.call("GET", "/v1/facts")[1]
-            expect(machine["os"] == "macos" and machine["cpu_cores"] == facts["cpu_cores"] and machine["ram_total_mb"] == facts["ram_total_mb"], f"the Root's copy differs: {machine}")
+            expect(machine["os"] in ("macos", "linux") and machine["cpu_cores"] == facts["cpu_cores"] and machine["ram_total_mb"] == facts["ram_total_mb"], f"the Root's copy differs: {machine}")
             expect(machine["capabilities"]["vm"] is True, "capabilities did not reach the Root")
             made = one.call("POST", "/v1/workloads", {"command_id": "c-hb", "name": "from-hb", "kind": "vm", "cpu": 1, "ram_mb": 512, "disk_gb": 1})
             expect(made[0] == 202, f"create gave {made[0]}")

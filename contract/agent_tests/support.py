@@ -10,7 +10,11 @@ from contextlib import contextmanager
 
 from contract.root_tests.support import CheckFailed, expect, _free_port, _port_open
 
-BINARY = pathlib.Path(__file__).resolve().parents[2] / "agent" / "macos" / ".build" / "debug" / "metaservice-agent"
+REPO = pathlib.Path(__file__).resolve().parents[2]
+MACOS_BINARY = REPO / "agent" / "macos" / ".build" / "debug" / "metaservice-agent"
+LINUX_BINARY = REPO / "agent" / "linux" / "target" / "debug" / "metaservice-agent"
+# `runner --linux` points the same checks at the Rust Agent.
+BINARY = pathlib.Path(os.environ.get("MS_AGENT_BINARY", MACOS_BINARY))
 START_WAIT_SECONDS = 20
 
 
@@ -20,7 +24,8 @@ def write_secret(path, text, mode=0o600):
 
 
 class RunningAgent:
-    def __init__(self, token=None, token_mode=0o600, extra=None, with_token=True, env=None):
+    def __init__(self, token=None, token_mode=0o600, extra=None, with_token=True, env=None, binary=None):
+        self.binary = binary or BINARY
         self.state = tempfile.mkdtemp(prefix="ms-agent-")
         self.token = token or secrets.token_hex(24)
         self.port = _free_port()
@@ -33,7 +38,7 @@ class RunningAgent:
 
     def start(self):
         engine = [] if "--engine" in self.extra else ["--engine", "simulated"]
-        args = [str(BINARY), "run", "--state-dir", self.state, "--port", str(self.port), "--bind", "127.0.0.1"] + engine + self.extra
+        args = [str(self.binary), "run", "--state-dir", self.state, "--port", str(self.port), "--bind", "127.0.0.1"] + engine + self.extra
         self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **self.env})
         self.early_exit = (None, "")
         deadline = time.time() + START_WAIT_SECONDS
@@ -77,9 +82,9 @@ def agent(**kwargs):
         running.stop()
 
 
-def run_cli(args, env=None):
+def run_cli(args, env=None, binary=None):
     """Run the Agent's command line once. Returns (exit code, stdout, stderr)."""
-    done = subprocess.run([str(BINARY)] + args, capture_output=True, text=True, timeout=30, env={**os.environ, **(env or {})})
+    done = subprocess.run([str(binary or BINARY)] + args, capture_output=True, text=True, timeout=30, env={**os.environ, **(env or {})})
     return done.returncode, done.stdout, done.stderr
 
 
@@ -141,3 +146,27 @@ def apple_agent(world=None, **kwargs):
         yield running
     finally:
         running.stop()
+
+
+FAKE_INCUS = pathlib.Path(__file__).parent / "fakes" / "fake_incus.py"
+
+
+class FakeIncusWorld:
+    """A fake `incus` program with its own state and call log, for the Linux Agent's Incus engine to drive."""
+
+    def __init__(self, **switches):
+        self.dir = tempfile.mkdtemp(prefix="ms-fakeincus-")
+        self.state_file = os.path.join(self.dir, "state.json")
+        self.log_file = os.path.join(self.dir, "calls.log")
+        self.backups = os.path.join(self.dir, "backups")
+        pathlib.Path(self.log_file).write_text("")
+        self.env = {"FAKE_INCUS_STATE": self.state_file, "FAKE_INCUS_LOG": self.log_file, **switches}
+
+    def agent_args(self):
+        return ["--engine", "incus", "--incus-path", str(FAKE_INCUS), "--backup-dir", self.backups]
+
+    def state(self):
+        return json.load(open(self.state_file)) if os.path.exists(self.state_file) else None
+
+    def calls(self):
+        return [json.loads(line) for line in open(self.log_file) if line.strip()]
