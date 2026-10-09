@@ -9,10 +9,10 @@ do {
     let database = try Database(path: config.databasePath)
     try Migrations.migrate(database)
     let secrets = try SecretBox.loadOrCreate(path: (config.databasePath as NSString).deletingLastPathComponent + "/root.key")
-    let stateDirectory = (config.databasePath as NSString).deletingLastPathComponent
-    let setupGate = try SetupGate.prepare(configured: config.setupToken, adminExists: AdminStore(database).isConfigured, directory: stateDirectory)
+    let tokenWasInEnvFile = config.setupToken != nil
+    let setupGate = try SetupGate.prepare(configured: config.setupToken, adminExists: AdminStore(database).isConfigured, envFile: config.envFile)
     if setupGate.isOpen {
-        print("metaservice-root: first run. Create the admin login in the panel with the setup token from ROOT_SETUP_TOKEN in the env file, or from \(setupGate.path) (mode 600).")
+        print("metaservice-root: first run. Create the admin login in the panel with the setup token: \(SetupGate.variable) in \(setupGate.envFile)" + (tokenWasInEnvFile ? "." : " (the Root just wrote it there, mode 600)."))
         fflush(stdout)
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)

@@ -27,6 +27,7 @@ struct RootConfig {
     var routerPassword: String?
     var routerCertSha256: String?
     var setupToken: String?
+    var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
     var aiModel: String?
@@ -47,6 +48,7 @@ enum ConfigLoader {
         let options = try parseOptions(arguments)
         var config = RootConfig(databasePath: options["--db"] ?? RootConfig.defaultDatabase)
         let envPath = options["--env-file"] ?? RootConfig.defaultEnvFile
+        config.envFile = envPath
         if FileManager.default.fileExists(atPath: envPath) {
             try requireProtected(envPath)
             try apply(try parseEnv(String(contentsOfFile: envPath, encoding: .utf8)), to: &config)

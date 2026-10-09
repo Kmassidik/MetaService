@@ -30,7 +30,8 @@ def check_setup_is_locked_until_the_setup_token_is_given():
     with running() as root:
         browser = fresh(root)
         token = root.setup_token()
-        expect(len(token) >= 16 and oct(os.stat(os.path.join(root.dir, "setup.token")).st_mode & 0o777) == "0o600", "the token file is missing, short or not private")
+        expect(len(token) >= 16 and oct(os.stat(root.env_file).st_mode & 0o777) == "0o600", "the env file lacks a long token or is no longer private")
+        expect(not os.path.exists(os.path.join(root.dir, "setup.token")), "a separate token file was made")
         missing = {k: v for k, v in setup_body(root).items() if k != "setup_token"}
         expect(browser.request("POST", "/api/auth/setup", missing).status == 400, "setup without a token field was not a 400")
         for wrong in ("", "x" * 43, token + "x", token[:-1], token.upper()):
@@ -39,7 +40,7 @@ def check_setup_is_locked_until_the_setup_token_is_given():
         expect(browser.request("GET", "/api/auth/status").body["configured"] is False, "a refused setup created the account")
         ok = browser.request("POST", "/api/auth/setup", setup_body(root))
         expect(ok.status == 201, f"the right token was refused: {ok.status}")
-        expect(not os.path.exists(os.path.join(root.dir, "setup.token")), "the token file was left behind after setup")
+        expect(fresh(root).request("POST", "/api/auth/setup", setup_body(root, username="second", password="another password", confirm="another password")).status == 409, "the token still opens setup after the admin exists")
 
 
 def check_wrong_setup_tokens_lock_the_address_out():
@@ -50,10 +51,10 @@ def check_wrong_setup_tokens_lock_the_address_out():
         expect(attacker.request("POST", "/api/auth/setup", setup_body(root)).status == 429, "the lockout let the right token through")
 
 
-def check_a_token_from_the_env_file_is_used_and_no_file_is_made():
+def check_a_token_already_in_the_env_file_is_used_and_the_file_is_left_alone():
     token = "from-the-env-file-0123456789abcdef"
     with running(env_text=f"ROOT_SETUP_TOKEN={token}\n") as root:
-        expect(not os.path.exists(os.path.join(root.dir, "setup.token")), "a token file was made although the env file has one")
+        expect(open(root.env_file).read() == f"ROOT_SETUP_TOKEN={token}\n", "the Root changed an env file that already had a token")
         browser = fresh(root)
         expect(browser.request("POST", "/api/auth/setup", setup_body(root, setup_token="another-token-0123456789abcdef")).status == 403, "a wrong token was accepted")
         expect(browser.request("POST", "/api/auth/setup", setup_body(root, setup_token=token)).status == 201, "the env file token was refused")
@@ -66,6 +67,13 @@ def check_a_token_from_the_env_file_is_used_and_no_file_is_made():
     finally:
         short.stop()
     raise AssertionError("the Root started with a setup token that is too short")
+
+
+def check_a_made_token_is_added_to_the_env_file_without_touching_what_was_there():
+    with running(env_text="AI_MAX_TOKENS=300\n# my note") as root:
+        text = open(root.env_file).read()
+        expect(text.startswith("AI_MAX_TOKENS=300\n# my note\n") and text.count("ROOT_SETUP_TOKEN=") == 1, f"env file after the first start: {text!r}")
+        expect(oct(os.stat(root.env_file).st_mode & 0o777) == "0o600", "the env file is no longer private")
 
 
 def check_the_setup_token_is_not_in_the_log_the_database_or_the_audit_trail():
@@ -205,8 +213,8 @@ def check_sign_ins_and_actions_are_audited_under_the_username():
 
 CHECKS = [
     check_the_first_visit_creates_the_admin_login_and_signs_in_with_a_safe_cookie, check_setup_is_locked_until_the_setup_token_is_given,
-    check_wrong_setup_tokens_lock_the_address_out, check_a_token_from_the_env_file_is_used_and_no_file_is_made,
-    check_the_setup_token_is_not_in_the_log_the_database_or_the_audit_trail, check_setup_refuses_bad_input_and_cannot_run_twice,
+    check_wrong_setup_tokens_lock_the_address_out, check_a_token_already_in_the_env_file_is_used_and_the_file_is_left_alone,
+    check_a_made_token_is_added_to_the_env_file_without_touching_what_was_there, check_the_setup_token_is_not_in_the_log_the_database_or_the_audit_trail, check_setup_refuses_bad_input_and_cannot_run_twice,
     check_wrong_logins_are_refused_the_same_way_and_the_password_is_never_stored, check_too_many_wrong_passwords_lock_the_address_out,
     check_login_and_setup_need_the_exact_origin_and_host, check_operator_endpoints_need_a_session, check_forged_and_repeated_session_cookies_fail,
     check_writes_need_csrf_and_the_exact_origin, check_a_csrf_token_from_another_session_is_useless, check_logout_ends_the_session_and_needs_csrf,

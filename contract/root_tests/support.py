@@ -84,10 +84,11 @@ class RunningRoot:
             self.process.wait(timeout=5)
 
     def setup_token(self):
-        """The first-run token the Root wrote next to its database (the operator reads it from there or from the env file)."""
-        if getattr(self, "_setup_token", None) is None:  # the file is gone once the admin exists, so remember what it held
-            self._setup_token = pathlib.Path(self.dir, "setup.token").read_text().strip()
-        return self._setup_token
+        """The first-run token, as the operator finds it: ROOT_SETUP_TOKEN in the env file (the Root writes one there when the file has none)."""
+        for line in pathlib.Path(self.env_file).read_text().splitlines():
+            if line.startswith("ROOT_SETUP_TOKEN="):
+                return line.split("=", 1)[1].strip()
+        raise CheckFailed("there is no ROOT_SETUP_TOKEN in the env file")
 
     def exit_text(self):
         return self.early_exit

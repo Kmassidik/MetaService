@@ -49,7 +49,7 @@
         {#if match !== null}
           <p class="match" class:ok={match} role="status">{match ? '✓ The two passwords are the same' : '✗ The two passwords are different'}</p>
         {/if}
-        <SecretField label="Setup token" name="setup_token" hint="The Root made it on its first start: see ROOT_SETUP_TOKEN in the env file, or the setup.token file next to the database." bind:value={setupToken} />
+        <SecretField label="Setup token" name="setup_token" hint="It is ROOT_SETUP_TOKEN in the Root's env file. The Root writes one there on its first start if there is none." bind:value={setupToken} />
       {/if}
       <button class="btn green" type="submit" disabled={busy || (!configured && match === false)}>{busy ? 'Please wait…' : configured ? 'Sign in' : 'Create admin login'}</button>
     </form>

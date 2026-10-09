@@ -186,7 +186,7 @@ async function firstRun() {
   await page.goto(base, { waitUntil: 'networkidle0' })
   const first = await text()
   check('a new Root asks to create the admin login and asks for the setup token', /first run/i.test(first) && /setup token/i.test(first) && !first.includes('dgx-spark'))
-  const token = readFileSync(join(rootDir, 'setup.token'), 'utf8').trim()
+  const token = readFileSync(join(rootDir, 'root.env'), 'utf8').match(/^ROOT_SETUP_TOKEN=(.+)$/m)[1].trim()
   await page.type('input[name=username]', ADMIN.username)
   await page.type('input[name=password]', ADMIN.password)
   await page.type('input[name=confirm]', 'not the same')
