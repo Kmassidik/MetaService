@@ -16,7 +16,7 @@ struct RootConfig {
     var agentListenBind = "127.0.0.1"
     var publicBaseURL = "http://localhost:9100"
     var databasePath: String
-    var uiDirectory = "../frontend/dist"
+    var uiDirectory = "../../frontend/dist"
     var bundleDirectory: String?
     var scanSubnet: Subnet?
     var nmapPath: String?
@@ -38,7 +38,7 @@ struct RootConfig {
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
     var aiConfigured: Bool { [aiBaseURL, aiApiKey, aiModel].allSatisfy { $0?.isEmpty == false } }
 
-    /// As in the MAAS panel: the env file and the data sit with the control plane, in the folder it is started from.
+    /// As in the MAAS panel: the env file and the data sit with the control plane, in the folder it is started from (control-plane/arm64).
     static let defaultEnvFile = ".env"
     static let defaultDatabase = "state/root.sqlite3"
 }

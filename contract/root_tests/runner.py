@@ -1,4 +1,4 @@
-"""Run the Root black-box checks: python -m contract.root_tests.runner  (needs both Root builds, see control-plane)"""
+"""Run the Root black-box checks: python -m contract.root_tests.runner  (needs both Root builds, see control-plane/arm64)"""
 import sys
 import time
 

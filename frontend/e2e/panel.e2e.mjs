@@ -1,5 +1,5 @@
 // End-to-end test of the panel in a real browser against a real Root. The panel has no sign-in: it only works from the machine the Root runs on.
-// Needs: the Root build (`swift build` in control-plane), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in frontend/.
+// Needs: the Root build (`swift build` in control-plane/arm64), the macOS Agent build, Google Chrome (or CHROME_PATH), and `npm install` in frontend/.
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
@@ -11,7 +11,7 @@ import puppeteer from 'puppeteer-core'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../..')
-const binary = join(repo, 'control-plane/.build/debug/metaservice-root')
+const binary = join(repo, 'control-plane/arm64/.build/debug/metaservice-root')
 const agentBinary = join(repo, 'agent/macos/.build/debug/metaservice-agent')
 const chrome = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const AI_KEY = 'sk-e2e-not-a-real-key-0123456789'

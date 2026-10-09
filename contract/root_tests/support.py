@@ -10,7 +10,7 @@ import time
 from contextlib import contextmanager
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PACKAGE = REPO / "control-plane"
+PACKAGE = REPO / "control-plane" / "arm64"
 BINARY = PACKAGE / ".build" / "debug" / "metaservice-root"
 START_WAIT_SECONDS = 15
 

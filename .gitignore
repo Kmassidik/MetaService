@@ -4,10 +4,10 @@ __pycache__/
 node_modules/
 target/
 dist/
-control-plane/.env
-control-plane/state/
+control-plane/arm64/.env
+control-plane/arm64/state/
 *.env
-!control-plane/.env.example
+!control-plane/arm64/.env.example
 .DS_Store
 .build/
 .build-fake/

@@ -104,7 +104,7 @@ def check_half_set_or_unsafe_settings_stop_the_start():
 
 
 def check_the_example_env_file_can_be_copied_as_it_is():
-    example = (REPO / "control-plane" / ".env.example").read_text()
+    example = (REPO / "control-plane" / "arm64" / ".env.example").read_text()
     with running(env_text=example) as root:
         expect(Browser(root).request("GET", "/health").status == 200, "the Root did not start from the example file")
         expect(KEY not in example and "=sk-" not in example, "the example file holds a key")
