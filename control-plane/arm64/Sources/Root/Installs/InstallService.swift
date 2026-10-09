@@ -33,6 +33,7 @@ final class InstallService: @unchecked Sendable {
         let commands: CommandStore
         let bundles: BundleStore
         let workloads: WorkloadService
+        let settings: MachineSettingsStore
     }
 
     init(parts: Parts, supervisor: LocalAgentSupervisor) {
@@ -89,8 +90,12 @@ final class InstallService: @unchecked Sendable {
         try Self.run(core.config.agentBinary, ["enroll", "--root", root.url, "--name", request.name, "--enrollment-token-file", tokenFile, "--state-dir", stateDirectory])
         var arguments = ["run", "--state-dir", stateDirectory, "--engine", "apple", "--port", String(core.config.localAgentPort), "--bind", "127.0.0.1",
                          "--chat-port", String(core.config.localChatPort), "--chat-bind", "127.0.0.1", "--heartbeat-seconds", "5"]
-        if let ram = request.ramReserveMb { arguments += ["--ram-reserve-mb", String(ram)] }
-        if let disk = request.diskReserveGb { arguments += ["--disk-reserve-gb", String(disk)] }
+        let settings = request.settings
+        if let ram = settings.ramReserveMb { arguments += ["--ram-reserve-mb", String(ram)] }
+        if let disk = settings.diskReserveGb { arguments += ["--disk-reserve-gb", String(disk)] }
+        if let ram = settings.ramAllowanceMb { arguments += ["--ram-allowance-mb", String(ram)] }
+        if let disk = settings.diskAllowanceGb { arguments += ["--disk-allowance-gb", String(disk)] }
+        try core.settings.save(settings, machine: request.name)
         try supervisor.start(LocalAgentEntry(machine: request.name, binary: core.config.agentBinary, arguments: arguments, logPath: stateDirectory + "/agent.log", port: core.config.localAgentPort))
         return "MetaService is running on this computer."
     }

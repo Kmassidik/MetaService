@@ -24,6 +24,14 @@ final class LocalAgentSupervisor: @unchecked Sendable {
         for entry in (try? store.all()) ?? [] { launch(entry, attempt: 0) }
     }
 
+    /// A machine was removed: stop its Agent and do not start it again.
+    func forget(machine: String) {
+        try? store.remove(machine: machine)
+        let process = lock.withLock { processes.removeValue(forKey: machine) }
+        process?.terminationHandler = nil
+        if let process, process.isRunning { process.terminate() }
+    }
+
     func stopAll() {
         let running = lock.withLock { () -> [Process] in
             stopping = true

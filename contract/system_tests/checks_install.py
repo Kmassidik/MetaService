@@ -43,7 +43,9 @@ def check_the_form_gets_a_name_and_sensible_limits_and_needs_a_login():
     with install_root() as (root, operator):
         expect(Browser(root, auto_login=False).request("GET", "/api/installs/defaults").status == 401, "the defaults are open without a login")
         defaults = operator.request("GET", "/api/installs/defaults").body
-        expect(set(defaults) == {"name", "ram_reserve_mb", "disk_reserve_gb", "agent_ready", "chat_available"}, f"keys: {sorted(defaults)}")
+        expect(set(defaults) - {"ai_model"} == {"name", "ram_reserve_mb", "disk_reserve_gb", "agent_ready", "chat_available", "profile", "computer", "vm_cpu", "vm_ram_mb", "vm_disk_gb"}, f"keys: {sorted(defaults)}")
+        expect(set(defaults["computer"]) == {"name", "os", "arch", "cpu_cores", "ram_mb", "disk_gb"} and defaults["computer"]["cpu_cores"] >= 1, f"computer: {defaults['computer']}")
+        expect("ai_model" not in defaults, "no AI provider is set up here, so there is no model to suggest")
         expect(defaults["name"] and defaults["ram_reserve_mb"] >= 1024 and defaults["disk_reserve_gb"] >= 1, f"defaults: {defaults}")
         expect(defaults["agent_ready"] is True and defaults["chat_available"] is False, f"readiness: {defaults}")
         expect(operator.request("GET", "/api/machines").body["machines"] == [], "a new control plane must start with 0 machines installed")
@@ -111,6 +113,51 @@ def check_the_agent_stops_with_the_control_plane_and_comes_back_when_it_starts_a
         wait_for(lambda: again.request("GET", "/api/machines").body["machines"][0]["state"] != "offline", 40, "the machine did not report in again")
 
 
+SETTINGS = {"profile": "apple-silicon-mac", "labels": ["office", "desk"], "notes": "on the desk", "ram_reserve_mb": 4096, "disk_reserve_gb": 30, "ram_allowance_mb": 12288,
+            "disk_allowance_gb": 400, "allow_gpu": False, "vm_cpu": 2, "vm_ram_mb": 4096, "vm_disk_gb": 40, "vm_image": "images:ubuntu/24.04", "vm_max_running": 3,
+            "subdomain": "mac1", "public_chat": True, "ai_model": "vendor/some-model"}
+
+
+def check_the_settings_from_the_form_are_kept_shown_and_applied_to_the_agent():
+    with install_root() as (root, operator):
+        job = finished(operator, install(operator, **SETTINGS))
+        expect(job["state"] == "done", f"job: {job}")
+        shown = operator.request("GET", "/api/machines/this-mac").body["settings"]
+        expect(shown == SETTINGS | {"ram_reserve_mb": 4096}, f"settings: {shown}")
+        facts = wait_for(lambda: Browser(root).request("GET", "/api/machines/this-mac").body, 15, "no facts")
+        expect(facts["free_ram_mb"] is not None and facts["free_ram_mb"] <= 12288, f"the memory allowance was not applied: {facts['free_ram_mb']}")
+        expect(facts["free_disk_gb"] <= 400, f"the disk allowance was not applied: {facts['free_disk_gb']}")
+        expect(operator.request("GET", "/api/machines").body["machines"][0]["settings"]["labels"] == ["office", "desk"], "the list does not carry the labels")
+
+
+def check_bad_settings_are_refused_and_nothing_is_installed():
+    with install_root() as (root, operator):
+        for label, change in [("unknown profile", {"profile": "toaster"}), ("label with a space", {"labels": ["a b"]}), ("reserve above allowance", {"ram_reserve_mb": 9000, "ram_allowance_mb": 4096}),
+                              ("flag as an image", {"vm_image": "--privileged"}), ("subdomain with a dot", {"subdomain": "a.b"})]:  # five tries: the route allows five a minute
+            reply = operator.write("POST", "/api/installs", body(**change))
+            expect(reply.status == 400, f"{label}: {reply.status}")
+        expect(operator.request("GET", "/api/machines").body["machines"] == [], "a refused install created a machine")
+        expect(not _port_open(root.local_agent_port), "a refused install started an Agent")
+
+
+def check_removing_an_installed_machine_stops_its_agent_and_forgets_its_settings():
+    with install_root() as (root, operator):
+        finished(operator, install(operator, **SETTINGS))
+        expect(_port_open(root.local_agent_port), "the Agent is not running after the install")
+        removed = operator.write("DELETE", "/api/machines/this-mac")
+        expect(removed.status == 204, f"remove gave {removed.status}")
+        wait_for(lambda: not _port_open(root.local_agent_port), 10, "the Agent kept running after its machine was removed")
+        expect(operator.request("GET", "/api/machines").body["machines"] == [], "the machine is still listed")
+        root.stop()
+        root.start()
+        import time
+        time.sleep(3)
+        expect(not _port_open(root.local_agent_port), "a removed machine's Agent was started again with the control plane")
+        again = finished(Browser(root), install(Browser(root), name="this-mac"))
+        expect(again["state"] == "done", "the name could not be used again after removal")
+
+
 CHECKS = [check_the_form_gets_a_name_and_sensible_limits_and_needs_a_login, check_bad_requests_and_a_missing_program_are_refused_and_nothing_is_created,
           check_an_install_without_the_chat_starts_the_agent_and_the_machine_reports_in, check_an_install_with_the_chat_also_installs_the_chat_and_pins_a_version,
-          check_an_install_with_the_chat_fails_clearly_when_there_is_no_chat_bundle, check_the_agent_stops_with_the_control_plane_and_comes_back_when_it_starts_again]
+          check_an_install_with_the_chat_fails_clearly_when_there_is_no_chat_bundle, check_the_settings_from_the_form_are_kept_shown_and_applied_to_the_agent,
+          check_bad_settings_are_refused_and_nothing_is_installed, check_removing_an_installed_machine_stops_its_agent_and_forgets_its_settings, check_the_agent_stops_with_the_control_plane_and_comes_back_when_it_starts_again]

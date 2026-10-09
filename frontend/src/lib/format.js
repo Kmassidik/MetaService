@@ -133,3 +133,44 @@ export function bundleFlag(installed, pinned) {
   if (!pinned || installed === pinned) return { text: `chat ${installed}`, stale: false }
   return { text: `chat ${installed}, needs ${pinned}`, stale: true }
 }
+
+export const PROFILES = [
+  { id: 'apple-silicon-mac', label: 'Apple Silicon Mac' },
+  { id: 'linux-x86', label: 'Linux PC (x86)' },
+  { id: 'linux-arm', label: 'Linux (ARM)' },
+  { id: 'gpu-box', label: 'GPU box (DGX)' },
+  { id: 'custom', label: 'Other' },
+]
+
+export const profileLabel = (id) => PROFILES.find((profile) => profile.id === id)?.label ?? 'Other'
+
+/** The words of "a, b ,c" as a list of labels: lowercase, no repeats, no empty ones. */
+export function parseLabels(text) {
+  return [...new Set(String(text ?? '').split(',').map((word) => word.trim().toLowerCase()).filter(Boolean))]
+}
+
+/** What the Add machine form asks the control panel to do, without the fields that were left empty. */
+export function installBody(form) {
+  const body = { target: 'this', name: form.name, chat: form.chat, profile: form.profile, allow_gpu: form.allowGpu, public_chat: form.publicChat }
+  const numbers = { ram_reserve_mb: form.ramReserveMb, disk_reserve_gb: form.diskReserveGb, ram_allowance_mb: form.ramAllowanceMb, disk_allowance_gb: form.diskAllowanceGb,
+    vm_cpu: form.vmCpu, vm_ram_mb: form.vmRamMb, vm_disk_gb: form.vmDiskGb, vm_max_running: form.vmMaxRunning }
+  for (const [key, value] of Object.entries(numbers)) if (value !== '' && value !== null && value !== undefined) body[key] = Number(value)
+  const texts = { notes: form.notes?.trim(), vm_image: form.vmImage?.trim(), subdomain: form.subdomain?.trim(), ai_model: form.aiModel?.trim() }
+  for (const [key, value] of Object.entries(texts)) if (value) body[key] = value
+  const labels = parseLabels(form.labels)
+  if (labels.length) body.labels = labels
+  return body
+}
+
+/** The plain list of what installing will do, shown before the button is pressed. */
+export function installPreview(form) {
+  const lines = [`Add "${form.name}" as a machine and start MetaService on this computer. It is kept running and started again after a restart.`]
+  if (form.ramReserveMb !== '' || form.diskReserveGb !== '') lines.push(`Keep ${form.ramReserveMb || 0} MB of memory and ${form.diskReserveGb || 0} GB of disk free for the system.`)
+  if (form.ramAllowanceMb || form.diskAllowanceGb) lines.push(`Let VMs use at most ${form.ramAllowanceMb ? `${form.ramAllowanceMb} MB of memory` : 'any memory'} and ${form.diskAllowanceGb ? `${form.diskAllowanceGb} GB of disk` : 'any disk'}.`)
+  if (!form.allowGpu) lines.push('Do not offer the GPU to VMs or containers.')
+  if (form.vmMaxRunning) lines.push(`Run at most ${form.vmMaxRunning} VMs at once.`)
+  lines.push(form.chat ? 'Install Ruvio (the chat) on the machine.' : 'Do not install Ruvio.')
+  if (form.aiModel?.trim()) lines.push(`Ruvio on this machine uses the model ${form.aiModel.trim()}. The AI key stays on the control panel.`)
+  if (form.subdomain?.trim()) lines.push(`Reserve the name "${form.subdomain.trim()}" for it on the internet. It takes effect when the control panel's domain is connected; the Cloudflare settings stay on the control panel.`)
+  return lines
+}

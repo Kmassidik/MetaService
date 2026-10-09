@@ -8,9 +8,11 @@ public struct PlacementMachine: Equatable {
     public let freeRamMb: Int
     public let freeDiskGb: Int
     public let hasProblems: Bool
+    public let atMaxVMs: Bool
 
-    public init(id: String, online: Bool, capabilities: Capabilities?, freeRamMb: Int, freeDiskGb: Int, hasProblems: Bool = false) {
+    public init(id: String, online: Bool, capabilities: Capabilities?, freeRamMb: Int, freeDiskGb: Int, hasProblems: Bool = false, atMaxVMs: Bool = false) {
         self.hasProblems = hasProblems
+        self.atMaxVMs = atMaxVMs
         self.id = id
         self.online = online
         self.capabilities = capabilities
@@ -60,7 +62,9 @@ public enum Placement {
         guard !online.isEmpty else { throw refusal("no_machine_online", "no machine is online to take it", "capability", 1, 0) }
         let ready = online.filter { !$0.hasProblems }
         guard !ready.isEmpty else { throw refusal("machine_needs_setup", "the machine reports a problem that stops it from running workloads; see the machine in the panel", "capability", 1, 0) }
-        let capable = ready.filter { canRun($0, wish) }
+        let open = ready.filter { !$0.atMaxVMs }
+        guard !open.isEmpty else { throw refusal("machine_at_max_vms", "every ready machine already runs the most VMs it was allowed", "capability", 1, 0) }
+        let capable = open.filter { canRun($0, wish) }
         guard !capable.isEmpty else { throw refusal("missing_capability", "no machine can run a \(wish.kind) with gpu mode \(wish.gpuMode)", "capability", 1, 0) }
         let fitting = capable.filter { $0.freeRamMb >= wish.ramMb && $0.freeDiskGb >= wish.diskGb }
         guard let best = fitting.max(by: { isBetter($1, than: $0, wish) }) else { throw shortage(capable, wish) }

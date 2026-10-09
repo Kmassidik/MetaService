@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag } from './format.js'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.js'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
 const ago = (ms) => new Date(now - ms).toISOString()
@@ -108,4 +108,27 @@ test('bundle flags', () => {
   assert.deepEqual(bundleFlag('0.2.0', '0.2.0'), { text: 'chat 0.2.0', stale: false })
   assert.deepEqual(bundleFlag('0.1.0', '0.2.0'), { text: 'chat 0.1.0, needs 0.2.0', stale: true })
   assert.deepEqual(bundleFlag('0.1.0', null), { text: 'chat 0.1.0', stale: false })
+})
+
+test('labels are lowercase, trimmed and without repeats', () => {
+  assert.deepEqual(parseLabels(' Office, gpu ,,OFFICE '), ['office', 'gpu'])
+  assert.deepEqual(parseLabels(''), [])
+  assert.deepEqual(parseLabels(undefined), [])
+})
+
+test('the install request leaves out what was left empty and carries what was filled in', () => {
+  const form = { name: 'mini', chat: false, profile: 'custom', allowGpu: true, publicChat: false, ramReserveMb: 4096, diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: null,
+    vmCpu: 2, vmRamMb: '', vmDiskGb: '', vmMaxRunning: '', notes: '  ', vmImage: '', subdomain: ' mac1 ', aiModel: '', labels: 'Office, desk' }
+  assert.deepEqual(installBody(form), { target: 'this', name: 'mini', chat: false, profile: 'custom', allow_gpu: true, public_chat: false, ram_reserve_mb: 4096, vm_cpu: 2, subdomain: 'mac1', labels: ['office', 'desk'] })
+})
+
+test('the preview says what will change, and only what applies', () => {
+  const base = { name: 'mini', chat: false, allowGpu: true, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', vmMaxRunning: '', aiModel: '', subdomain: '' }
+  assert.deepEqual(installPreview(base), ['Add "mini" as a machine and start MetaService on this computer. It is kept running and started again after a restart.', 'Do not install Ruvio.'])
+  const rich = installPreview({ ...base, chat: true, allowGpu: false, ramReserveMb: 4096, diskReserveGb: 30, vmMaxRunning: 3, aiModel: 'a/b', subdomain: 'mac1' })
+  assert.ok(rich.some((line) => line.includes('4096 MB of memory and 30 GB')))
+  assert.ok(rich.some((line) => line.includes('Do not offer the GPU')))
+  assert.ok(rich.some((line) => line.includes('at most 3 VMs')))
+  assert.ok(rich.some((line) => line === 'Install Ruvio (the chat) on the machine.'))
+  assert.ok(rich.some((line) => line.includes('"mac1"') && line.includes('Cloudflare settings stay on the control panel')))
 })

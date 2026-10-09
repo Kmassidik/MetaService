@@ -18,6 +18,15 @@
     }
   })
 
+  /** Picking a machine fills in what a new VM gets on it, if that machine was set up with such sizes. */
+  function useMachineDefaults() {
+    const settings = machines.find((machine) => machine.id === form.machine)?.settings
+    if (!settings) return
+    if (settings.vm_cpu) form.cpu = settings.vm_cpu
+    if (settings.vm_ram_mb) form.ramGb = settings.vm_ram_mb / 1024
+    if (settings.vm_disk_gb) form.diskGb = settings.vm_disk_gb
+  }
+
   async function submit(event) {
     event.preventDefault()
     if (!ready) return
@@ -48,7 +57,7 @@
       <label>Disk (GB) <input type="number" min="1" max="100000" step="1" bind:value={form.diskGb} /></label>
     </div>
     <label>Machine
-      <select bind:value={form.machine}>
+      <select bind:value={form.machine} onchange={useMachineDefaults}>
         <option value="">Any machine with room</option>
         {#each machines as machine (machine.id)}<option value={machine.id}>{machine.name}{machine.state === 'offline' ? ' (offline)' : ''}</option>{/each}
       </select>

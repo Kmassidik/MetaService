@@ -110,6 +110,7 @@ public struct MachineStore: @unchecked Sendable {
             diskTotalGb: row.optionalInt("disk_total_gb"), freeRamMb: row.optionalInt("free_ram_mb"), freeDiskGb: row.optionalInt("free_disk_gb"),
             gpu: (try? decoder.decode([GpuInfo].self, from: Data(row.string("gpu_json").utf8))) ?? [],
             capabilities: try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8)),
+            settings: try? MachineSettingsStore(database).get(machine: row.string("id")),
             problems: (try? decoder.decode([HostProblem].self, from: Data(row.string("problems_json").utf8))) ?? [],
             agentVersion: row.optionalString("agent_version"), bundleVersion: row.optionalString("bundle_version"),
             state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads)

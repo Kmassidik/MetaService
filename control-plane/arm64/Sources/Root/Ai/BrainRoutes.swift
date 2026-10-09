@@ -45,7 +45,8 @@ struct BrainRoutes {
         }
         guard services.throttle.allow("brain-chat:\(Tokens.sha256Hex(token))", limit: Self.chatsPerMinute, seconds: 60) else { throw ApiFailure.tooMany }
         let message = try ChatMessage(body: try await guards.body(request)).text
-        let answer = try await ask(message, maxTokens: nil)
+        let model = (try? services.machines.get(id: grant.machine, now: services.clock.now))?.settings?.aiModel
+        let answer = try await ask(message, maxTokens: nil, model: model)
         try services.brain.record(machine: grant.machine, workload: grant.workload, promptTokens: answer.promptTokens, completionTokens: answer.completionTokens, now: services.clock.now)
         return try Json.response(ChatReply(reply: answer.text, usage: .init(promptTokens: answer.promptTokens, completionTokens: answer.completionTokens)))
     }
@@ -67,9 +68,9 @@ struct BrainRoutes {
         return try Json.response(["ok": true])
     }
 
-    private func ask(_ message: String, maxTokens: Int?) async throws -> BrainAnswer {
+    private func ask(_ message: String, maxTokens: Int?, model: String? = nil) async throws -> BrainAnswer {
         do {
-            return try await services.brainService.ask(message, maxTokens: maxTokens)
+            return try await services.brainService.ask(message, maxTokens: maxTokens, model: model)
         } catch BrainFailure.notConfigured {
             throw ApiFailure(status: .serviceUnavailable, code: "not_configured", message: "no AI provider is set up on the Root")
         } catch {

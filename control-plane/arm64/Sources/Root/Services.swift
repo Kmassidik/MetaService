@@ -24,6 +24,7 @@ struct Services {
     let setupGate: SetupGate
     let sessions: SessionStore
     let installs: InstallService
+    let machineSettings: MachineSettingsStore
     let localAgents: LocalAgentSupervisor
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
@@ -47,8 +48,9 @@ struct Services {
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets), clock: clock,
                                     bundles: bundles, chatAccess: chatAccess, secrets: secrets)
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, clock: clock)
+        machineSettings = MachineSettingsStore(database)
         localAgents = LocalAgentSupervisor(store: LocalAgentStore(database))
-        installs = InstallService(parts: .init(config: config, clock: clock, machines: machines, enrollments: enrollments, audit: audit, commands: commands, bundles: bundles, workloads: workloads),
+        installs = InstallService(parts: .init(config: config, clock: clock, machines: machines, enrollments: enrollments, audit: audit, commands: commands, bundles: bundles, workloads: workloads, settings: machineSettings),
                                   supervisor: localAgents)
     }
 }

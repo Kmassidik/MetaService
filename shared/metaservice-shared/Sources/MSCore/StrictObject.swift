@@ -68,6 +68,16 @@ public struct StrictObject {
         return try StrictObject(child, allowed: allowed, path: "\(path)\(key)/")
     }
 
+    /// A list of short texts, each of the given shape.
+    public func strings(_ key: String, maxCount: Int, pattern: Regex<Substring>, maxLength: Int) throws -> [String] {
+        guard let list = values[key] as? [Any] else { throw InputError("\(path)\(key) must be a list") }
+        guard list.count <= maxCount else { throw InputError("\(path)\(key) has too many items") }
+        return try list.enumerated().map { index, item in
+            guard let text = item as? String, !(item is NSNumber), text.count <= maxLength, text.wholeMatch(of: pattern) != nil else { throw InputError("\(path)\(key)/\(index) has a bad shape") }
+            return text
+        }
+    }
+
     public func objects(_ key: String, allowed: Set<String>, maxCount: Int) throws -> [StrictObject] {
         guard let list = values[key] as? [Any] else { throw InputError("\(path)\(key) must be a list") }
         guard list.count <= maxCount else { throw InputError("\(path)\(key) has too many items") }

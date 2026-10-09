@@ -37,6 +37,12 @@ final class PlacementTests: XCTestCase {
         XCTAssertThrowsError(try Placement.choose([broken, machine("off", online: false, ram: 9999, disk: 99)], wish())) { XCTAssertEqual(($0 as? PlacementRefusal)?.code, "machine_needs_setup") }
     }
 
+    func testAMachineAtItsMostVMsIsSkippedAndSaysSoWhenItIsTheOnlyOne() throws {
+        let full = PlacementMachine(id: "full", online: true, capabilities: everything, freeRamMb: 99999, freeDiskGb: 999, atMaxVMs: true)
+        XCTAssertEqual(try Placement.choose([full, machine("open", ram: 4096, disk: 50)], wish()), "open")
+        XCTAssertThrowsError(try Placement.choose([full], wish())) { XCTAssertEqual(($0 as? PlacementRefusal)?.code, "machine_at_max_vms") }
+    }
+
     func testCapabilitiesDecide() throws {
         let pool = [machine("mac", caps: vmOnly, ram: 90000, disk: 900), machine("dgx", caps: everything, ram: 8000, disk: 900)]
         XCTAssertEqual(try Placement.choose(pool, wish(kind: "container")), "dgx", "the Mac cannot run containers even with more room")

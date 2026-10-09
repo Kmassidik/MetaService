@@ -35,7 +35,7 @@ final class WorkloadService: @unchecked Sendable {
     func create(actor: String, request: CreateWorkloadOperatorRequest) async throws -> CommandRow {
         let (machine, id) = try reserve(actor: actor, request: request)
         var body: [String: Any] = ["command_id": id, "name": request.name, "kind": request.kind, "cpu": request.cpu, "ram_mb": request.ramMb, "disk_gb": request.diskGb, "gpu_mode": request.gpuMode]
-        body["image"] = request.image
+        body["image"] = request.image ?? (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads", body: body)
     }
 
@@ -94,10 +94,12 @@ final class WorkloadService: @unchecked Sendable {
     private func candidates(_ now: Date) throws -> [PlacementMachine] {
         try machines.list(now: now).map { machine in
             let promised = (try? commands.promised(machine: machine.id)) ?? (ramMb: 0, diskGb: 0)
+            let settings = machine.settings
+            let running = machine.workloads.filter { ["running", "provisioning"].contains($0.state) }.count
             return PlacementMachine(id: machine.id, online: machine.state != "offline",
-                                    capabilities: machine.capabilities,
+                                    capabilities: settings?.limiting(machine.capabilities) ?? machine.capabilities,
                                     freeRamMb: max(0, (machine.freeRamMb ?? 0) - promised.ramMb), freeDiskGb: max(0, (machine.freeDiskGb ?? 0) - promised.diskGb),
-                                    hasProblems: !machine.problems.isEmpty)
+                                    hasProblems: !machine.problems.isEmpty, atMaxVMs: settings?.isFull(running: running) ?? false)
         }
     }
 

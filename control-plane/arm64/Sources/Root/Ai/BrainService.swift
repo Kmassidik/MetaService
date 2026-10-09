@@ -20,8 +20,8 @@ struct BrainService: Sendable {
         return URLSession(configuration: options, delegate: NoRedirect(), delegateQueue: nil)
     }()
 
-    func ask(_ message: String, maxTokens: Int? = nil) async throws -> BrainAnswer {
-        guard config.aiConfigured, let base = config.aiBaseURL, let key = config.aiApiKey, let model = config.aiModel,
+    func ask(_ message: String, maxTokens: Int? = nil, model override: String? = nil) async throws -> BrainAnswer {
+        guard config.aiConfigured, let base = config.aiBaseURL, let key = config.aiApiKey, let model = override ?? config.aiModel,
               let url = BrainRules.completionsURL(base: base) else { throw BrainFailure.notConfigured }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

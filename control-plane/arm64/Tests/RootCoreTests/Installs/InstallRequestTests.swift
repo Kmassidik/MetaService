@@ -19,7 +19,7 @@ final class InstallRequestTests: XCTestCase {
             ("another computer is not built yet", good.merging(["target": "10.0.0.5"]) { $1 }), ("no target", good.filter { $0.key != "target" }),
             ("bad name", good.merging(["name": "Bad Name"]) { $1 }), ("name with a slash", good.merging(["name": "a/b"]) { $1 }), ("no name", good.filter { $0.key != "name" }),
             ("chat as text", good.merging(["chat": "yes"]) { $1 }), ("no chat answer", good.filter { $0.key != "chat" }),
-            ("negative ram", good.merging(["ram_reserve_mb": -1]) { $1 }), ("huge ram", good.merging(["ram_reserve_mb": InstallRequest.maxRamReserveMb + 1]) { $1 }),
+            ("negative ram", good.merging(["ram_reserve_mb": -1]) { $1 }), ("huge ram", good.merging(["ram_reserve_mb": 10_000_001]) { $1 }),
             ("fractional disk", good.merging(["disk_reserve_gb": 1.5]) { $1 }), ("unknown field", good.merging(["root": true]) { $1 }),
         ]
         for (label, body) in broken { XCTAssertThrowsError(try InstallRequest(body: data(body)), label) }

@@ -81,6 +81,7 @@ public enum Migrations {
             CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, csrf_token TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
             """) }),
         (10, { try $0.exec("CREATE TABLE local_agents (machine TEXT PRIMARY KEY, binary TEXT NOT NULL, arguments_json TEXT NOT NULL, log_path TEXT NOT NULL, port INTEGER NOT NULL);") }),
+        (11, { try $0.exec("CREATE TABLE machine_settings (machine TEXT PRIMARY KEY, settings_json TEXT NOT NULL);") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

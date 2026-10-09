@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Hummingbird
 import RootCore
@@ -20,7 +21,9 @@ struct InstallRoutes {
         let size = HostSize.read()
         let chatFiles = (try? services.bundles.overview(now: services.clock.now).bundles.count) ?? 0
         return try Json.response(Defaults(name: LocalMachineName.make(from: ProcessInfo.processInfo.hostName), ramReserveMb: InstallDefaults.ramReserveMb(totalMb: size.ramMb),
-                                          diskReserveGb: InstallDefaults.diskReserveGb(totalGb: size.diskGb), agentReady: services.installs.agentReady, chatAvailable: chatFiles > 0))
+                                          diskReserveGb: InstallDefaults.diskReserveGb(totalGb: size.diskGb), agentReady: services.installs.agentReady, chatAvailable: chatFiles > 0,
+                                          profile: Self.thisComputersProfile, computer: Computer(name: LocalMachineName.make(from: ProcessInfo.processInfo.hostName), os: "macos", arch: HostSize.architecture(), cpuCores: size.cpuCores, ramMb: size.ramMb, diskGb: size.diskGb), aiModel: services.config.aiConfigured ? services.config.aiModel : nil,
+                                          vmCpu: InstallDefaults.vmCpu, vmRamMb: InstallDefaults.vmRamMb, vmDiskGb: InstallDefaults.vmDiskGb))
     }
 
     func start(_ request: Request, context: RootContext) async throws -> Response {
@@ -42,6 +45,25 @@ struct InstallRoutes {
         let diskReserveGb: Int
         let agentReady: Bool
         let chatAvailable: Bool
+        let profile: String
+        let computer: Computer
+        let aiModel: String?
+        let vmCpu: Int
+        let vmRamMb: Int
+        let vmDiskGb: Int
+    }
+
+    /// The control plane built here runs on Apple Silicon, so the computer it runs on is one.
+    private static let thisComputersProfile = "apple-silicon-mac"
+
+    /// What this computer is, read from the system, shown in the list of available computers.
+    private struct Computer: Encodable {
+        let name: String
+        let os: String
+        let arch: String
+        let cpuCores: Int
+        let ramMb: Int
+        let diskGb: Int
     }
 
     private struct Started: Encodable {
@@ -51,11 +73,18 @@ struct InstallRoutes {
 
 /// The size of the computer the control plane runs on, to suggest sensible limits in the form.
 struct HostSize {
+    let cpuCores: Int
     let ramMb: Int
     let diskGb: Int
 
+    static func architecture() -> String {
+        var info = utsname()
+        uname(&info)
+        return withUnsafePointer(to: &info.machine) { $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { String(cString: $0) } }
+    }
+
     static func read() -> HostSize {
         let disk = ((try? FileManager.default.attributesOfFileSystem(forPath: "/"))?[.systemSize] as? NSNumber)?.intValue ?? 0
-        return HostSize(ramMb: Int(ProcessInfo.processInfo.physicalMemory / (1024 * 1024)), diskGb: disk / 1_000_000_000)
+        return HostSize(cpuCores: ProcessInfo.processInfo.activeProcessorCount, ramMb: Int(ProcessInfo.processInfo.physicalMemory / (1024 * 1024)), diskGb: disk / 1_000_000_000)
     }
 }

@@ -46,6 +46,7 @@ public struct MachineSummary: Encodable, Equatable {
     public let freeDiskGb: Int?
     public let gpu: [GpuInfo]
     public let capabilities: Capabilities?
+    public let settings: MachineSettings?
     public let problems: [HostProblem]
     public let agentVersion: String?
     public let bundleVersion: String?
@@ -55,7 +56,7 @@ public struct MachineSummary: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, ip, os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb
-        case gpu, capabilities, problems, agentVersion, bundleVersion, state, lastSeen, workloads
+        case gpu, capabilities, settings, problems, agentVersion, bundleVersion, state, lastSeen, workloads
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -72,6 +73,7 @@ public struct MachineSummary: Encodable, Equatable {
         try box.encode(freeDiskGb, forKey: .freeDiskGb)
         try box.encode(gpu, forKey: .gpu)
         try box.encode(capabilities, forKey: .capabilities)
+        try box.encode(settings, forKey: .settings)
         try box.encode(problems, forKey: .problems)
         try box.encode(agentVersion, forKey: .agentVersion)
         try box.encode(bundleVersion, forKey: .bundleVersion)
