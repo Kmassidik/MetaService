@@ -2,20 +2,41 @@
 const key = new URLSearchParams(location.hash.slice(1)).get('k')
 history.replaceState(null, '', location.pathname)
 
+const scroller = document.getElementById('scroll')
+const empty = document.getElementById('empty')
 const log = document.getElementById('log')
 const form = document.getElementById('form')
 const input = document.getElementById('input')
+const send = document.getElementById('send')
 const state = document.getElementById('state')
+const MAX_INPUT_HEIGHT = 160
 
-function add(text, kind) {
-  const item = document.createElement('li')
-  item.className = kind
-  item.textContent = text
-  log.append(item)
-  item.scrollIntoView({ block: 'end' })
+function addRow(kind, node) {
+  empty.hidden = true
+  const row = document.createElement('li')
+  row.className = `row ${kind}`
+  row.append(node)
+  log.append(row)
+  scroller.scrollTop = scroller.scrollHeight
+  return row
 }
 
-async function send(message) {
+function addMessage(text, kind) {
+  const bubble = document.createElement('div')
+  bubble.className = 'bubble'
+  bubble.textContent = text
+  return addRow(kind, bubble)
+}
+
+function addTyping() {
+  const dots = document.createElement('div')
+  dots.className = 'typing'
+  dots.setAttribute('aria-label', 'Ruvio is typing')
+  dots.append(document.createElement('span'), document.createElement('span'), document.createElement('span'))
+  return addRow('theirs', dots)
+}
+
+async function ask(message) {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -27,24 +48,45 @@ async function send(message) {
   return data.reply
 }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault()
+function fitInput() {
+  input.style.height = 'auto'
+  input.style.height = `${Math.min(input.scrollHeight, MAX_INPUT_HEIGHT)}px`
+}
+
+async function submit() {
   const message = input.value.trim()
-  if (!message) return
+  if (!message || send.disabled) return
   input.value = ''
-  add(message, 'me')
-  form.querySelector('button').disabled = true
+  fitInput()
+  addMessage(message, 'mine')
+  send.disabled = true
+  const typing = addTyping()
   try {
-    add(await send(message), 'them')
+    const reply = await ask(message)
+    typing.remove()
+    addMessage(reply, 'theirs')
   } catch (error) {
-    add(error.message, 'problem')
+    typing.remove()
+    addMessage(error.message, 'theirs problem')
   } finally {
-    form.querySelector('button').disabled = false
+    send.disabled = false
     input.focus()
   }
+}
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault()
+  submit()
+})
+input.addEventListener('input', fitInput)
+input.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+  event.preventDefault()
+  submit()
 })
 
 if (!key) {
   state.textContent = 'Open this chat from the MetaService panel.'
-  form.querySelector('button').disabled = true
+  send.disabled = true
+  input.disabled = true
 }

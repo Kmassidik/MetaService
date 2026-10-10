@@ -33,6 +33,5 @@
   li:first-child { border-top: 0; }
   .sha { margin-left: auto; }
   .pinned { padding: 0 10px; border-radius: 999px; background: var(--ok-bg); color: var(--ok); font-weight: 600; font-size: 13px; }
-  .small { min-height: 30px; padding: 0 10px; font-size: 13px; }
   .note { font-size: 13px; }
 </style>

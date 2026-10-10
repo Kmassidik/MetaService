@@ -1,4 +1,6 @@
 """Headers, public endpoints, and that every protected endpoint is closed without credentials."""
+import socket
+
 from contract import spec
 from contract.root_tests.support import Browser, expect, running, RunningRoot
 from contract.tests.support import expect_schema
@@ -110,6 +112,23 @@ def check_the_operator_listener_refuses_to_leave_this_machine():
         raise AssertionError(f"the Root started with the operator listener on {value}")
 
 
+def check_a_root_whose_port_is_taken_exits_with_an_error_instead_of_running_half_alive():
+    """Once the Agent port was taken, the Root kept the operator port open and never exited, so nothing noticed anything was wrong."""
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen()
+        root = RunningRoot()
+        root.agent_port = taken.getsockname()[1]
+        try:
+            root.start()
+        except Exception as problem:
+            expect("exited early" in str(problem) and "in use" in str(problem).lower(), f"the Root stopped, but not for the right reason: {problem}")
+            return
+        finally:
+            root.stop()
+        raise AssertionError("the Root kept running with its Agent port taken")
+
+
 def check_root_refuses_an_env_file_others_can_read():
     root = RunningRoot(env_mode=0o644)
     try:
@@ -146,7 +165,7 @@ def check_ui_files_are_served_with_a_strict_page_policy():
             expect(reply.status == 404 and b"nope" not in reply.raw, f"{path} gave {reply.status}")
 
 
-CHECKS = [check_ui_files_are_served_with_a_strict_page_policy, 
+CHECKS = [check_a_root_whose_port_is_taken_exits_with_an_error_instead_of_running_half_alive, check_ui_files_are_served_with_a_strict_page_policy, 
     check_health_is_public_and_minimal, check_security_headers_on_every_reply, check_unknown_paths_and_methods_are_clean_404s,
     check_operator_endpoints_refuse_a_foreign_host_name, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
     check_errors_reveal_nothing_inside, check_each_listener_serves_only_its_own_routes,

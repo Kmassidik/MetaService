@@ -1,9 +1,11 @@
 <script>
+  import { untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
   import { ApiError, createWorkload, refusalText } from '../lib/api.js'
   import { workloadBody, workloadProblem } from '../lib/format.js'
 
-  let { open, machines, onClose, onCreated } = $props()
+  /** `only` is set when the dialog was opened from one machine's own page: the VM goes there and nowhere else. */
+  let { open, machines, only = null, onClose, onCreated } = $props()
   let form = $state({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' })
   let busy = $state(false)
   let failure = $state('')
@@ -11,11 +13,14 @@
   const ready = $derived(form.name !== '' && workloadProblem(form) === null)
 
   $effect(() => {
-    if (open) {
-      form = { name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' }
+    if (!open) return
+    // Only opening the dialog resets it: what is typed afterwards must not make this run again.
+    untrack(() => {
+      form = { name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: only?.id ?? '' }
+      if (only) useMachineDefaults()
       failure = ''
       busy = false
-    }
+    })
   })
 
   /** Picking a machine fills in what a new VM gets on it, if that machine was set up with such sizes. */
@@ -58,8 +63,8 @@
     </div>
     <label>Machine
       <select bind:value={form.machine} onchange={useMachineDefaults}>
-        <option value="">Any machine with room</option>
-        {#each machines as machine (machine.id)}<option value={machine.id}>{machine.name}{machine.state === 'offline' ? ' (offline)' : ''}</option>{/each}
+        {#if !only}<option value="">Any machine with room</option>{/if}
+        {#each (only ? [only] : machines) as machine (machine.id)}<option value={machine.id}>{machine.name}{machine.state === 'offline' ? ' (offline)' : ''}</option>{/each}
       </select>
     </label>
     <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The machine with the most room left is picked, and it checks its own space again.'}</p>

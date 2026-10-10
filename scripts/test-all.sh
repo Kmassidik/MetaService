@@ -31,4 +31,6 @@ steady nix develop --command python3 -m contract.system_tests.runner
 echo "== panel (UI)"
 nix develop --command bash -c 'cd frontend && npm run check --silent && npm test --silent >/dev/null 2>&1 && npm run build --silent' || { echo "FAILED: panel checks, unit tests or build"; exit 1; }
 steady nix develop --command bash -c 'cd frontend && node e2e/panel.e2e.mjs'
+echo "== chat page (UI)"
+steady nix develop --command bash -c 'cd frontend && node e2e/chat.e2e.mjs'
 echo "all tests passed"

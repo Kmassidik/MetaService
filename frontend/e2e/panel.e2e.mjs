@@ -125,12 +125,18 @@ async function startAgent(base, name = 'agent-mac') {
 }
 
 /** Moves between the panel's pages the way a person does: through the address. */
+/** Presses a button in the Deployments row of one VM. */
+const rowButton = (vm, label) => page.evaluate((name, wanted) => [...document.querySelectorAll('tbody tr')].find((row) => row.innerText.includes(name)).querySelectorAll('button').forEach((b) => b.textContent.trim() === wanted && b.click()), vm, label)
+const tab = async (label) => page.evaluate((wanted) => [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent.trim().startsWith(wanted)).click(), label)
 const go = async (hash) => { await page.evaluate((h) => { location.hash = h }, hash); await new Promise((r) => setTimeout(r, 300)) }
 
 async function workloadScenario() {
   const agent = await startAgent(base)
   try {
+    await go('#/machines')
     await page.waitForFunction(() => document.body.innerText.includes('agent-mac'), { timeout: 20000 })
+    await go('#/deployments')
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Create a VM') && !b.disabled), { timeout: 20000 })
     await click('＋ Create a VM')
     await page.waitForSelector('dialog[open] #wl-name')
     await page.type('dialog[open] #wl-name', 'Bad Name')
@@ -144,28 +150,40 @@ async function workloadScenario() {
     })
     await click('Create')
     await page.waitForFunction(() => !document.querySelector('dialog[open]'), { timeout: 10000 })
-    await go('#/activity')
+    await go('#/health')
     await page.waitForFunction(() => /Create\s+build-box[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
     check('a new workload shows in recent activity as succeeded', true)
-    await go('#/')
-    await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('agent-mac')).querySelector('button').click())
+    await go('#/deployments')
+    await page.waitForFunction(() => [...document.querySelectorAll('tbody tr')].some((row) => row.innerText.includes('agent-mac') && /1 VM/.test(row.innerText)), { timeout: 15000 })
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'deployments.png') })
+    check('Deployments lists the machines with how many VMs each runs', await page.evaluate(() => [...document.querySelectorAll('tbody tr')].some((row) => row.innerText.includes('dgx-spark') && /1 VM/.test(row.innerText))))
+    await page.evaluate(() => [...document.querySelectorAll('tbody tr')].find((row) => row.innerText.includes('agent-mac')).querySelector('a').click())
+    await page.waitForFunction(() => document.querySelector('.phead h1')?.textContent === 'agent-mac', { timeout: 10000 })
+    check('opening a machine shows its own page with its facts', /Deployments › agent-mac/.test(await text()) && /ID\s*agent-mac/.test(await text()) && /Memory/i.test(await text()))
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'deployment-detail.png') })
+    await tab('Activity')
+    await page.waitForFunction(() => /Create\s+build-box[\s\S]*succeeded/.test(document.body.innerText), { timeout: 15000 })
+    check('its Activity tab shows what happened on this machine only', !/dgx-spark/.test(await text()))
+    await tab('VMs')
     await page.waitForFunction(() => document.body.innerText.includes('build-box'), { timeout: 15000 })
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'workloads.png'), fullPage: true })
     check('the workload appears under its machine', (await text()).includes('build-box'))
-    await click('Stop')
-    await page.waitForFunction(() => document.body.innerText.includes('Start'), { timeout: 15000 })
+    const rowHas = (vm, label) => page.waitForFunction((name, wanted) => [...document.querySelectorAll('tbody tr')].find((row) => row.innerText.includes(name))?.innerText.includes(wanted), { timeout: 15000 }, vm, label)
+    await rowButton('build-box', 'Stop')
+    await rowHas('build-box', 'Start')
     check('Stop turns the button into Start', true)
-    await click('Start')
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Stop'), { timeout: 15000 })
-    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Delete').click())
+    await rowButton('build-box', 'Start')
+    await rowHas('build-box', 'Stop')
+    await rowButton('build-box', 'Delete')
     await page.waitForSelector('dialog[open]')
     check('delete says a backup is made first', (await text()).includes('makes a backup of it first'))
     await click('Back up and delete')
     await page.waitForFunction(() => !document.body.innerText.includes('build-box') || /Delete\s+[\s\S]*succeeded/.test(document.body.innerText), { timeout: 20000 })
-    await page.waitForFunction(() => document.body.innerText.includes('No VMs on this machine yet'), { timeout: 20000 })
+    await page.waitForFunction(() => ![...document.querySelectorAll('tbody tr')].some((row) => row.innerText.includes('build-box')), { timeout: 20000 })
     check('a deleted workload disappears', true)
-    await click('＋ Create a VM')
+    await click('＋ Create a VM here')
     await page.waitForSelector('dialog[open] #wl-name')
+    check('a VM made from a machine\'s own page can only go to that machine', await page.evaluate(() => { const select = [...document.querySelectorAll('dialog[open] label')].find((l) => l.innerText.startsWith('Machine')).querySelector('select'); return select.value === 'agent-mac' && select.options.length === 1 }))
     await page.type('dialog[open] #wl-name', 'too-big')
     await page.evaluate(() => {
       const ram = [...document.querySelectorAll('dialog[open] label')].find((l) => l.innerText.startsWith('RAM')).querySelector('input')
@@ -173,8 +191,9 @@ async function workloadScenario() {
       ram.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await click('Create')
-    await page.waitForFunction(() => document.body.innerText.includes('best machine has'), { timeout: 10000 })
-    check('a request that fits nowhere shows the numbers', (await text()).includes('needs 512000 MB RAM'))
+    await page.waitForSelector('dialog[open] [role=alert]', { timeout: 10000 })
+    const refusal = await page.$eval('dialog[open] [role=alert]', (n) => n.innerText)
+    check('a request that fits nowhere shows the numbers', refusal.includes('needs 512000 MB RAM'), refusal)
     await click('Cancel')
   } finally {
     agent.kill()
@@ -211,7 +230,11 @@ async function firstRun() {
   check('the right setup token creates the admin and opens the panel', true)
   const zero = await text()
   check('with no machine yet the page says 0 machines and 0 VMs',  /machines\s*0/i.test(zero) && /vms\s*0/i.test(zero) && /no machines yet/i.test(zero), zero.slice(0, 400))
-  check('Create a VM waits, with the reason, until a machine exists', (await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Create a VM')).disabled)) && /add a machine first/i.test(zero))
+  await go('#/deployments')
+  await page.waitForFunction(() => document.body.innerText.includes('nothing is deployed'), { timeout: 10000 })
+  check('Create a VM waits, with the reason, until a machine exists', (await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Create a VM')).disabled)) && /add a machine first/i.test(await text()))
+  await go('#/machines')
+  await page.waitForFunction(() => document.body.innerText.includes('No machines yet'), { timeout: 10000 })
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'zero.png'), fullPage: true })
   await click('Sign out')
   await page.waitForFunction(() => /sign in to manage/i.test(document.body.innerText), { timeout: 10000 })
@@ -220,15 +243,15 @@ async function firstRun() {
 async function bundleScenario() {
   const agent = await startAgent(base, 'chat-mac')
   try {
+    await go('#/machines')
     await page.waitForFunction(() => document.body.innerText.includes('chat-mac'), { timeout: 20000 })
-    await page.waitForFunction(() => document.body.innerText.includes('Chat bundle'))
     const pinTo = async (version) => page.evaluate((v) => [...document.querySelectorAll('section[aria-label="Chat bundle"] li')].find((li) => li.innerText.includes(v)).querySelector('button').click(), version)
-    await go('#/bundle')
-    await page.waitForFunction(() => document.body.innerText.includes('Chat bundle'))
+    await go('#/settings')
+    await page.waitForFunction(() => /chat bundle/i.test(document.body.innerText))
     await pinTo('0.1.0')
     await page.waitForFunction(() => /0\.1\.0[\s\S]*pinned/.test(document.body.innerText), { timeout: 10000 })
     check('pinning a version marks it pinned', true)
-    await go('#/')
+    await go('#/machines')
     await page.evaluate(() => [...document.querySelectorAll('article')].find((a) => a.innerText.includes('chat-mac')).querySelector('button').click())
     await click('Install chat')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 30000 })
@@ -237,14 +260,14 @@ async function bundleScenario() {
     await page.waitForSelector('dialog[open] a')
     check('the chat link opens in a new tab without leaking the referrer', (await page.$eval('dialog[open] a', (a) => a.rel)).includes('noopener'))
     await click('Close')
-    await go('#/bundle')
+    await go('#/settings')
     await pinTo('0.2.0')
-    await go('#/')
+    await go('#/machines')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.2.0'), { timeout: 60000 })
     check('a newer pin upgrades the installed chat by itself', true)
-    await go('#/bundle')
+    await go('#/settings')
     await click('Roll back to 0.1.0')
-    await go('#/')
+    await go('#/machines')
     await page.waitForFunction(() => document.body.innerText.includes('chat 0.1.0'), { timeout: 60000 })
     check('a rollback puts the older chat back', true)
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'bundles.png'), fullPage: true })
@@ -254,8 +277,8 @@ async function bundleScenario() {
 }
 
 async function brainScenario() {
-  await go('#/ai')
-  await page.waitForFunction(() => document.body.innerText.includes('AI provider'))
+  await go('#/settings')
+  await page.waitForFunction(() => /ai provider/i.test(document.body.innerText))
   const shown = await text()
   check('the AI card says configured with the model and host but never the key', shown.includes('Configured') && shown.includes('fake-model') && shown.includes('127.0.0.1') && !shown.includes(AI_KEY))
   await click('Test connection')
@@ -268,10 +291,17 @@ async function brainScenario() {
   check('a failing provider is reported in plain words without its details', !(await text()).includes('nope'))
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'brain.png'), fullPage: true })
   provider.failing = false
+  await go('#/usage')
+  await page.waitForFunction(() => document.querySelector('.phead h1')?.textContent === 'Token ledger')
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'ledger.png') })
+  check('the Token ledger lists the use per machine with totals', await page.evaluate(() => [...document.querySelectorAll('tbody tr')].some((row) => /root/.test(row.innerText) && /9/.test(row.innerText)) && /TOKENS IN\s*9/i.test(document.body.innerText)))
+  await go('#/ai')
+  await page.waitForFunction(() => document.querySelector('.phead h1')?.textContent === 'Settings')
+  check('an older address (the AI provider) still lands on Settings', /ai provider/i.test(await text()) && /chat bundle/i.test(await text()))
 }
 
 async function scanScenario() {
-  await go('#/scan')
+  await go('#/machines/find')
   await page.waitForFunction(() => document.body.innerText.includes('Looks at'))
   await click('Scan now')
   await page.waitForFunction(() => document.body.innerText.includes('Unknown device'), { timeout: 20000 })
@@ -291,7 +321,23 @@ async function scanScenario() {
   check('adding a found device gives a one-time token', scanToken.length >= 43)
   await click('Done')
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
-  await go('#/')
+  await go('#/machines')
+}
+
+/** Headless Chrome now and then swaps the page's frame between two calls; Puppeteer reports that as an error although nothing went wrong. Reads and waits are tried again, any other error still fails the test. */
+const FRAME_SWAP = /detached Frame|Execution context was destroyed/
+function retryWhenChromeSwapsTheFrame(target) {
+  for (const name of ['evaluate', 'evaluateHandle', 'waitForFunction', 'waitForSelector', '$', '$$', '$eval', '$$eval']) {
+    const original = target[name].bind(target)
+    target[name] = async (...args) => {
+      for (let attempt = 1; ; attempt++) {
+        try { return await original(...args) } catch (error) {
+          if (attempt >= 4 || !FRAME_SWAP.test(error.message)) throw error
+          await new Promise((resolve) => setTimeout(resolve, 300))
+        }
+      }
+    }
+  }
 }
 
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-first-run'] })
@@ -299,6 +345,7 @@ let page, text, click
 try {
   page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 800 })
+  retryWhenChromeSwapsTheFrame(page)
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -324,10 +371,19 @@ try {
   await page.$eval('input[name=password]', (input) => { input.value = ''; input.dispatchEvent(new Event('input')) })
   await page.type('input[name=password]', ADMIN.password)
   await click('Sign in')
+  await page.waitForFunction(() => document.querySelector('.phead h1')?.textContent === 'Overview', { timeout: 10000 })
+  const overview = await text()
+  check('the right password opens the Overview', overview.includes(ADMIN.username) && /Operator › Overview/.test(overview))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overview.png') })
+  check('the Overview counts the machines and VMs', /MACHINES\s*2/i.test(overview) && /VMS\s*2/i.test(overview) && /NEED ATTENTION\s*1/i.test(overview), overview.slice(0, 200))
+  check('the Overview says what needs attention, with the fix', /dgx-spark/.test(overview) && overview.includes('metaservice-agent setup --yes'))
+  const menu = await page.$$eval('aside.side h3, aside.side nav a, aside.side .nav-unavailable', (nodes) => nodes.map((n) => n.textContent.trim()))
+  check('the sidebar has the same groups and names as the MAAS panel', JSON.stringify(menu) === JSON.stringify(['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'Deployments', 'External monitoring', 'Beszel not configured']), JSON.stringify(menu))
+  await go('#/machines')
   await page.waitForFunction(() => document.body.innerText.includes('dgx-spark'), { timeout: 10000 })
   const body = await text()
-  check('the right password opens the machines', body.includes('dgx-spark') && body.includes('mac-mini') && body.includes(ADMIN.username))
-  check('summary counts the machines and VMs', /MACHINES\s*2/i.test(body) && /VMS\s*2/i.test(body), body.slice(0, 120))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'machines.png') })
+  check('Machines lists the machines', body.includes('dgx-spark') && body.includes('mac-mini'))
 
   check('a machine with a host problem says it needs setup and shows the fix', /needs setup/i.test(body) && body.includes('is not trusted') && body.includes('metaservice-agent setup --yes'))
   check('only the machine that reported a problem is marked', (body.match(/needs setup/gi) ?? []).length === 1)
@@ -337,7 +393,7 @@ try {
   await page.waitForFunction(() => document.body.innerText.includes('<img src=x'))
   check('hostile workload text is shown as text, not run', (await page.evaluate(() => window.__xss)) === undefined && (await page.$('img[src="x"]')) === null)
 
-  await click('Add a machine')
+  await click('＋ Add a machine')
   await page.waitForSelector('dialog[open] #machine-name')
   await page.waitForFunction(() => document.querySelector('dialog[open] #machine-name').value !== '', { timeout: 10000 })
   const suggested = await page.$eval('dialog[open] #machine-name', (input) => input.value)

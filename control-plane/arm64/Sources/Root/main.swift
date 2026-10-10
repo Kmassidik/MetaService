@@ -24,8 +24,9 @@ do {
     try await withThrowingTaskGroup(of: Void.self) { group in
         group.addTask { try await operatorApp.runService() }
         group.addTask { try await agentApp.runService() }
+        // When one listener stops, or cannot start (its port is taken), the other must stop too, so the Root exits instead of running half-alive.
+        defer { group.cancelAll() }
         try await group.next()
-        group.cancelAll()
     }
     services.localAgents.stopAll()
 } catch {

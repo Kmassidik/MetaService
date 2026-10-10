@@ -73,7 +73,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((status, json.loads(raw)), (200, {"status": "ok", "version": "9.9.9"}))
 
     def test_the_page_is_public_and_has_a_strict_policy(self):
-        for path, marker in (("/", b"<title>Chat</title>"), ("/chat.js", b"Authorization"), ("/chat.css", b"--accent")):
+        for path, marker in (("/", b"<title>Ruvio</title>"), ("/chat.js", b"Authorization"), ("/chat.css", b"--brand-green"), ("/theme-init.js", b"ruvio-theme"), ("/ruvio-mark.svg", b"<svg")):
             status, headers, raw = self.call("GET", path, key=None)
             self.assertEqual(status, 200, path)
             self.assertIn(marker, raw)
@@ -138,7 +138,7 @@ class BuildTest(unittest.TestCase):
         with tarfile.open(path) as archive:
             members = archive.getmembers()
             names = sorted(m.name for m in members)
-            self.assertEqual(names, ["VERSION", "manifest.json", "service/brain.py", "service/chat.py", "web/chat.css", "web/chat.js", "web/index.html"])
+            self.assertEqual(names, ["VERSION", "manifest.json", "service/brain.py", "service/chat.py", "web/chat.css", "web/chat.js", "web/index.html", "web/ruvio-mark.svg", "web/theme-init.js"])
             for member in members:
                 self.assertTrue(member.isfile() and not member.name.startswith("/") and ".." not in member.name, member.name)
                 self.assertEqual((member.uid, member.gid), (0, 0))

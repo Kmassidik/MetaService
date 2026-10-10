@@ -77,7 +77,9 @@ class RunningRoot:
             if _port_open(self.port) and _port_open(self.agent_port):
                 return
             time.sleep(0.05)
-        raise CheckFailed("Root did not start in time")
+        self.process.kill()
+        said = self.process.stderr.read().decode(errors="replace")[-400:]
+        raise CheckFailed(f"Root did not start in time (ports {self.port} and {self.agent_port}); it said: {said!r}")
 
     def stop(self):
         if self.process and self.process.poll() is None:
@@ -161,10 +163,18 @@ class Browser:
         return self.request(method, path, body, headers=headers, **kwargs)
 
 
+_handed_out = set()
+
+
 def _free_port():
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+    """A port nobody listens on, never one this test run was already given (the system may offer the same number twice, which made two listeners fight over it)."""
+    while True:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        if port not in _handed_out:
+            _handed_out.add(port)
+            return port
 
 
 def _port_open(port):

@@ -1,19 +1,20 @@
 <script>
   import { onMount } from 'svelte'
   import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.js'
-  import { summarize } from './lib/format.js'
+  import { machineFromRoute, pageFor } from './lib/routes.js'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
-  import Summary from './components/Summary.svelte'
-  import MachineList from './components/MachineList.svelte'
+  import Overview from './pages/Overview.svelte'
+  import Machines from './pages/Machines.svelte'
+  import Deployments from './pages/Deployments.svelte'
+  import DeploymentDetail from './pages/DeploymentDetail.svelte'
+  import TokenLedger from './pages/TokenLedger.svelte'
+  import Health from './pages/Health.svelte'
+  import Settings from './pages/Settings.svelte'
   import AddMachine from './components/AddMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
-  import ScanView from './components/ScanView.svelte'
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
-  import Activity from './components/Activity.svelte'
-  import Brain from './components/Brain.svelte'
-  import Bundles from './components/Bundles.svelte'
   import ChatLink from './components/ChatLink.svelte'
 
   const REFRESH_MS = 10_000
@@ -25,7 +26,11 @@
   let machines = $state([])
   let now = $state(Date.now())
   let route = $state(location.hash.replace(/^#/, '') || '/')
-  const page = $derived(({ '/scan': 'scan', '/bundle': 'bundle', '/ai': 'ai', '/activity': 'activity' })[route] ?? 'machines')
+  const page = $derived(pageFor(route))
+  const detailId = $derived(machineFromRoute(route))
+  /** The machine a new VM is being created on, when the dialog was opened from that machine's own page. */
+  let creatingOnId = $state(null)
+  const creatingOn = $derived(machines.find((machine) => machine.id === creatingOnId) ?? null)
   let banner = $state('')
   let adding = $state(false)
   let commands = $state([])
@@ -41,7 +46,6 @@
   let removing = $state(null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
-  const counts = $derived(summarize(machines))
   /** A VM can be created only on a machine that is online and has nothing that stops it. */
   const canCreate = $derived(machines.some((machine) => machine.state !== 'offline' && !machine.problems?.length))
   const cannotCreateReason = $derived(machines.length === 0 ? 'Add a machine first.' : 'No machine is ready yet: see the notice on your machine.')
@@ -76,6 +80,11 @@
       }
       banner = 'Cannot reach the Root. Showing the last data.'
     }
+  }
+
+  function startCreate(machine) {
+    creatingOnId = machine?.id ?? null
+    creating = true
   }
 
   async function leave() {
@@ -192,37 +201,29 @@
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
-      {#if page === 'scan'}
-        <div class="phead"><h1>Find machines</h1><span class="crumb"><a href="#/">Machines</a> › Scan</span></div>
-        <div class="body"><ScanView /></div>
-      {:else if page === 'bundle'}
-        <div class="phead"><h1>Chat bundle</h1></div>
-        <div class="body"><Bundles overview={bundles} onPin={pin} onRollback={rollback} /></div>
-      {:else if page === 'ai'}
-        <div class="phead"><h1>AI provider</h1></div>
-        <div class="body"><Brain status={brain} onTest={testProvider} /></div>
-      {:else if page === 'activity'}
-        <div class="phead"><h1>Activity</h1></div>
-        <div class="body"><Activity {commands} {now} /></div>
+      {#if page === 'machines'}
+        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+      {:else if page === 'deployments'}
+        {#if detailId}
+          <DeploymentDetail machine={machines.find((machine) => machine.id === detailId)} {commands} {now} pinned={bundles?.pinned} {canCreate} onCreate={startCreate} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        {:else}
+          <Deployments {machines} pinned={bundles?.pinned} {canCreate} {cannotCreateReason} onCreate={startCreate} />
+        {/if}
+      {:else if page === 'usage'}
+        <TokenLedger {brain} />
+      {:else if page === 'health'}
+        <Health {machines} {commands} {now} />
+      {:else if page === 'settings'}
+        <Settings {brain} {bundles} onTest={testProvider} onPin={pin} onRollback={rollback} />
       {:else}
-        <div class="phead">
-          <h1>Machines</h1><span class="crumb">{counts.online} of {counts.machines} online</span>
-          <div class="sp">
-            <button class="btn line sm" type="button" onclick={() => (adding = true)}>Add a machine</button>
-            <button class="btn green sm" type="button" disabled={!canCreate} title={canCreate ? '' : cannotCreateReason} onclick={() => (creating = true)}>＋ Create a VM</button>
-            {#if !canCreate}<span class="id" role="status">{cannotCreateReason}</span>{/if}
-          </div>
-        </div>
-        <Summary {counts} />
-        {#if banner}<p class="banner" role="status">{banner}</p>{/if}
-        <MachineList {machines} {now} pinned={bundles?.pinned} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <Overview {machines} {brain} {bundles} />
       {/if}
       {/if}
     </main>
   </div>
   <AddMachine open={adding} onClose={() => (adding = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
-  <NewWorkload open={creating} {machines} onClose={() => (creating = false)} onCreated={refresh} />
+  <NewWorkload open={creating} {machines} only={creatingOn} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />
 {/if}

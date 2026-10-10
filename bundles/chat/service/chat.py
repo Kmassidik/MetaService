@@ -27,7 +27,7 @@ MESSAGES_PER_MINUTE = 30
 KEY_MIN_LENGTH = 32
 CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}
-PAGES = {"/": "index.html", "/chat.js": "chat.js", "/chat.css": "chat.css"}
+PAGES = {"/": "index.html", "/chat.js": "chat.js", "/chat.css": "chat.css", "/theme-init.js": "theme-init.js", "/ruvio-mark.svg": "ruvio-mark.svg"}
 
 
 class Limiter:
