@@ -1,17 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { machineFromRoute, pageFor } from './routes.js'
+import { machineFromRoute, machineHref, pageFor } from './routes.js'
 
 test('each address leads to its page', () => {
-  assert.deepEqual(['/', '/machines', '/machines/find', '/deployments', '/usage', '/health', '/settings'].map(pageFor), ['overview', 'machines', 'machines', 'deployments', 'usage', 'health', 'settings'])
+  assert.deepEqual(['/', '/machines', '/machines/find', '/usage', '/health', '/settings'].map(pageFor), ['overview', 'machines', 'machines', 'usage', 'health', 'settings'])
 })
 
 test('older addresses and unknown ones still land somewhere sensible', () => {
-  assert.deepEqual(['/scan', '/activity', '/bundle', '/ai', '/nope'].map(pageFor), ['machines', 'health', 'settings', 'settings', 'overview'])
+  assert.deepEqual(['/deployments', '/scan', '/activity', '/bundle', '/ai', '/nope'].map(pageFor), ['machines', 'machines', 'health', 'settings', 'settings', 'overview'])
 })
 
-test('a machine\'s deployment page is found from its address, and only from that', () => {
-  assert.equal(machineFromRoute('/deployments/mac-mini'), 'mac-mini')
-  assert.equal(pageFor('/deployments/mac-mini'), 'deployments')
-  for (const route of ['/deployments', '/deployments/', '/deployments/Bad Name', '/deployments/a/b', '/machines/mac-mini', '/deployments/-x']) assert.equal(machineFromRoute(route), null, route)
+test('a machine\'s page is /machines/details?id=<machine>, and only that address names a machine', () => {
+  assert.equal(machineFromRoute('/machines/details?id=mac-mini'), 'mac-mini')
+  assert.equal(pageFor('/machines/details?id=mac-mini'), 'machines')
+  assert.equal(machineHref('mac-mini'), '#/machines/details?id=mac-mini')
+  for (const route of ['/machines', '/machines/details', '/machines/details?id=', '/machines/details?id=Bad Name', '/machines/details?id=-x', '/machines/find?id=mac-mini', '/machines/mac-mini', '/usage?id=mac-mini']) assert.equal(machineFromRoute(route), null, route)
 })

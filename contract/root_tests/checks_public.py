@@ -122,7 +122,8 @@ def check_a_root_whose_port_is_taken_exits_with_an_error_instead_of_running_half
         try:
             root.start()
         except Exception as problem:
-            expect("exited early" in str(problem) and "in use" in str(problem).lower(), f"the Root stopped, but not for the right reason: {problem}")
+            said = root.early_exit[1].lower()
+            expect("exited early" in str(problem) and "in use" in said, f"the Root stopped, but not for the right reason: {said[-300:]}")
             return
         finally:
             root.stop()

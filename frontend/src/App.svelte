@@ -6,8 +6,7 @@
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
   import Machines from './pages/Machines.svelte'
-  import Deployments from './pages/Deployments.svelte'
-  import DeploymentDetail from './pages/DeploymentDetail.svelte'
+  import MachineDetail from './pages/MachineDetail.svelte'
   import TokenLedger from './pages/TokenLedger.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
@@ -46,9 +45,6 @@
   let removing = $state(null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
-  /** A VM can be created only on a machine that is online and has nothing that stops it. */
-  const canCreate = $derived(machines.some((machine) => machine.state !== 'offline' && !machine.problems?.length))
-  const cannotCreateReason = $derived(machines.length === 0 ? 'Add a machine first.' : 'No machine is ready yet: see the notice on your machine.')
 
   async function start() {
     try {
@@ -201,14 +197,10 @@
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
-      {#if page === 'machines'}
-        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onInstall={install} onOpenChat={openChat} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
-      {:else if page === 'deployments'}
-        {#if detailId}
-          <DeploymentDetail machine={machines.find((machine) => machine.id === detailId)} {commands} {now} pinned={bundles?.pinned} {canCreate} onCreate={startCreate} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
-        {:else}
-          <Deployments {machines} pinned={bundles?.pinned} {canCreate} {cannotCreateReason} onCreate={startCreate} />
-        {/if}
+      {#if page === 'machines' && detailId}
+        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+      {:else if page === 'machines'}
+        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}

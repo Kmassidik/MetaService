@@ -1,9 +1,9 @@
 <script>
-  // Machines: the computers MetaService runs on. This is the part MAAS does not have: add a Mac or a Linux computer and pick it easily.
+  // Machines: the computers MetaService runs on. Open one to see everything about it, its deployments (VMs) and its activity.
   import MachineList from '../components/MachineList.svelte'
   import ScanView from '../components/ScanView.svelte'
 
-  let { machines, now, pinned, banner, onAdd, onRemove, onAct, onDelete, onInstall, onOpenChat, showScan } = $props()
+  let { machines, now, pinned, banner, onAdd, onRemove, showScan } = $props()
 </script>
 
 <div class="phead">
@@ -17,5 +17,5 @@
 {#if showScan}
   <div class="body"><ScanView /></div>
 {:else}
-  <MachineList {machines} {now} {pinned} {onInstall} {onOpenChat} {onRemove} {onAdd} {onAct} {onDelete} />
+  <MachineList {machines} {now} {pinned} {onRemove} {onAdd} />
 {/if}

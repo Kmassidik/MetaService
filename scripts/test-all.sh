@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")/.."
 # Runs a command, shows its last lines, and stops the whole script if it printed a failure.
-steady() { out="$("$@" 2>&1)" || { echo "$out" | grep -E "^FAIL" | head -20; echo "$out" | tail -8; echo "FAILED: $*"; exit 1; }; echo "$out" | tail -1; case "$out" in *" 0 failed"*|*OK*) ;; *) echo "$out" | grep -E "^FAIL" | head -20; echo "$out" | tail -8; echo "FAILED: $*"; exit 1;; esac; }
+steady() { out="$("$@" 2>&1)" || { echo "$out" | grep -E "^FAIL|Error" | head -20; echo "$out" | tail -8; echo "FAILED: $*"; exit 1; }; echo "$out" | tail -1; case "$out" in *" 0 failed"*|*OK*) ;; *) echo "$out" | grep -E "^FAIL" | head -20; echo "$out" | tail -8; echo "FAILED: $*"; exit 1;; esac; }
 swift_summary() { grep -E "Executed [0-9]+ tests|error:" | tail -1; }
 
 echo "== shared rules";   (cd shared/metaservice-shared && swift test 2>&1 | swift_summary)

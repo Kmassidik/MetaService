@@ -1,7 +1,7 @@
 <script>
   import MachineRow from './MachineRow.svelte'
 
-  let { machines, now, pinned, onRemove, onAdd, onAct, onDelete, onInstall, onOpenChat } = $props()
+  let { machines, now, pinned, onRemove, onAdd } = $props()
 </script>
 
 {#if machines.length === 0}
@@ -12,7 +12,7 @@
 {:else}
   <section class="grid" aria-label="Machines">
     {#each machines as machine (machine.id)}
-      <MachineRow {machine} {now} {pinned} {onRemove} {onAct} {onDelete} {onInstall} {onOpenChat} />
+      <MachineRow {machine} {now} {pinned} {onRemove} />
     {/each}
   </section>
 {/if}

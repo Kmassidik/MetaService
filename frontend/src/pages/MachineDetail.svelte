@@ -1,16 +1,19 @@
 <script>
-  // One machine's deployments, as the MAAS detail page does for one server: who it is, its VMs, and what has happened on it.
+  // One machine, as the MAAS detail page is for one server: who it is, its deployments (the VMs on it) and what has happened on it.
   import StatePill from '../components/StatePill.svelte'
   import Activity from '../components/Activity.svelte'
+  import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.js'
 
-  let { machine, commands, now, pinned, canCreate, onCreate, onAct, onDelete, onOpenChat, onInstall } = $props()
-  const TABS = [['overview', 'Overview'], ['vms', 'VMs'], ['activity', 'Activity']]
-  const TONE = { running: 'online', stopped: 'offline' }
+  let { machine, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall } = $props()
+  const TABS = [['overview', 'Overview'], ['deployments', 'Deployments'], ['activity', 'Activity']]
   let tab = $state('overview')
   const activity = $derived(commands.filter((command) => command.machine === machine?.id))
   const flag = $derived(bundleFlag(machine?.bundle_version, pinned))
-  const readyForVms = $derived(canCreate && machine?.state !== 'offline' && !machine?.problems?.length)
+  const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
+  const settings = $derived(machine?.settings)
+  const reserved = $derived(settings && (settings.ram_reserve_mb != null || settings.disk_reserve_gb != null))
+  const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
   const facts = $derived(machine ? [
     ['ID', machine.id], ['Status', null], ['Address', machine.ip ?? 'unknown'], ['Profile', machine.settings ? profileLabel(machine.settings.profile) : 'unknown'],
     ['System', `${osName(machine.os)} · ${machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch)}`],
@@ -20,21 +23,22 @@
 </script>
 
 {#if !machine}
-  <div class="empty">No machine with that name. <a class="btn" href="#/deployments">← Deployments</a></div>
+  <div class="empty">No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else}
   <div class="phead">
     <div>
       <div class="titleline"><h1 class="name">{machine.name}</h1><StatePill state={machine.state} />{#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}</div>
-      <div class="crumb"><a href="#/">Overview</a> › <a href="#/deployments">Deployments</a> › {machine.id}</div>
+      <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › {machine.id}</div>
     </div>
     <div class="sp">
       <button class="btn green sm" type="button" disabled={!readyForVms} title={readyForVms ? '' : 'This machine cannot create VMs yet.'} onclick={() => onCreate(machine)}>＋ Create a VM here</button>
+      <button class="btn danger sm" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
     </div>
   </div>
 
   <div class="tabs" role="tablist">
     {#each TABS as [id, label] (id)}
-      <button type="button" role="tab" class:on={tab === id} aria-selected={tab === id} onclick={() => (tab = id)}>{label}{#if id === 'vms'} ({machine.workloads.length}){/if}</button>
+      <button type="button" role="tab" class:on={tab === id} aria-selected={tab === id} onclick={() => (tab = id)}>{label}{#if id === 'deployments'}{' '}({machine.workloads.length}){/if}</button>
     {/each}
   </div>
 
@@ -55,36 +59,29 @@
         <button class="btn line sm" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>
         {#if machine.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
       </div>
-    {:else if tab === 'vms'}
-      {#if machine.workloads.length === 0}
-        <div class="empty" role="status">No VMs on this machine yet.</div>
-      {:else}
-        <div class="tablewrap flush" role="region" aria-label="VMs on {machine.name}, scroll to view columns">
-          <table class="restable">
-            <thead><tr><th>VM</th><th>State</th><th>Size</th><th>Address</th><th>Ruvio</th><th></th></tr></thead>
-            <tbody>
-              {#each machine.workloads as workload (workload.id)}
-                <tr>
-                  <td class="keep"><b>{workload.name}</b><br><span class="id">{workload.kind}</span></td>
-                  <td><StatePill state={TONE[workload.state] ?? 'busy'} label={workload.state} /></td>
-                  <td class="nums keep">{workload.cpu} cpu · {formatMb(workload.ram_mb)} · {formatGb(workload.disk_gb)}</td>
-                  <td class="id">{workload.address ?? '–'}</td>
-                  <td class="id">{bundleFlag(workload.bundle_version, pinned).text}</td>
-                  <td>
-                    <div class="row-act">
-                      {#if workload.state === 'running'}<button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
-                      {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-                      {#if workload.state === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
-                      {#if workload.state === 'stopped'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
-                      <button class="btn danger sm" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+      {#if machine.capabilities}
+        <p class="id">
+          Can run: {machine.capabilities.vm || machine.capabilities.container ? [machine.capabilities.vm && 'VMs', machine.capabilities.container && 'containers'].filter(Boolean).join(' and ') : 'nothing yet'}
+          · GPU in a VM: {machine.capabilities.gpu_in_vm ? 'yes' : 'no'} · GPU in a container: {machine.capabilities.gpu_in_container ? 'yes' : 'no'}
+        </p>
       {/if}
+      {#if machine.gpu.length}<p class="id">GPU: {machine.gpu.map((gpu) => `${gpu.vendor} ${gpu.model}`).join(', ')}</p>{/if}
+      {#if settings}
+        <h2 class="subhead">How this machine was set up</h2>
+        <dl class="kv">
+          {#if settings.labels?.length}<div><dt>Labels</dt><dd>{#each settings.labels as label (label)}<span class="tag">{label}</span>{/each}</dd></div>{/if}
+          {#if settings.notes}<div><dt>Notes</dt><dd>{settings.notes}</dd></div>{/if}
+          {#if reserved}<div><dt>Kept free</dt><dd>{settings.ram_reserve_mb ?? 0} MB memory · {settings.disk_reserve_gb ?? 0} GB disk</dd></div>{/if}
+          {#if settings.ram_allowance_mb || settings.disk_allowance_gb}<div><dt>Most VMs may use</dt><dd>{settings.ram_allowance_mb ? `${settings.ram_allowance_mb} MB memory` : 'any memory'} · {settings.disk_allowance_gb ? `${settings.disk_allowance_gb} GB disk` : 'any disk'}</dd></div>{/if}
+          <div><dt>GPU for VMs</dt><dd>{settings.allow_gpu ? 'offered' : 'not offered'}</dd></div>
+          {#if settings.vm_cpu || settings.vm_ram_mb || settings.vm_disk_gb}<div><dt>A new VM gets</dt><dd>{settings.vm_cpu ?? '–'} CPU · {settings.vm_ram_mb ?? '–'} MB · {settings.vm_disk_gb ?? '–'} GB{settings.vm_image ? ` · ${settings.vm_image}` : ''}</dd></div>{/if}
+          {#if settings.vm_max_running}<div><dt>Most VMs at once</dt><dd>{settings.vm_max_running}</dd></div>{/if}
+          {#if settings.subdomain}<div><dt>Name on the internet</dt><dd>{settings.subdomain}{settings.public_chat ? ' · chat public' : ''} (takes effect when the domain is connected)</dd></div>{/if}
+          {#if settings.ai_model}<div><dt>Chat model</dt><dd>{settings.ai_model}</dd></div>{/if}
+        </dl>
+      {/if}
+    {:else if tab === 'deployments'}
+      <DeploymentsView {machine} {pinned} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
     {:else}
       <Activity commands={activity} {now} />
     {/if}
@@ -104,7 +101,7 @@
   .kv dt { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   .kv dd { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .chatbar { display: flex; gap: 8px; margin-top: 20px; }
+  .subhead { margin: 28px 0 14px; font: 700 13px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
   .flush { padding-left: 0; padding-right: 0; margin-left: 0; }
-  .keep { white-space: nowrap; }
   @media (max-width: 820px) { .tabs, .tabbody { padding-left: 16px; padding-right: 16px; } .kv > div { grid-template-columns: 1fr; gap: 4px; } }
 </style>

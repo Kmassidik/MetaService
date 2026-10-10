@@ -9,7 +9,6 @@
   ]
   const infrastructure = [
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
-    { id: 'deployments', label: 'Deployments', href: '#/deployments', icon: 'M3 4h18v7H3z M3 13h18v7H3z' },
   ]
   const groups = [['Operator', operator], ['Infrastructure', infrastructure]]
 </script>
