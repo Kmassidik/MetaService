@@ -3,6 +3,7 @@ import http.client
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tarfile
@@ -16,6 +17,36 @@ sys.path.insert(0, str(HERE / "service"))
 import chat  # noqa: E402
 
 KEY = "k" * 43
+
+
+REPO = HERE.parent.parent
+# Every option the first chat versions (0.1.0 and 0.2.0) understand. An Agent is upgraded before the chats already installed on it, so it may pass nothing else:
+# an older chat refuses an option it does not know and then does not start at all.
+OPTIONS_OLD_CHATS_UNDERSTAND = {"--port", "--bind", "--key-file", "--web-dir", "--brain-url", "--version"}
+
+
+class AgentCompatibilityTest(unittest.TestCase):
+    def options_in(self, path, start, end):
+        """The command-line options written between two markers of an Agent's source file."""
+        text = (REPO / path).read_text()
+        part = text[text.index(start):text.index(end, text.index(start))]
+        return {quoted or bare for quoted, bare in re.findall(r'"(--[a-z-]+)"|\s(--[a-z-]+)(?=\s)', part)}
+
+    def test_the_mac_agent_starts_the_chat_only_with_options_older_chats_understand(self):
+        found = self.options_in("agent/macos/Sources/Agent/BundleInstaller.swift", "private func chatArguments", "/// Where the chat asks")
+        self.assertTrue(found, "the options were not found: this test needs updating")
+        self.assertLessEqual(found, OPTIONS_OLD_CHATS_UNDERSTAND)
+
+    def test_the_linux_agent_starts_the_chat_only_with_options_older_chats_understand(self):
+        found = self.options_in("agent/linux/src/bundle.rs", "fn chat_arguments", "/// Where the chat asks")
+        self.assertTrue(found, "the options were not found: this test needs updating")
+        self.assertLessEqual(found, OPTIONS_OLD_CHATS_UNDERSTAND)
+
+    def test_the_vm_services_start_the_chat_only_with_options_older_chats_understand(self):
+        for path, start, end in (("agent/linux/src/bundle.rs", "ExecStart=", "Restart=always"), ("agent/macos/Sources/AgentCore/AppleContainer.swift", "ExecStart=", "Restart=always")):
+            found = self.options_in(path, start, end)
+            self.assertTrue(found, path)
+            self.assertLessEqual(found, OPTIONS_OLD_CHATS_UNDERSTAND, path)
 
 
 class RulesTest(unittest.TestCase):
@@ -73,7 +104,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((status, json.loads(raw)), (200, {"status": "ok", "version": "9.9.9"}))
 
     def test_the_page_is_public_and_has_a_strict_policy(self):
-        for path, marker in (("/", b"<title>Ruvio</title>"), ("/chat.js", b"Authorization"), ("/chat.css", b"--brand-green"), ("/theme-init.js", b"ruvio-theme"), ("/ruvio-mark.svg", b"<svg")):
+        for path, marker in (("/", b"<title>Ruvio</title>"), ("/open.js", b"/auth/open"), ("/open.css", b"--page"), ("/theme-init.js", b"ruvio-theme"), ("/ruvio-mark.svg", b"<svg")):
             status, headers, raw = self.call("GET", path, key=None)
             self.assertEqual(status, 200, path)
             self.assertIn(marker, raw)
@@ -119,9 +150,9 @@ class ServerTest(unittest.TestCase):
 
 
 class PageTest(unittest.TestCase):
-    def test_the_page_never_builds_html_from_text(self):
-        source = (HERE / "web" / "chat.js").read_text() + (HERE / "web" / "index.html").read_text()
-        for forbidden in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "localStorage", "sessionStorage", "onclick=", "style="):
+    def test_the_page_that_takes_the_key_never_builds_html_from_text_or_keeps_the_key(self):
+        source = (HERE / "web" / "open.js").read_text() + (HERE / "web" / "open.html").read_text()
+        for forbidden in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "localStorage", "sessionStorage", "onclick=", "style=", "cookie"):
             self.assertNotIn(forbidden, source, forbidden)
         self.assertIn("textContent", source)
 
@@ -138,7 +169,10 @@ class BuildTest(unittest.TestCase):
         with tarfile.open(path) as archive:
             members = archive.getmembers()
             names = sorted(m.name for m in members)
-            self.assertEqual(names, ["VERSION", "manifest.json", "service/brain.py", "service/chat.py", "web/chat.css", "web/chat.js", "web/index.html", "web/ruvio-mark.svg", "web/theme-init.js"])
+            for wanted in ("VERSION", "manifest.json", "service/chat.py", "service/brain.py", "service/replies.py", "service/ruvio/api.py", "service/ruvio/store.py", "web/index.html", "web/open.html", "web/open.js"):
+                self.assertIn(wanted, names)
+            self.assertTrue(any(name.startswith("web/assets/") for name in names), "the built chat screen is missing")
+            self.assertFalse([name for name in names if "__pycache__" in name or name.endswith(".pyc") or "node_modules" in name or name.startswith("ui/")], "build leftovers are in the archive")
             for member in members:
                 self.assertTrue(member.isfile() and not member.name.startswith("/") and ".." not in member.name, member.name)
                 self.assertEqual((member.uid, member.gid), (0, 0))

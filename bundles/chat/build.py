@@ -12,7 +12,14 @@ import tarfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXED_TIME = 946684800  # 2000-01-01, so file times never change the checksum
-FILES = ["service/chat.py", "service/brain.py", "web/index.html", "web/chat.js", "web/chat.css", "web/theme-init.js", "web/ruvio-mark.svg", "VERSION"]
+SOURCE_FOLDERS = ("service", "web")
+SKIPPED = ("__pycache__", ".pyc", ".DS_Store")
+
+
+def files():
+    """Every file of the service and of the built chat screen, in a fixed order, plus VERSION."""
+    found = [str(path.relative_to(HERE)) for folder in SOURCE_FOLDERS for path in sorted((HERE / folder).rglob("*")) if path.is_file() and not any(bit in str(path) for bit in SKIPPED)]
+    return found + ["VERSION"]
 
 
 def manifest(version):
@@ -27,7 +34,7 @@ def add(archive, name, data, mode):
 
 def build(version=None, out_dir=None):
     version = version or (HERE / "VERSION").read_text().strip()
-    entries = {name: (HERE / name).read_bytes() for name in FILES}
+    entries = {name: (HERE / name).read_bytes() for name in files()}
     entries["VERSION"] = (version + "\n").encode()
     entries["manifest.json"] = manifest(version)
     raw = io.BytesIO()

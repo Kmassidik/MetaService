@@ -1,0 +1,44 @@
+/* Ruvio Chat dark theme: the same token names as style.css with dark values.
+ * Two selectors, one palette: System on a dark device (no data-theme, or anything but "light"),
+ * and Dark chosen in Settings (data-theme="dark", set by lib/theme.js and the index.html pre-paint
+ * script). CSS can't share one block between a media query and a selector, so the two blocks
+ * below must stay identical; theme.test.js fails if they drift. Brand green does not change. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --text: #f2f2f3; --text-2: #a1a1a6; --text-3: #8a8a8f;
+    --page: #0d0d0e; --sidebar: #151517; --sidebar-line: #232326; --surface: #1a1a1c;
+    --bubble: #232326; --row-hover: #1c1c1f; --row-selected: #26262a; --hairline: #2a2a2d;
+    --ink: #fff; --on-ink: #000;
+    --danger: #ff6961; --danger-bg: #2a1214; --danger-line: #5c2326; --on-danger: #0d0d0e;
+    --ok-text: #4ade80; --ok-bg: #0f2a1a; --ok: #30d158;
+    --warn-text: #ffb340; --warn-bg: #2b2111;
+    --scrim: rgba(0, 0, 0, .55); --scrim-strong: rgba(0, 0, 0, .7);
+    --tint-hover: rgba(255, 255, 255, .06); --tint-selected: rgba(255, 255, 255, .1);
+    --tooltip-bg: #f2f2f3; --tooltip-text: #0d0d0e; --stream-bg: #000; --on-stream: #fff;
+    --code-keyword: #d2a8ff; --code-string: #7ee787; --code-number: #79c0ff; --code-comment: #8b949e;
+    --group: #1c1c1e; --group-line: #2a2a2d; --switch-off: #3a3a3d; --switch-knob: #fff;
+    --logo-chip: #f2f2f3; --logo-backdrop: #f2f2f3;
+    --shadow-float: 0 0 0 1px rgba(255, 255, 255, .07), 0 8px 24px rgba(0, 0, 0, .5);
+    --shadow-sheet: -12px 0 40px rgba(0, 0, 0, .5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #f2f2f3; --text-2: #a1a1a6; --text-3: #8a8a8f;
+  --page: #0d0d0e; --sidebar: #151517; --sidebar-line: #232326; --surface: #1a1a1c;
+  --bubble: #232326; --row-hover: #1c1c1f; --row-selected: #26262a; --hairline: #2a2a2d;
+  --ink: #fff; --on-ink: #000;
+  --danger: #ff6961; --danger-bg: #2a1214; --danger-line: #5c2326; --on-danger: #0d0d0e;
+  --ok-text: #4ade80; --ok-bg: #0f2a1a; --ok: #30d158;
+  --warn-text: #ffb340; --warn-bg: #2b2111;
+  --scrim: rgba(0, 0, 0, .55); --scrim-strong: rgba(0, 0, 0, .7);
+  --tint-hover: rgba(255, 255, 255, .06); --tint-selected: rgba(255, 255, 255, .1);
+  --tooltip-bg: #f2f2f3; --tooltip-text: #0d0d0e; --stream-bg: #000; --on-stream: #fff;
+  --code-keyword: #d2a8ff; --code-string: #7ee787; --code-number: #79c0ff; --code-comment: #8b949e;
+  --group: #1c1c1e; --group-line: #2a2a2d; --switch-off: #3a3a3d; --switch-knob: #fff;
+  --logo-chip: #f2f2f3; --logo-backdrop: #f2f2f3;
+  --shadow-float: 0 0 0 1px rgba(255, 255, 255, .07), 0 8px 24px rgba(0, 0, 0, .5);
+  --shadow-sheet: -12px 0 40px rgba(0, 0, 0, .5);
+}

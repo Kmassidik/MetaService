@@ -1,0 +1,353 @@
+{
+ "_source": "Recorded from the real Ruvio Chat server (mac-multi-server control-plane macserver-chat) with a seeded test user and one ready bot; only the structure is kept.",
+ "agents": {
+  "agents": [
+   {
+    "activity": {
+     "state": "str",
+     "tool": "null"
+    },
+    "avatarColor": "str",
+    "avatarShape": "str",
+    "createdAt": "str",
+    "description": "str",
+    "hidden": "bool",
+    "id": "str",
+    "kind": "str",
+    "lastMessagePreview": "str",
+    "lastReadSequence": "number",
+    "leadAgentId": "null",
+    "memberAgentIds": [],
+    "model": "str",
+    "name": "str",
+    "notifyFinished": "bool",
+    "notifyNeedsInput": "bool",
+    "pinned": "bool",
+    "queuedMessage": "bool",
+    "status": "str",
+    "summary": "str",
+    "title": "str",
+    "unreadCount": "number"
+   }
+  ],
+  "limits": {
+   "cpu": "number",
+   "maxAgents": "number",
+   "maxTeams": "number",
+   "memoryMB": "number",
+   "workspaceBytes": "number"
+  }
+ },
+ "agents_after_failure": {
+  "agents": [
+   {
+    "activity": {
+     "model": "str",
+     "startedAt": "str",
+     "state": "str",
+     "title": "str",
+     "tool": "null"
+    },
+    "avatarColor": "str",
+    "avatarShape": "str",
+    "createdAt": "str",
+    "description": "str",
+    "hidden": "bool",
+    "id": "str",
+    "kind": "str",
+    "lastError": "str",
+    "lastMessagePreview": "str",
+    "lastReadSequence": "number",
+    "leadAgentId": "null",
+    "memberAgentIds": [],
+    "model": "str",
+    "name": "str",
+    "notifyFinished": "bool",
+    "notifyNeedsInput": "bool",
+    "pinned": "bool",
+    "queuedMessage": "bool",
+    "status": "str",
+    "summary": "str",
+    "title": "str",
+    "unreadCount": "number"
+   }
+  ],
+  "limits": {
+   "cpu": "number",
+   "maxAgents": "number",
+   "maxTeams": "number",
+   "memoryMB": "number",
+   "workspaceBytes": "number"
+  }
+ },
+ "approvals": {
+  "approvals": []
+ },
+ "apps": {
+  "apps": []
+ },
+ "config": {
+  "capacity": {
+   "reason": "null",
+   "registrationsOpen": "bool",
+   "writesAllowed": "bool"
+  },
+  "googleConfigured": "bool"
+ },
+ "connectors": {
+  "connectors": []
+ },
+ "environment": {
+  "environment": "null"
+ },
+ "events": {
+  "cursor": "number",
+  "events": [
+   {
+    "createdAt": "str",
+    "kind": "str",
+    "payload": {
+     "state": "str"
+    },
+    "runId": "str",
+    "sequence": "number"
+   }
+  ],
+  "run": {
+   "agentId": "str",
+   "attachmentIds": [],
+   "createdAt": "str",
+   "error": "str",
+   "firstEventSequence": "number",
+   "id": "str",
+   "lastEventSequence": "number",
+   "model": "str",
+   "state": "str",
+   "updatedAt": "str"
+  }
+ },
+ "files": {
+  "files": []
+ },
+ "me": {
+  "csrf": "str",
+  "limits": {
+   "cpu": "number",
+   "maxAgents": "number",
+   "maxTeams": "number",
+   "memoryMB": "number",
+   "workspaceBytes": "number"
+  },
+  "onboarding": {
+   "completedAt": "str",
+   "goal": "str",
+   "goalDetail": "str",
+   "source": "str",
+   "sourceDetail": "str"
+  },
+  "user": {
+   "access": "str",
+   "email": "str",
+   "id": "str",
+   "name": "str"
+  }
+ },
+ "memory": {
+  "entries": []
+ },
+ "messages": {
+  "computer": {
+   "message": "str",
+   "state": "str"
+  },
+  "lastError": "str",
+  "messages": [
+   {
+    "attachmentIds": [],
+    "attachments": [],
+    "createdAt": "str",
+    "id": "str",
+    "role": "str",
+    "text": "str"
+   }
+  ],
+  "pending": "bool"
+ },
+ "messages_empty": {
+  "computer": {
+   "message": "str",
+   "state": "str"
+  },
+  "messages": [],
+  "pending": "bool"
+ },
+ "new_bot": {
+  "agent": {
+   "avatarColor": "str",
+   "avatarShape": "str",
+   "createdAt": "str",
+   "description": "str",
+   "hidden": "bool",
+   "id": "str",
+   "kind": "str",
+   "lastMessagePreview": "str",
+   "lastReadSequence": "number",
+   "leadAgentId": "null",
+   "memberAgentIds": [],
+   "model": "str",
+   "name": "str",
+   "notifyFinished": "bool",
+   "notifyNeedsInput": "bool",
+   "pinned": "bool",
+   "queuedMessage": "bool",
+   "status": "str",
+   "summary": "str",
+   "title": "str",
+   "unreadCount": "number"
+  },
+  "environment": {
+   "stage": "str",
+   "state": "str"
+  },
+  "messages": [
+   {
+    "attachmentIds": [],
+    "createdAt": "str",
+    "id": "str",
+    "role": "str",
+    "text": "str"
+   }
+  ]
+ },
+ "read": {
+  "agent": {
+   "avatarColor": "str",
+   "avatarShape": "str",
+   "createdAt": "str",
+   "description": "str",
+   "hidden": "bool",
+   "id": "str",
+   "kind": "str",
+   "lastError": "str",
+   "lastMessagePreview": "str",
+   "lastReadSequence": "number",
+   "leadAgentId": "null",
+   "memberAgentIds": [],
+   "model": "str",
+   "name": "str",
+   "notifyFinished": "bool",
+   "notifyNeedsInput": "bool",
+   "pinned": "bool",
+   "queuedMessage": "bool",
+   "status": "str",
+   "summary": "str",
+   "title": "str",
+   "unreadCount": "number"
+  }
+ },
+ "routines": {
+  "routines": []
+ },
+ "runs": {
+  "runs": [
+   {
+    "agentId": "str",
+    "attachmentIds": [],
+    "createdAt": "str",
+    "error": "str",
+    "firstEventSequence": "number",
+    "id": "str",
+    "lastEventSequence": "number",
+    "model": "str",
+    "state": "str",
+    "updatedAt": "str"
+   }
+  ]
+ },
+ "runs_empty": {
+  "runs": []
+ },
+ "send": {
+  "computer": {
+   "message": "str",
+   "state": "str"
+  },
+  "messages": [
+   {
+    "attachmentIds": [],
+    "attachments": [],
+    "createdAt": "str",
+    "id": "str",
+    "role": "str",
+    "text": "str"
+   }
+  ],
+  "pending": "bool",
+  "run": {
+   "agentId": "str",
+   "attachmentIds": [],
+   "createdAt": "str",
+   "firstEventSequence": "number",
+   "id": "str",
+   "lastEventSequence": "number",
+   "model": "str",
+   "state": "str",
+   "updatedAt": "str"
+  }
+ },
+ "storage": {
+  "canCreateAgent": "bool",
+  "computer": {
+   "state": "str",
+   "system": "null",
+   "workspace": "null"
+  },
+  "host": {
+   "reason": "null",
+   "registrationsOpen": "bool",
+   "writesAllowed": "bool"
+  },
+  "limits": {
+   "cpu": "number",
+   "maxAgents": "number",
+   "maxTeams": "number",
+   "memoryMB": "number",
+   "workspaceBytes": "number"
+  },
+  "results": {
+   "availableBytes": "number",
+   "limitBytes": "number",
+   "state": "str",
+   "usedBytes": "number"
+  }
+ },
+ "storage_gate": {
+  "canCreateAgent": "bool",
+  "host": {
+   "reason": "null",
+   "registrationsOpen": "bool",
+   "writesAllowed": "bool"
+  },
+  "limits": {
+   "cpu": "number",
+   "maxAgents": "number",
+   "maxTeams": "number",
+   "memoryMB": "number",
+   "workspaceBytes": "number"
+  }
+ },
+ "usage": {
+  "blocked": "bool",
+  "lifetime": {
+   "tokens": "number",
+   "turns": "number"
+  },
+  "monthly": {
+   "tokens": "number",
+   "turns": "number"
+  },
+  "remaining": "number",
+  "tokens": "number",
+  "turns": "number"
+ }
+}

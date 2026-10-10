@@ -1,0 +1,216 @@
+/* Ruvio Chat design tokens. Components use these names only.
+ * Breakpoints (CSS cannot read custom properties inside @media, so they are literals everywhere,
+ * the drawer width is mirrored in lib/constants.js as DRAWER_MAX_WIDTH):
+ *   820px  the bot list becomes a drawer and doubles as the home screen
+ *   1200px the side panel floats over the chat instead of taking a column
+ *   520px  phone: menus and dialogs become bottom sheets, panels go full width */
+:root {
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  --font-code: ui-monospace, 'SF Mono', Menlo, monospace; /* code blocks inside messages only */
+  --fs-name: 15px; --fs-preview: 13.5px; --fs-message: 15.5px; --lh-message: 1.45;
+  --fs-time: 12.5px; --fs-pill: 15px; --fs-menu: 14.5px;
+  /* Colour (light). The dark set is in theme-dark.css; every colour in the app comes from here. */
+  color-scheme: light;
+  --text: #1c1c1e; --text-2: #6e6e73; --text-3: #aeaeb2;
+  --page: #fff; --sidebar: #fafafa; --sidebar-line: #ececec; --surface: #fff; /* menus, dialogs, composer */
+  --bubble: #f0f0f2; --row-hover: #f2f2f4; --row-selected: #ebebee; --hairline: #e5e5ea;
+  --brand-green: #00f56d; --brand-green-d: #00c24e;
+  --ink: #000; --on-ink: #fff; /* the strong fill: primary pills and your bubbles */
+  --focus-ring: var(--brand-green);
+  --danger: #d70015; --danger-bg: #fff1f0; --danger-line: #f5c2c0; --on-danger: #fff;
+  --ok-text: #0a7a3b; --ok-bg: #e7fbef; --ok: #0a8f45;
+  --warn-text: #c07600; --warn-bg: #fff4e2;
+  --scrim: rgba(0, 0, 0, .28); --scrim-strong: rgba(0, 0, 0, .45);
+  --tint-hover: rgba(0, 0, 0, .05); --tint-selected: rgba(0, 0, 0, .08);
+  --tooltip-bg: #1c1c1e; --tooltip-text: #fff; --stream-bg: #111; --on-stream: #fff;
+  --paper: #fff; /* PDF and web previews render as documents */
+  /* The full-screen file viewer is dark in both themes, like a photo app. */
+  --viewer-bg: rgba(8, 8, 10, .94); --on-viewer: #fff; --on-viewer-2: rgba(255, 255, 255, .68);
+  --viewer-control: rgba(255, 255, 255, .12); --viewer-control-hover: rgba(255, 255, 255, .22);
+  --thumb-overlay: rgba(0, 0, 0, .55); /* progress and remove buttons drawn over a picture */
+  --code-keyword: #842185; --code-string: #076a35; --code-number: #005c9c; --code-comment: #626262;
+  /* Settings: grouped rows on a light card, iOS style. */
+  --group: #f4f4f6; --group-line: #e3e3e8; --switch-off: #dcdce0; --switch-knob: #fff;
+  /* App logos are drawn for white: the rail's round chips, and a backdrop behind list logos. */
+  --logo-chip: #fff; --logo-backdrop: transparent;
+  /* Shape and layout */
+  --sidebar-width: 280px;
+  --side-panel-width: 420px; /* the right-hand bot panel (P6) */
+  --radius-bubble: 16px; --radius-card: 16px; --radius-pill: 999px; --radius-menu: 14px;
+  --radius-avatar: 50%; --radius-control: 10px; --radius-item: 8px;
+  --radius-composer: 22px; /* half the 44 pt single-line composer, so one line reads as a pill */
+  --shadow-float: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+  --shadow-sheet: -12px 0 40px rgba(0,0,0,.08);
+
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; }
+body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.5 var(--font); }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; color: inherit; border: 0; }
+button:disabled { cursor: default; opacity: .55; }
+a { color: inherit; text-decoration: none; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--brand-green); outline-offset: -1px; }
+input, textarea, select { min-width: 0; }
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+h1, h2, h3, p { margin: 0; }
+svg { flex-shrink: 0; }
+::selection { background: var(--brand-green); color: var(--text); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--hairline); }
+[hidden] { display: none !important; }
+
+.brand { display: inline-flex; align-items: center; gap: 11px; }
+.brand-symbol { display: block; width: 28px; height: 28px; flex-shrink: 0; }
+.wordmark { font: 600 12px var(--font); white-space: nowrap; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; border: 1px solid transparent; border-radius: var(--radius-pill); background: none; color: var(--text-2); flex-shrink: 0; }
+.icon-button:hover:not(:disabled) { color: var(--text); background: var(--row-hover); }
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(2px);
+  padding: 5px 8px;
+  border-radius: var(--radius-item);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  font: 600 11px/1.2 var(--font);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease, transform .12s ease, visibility .12s;
+  z-index: 40;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+[data-tip][data-tip-side="below"]::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-2px);
+}
+[data-tip][data-tip-side="below"]:hover::after,
+[data-tip][data-tip-side="below"]:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+}
+.primary-button, .secondary-button, .danger-button, .google-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 38px; padding: 9px 16px; border: 1px solid var(--ink); border-radius: var(--radius-pill); background: var(--ink); color: var(--on-ink); font: 500 14px/1.4 var(--font); }
+.primary-button { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.primary-button:hover:not(:disabled) { background: var(--text); border-color: var(--text); }
+.secondary-button { background: var(--page); border-color: var(--hairline); color: var(--text); }
+.secondary-button:hover:not(:disabled) { background: var(--row-hover); }
+.danger-button { background: transparent; color: var(--danger); border-color: var(--danger-line); }
+.danger-button:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
+.text-button { background: none; padding: 5px 0; color: var(--text-2); font: 500 var(--fs-preview)/1.4 var(--font); text-decoration: underline; text-underline-offset: 3px; }
+.text-button:hover:not(:disabled) { color: var(--text); }
+.environment-notice { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-control); background: var(--page); color: var(--text-2); font: var(--fs-preview)/1.5 var(--font); }
+.danger-text { display: flex; align-items: center; align-self: flex-start; gap: 7px; margin-top: 18px; padding: 8px 0; background: none; color: var(--danger); font: 12px var(--font); }
+.error-box { margin-top: 16px; border: 1px solid var(--danger-line); border-radius: var(--radius-control); background: var(--danger-bg); color: var(--danger); padding: 10px 12px; font: var(--fs-preview)/1.5 var(--font); overflow-wrap: anywhere; }
+.error-box .text-button { display: block; color: inherit; }
+/* Usage and storage meters (Settings). */
+.meter-bar { appearance: none; display: block; width: 100%; height: 6px; border: 0; border-radius: var(--radius-pill); overflow: hidden; background: var(--group-line); }
+.meter-bar::-webkit-progress-bar { background: var(--group-line); }
+.meter-bar::-webkit-progress-value { background: var(--ink); border-radius: var(--radius-pill); }
+.meter-bar::-moz-progress-bar { background: var(--ink); border-radius: var(--radius-pill); }
+.spinner, .tiny-spinner { display: inline-block; border: 2px solid var(--hairline); border-top-color: var(--ok); border-radius: 50%; animation: spin .9s linear infinite; }
+.spinner { width: 24px; height: 24px; }
+.tiny-spinner { width: 15px; height: 15px; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.google-button { width: 100%; justify-content: flex-start; }
+.google-button:hover { background: var(--text-2); }
+.google-button > svg:last-child { margin-left: auto; }
+
+/* Quiet navigation and conversation-first workspace. */
+.workspace { display: grid; grid-template-columns: var(--sidebar-width) minmax(0,1fr); height: 100dvh; overflow: hidden; position: relative; background: var(--page); }
+/* The side panel takes a third track; below 1200 px it floats over the chat instead (SidePanel.svelte). */
+.workspace.panel-open { grid-template-columns: var(--sidebar-width) minmax(0,1fr) var(--side-panel-width); }
+@media (max-width: 1200px) { .workspace.panel-open { grid-template-columns: var(--sidebar-width) minmax(0,1fr); } }
+.rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--sidebar-line); background: var(--sidebar); }
+.avatar { display: grid; place-items: center; flex-shrink: 0; border-radius: var(--radius-avatar); background: var(--row-hover); color: var(--text); border: 1px solid var(--hairline); font-family: var(--font); font-weight: 700; }
+
+.main-workspace { min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--page); }
+.conversation-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; background: var(--page); }
+.msg-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 28px; height: 28px; padding: 0 6px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text-3); cursor: pointer;
+}
+.msg-icon-btn:hover { background: var(--row-hover); color: var(--text); }
+.msg-icon-btn.active, .msg-icon-btn[aria-pressed="true"] { color: var(--text); background: var(--row-selected); }
+.msg-icon-btn:focus-visible { outline: 2px solid var(--brand-green); outline-offset: 1px; }
+.msg-action-status { display: inline-block; margin-top: 4px; color: var(--text-2); font: 11px/1.4 var(--font); }
+.profile-title { color: var(--text-2); font: 12px/1.4 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42vw; }
+
+/* Visually hidden text that screen readers still announce. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Form fields shared by the create and edit sheets. */
+.form-label { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 18px 0 8px; color: var(--text-2); font: 12px/1.5 var(--font); }
+.form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-control); background: var(--page); color: var(--text); font: var(--fs-preview)/1.5 var(--font); }
+.form-description { resize: vertical; min-height: 95px; max-height: 220px; }
+.form-help { color: var(--text-2); margin-top: 11px; font: 12px/1.7 var(--font); }
+.team-purpose { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mobile-only, .rail-backdrop { display: none; }
+
+/* File cards (bot profile) and preview text shared by the file viewers. */
+.file-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: var(--radius-card); margin: 14px 0; overflow-wrap: anywhere; }
+.file-card h3, .file-card > strong { display: block; font: 500 var(--fs-name)/1.4 var(--font); }
+.file-meta { font: 13px/1.5 var(--font); color: var(--text-2); margin-top: 4px; }
+.file-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.file-actions .secondary-button { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+/* Markdown.svelte scopes message typography; tables and highlight.js token colours stay global. */
+.markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 8px 0; }
+.markdown th, .markdown td { padding: 8px 12px; border: 1px solid var(--hairline); text-align: left; }
+.markdown th { background: var(--row-hover); }
+.message-source { overflow-x: auto; max-width: 100%; padding: 12px 14px; background: var(--page); border: 1px solid var(--hairline); border-radius: var(--radius-control); font: 13px/1.55 var(--font-code); tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
+.markdown .hljs-keyword, .markdown .hljs-selector-tag, .markdown .hljs-literal { color: var(--code-keyword); }
+.markdown .hljs-string, .markdown .hljs-attr, .markdown .hljs-template-variable { color: var(--code-string); }
+.markdown .hljs-number, .markdown .hljs-built_in, .markdown .hljs-title { color: var(--code-number); }
+.markdown .hljs-comment, .markdown .hljs-quote { color: var(--code-comment); }
+.message-source-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: 2px;
+  opacity: 0; transition: opacity .15s ease;
+}
+.message-source-actions:focus-within { opacity: 1; }
+@media (hover: none) {
+  .message-source-actions { opacity: 1; }
+}
+.source-review { display: block; width: 100%; resize: vertical; min-height: 120px; max-height: 60dvh; color: var(--text); }
+.connector-args { resize: vertical; min-height: 100px; max-height: 280px; font-family: var(--font-code); margin-bottom: 12px; }
+.approval-check { display: flex; align-items: flex-start; gap: 8px; font: 12px/1.45 var(--font); cursor: pointer; }
+.approval-check input { margin-top: 3px; accent-color: var(--ok); flex-shrink: 0; }
+@media (max-width: 520px) {
+  .file-actions .secondary-button { min-height: 40px; }
+}
+@media (max-width: 820px) {
+  .mobile-only { display: inline-flex; }
+  .workspace, .workspace.panel-open { display: flex; }
+  .main-workspace { width: 100%; }
+  .rail { position: absolute; inset: 0 auto 0 0; width: 280px; max-width: 88%; z-index: 30; visibility: hidden; transform: translateX(-100%); }
+  .rail.mobile-open { visibility: visible; transform: translateX(0); }
+  .rail-backdrop { display: block; position: absolute; inset: 0; z-index: 29; background: var(--scrim); }
+  .form-input { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; scroll-behavior: auto !important; }
+}

@@ -31,6 +31,7 @@ rm -rf "$dir"; mkdir -p "$dir"
 tar -xzf /tmp/metaservice-chat.tar.gz -C "$dir" --no-same-owner
 chown -R root:root /opt/metaservice/chat
 install -o metachat -g metachat -m 600 /tmp/metaservice-chat.key /opt/metaservice/chat.key
+install -d -o metachat -g metachat -m 700 /opt/metaservice/chat-data
 rm -f /tmp/metaservice-chat.tar.gz /tmp/metaservice-chat.key
 ln -sfn "$dir" /opt/metaservice/chat/current
 brain=""; if [ -n "$MS_BRAIN_URL" ]; then brain="--brain-url $MS_BRAIN_URL"; fi
@@ -40,6 +41,7 @@ Description=MetaService chat
 After=network.target
 [Service]
 User=metachat
+ReadWritePaths=/opt/metaservice/chat-data
 ExecStart=/usr/bin/python3 /opt/metaservice/chat/current/service/chat.py --port $MS_PORT --key-file /opt/metaservice/chat.key $brain
 Restart=always
 NoNewPrivileges=true

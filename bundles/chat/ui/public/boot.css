@@ -1,0 +1,4 @@
+/* The page colour before the app has loaded, so dark mode never flashes white. A file because the chat allows no inline styles. */
+html { background: #fff; }
+@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background: #0d0d0e; } }
+html[data-theme="dark"] { background: #0d0d0e; }
