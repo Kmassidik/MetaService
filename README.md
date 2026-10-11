@@ -29,7 +29,12 @@ You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) 
 4. To create VMs on a Mac, the machine needs Apple's `container` tool (github.com/apple/container). The form tells you if it is missing.
    Install it, then stop and start the parent again with `./install.sh`.
 
-To stop the parent: `pkill -f metaservice-root`.
+Stop it from the menu (choice 6) or with `./install.sh stop`. Choice 7 makes it start when you log in.
+
+## Uninstall
+
+Choose **8 Uninstall** in the menu, or run `./install.sh uninstall`. It stops MetaService, turns off the login item, and shows what it will remove, with sizes: the builds, the packages, the run files and your data (machines, admin login, keys). It asks you to type `yes` first.
+It keeps the source code, git, Apple's `container` tool and, unless you say so, your `.env`. `./install.sh uninstall --keep-data` keeps your data too, and `--env` also removes `.env`.
 
 ## What works today
 
