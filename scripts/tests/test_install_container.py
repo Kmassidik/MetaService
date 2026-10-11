@@ -189,6 +189,16 @@ class InstallStepTest(ServiceCase):
         self.assertEqual(self.mac.calls(), [])
         self.assertTrue(self.listening())
 
+    def test_skip_container_still_uses_a_tool_that_is_already_installed_and_starts_its_service(self):
+        self.mac.has_tool()
+        code, out = self.install("install", "--skip-container")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("Skipped", out)
+        self.assertIn("is installed", out)
+        self.assertFalse([line for line in self.mac.calls() if line.startswith(("sudo", "installer"))])
+        self.assertIn("container system start --enable-kernel-install", self.mac.calls())
+        self.assertTrue(self.listening())
+
     def test_when_the_tool_cannot_be_installed_the_install_stops_and_names_the_way_out(self):
         self.env["INSTALLER_FAILS"] = "1"
         code, out = self.install("install")

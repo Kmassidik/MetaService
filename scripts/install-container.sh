@@ -1,7 +1,8 @@
 #!/bin/sh
 # Makes sure Apple's container tool (what creates VMs on a Mac) is installed and its service is running.
 # Missing: it downloads Apple's signed installer package, checks the checksum and Apple's signature, installs it (the Mac asks for the password once) and starts the service.
-# Exit 0 when the tool is ready, 1 when it could not be made ready. The METASERVICE_CONTAINER_* variables are for the tests.
+# With --no-install a missing tool is left missing (and said so); a tool that is there is still checked and its service started.
+# Exit 0 when the tool is ready (or left out on request), 1 when it could not be made ready. The METASERVICE_CONTAINER_* variables are for the tests.
 version="1.5.0"
 # The checksum of Apple's container-1.5.0-installer-signed.pkg. A new version needs its checksum put here after it has been looked at.
 expected_sha256="${METASERVICE_CONTAINER_SHA256:-a24808cb202318fa1c3bbee0c6c6887fe1225fe899d7b687a0ddd939bd6573f8}"
@@ -46,6 +47,9 @@ ensure_running() {
 
 if bin="$(installed_at)"; then
   echo "      ✓ Apple's container tool is installed ($bin)."
+elif [ "$1" = --no-install ]; then
+  echo "      Skipped. This Mac cannot create VMs until the tool is installed."
+  exit 0
 else
   [ -t 0 ] || stop_with "The tool is missing, and installing it needs a terminal to ask for your password." "Run ./install.sh in a terminal, or add --skip-container to go without VMs."
   work="$(mktemp -d)" && trap 'rm -rf "$work"' EXIT

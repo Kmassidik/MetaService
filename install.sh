@@ -72,7 +72,7 @@ install_now() {
   fi
   echo "[3/4] Apple's container tool (it creates the VMs)"
   if [ "$skip_container" = yes ]; then
-    echo "      Skipped. This Mac cannot create VMs until the tool is installed."
+    sh scripts/install-container.sh --no-install || return 1
   else
     sh scripts/install-container.sh || { echo "      You can go on without VMs: ./install.sh install --skip-container"; return 1; }
   fi

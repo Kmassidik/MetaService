@@ -37,12 +37,13 @@ if [ -z "$(echo $remove_list)" ] && { [ "$remove_env" = no ] || [ ! -e "$root/co
   exit 0
 fi
 
+row() { printf "  %9s  %-12s %s\n" "$(human "$(kilobytes $3)")" "$1" "$2"; }
 echo "This removes what MetaService made on this computer:"
-[ -n "$found_builds" ] && echo "  $(human "$(kilobytes $found_builds)")  builds    $(echo $found_builds)"
-[ -n "$found_packages" ] && echo "  $(human "$(kilobytes $found_packages)")  packages  $(echo $found_packages)"
-[ -n "$found_runtime" ] && echo "  $(human "$(kilobytes $found_runtime)")  run files $found_runtime (the background pid and log)"
-[ -n "$found_data" ] && echo "  $(human "$(kilobytes $found_data)")  your data  $found_data (the machines, the admin login and the keys)"
-[ -n "$caches" ] && echo "  $(human "$(kilobytes $caches)")  Python caches"
+[ -n "$found_builds" ] && row "builds" "$(echo $found_builds)" "$found_builds"
+[ -n "$found_packages" ] && row "packages" "$(echo $found_packages)" "$found_packages"
+[ -n "$found_runtime" ] && row "run files" "$found_runtime (the background pid and log)" "$found_runtime"
+[ -n "$found_data" ] && row "your data" "$found_data (the machines, the admin login and the keys)" "$found_data"
+[ -n "$caches" ] && row "Python caches" "" "$caches"
 [ "$keep_data" = yes ] && echo "  (your data stays: --keep-data)"
 echo "It also stops MetaService and turns off its login item."
 echo "It keeps: the source code and git, Apple's container tool, and $([ "$remove_env" = yes ] && echo "nothing else of yours" || echo "your .env settings")."
