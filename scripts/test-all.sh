@@ -24,6 +24,8 @@ steady nix develop --command python3 -m contract.agent_tests.runner
 steady nix develop --command python3 -m contract.agent_tests.runner --linux
 echo "== root checks"
 steady nix develop --command python3 -m contract.root_tests.runner
+echo "== start-up scripts (the .env check)"
+steady nix develop --command python3 -m unittest discover -s scripts/tests
 echo "== chat bundle"
 steady nix develop --command python3 -m unittest discover -s bundles/chat/tests
 echo "== root and agents together"

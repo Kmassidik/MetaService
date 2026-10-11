@@ -23,7 +23,8 @@ struct InstallRoutes {
         return try Json.response(Defaults(name: LocalMachineName.make(from: ProcessInfo.processInfo.hostName), ramReserveMb: InstallDefaults.ramReserveMb(totalMb: size.ramMb),
                                           diskReserveGb: InstallDefaults.diskReserveGb(totalGb: size.diskGb), agentReady: services.installs.agentReady, chatAvailable: chatFiles > 0,
                                           profile: Self.thisComputersProfile, computer: Computer(name: LocalMachineName.make(from: ProcessInfo.processInfo.hostName), os: "macos", arch: HostSize.architecture(), cpuCores: size.cpuCores, ramMb: size.ramMb, diskGb: size.diskGb), aiModel: services.config.aiConfigured ? services.config.aiModel : nil,
-                                          vmCpu: InstallDefaults.vmCpu, vmRamMb: InstallDefaults.vmRamMb, vmDiskGb: InstallDefaults.vmDiskGb))
+                                          vmCpu: InstallDefaults.vmCpu, vmRamMb: InstallDefaults.vmRamMb, vmDiskGb: InstallDefaults.vmDiskGb,
+                                          requirements: ComputerChecks.run(agentReady: services.installs.agentReady, freeDiskGb: HostSize.freeGb(), exists: FileManager.default.isExecutableFile(atPath:))))
     }
 
     func start(_ request: Request, context: RootContext) async throws -> Response {
@@ -51,6 +52,7 @@ struct InstallRoutes {
         let vmCpu: Int
         let vmRamMb: Int
         let vmDiskGb: Int
+        let requirements: [Requirement]
     }
 
     /// The control plane built here runs on Apple Silicon, so the computer it runs on is one.
@@ -81,6 +83,12 @@ struct HostSize {
         var info = utsname()
         uname(&info)
         return withUnsafePointer(to: &info.machine) { $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { String(cString: $0) } }
+    }
+
+    /// Room left on the system disk, in GB (0 when it cannot be read, which the check then reports as too little).
+    static func freeGb() -> Int {
+        let free = (try? FileManager.default.attributesOfFileSystem(forPath: "/"))?[.systemFreeSize] as? NSNumber
+        return (free?.intValue ?? 0) / 1_000_000_000
     }
 
     static func read() -> HostSize {

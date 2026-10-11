@@ -6,6 +6,7 @@ target/
 dist/
 control-plane/arm64/.env
 control-plane/arm64/state/
+control-plane/arm64/run/
 *.env
 !control-plane/arm64/.env.example
 .DS_Store

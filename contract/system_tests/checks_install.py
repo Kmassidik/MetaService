@@ -43,8 +43,13 @@ def check_the_form_gets_a_name_and_sensible_limits_and_needs_a_login():
     with install_root() as (root, operator):
         expect(Browser(root, auto_login=False).request("GET", "/api/installs/defaults").status == 401, "the defaults are open without a login")
         defaults = operator.request("GET", "/api/installs/defaults").body
-        expect(set(defaults) - {"ai_model"} == {"name", "ram_reserve_mb", "disk_reserve_gb", "agent_ready", "chat_available", "profile", "computer", "vm_cpu", "vm_ram_mb", "vm_disk_gb"}, f"keys: {sorted(defaults)}")
+        expect(set(defaults) - {"ai_model"} == {"name", "ram_reserve_mb", "disk_reserve_gb", "agent_ready", "chat_available", "profile", "computer", "vm_cpu", "vm_ram_mb", "vm_disk_gb", "requirements"}, f"keys: {sorted(defaults)}")
         expect(set(defaults["computer"]) == {"name", "os", "arch", "cpu_cores", "ram_mb", "disk_gb"} and defaults["computer"]["cpu_cores"] >= 1, f"computer: {defaults['computer']}")
+        needs = {item["id"]: item for item in defaults["requirements"]}
+        expect(sorted(needs) == ["agent", "container", "disk", "python"], f"requirements: {sorted(needs)}")
+        expect(all(set(item) == {"id", "label", "ok", "optional", "detail"} and isinstance(item["ok"], bool) and item["detail"] for item in needs.values()), f"requirement shape: {needs}")
+        expect(needs["agent"]["ok"] is True and needs["agent"]["optional"] is False, f"the program is built here, so it must pass and block: {needs['agent']}")
+        expect(needs["container"]["optional"] is True and needs["python"]["optional"] is True, "a missing tool must not block the install")
         expect("ai_model" not in defaults, "no AI provider is set up here, so there is no model to suggest")
         expect(defaults["name"] and defaults["ram_reserve_mb"] >= 1024 and defaults["disk_reserve_gb"] >= 1, f"defaults: {defaults}")
         expect(defaults["agent_ready"] is True and defaults["chat_available"] is False, f"readiness: {defaults}")

@@ -424,6 +424,8 @@ try {
   const formText = await page.$eval('dialog[open]', (box) => box.innerText)
   check('a dropdown of available computers starts with this computer and its detected profile', await page.$eval('dialog[open] #machine-computer', (box) => box.tagName === 'SELECT' && /this computer/i.test(box.selectedOptions[0].text) && /apple silicon mac/i.test(box.selectedOptions[0].text) && /\d+ cores/.test(box.selectedOptions[0].text)))
   check('the form is two columns, with what will change across the bottom', await page.evaluate(() => { const box = (selector) => document.querySelector(`dialog[open] ${selector}`).getBoundingClientRect(); const [left, right, review] = [box('.left'), box('.right'), box('.review')]; return left.right <= right.left + 1 && Math.abs(left.top - right.top) < 4 && review.top >= Math.max(left.bottom, right.bottom) - 1 && review.width > left.width * 1.8 }))
+  check('the form lists what this computer has: the program, the container tool, Python and disk space', await page.$$eval('dialog[open] .checks li', (rows) => rows.length === 4 && ['MetaService program', "Apple's container tool", 'Python', 'Free disk space'].every((label) => rows.some((row) => row.innerText.includes(label)) && rows.every((row) => /^[✓!✗]/.test(row.innerText)))))
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'add-machine.png') })
   check('the chat is called Ruvio', /Install Ruvio \(the chat\) on this machine/.test(formText))
   check('the form has its sections', [/available computers/i, /who it is/i, /what to install/i, /limits/i, /what a new vm gets/i, /name on the internet/i, /ai for ruvio/i, /what will change/i].every((word) => word.test(formText)))
   await field('#machine-labels', 'Office, desk')

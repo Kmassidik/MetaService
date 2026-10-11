@@ -48,7 +48,7 @@ final class InstallService: @unchecked Sendable {
     /// Checks what can be checked at once, then installs in the background. The answer is the job's id.
     func start(_ request: InstallRequest, actor: String) throws -> String {
         guard agentReady else {
-            throw ApiFailure(status: .conflict, code: "agent_missing", message: "the MetaService program for this computer was not found: build it first (scripts/run-control-plane.sh does)")
+            throw ApiFailure(status: .conflict, code: "agent_missing", message: "the MetaService program for this computer was not found: build it first (./install.sh does)")
         }
         guard (try? services.machines.get(id: request.name, now: services.clock.now)) == nil else {
             throw ApiFailure(status: .conflict, code: "machine_exists", message: "a machine with that name is already installed")

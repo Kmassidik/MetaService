@@ -107,6 +107,17 @@
       </select>
       <p class="hint muted">Other computers on your network show here after you run "Find machines".</p>
 
+      {#if defaults?.requirements}
+        <ul class="checks" aria-label="What this computer has">
+          {#each defaults.requirements as item (item.id)}
+            <li class={item.ok ? 'pass' : item.optional ? 'miss' : 'block'}>
+              <span class="mark" aria-hidden="true">{item.ok ? '✓' : item.optional ? '!' : '✗'}</span>
+              <span>{item.label}<small>{item.detail}</small></span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
       <div class="two">
         <div class="left">
           <fieldset>
@@ -174,7 +185,7 @@
         <strong>What will change</strong>
         <ul>{#each preview as line}<li>{line}</li>{/each}</ul>
       </div>
-      {#if defaults && !defaults.agent_ready}<p class="bad" role="alert">The MetaService program for this computer is not built yet. Start the control panel with scripts/run-control-plane.sh, which builds it.</p>{/if}
+      {#if defaults && !defaults.agent_ready}<p class="bad" role="alert">The MetaService program for this computer is not built yet. Run ./install.sh, which builds it.</p>{/if}
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
       <div class="row">
         <button class="btn line" type="button" onclick={onClose}>Cancel</button>
@@ -196,6 +207,12 @@
   .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 14px; color: var(--black); margin-top: 12px; }
   .check input { width: auto; margin: 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .checks { list-style: none; margin: 14px 0 0; padding: 10px 12px; display: grid; gap: 8px; background: var(--gray2); border: 1px solid var(--gray); font-size: 13px; }
+  .checks li { display: flex; gap: 10px; align-items: baseline; }
+  .checks li.pass .mark { color: var(--run); font-weight: 700; }
+  .checks li.miss .mark { color: var(--warn); font-weight: 700; }
+  .checks li.block .mark { color: #c0392b; font-weight: 700; }
+  .checks small { display: block; font-family: var(--mono); font-size: 11px; color: var(--m50); }
   .review { margin-top: 18px; padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 13px; }
   .review ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
