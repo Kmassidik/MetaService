@@ -10,7 +10,7 @@ import shutil
 import sys
 
 # The same places the Mac Agent looks for Apple's container tool (ProcessContainerCLI.searchPaths in the Agent, ComputerChecks.containerPaths in the parent).
-CONTAINER_PATHS = ("/usr/local/bin/container", "/opt/homebrew/bin/container", "/usr/bin/container")
+CONTAINER_PATHS = tuple(os.environ.get("METASERVICE_CONTAINER_PATHS", "/usr/local/bin/container /opt/homebrew/bin/container /usr/bin/container").split())
 WINDOWS_NAMES = ("windows", "mingw", "msys", "cygwin")
 
 
@@ -28,7 +28,7 @@ def assess(system, machine, has_swift, container_found):
     findings = [("ok", "Apple Silicon Mac. The macOS install fits this computer.")]
     findings.append(("ok", "Swift found.") if has_swift else ("stop", "Swift is missing. Install Xcode or its command-line tools (xcode-select --install), then run this again."))
     findings.append(("ok", "Apple's container tool found.") if container_found else
-                    ("warn", "Apple's container tool is not installed (github.com/apple/container). MetaService works without it, but this Mac cannot create VMs until it is."))
+                    ("warn", "Apple's container tool is not installed, so this Mac cannot create VMs yet. The install adds it for you (or use --skip-container to go without)."))
     return findings
 
 

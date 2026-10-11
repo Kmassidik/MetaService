@@ -4,7 +4,7 @@
 
 Too many SSH connections in a short time are seen as a brute-force attack and get blocked.
 
-- **At most 2 SSH connections per session.** Not 2 at a time: 2 in total.
+- **At most 4 SSH connections per session** (raised from 2 on 2026-10-11 for the Mac Studio). Not 4 at a time: 4 in total.
 - Put many steps in one script and run it in one connection. Do not run many small commands.
 - Never poll over SSH. Read the job's output file locally, or make one check after a long wait.
 - Never retry in a loop. If a connection fails, stop and tell Kurnia.

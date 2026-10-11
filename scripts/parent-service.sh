@@ -24,9 +24,16 @@ managed_pid() { pid="$(cat "$pid_file" 2>/dev/null)"; alive "$pid" && echo "$pid
 any_pid() { managed_pid || pgrep -f "$pattern" | head -1; }
 panel_answers() { curl -s -o /dev/null --max-time 2 "$panel_url"; }
 
+# Builds what is missing, quietly: the compiler's output goes to a log, and is shown only if the build fails.
 prepare() {
   mkdir -p "$run_dir" && chmod 700 "$run_dir"
-  [ -n "$METASERVICE_SKIP_BUILD" ] || METASERVICE_BUILD_ONLY=1 "$program"
+  [ -n "$METASERVICE_SKIP_BUILD" ] && return 0
+  build_log="$run_dir/build.log"
+  echo "      Building MetaService (the first time takes a few minutes). The details are in $build_log"
+  (umask 077; METASERVICE_BUILD_ONLY=1 "$program" > "$build_log" 2>&1) && return 0
+  echo "      ✗ The build failed. What it said:"
+  { grep -E "error|Error|must be|not found|cannot" "$build_log" | tail -n 8; echo "      ... the end of the log:"; tail -n 6 "$build_log"; } | sed 's/^/        /'
+  return 1
 }
 
 wait_until_up() {

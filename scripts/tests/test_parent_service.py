@@ -128,6 +128,43 @@ class BackgroundTest(ServiceCase):
         self.assertIsNotNone(other.wait(timeout=10), "the parent that was not started here is still running")  # wait() also reaps it, as its owner would
 
 
+class BuildOutputTest(ServiceCase):
+    """The build step is quiet: the compiler's warnings go to a log, and show only when the build fails."""
+
+    def setUp(self):
+        super().setUp()
+        del self.env["METASERVICE_SKIP_BUILD"]
+        self.noise = "warning: converting non-Sendable function value (pretend compiler noise)"
+        self.write_build_program("exit 0")
+
+    def write_build_program(self, build_ending):
+        self.write_program(f'#!/bin/sh\nif [ -n "$METASERVICE_BUILD_ONLY" ]; then\n  echo "{self.noise}"\n  echo "Build step ran"\n  {build_ending}\nfi\n'
+                           f'exec {sys.executable} -m http.server {self.port} --bind 127.0.0.1 --directory {self.served}\n')
+
+    def test_the_compiler_output_goes_to_the_log_and_not_to_the_screen(self):
+        done = self.service("start")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn(self.noise, done.stdout + done.stderr)
+        self.assertIn("Building MetaService", done.stdout)
+        self.assertIn("build.log", done.stdout)
+        with open(os.path.join(self.folder, "run", "build.log")) as file:
+            self.assertIn(self.noise, file.read())
+        self.assertTrue(self.listening())
+
+    def test_a_failed_build_shows_what_it_said_and_starts_nothing(self):
+        self.write_build_program('echo "error: cannot find the thing"; exit 1')
+        done = self.service("start")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("The build failed", done.stdout)
+        self.assertIn("error: cannot find the thing", done.stdout)
+        self.assertFalse(self.listening())
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "run", "parent.pid")))
+
+    def test_the_build_log_is_private(self):
+        self.service("start")
+        self.assertEqual(os.stat(os.path.join(self.folder, "run", "build.log")).st_mode & 0o077, 0)
+
+
 class LoginItemTest(ServiceCase):
     def plist(self):
         with open(os.path.join(self.folder, "LaunchAgents", "com.metaservice.parent.plist"), "rb") as file:

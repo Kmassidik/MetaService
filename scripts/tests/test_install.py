@@ -45,19 +45,19 @@ class WelcomeTest(unittest.TestCase):
     def test_it_shows_the_banner_and_the_numbered_steps(self):
         done = install("", "--check")
         self.assertIn("made by Kurnia Massidik", done.stdout)
-        self.assertIn("[1/3] Checking the settings", done.stdout)
-        self.assertIn("[2/3] Checking this computer", done.stdout)
+        self.assertIn("[1/4] Checking the settings", done.stdout)
+        self.assertIn("[2/4] Checking this computer", done.stdout)
 
     def test_the_menu_has_nine_choices_and_does_nothing_without_a_keyboard(self):
         done = install("", )
         self.assertEqual(done.returncode, 0)
         for line in ("1  Help", "2  README", "3  Install", "4  Status", "5  Logs", "6  Stop", "7  Start at login", "8  Uninstall", "9  Quit"):
             self.assertIn(line, done.stdout)
-        self.assertNotIn("[1/3]", done.stdout)
+        self.assertNotIn("[1/4]", done.stdout)
 
     def test_check_only_never_gets_to_the_build_step(self):
         done = install("", "--check")
-        self.assertNotIn("[3/3]", done.stdout)
+        self.assertNotIn("[3/4]", done.stdout)
         if done.returncode == 0:
             self.assertIn("Nothing was built or started.", done.stdout)
 
@@ -95,9 +95,9 @@ class MenuTest(unittest.TestCase):
     def test_choosing_3_checks_first_and_returns_to_the_menu_when_the_settings_are_wrong(self):
         code, out, err = at_the_keyboard("3\n9\n", env_text="ROOT_SETUP_TOKEN=tiny\n")
         self.assertEqual(code, 0)
-        self.assertIn("[1/3] Checking the settings", out)
+        self.assertIn("[1/4] Checking the settings", out)
         self.assertIn("ROOT_SETUP_TOKEN", err)
-        self.assertNotIn("[2/3]", out)
+        self.assertNotIn("[2/4]", out)
         self.assertIn("Bye.", out)
 
     def test_choosing_7_turns_the_login_item_on_and_choosing_it_again_turns_it_off(self):

@@ -26,8 +26,9 @@ You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) 
 
 3. Press **Add machine**. The form checks the computer, then installs MetaService on it. Today that means the same Mac the parent runs on.
 
-4. To create VMs on a Mac, the machine needs Apple's `container` tool (github.com/apple/container). The form tells you if it is missing.
-   Install it, then stop and start the parent again with `./install.sh`.
+4. To create VMs, a Mac needs Apple's `container` tool. If it is missing, the install adds it: it downloads Apple's signed package from github.com/apple/container (about 118 MB),
+   checks that it is the file we expect and that Apple signed it, then installs it. Your Mac asks for your password once, in the terminal. Then it starts Apple's container service.
+   To go without VMs, run `./install.sh install --skip-container`.
 
 Stop it from the menu (choice 6) or with `./install.sh stop`. Choice 7 makes it start when you log in.
 
@@ -40,7 +41,7 @@ It keeps the source code, git, Apple's `container` tool and, unless you say so, 
 
 - The parent with its panel: Overview, Machines, per-machine Deployments, Token ledger, Health and Settings.
 - The macOS and Linux Agents, and the Ruvio chat on a machine or VM.
-- Not yet: adding another computer over SSH, installing Apple's `container` tool for you, and the chat's files, connected apps and routines.
+- Not yet: adding another computer over SSH, and the chat's files, connected apps and routines.
 
 ## Test
 

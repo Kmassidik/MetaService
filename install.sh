@@ -18,7 +18,7 @@ banner() {
 menu() {
   echo "  1  Help             what each command does"
   echo "  2  README           how to install, step by step"
-  echo "  3  Install          check this computer, then build and start in the background"
+  echo "  3  Install          check this computer, install what is missing, build and start in the background"
   echo "  4  Status           is it running?"
   echo "  5  Logs             the last lines of what it says"
   echo "  6  Stop             stop MetaService"
@@ -40,6 +40,7 @@ show_help() {
   echo "  ./install.sh login off    do not start it at login any more"
   echo "  ./install.sh uninstall    remove the builds, packages and data (it asks first; --yes, --keep-data and --env change that)"
   echo "  ./install.sh --check      only the two checks; nothing is built or started"
+  echo "  ./install.sh install --skip-container   install without Apple's container tool (no VMs on this Mac)"
   echo "  ./install.sh run          start in this terminal (stops when you close it)"
   echo "  ./install.sh --agent-bind 192.168.100.40   any other --option goes to the parent, with install"
 }
@@ -50,20 +51,32 @@ show_readme() {
 
 run_checks() {
   command -v python3 >/dev/null 2>&1 || { echo "Python 3 is missing, and the checks need it. Install it (macOS: xcode-select --install), then try again."; return 1; }
-  echo "[1/3] Checking the settings (.env)"
+  echo "[1/4] Checking the settings (.env)"
   python3 scripts/check_env.py "$env_file" || return 1
   echo "      ✓ The settings are fine."
-  echo "[2/3] Checking this computer"
+  echo "[2/4] Checking this computer"
   python3 scripts/check_computer.py || return 1
 }
 
 install_now() {
+  skip_container=no
+  count=$#
+  while [ "$count" -gt 0 ]; do
+    option="$1"; shift; count=$((count - 1))
+    if [ "$option" = --skip-container ]; then skip_container=yes; else set -- "$@" "$option"; fi
+  done
   run_checks || return 1
   if [ "$1" = "--check" ]; then
     echo "Checks done. Nothing was built or started."
     return 0
   fi
-  echo "[3/3] Building and starting MetaService in the background (the first time takes a few minutes)"
+  echo "[3/4] Apple's container tool (it creates the VMs)"
+  if [ "$skip_container" = yes ]; then
+    echo "      Skipped. This Mac cannot create VMs until the tool is installed."
+  else
+    sh scripts/install-container.sh || { echo "      You can go on without VMs: ./install.sh install --skip-container"; return 1; }
+  fi
+  echo "[4/4] Building and starting MetaService in the background (the first time takes a few minutes)"
   sh "$service" start "$@" || return 1
   echo "      You can close this terminal. Stop it with ./install.sh stop"
 }
