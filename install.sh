@@ -1,7 +1,7 @@
 #!/bin/sh
 # MetaService installer. Run it from this folder: ./install.sh
 # It opens with a welcome and a menu that stays open until you quit. Install checks the settings (.env) and the computer, builds what is
-# missing and starts the parent in the background, so you can close the terminal. Every choice can also be named: ./install.sh help|readme|install|status|logs|stop|login on|login off|uninstall
+# missing and starts the parent in the background, so you can close the terminal. Every choice can also be named: ./install.sh help|readme|install|status|logs|stop|uninstall
 # ./install.sh --check runs the two checks only. ./install.sh run starts the parent in this terminal. Any other --option goes to the parent with install.
 cd "$(dirname "$0")" || exit 1
 env_file="${METASERVICE_ENV_FILE:-control-plane/arm64/.env}"
@@ -22,22 +22,19 @@ menu() {
   echo "  4  Status           is it running?"
   echo "  5  Logs             the last lines of what it says"
   echo "  6  Stop             stop MetaService"
-  echo "  7  Start at login   currently $(sh "$service" login state); choose it again to switch"
-  echo "  8  Uninstall        stop it and remove everything MetaService made here (it asks first)"
-  echo "  9  Quit"
+  echo "  7  Uninstall        stop it and remove everything MetaService made here (it asks first)"
+  echo "  8  Quit"
   echo
 }
 
 show_help() {
-  echo "  ./install.sh              the welcome and the menu (it stays open until you choose 9)"
+  echo "  ./install.sh              the welcome and the menu (it stays open until you choose 8)"
   echo "  ./install.sh help         what you are reading"
   echo "  ./install.sh readme       how to install, step by step"
   echo "  ./install.sh install      check, build, and start in the background"
   echo "  ./install.sh status       is it running?"
   echo "  ./install.sh logs         the last lines of what it says"
   echo "  ./install.sh stop         stop MetaService"
-  echo "  ./install.sh login on     start MetaService when you log in, and again if it stops"
-  echo "  ./install.sh login off    do not start it at login any more"
   echo "  ./install.sh uninstall    remove the builds, packages and data (it asks first; --yes, --keep-data and --env change that)"
   echo "  ./install.sh --check      only the two checks; nothing is built or started"
   echo "  ./install.sh install --skip-container   install without Apple's container tool (no VMs on this Mac)"
@@ -81,14 +78,10 @@ install_now() {
   echo "      You can close this terminal. Stop it with ./install.sh stop"
 }
 
-toggle_login() {
-  if [ "$(sh "$service" login state)" = on ]; then sh "$service" login off; else sh "$service" login on; fi
-}
-
 choose() {
   while true; do
     menu
-    printf "Choose 1 to 9: "
+    printf "Choose 1 to 8: "
     read -r answer || { echo; exit 0; }
     echo
     case "$answer" in
@@ -98,10 +91,9 @@ choose() {
       4|status) sh "$service" status ;;
       5|logs) sh "$service" logs ;;
       6|stop) sh "$service" stop ;;
-      7|login) toggle_login ;;
-      8|uninstall) sh scripts/uninstall.sh ;;
-      9|quit|q) echo "Bye."; exit 0 ;;
-      *) echo "Please type a number from 1 to 9." ;;
+      7|uninstall) sh scripts/uninstall.sh ;;
+      8|quit|q) echo "Bye."; exit 0 ;;
+      *) echo "Please type a number from 1 to 8." ;;
     esac
     echo
   done
@@ -114,7 +106,6 @@ case "$1" in
   install) shift; install_now "$@"; exit $? ;;
   status|logs|stop) sh "$service" "$1" ;;
   uninstall) shift; sh scripts/uninstall.sh "$@"; exit $? ;;
-  login) sh "$service" login "$2"; exit $? ;;
   run) shift; run_checks || exit 1; exec scripts/start-parent.sh "$@" ;;
   --*) install_now "$@"; exit $? ;;
   "")

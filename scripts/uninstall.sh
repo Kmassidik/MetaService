@@ -1,5 +1,5 @@
 #!/bin/sh
-# Removes what MetaService made on this computer: the running parent, the login item, the builds, the packages and (unless told otherwise) the data.
+# Removes what MetaService made on this computer: the running parent, the builds, the packages and (unless told otherwise) the data.
 # It never removes the source code, git, Apple's container tool or anything outside this folder. It asks first.
 # Usage: uninstall.sh [--yes] [--keep-data] [--env]    --yes: do not ask    --keep-data: keep control-plane/arm64/state    --env: also remove the .env settings file
 # Without --yes it needs a keyboard to answer on. METASERVICE_ROOT points it at another folder (the tests use that).
@@ -45,7 +45,7 @@ echo "This removes what MetaService made on this computer:"
 [ -n "$found_data" ] && row "your data" "$found_data (the machines, the admin login and the keys)" "$found_data"
 [ -n "$caches" ] && row "Python caches" "" "$caches"
 [ "$keep_data" = yes ] && echo "  (your data stays: --keep-data)"
-echo "It also stops MetaService and turns off its login item."
+echo "It also stops MetaService."
 echo "It keeps: the source code and git, Apple's container tool, and $([ "$remove_env" = yes ] && echo "nothing else of yours" || echo "your .env settings")."
 echo
 
@@ -62,7 +62,6 @@ if [ "$yes" = no ]; then
 fi
 
 echo "Stopping MetaService..."
-sh "$service" login off >/dev/null
 sh "$service" stop >/dev/null
 for path in $remove_list; do rm -rf "${root:?}/$path"; done
 [ "$remove_env" = yes ] && rm -f "$root/control-plane/arm64/.env"

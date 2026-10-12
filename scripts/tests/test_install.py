@@ -9,9 +9,8 @@ INSTALL = os.path.join(ROOT, "install.sh")
 
 
 def isolated(folder, env_path):
-    """The settings every run here gets, so no test reads or changes the real parent or the real login items. METASERVICE_ROOT points the uninstaller at an empty folder, which it refuses."""
-    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_LAUNCH_DIR": os.path.join(folder, "LaunchAgents"),
-            "METASERVICE_ROOT": folder, "METASERVICE_NO_LAUNCHCTL": "1", "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder)}
+    """The settings every run here gets, so no test reads or changes the real parent or the real parent's files. METASERVICE_ROOT points the uninstaller at an empty folder, which it refuses."""
+    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder)}
 
 
 def with_env_file(env_text, mode=0o600):
@@ -48,10 +47,10 @@ class WelcomeTest(unittest.TestCase):
         self.assertIn("[1/4] Checking the settings", done.stdout)
         self.assertIn("[2/4] Checking this computer", done.stdout)
 
-    def test_the_menu_has_nine_choices_and_does_nothing_without_a_keyboard(self):
+    def test_the_menu_has_eight_choices_and_does_nothing_without_a_keyboard(self):
         done = install("", )
         self.assertEqual(done.returncode, 0)
-        for line in ("1  Help", "2  README", "3  Install", "4  Status", "5  Logs", "6  Stop", "7  Start at login", "8  Uninstall", "9  Quit"):
+        for line in ("1  Help", "2  README", "3  Install", "4  Status", "5  Logs", "6  Stop", "7  Uninstall", "8  Quit"):
             self.assertIn(line, done.stdout)
         self.assertNotIn("[1/4]", done.stdout)
 
@@ -73,42 +72,35 @@ class MenuTest(unittest.TestCase):
         self.assertIn("./install.sh --check", out)
         self.assertIn("ROOT_SETUP_TOKEN", out)
         self.assertNotIn("What works today", out)
-        self.assertEqual(out.count("9  Quit"), 3, "the menu should show again after each answer and once at the start")
+        self.assertEqual(out.count("8  Quit"), 3, "the menu should show again after each answer and once at the start")
 
     def test_quit_ends_it_and_so_does_the_end_of_the_input(self):
-        code, out, _ = at_the_keyboard("9\n")
+        code, out, _ = at_the_keyboard("8\n")
         self.assertEqual((code, "Bye." in out), (0, True))
         code, out, _ = at_the_keyboard("")
         self.assertEqual((code, "Bye." in out), (0, False), "ending the input is not the same as choosing Quit, but it must leave quietly")
 
     def test_a_wrong_choice_asks_again(self):
-        code, out, _ = at_the_keyboard("0\nhello\n9\n")
+        code, out, _ = at_the_keyboard("0\nhello\n8\n")
         self.assertEqual(code, 0)
-        self.assertEqual(out.count("Please type a number from 1 to 9."), 2)
+        self.assertEqual(out.count("Please type a number from 1 to 8."), 2)
 
     def test_status_logs_and_stop_work_from_the_menu_when_nothing_runs(self):
-        code, out, _ = at_the_keyboard("4\n5\n6\n9\n")
+        code, out, _ = at_the_keyboard("4\n5\n6\n8\n")
         self.assertEqual(code, 0)
         self.assertEqual(out.count("MetaService is not running."), 2)
         self.assertIn("No log yet", out)
 
     def test_choosing_3_checks_first_and_returns_to_the_menu_when_the_settings_are_wrong(self):
-        code, out, err = at_the_keyboard("3\n9\n", env_text="ROOT_SETUP_TOKEN=tiny\n")
+        code, out, err = at_the_keyboard("3\n8\n", env_text="ROOT_SETUP_TOKEN=tiny\n")
         self.assertEqual(code, 0)
         self.assertIn("[1/4] Checking the settings", out)
         self.assertIn("ROOT_SETUP_TOKEN", err)
         self.assertNotIn("[2/4]", out)
         self.assertIn("Bye.", out)
 
-    def test_choosing_7_turns_the_login_item_on_and_choosing_it_again_turns_it_off(self):
-        code, out, _ = at_the_keyboard("7\n7\n9\n")
-        self.assertEqual(code, 0)
-        self.assertIn("currently off", out)
-        self.assertIn("currently on", out)
-
-
-    def test_choosing_8_refuses_a_folder_that_is_not_metaservice_and_returns_to_the_menu(self):
-        code, out, _ = at_the_keyboard("8\n9\n")
+    def test_choosing_7_refuses_a_folder_that_is_not_metaservice_and_returns_to_the_menu(self):
+        code, out, _ = at_the_keyboard("7\n8\n")
         self.assertEqual(code, 0)
         self.assertIn("is not a MetaService folder. Nothing was removed.", out)
         self.assertIn("Bye.", out)

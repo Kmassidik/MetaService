@@ -1,5 +1,4 @@
 import os
-import plistlib
 import signal
 import socket
 import subprocess
@@ -19,7 +18,7 @@ def free_port():
 
 
 class ServiceCase(unittest.TestCase):
-    """A fake parent (a tiny web server) in a throw-away folder. The real login settings and the real parent are never touched."""
+    """A fake parent (a tiny web server) in a throw-away folder. The real parent is never touched."""
 
     def setUp(self):
         self.folder = tempfile.mkdtemp(prefix="ms-service-")
@@ -31,7 +30,7 @@ class ServiceCase(unittest.TestCase):
         self.write_program(f'#!/bin/sh\necho "fake parent says hello"\nexec {sys.executable} -m http.server {self.port} --bind 127.0.0.1 --directory {self.served}\n')
         self.env = {**os.environ, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"), "METASERVICE_PARENT_COMMAND": self.program, "METASERVICE_SKIP_BUILD": "1",
                     "METASERVICE_PANEL_URL": f"http://127.0.0.1:{self.port}", "METASERVICE_PROCESS_PATTERN": self.token, "METASERVICE_WAIT_SECONDS": "20",
-                    "METASERVICE_LAUNCH_DIR": os.path.join(self.folder, "LaunchAgents"), "METASERVICE_NO_LAUNCHCTL": "1"}
+                    }
         self.addCleanup(self.cleanup)
 
     def write_program(self, text):
@@ -98,7 +97,6 @@ class BackgroundTest(ServiceCase):
         self.service("start")
         running = self.service("status").stdout
         self.assertIn(f"pid {self.pid()}", running)
-        self.assertIn("Starts at login: off", running)
         self.service("stop")
         self.assertIn("not running", self.service("status").stdout)
 
@@ -163,56 +161,6 @@ class BuildOutputTest(ServiceCase):
     def test_the_build_log_is_private(self):
         self.service("start")
         self.assertEqual(os.stat(os.path.join(self.folder, "run", "build.log")).st_mode & 0o077, 0)
-
-
-class LoginItemTest(ServiceCase):
-    def plist(self):
-        with open(os.path.join(self.folder, "LaunchAgents", "com.metaservice.parent.plist"), "rb") as file:
-            return plistlib.load(file)
-
-    def calls(self):
-        with open(os.path.join(self.folder, "run", "launchctl.calls")) as file:
-            return file.read()
-
-    def test_it_is_off_until_chosen_and_turning_it_on_writes_a_valid_login_item(self):
-        self.assertEqual(self.service("login", "state").stdout.strip(), "off")
-        self.assertFalse(os.path.exists(os.path.join(self.folder, "LaunchAgents")))
-        server = subprocess.Popen(["sh", self.program], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # stands in for what the login service would start
-        self.addCleanup(lambda: (server.kill(), server.wait()))
-        for _ in range(50):
-            if self.listening():
-                break
-            time.sleep(0.1)
-        done = self.service("login", "on", METASERVICE_PROCESS_PATTERN="no-such-process-name")
-        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        item = self.plist()
-        self.assertEqual(item["Label"], "com.metaservice.parent")
-        self.assertTrue(item["RunAtLoad"] and item["KeepAlive"])
-        self.assertEqual(item["ProgramArguments"], ["/bin/sh", self.program])
-        self.assertEqual(os.path.realpath(item["WorkingDirectory"]), os.path.realpath(ROOT))
-        self.assertIn("bootstrap", self.calls())
-        self.assertEqual(self.service("login", "state").stdout.strip(), "on")
-        self.assertIn("Starts at login: on", self.service("status").stdout)
-
-    def test_turning_it_off_removes_the_login_item(self):
-        self.service("login", "on", METASERVICE_WAIT_SECONDS="1")
-        off = self.service("login", "off")
-        self.assertIn("no longer starts at login", off.stdout)
-        self.assertFalse(os.path.exists(os.path.join(self.folder, "LaunchAgents", "com.metaservice.parent.plist")))
-        self.assertIn("bootout", self.calls())
-        self.assertEqual(self.service("login", "state").stdout.strip(), "off")
-
-    def test_a_path_with_special_characters_still_gives_a_valid_login_item(self):
-        odd = os.path.join(self.folder, "a&b<c>.sh")
-        os.rename(self.program, odd)
-        self.program = odd
-        self.service("login", "on", METASERVICE_PARENT_COMMAND=odd, METASERVICE_WAIT_SECONDS="1")
-        self.assertEqual(self.plist()["ProgramArguments"][1], odd)
-
-    def test_an_unknown_login_word_is_refused(self):
-        done = self.service("login", "maybe")
-        self.assertEqual(done.returncode, 2)
-        self.assertIn("usage", done.stdout)
 
 
 if __name__ == "__main__":

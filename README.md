@@ -30,11 +30,11 @@ You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) 
    checks that it is the file we expect and that Apple signed it, then installs it. Your Mac asks for your password once, in the terminal. Then it starts Apple's container service.
    To go without VMs, run `./install.sh install --skip-container`.
 
-Stop it from the menu (choice 6) or with `./install.sh stop`. Choice 7 makes it start when you log in.
+Stop it from the menu (choice 6) or with `./install.sh stop`. You sign in to the panel in your browser (the admin login from step 2); there is no sign-in in the terminal.
 
 ## Uninstall
 
-Choose **8 Uninstall** in the menu, or run `./install.sh uninstall`. It stops MetaService, turns off the login item, and shows what it will remove, with sizes: the builds, the packages, the run files and your data (machines, admin login, keys). It asks you to type `yes` first.
+Choose **7 Uninstall** in the menu, or run `./install.sh uninstall`. It stops MetaService and shows what it will remove, with sizes: the builds, the packages, the run files and your data (machines, admin login, keys). It asks you to type `yes` first.
 It keeps the source code, git, Apple's `container` tool and, unless you say so, your `.env`. `./install.sh uninstall --keep-data` keeps your data too, and `--env` also removes `.env`.
 
 ## What works today

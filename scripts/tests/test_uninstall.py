@@ -145,14 +145,6 @@ class StopsFirstTest(UninstallBase):
         self.assertTrue(self.gone(pid), "the parent was still running after the uninstall")
         self.assertFalse(self.listening())
 
-    def test_the_login_item_is_removed_and_turned_off_in_the_login_service(self):
-        self.service("login", "on", METASERVICE_WAIT_SECONDS="1")
-        self.assertEqual(self.service("login", "state").stdout.strip(), "on")
-        self.assertEqual(self.uninstall("--yes").returncode, 0)
-        self.assertEqual(self.service("login", "state").stdout.strip(), "off")
-        with open(os.path.join(self.folder, "run", "launchctl.calls")) as file:
-            self.assertIn("bootout", file.read())
-
 
 if __name__ == "__main__":
     unittest.main()
