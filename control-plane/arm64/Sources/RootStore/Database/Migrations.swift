@@ -82,6 +82,15 @@ public enum Migrations {
             """) }),
         (10, { try $0.exec("CREATE TABLE local_agents (machine TEXT PRIMARY KEY, binary TEXT NOT NULL, arguments_json TEXT NOT NULL, log_path TEXT NOT NULL, port INTEGER NOT NULL);") }),
         (11, { try $0.exec("CREATE TABLE machine_settings (machine TEXT PRIMARY KEY, settings_json TEXT NOT NULL);") }),
+        (12, { try $0.exec("CREATE TABLE remote_keys (name TEXT PRIMARY KEY, public_key TEXT NOT NULL, private_sealed TEXT NOT NULL, created_at INTEGER NOT NULL);") }),
+        (13, { try $0.exec("""
+            CREATE TABLE remote_machines (
+              machine TEXT PRIMARY KEY, host TEXT NOT NULL, ssh_port INTEGER NOT NULL, ssh_user TEXT NOT NULL, fingerprint TEXT NOT NULL,
+              level TEXT NOT NULL, box TEXT NOT NULL, ssh_dir TEXT NOT NULL, agent_port INTEGER NOT NULL, engine TEXT NOT NULL,
+              key_name TEXT, key_file TEXT, key_marker TEXT, key_file_created INTEGER NOT NULL DEFAULT 0, ssh_dir_created INTEGER NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

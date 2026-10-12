@@ -263,3 +263,55 @@ export interface WorkloadForm {
   diskGb: FormNumber
   machine?: string
 }
+
+/** Step one of Connect: the SSH host key a computer shows, to confirm before any login. */
+export interface ProbeResult {
+  host: string
+  address: string
+  key_type: string
+  fingerprint: string
+  trusted: boolean
+}
+
+/** Step two of Connect: what the computer is, and whether MetaService can be installed there. */
+export interface VerifyResult {
+  host: string
+  fingerprint: string
+  facts: { os: string; arch: string; version: string; chip: string; user: string; home: string; cpu_cores: number | null; ram_mb: number | null; disk_free_gb: number | null }
+  requirements: Requirement[]
+  can_add: boolean
+  isolation: string[]
+  system: string
+}
+
+/** The Connect form's fields. */
+export interface ConnectForm {
+  host: string
+  port: string
+  user: string
+  password: string
+  useKey: boolean
+}
+
+/** "What will change": the install plan for another computer, before anything is done. */
+export interface PlanPreview {
+  box: string
+  level: string
+  steps: { id: string; label: string; changes: string[] }[]
+  notes: string[]
+}
+
+/** A machine that was installed over SSH, as the panel lists them. */
+export interface RemoteMachineInfo {
+  machine: string
+  host: string
+  ssh_port: number
+  ssh_user: string
+  level: string
+  box: string
+  agent_port: number
+  engine: string
+  has_key: boolean
+  /** Absent when the machine has no tunnel (it only reports in). */
+  tunnel?: { state: 'connecting' | 'connected' | 'disconnected'; since: string; local_port: number | null; failures: number }
+}

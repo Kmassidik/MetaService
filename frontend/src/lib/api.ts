@@ -1,5 +1,5 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Invite, Machine, RefusalNumbers, Scan, ScanSetup, Session, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Invite, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -126,3 +126,12 @@ export const chatLink = async (machine: string, workload?: string) =>
 
 export const brainStatus = () => call<BrainStatus>('GET', '/api/brain')
 export const testBrain = () => call<unknown>('POST', '/api/brain/test')
+
+export const remoteProbe = (body: { host: string; port?: number }) => call<ProbeResult>('POST', '/api/remote/probe', body)
+export const remoteVerify = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/verify', body)
+export const parentKey = async () => (await call<{ public_key: string }>('GET', '/api/remote/key')).public_key
+export const remotePlan = (body: Record<string, unknown>) => call<PlanPreview>('POST', '/api/remote/plan', body)
+export const remoteInstall = (body: Record<string, unknown>) => call<{ id: string }>('POST', '/api/remote/installs', body)
+export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/api/remote/installs/${encodeURIComponent(id)}`)
+export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
+export const remoteRemove = (machine: string, body: Record<string, unknown>) => call<null>('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)

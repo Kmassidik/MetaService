@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.ts'
+  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, workloadAction } from './lib/api.ts'
   import { machineFromRoute, pageFor } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
@@ -11,11 +11,13 @@
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
   import AddMachine from './components/AddMachine.svelte'
+  import ConnectMachine from './components/ConnectMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
+  import ConfirmRemoveRemote from './components/ConfirmRemoveRemote.svelte'
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import ChatLink from './components/ChatLink.svelte'
-  import type { BrainStatus, BundleOverview, Command, Machine, Workload } from './lib/types.ts'
+  import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
   const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
@@ -33,6 +35,8 @@
   const creatingOn = $derived(machines.find((machine) => machine.id === creatingOnId) ?? null)
   let banner = $state('')
   let adding = $state(false)
+  let connecting = $state(false)
+  let connectHost = $state('')
   let commands = $state<Command[]>([])
   let bundles = $state<BundleOverview | null>(null)
   let brain = $state<BrainStatus | null>(null)
@@ -44,6 +48,8 @@
   let deleteBusy = $state(false)
   let deleteFailure = $state('')
   let removing = $state<Machine | null>(null)
+  let remoteInfos = $state<RemoteMachineInfo[]>([])
+  const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
 
@@ -67,7 +73,7 @@
   async function refresh() {
     if (phase !== 'ready') return
     try {
-      ;[machines, commands, bundles, brain] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus()])
+      ;[machines, commands, bundles, brain, remoteInfos] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus(), remoteMachines()])
       banner = ''
       loaded = true
     } catch (error) {
@@ -82,6 +88,11 @@
   function startCreate(machine?: Machine) {
     creatingOnId = machine?.id ?? null
     creating = true
+  }
+
+  function startConnect(host = '') {
+    connectHost = host
+    connecting = true
   }
 
   async function leave() {
@@ -151,6 +162,21 @@
     }
   }
 
+  async function confirmRemoveRemote(body: Record<string, unknown>) {
+    if (!removing) return
+    removeBusy = true
+    removeFailure = ''
+    try {
+      await remoteRemove(removing.id, body)
+      removing = null
+      await refresh()
+    } catch (error) {
+      removeFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
+    } finally {
+      removeBusy = false
+    }
+  }
+
   async function confirmRemove() {
     if (!removing) return
     removeBusy = true
@@ -201,9 +227,9 @@
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
       {#if page === 'machines' && detailId}
-        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} />
+        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onConnect={startConnect} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}
@@ -216,11 +242,16 @@
       {/if}
     </main>
   </div>
+  <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
   <AddMachine open={adding} onClose={() => (adding = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   <NewWorkload open={creating} {machines} only={creatingOn} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
-  <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />
+  {#if removingRemote}
+    <ConfirmRemoveRemote machine={removing} info={removingRemote} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemoveRemote} />
+  {:else}
+    <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />
+  {/if}
 {/if}
 
 <style>

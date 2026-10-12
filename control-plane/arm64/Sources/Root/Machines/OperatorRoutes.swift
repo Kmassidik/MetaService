@@ -42,6 +42,9 @@ struct OperatorRoutes {
     func removeMachine(_ request: Request, context: RootContext) async throws -> Response {
         let caller = try guards.operatorWrite(request)
         let id = try machineId(context)
+        guard (try services.remoteMachines.get(id)) == nil else {
+            throw ApiFailure(status: .conflict, code: "remote_machine", message: "this machine was installed over SSH: remove it with its login so MetaService is taken off that computer too, or choose to forget it only")
+        }
         do {
             try services.machines.remove(id: id)
         } catch MachineError.notFound {

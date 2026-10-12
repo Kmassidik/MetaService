@@ -17,6 +17,7 @@ do {
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
     services.localAgents.resume()
+    services.tunnels.resume()
     services.workloads.resume()
     services.bundleService.start()
     let operatorApp = buildOperatorApplication(services: services)
@@ -29,6 +30,8 @@ do {
         try await group.next()
     }
     services.localAgents.stopAll()
+    services.tunnels.stopAll()
+    services.remoteSsh.stop()
 } catch {
     FileHandle.standardError.write(Data("metaservice-root: \(error)\n".utf8))
     exit(1)

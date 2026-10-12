@@ -5,12 +5,14 @@
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
-  import type { Command, Machine, Workload } from '../lib/types.ts'
+  import { connectionText } from '../lib/remote.ts'
+  import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
 
   type Tab = 'overview' | 'deployments' | 'activity'
 
   interface Props {
     machine: Machine | undefined
+    remote: RemoteMachineInfo | null
     commands: Command[]
     now: number
     pinned: string | null | undefined
@@ -22,7 +24,7 @@
     onInstall: (machine: Machine, workload: Workload | null) => void
   }
 
-  let { machine, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
+  let { machine, remote, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
   const TABS: [Tab, string][] = [['overview', 'Overview'], ['deployments', 'Deployments'], ['activity', 'Activity']]
   let tab: Tab = $state('overview')
   const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
@@ -37,6 +39,7 @@
     ['System', `${osName(machine.os)} · ${machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch)}`],
     ['CPU', `${machine.cpu_cores ?? '–'} cores`], ['Memory', `${formatMb(machine.free_ram_mb)} free of ${formatMb(machine.ram_total_mb)}`], ['Disk', `${formatGb(machine.free_disk_gb)} free of ${formatGb(machine.disk_total_gb)}`],
     ['Ruvio', flag.text.replace(/^no chat$/, 'not installed')],
+    ...(remote ? [['Connection', connectionText(remote, now)], ['Installed on', `${remote.ssh_user}@${remote.host}:${remote.box}`]] : []),
   ] : [])
 </script>
 

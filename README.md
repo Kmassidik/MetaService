@@ -41,7 +41,9 @@ It keeps the source code, git, Apple's `container` tool and, unless you say so, 
 
 - The parent with its panel: Overview, Machines, per-machine Deployments, Token ledger, Health and Settings.
 - The macOS and Linux Agents, and the Ruvio chat on a machine or VM.
-- Not yet: adding another computer over SSH, and the chat's files, connected apps and routines.
+- Adding another computer on the same network from the panel: Connect over SSH (password once, or the parent's key), read-only Verify, "What will change", then Install into an isolated folder (`~/metaservice-box`). The parent keeps an SSH tunnel to it, shows connected or offline, and removal puts the computer back exactly as it was. Tested on this laptop only.
+- Built but not switched on: the own-user install on Linux (needs sudo) and the WireGuard transport. Both are unit-tested and unverified on real hardware.
+- Not yet: the chat's files, connected apps and routines.
 
 ## Test
 

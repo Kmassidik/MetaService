@@ -8,6 +8,7 @@
 
   const POLL_MS = 1500
 
+  let { onConnect }: { onConnect: (host?: string) => void } = $props()
   let setup = $state<ScanSetup | null>(null)
   let scan = $state<Scan | null>(null)
   let failure = $state('')
@@ -131,7 +132,7 @@
           <span data-label="Status">
             {#if row.machine}Enrolled as <strong>{row.machine}</strong>
             {:else if row.agent_port_open}<span class="ok">Agent answering</span>
-            {:else}<span class="muted">Unknown device</span>{/if}
+            {:else}<span class="muted">Unknown device</span> <button class="btn line sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Connect {row.ip}">Connect</button>{/if}
           </span>
           {#if picked[row.id]}
             <label class="name">Machine name

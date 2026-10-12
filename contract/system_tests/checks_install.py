@@ -79,7 +79,7 @@ def check_an_install_without_the_chat_starts_the_agent_and_the_machine_reports_i
         machines = operator.request("GET", "/api/machines").body["machines"]
         expect([m["name"] for m in machines] == ["this-mac"] and machines[0]["state"] != "offline", f"machines: {machines}")
         expect(machines[0]["bundle_version"] is None, "the chat was installed although it was not asked for")
-        expect(bool(job["warning"]) == bool(machines[0]["problems"]), f"the job should warn exactly when the machine reports a problem: {job.get('warning')} / {machines[0]['problems']}")
+        expect(bool(job.get("warning")) == bool(machines[0]["problems"]), f"the job should warn exactly when the machine reports a problem: {job.get('warning')} / {machines[0]['problems']}")
         folder = os.path.join(root.dir, "agents", "this-mac")
         expect(not os.path.exists(os.path.join(folder, "enroll.token")), "the one-time invite file was left behind")
         expect(stat.S_IMODE(os.stat(os.path.join(folder, "agent.token")).st_mode) == 0o600, "the Agent's token file is not private")

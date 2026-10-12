@@ -31,6 +31,13 @@ struct RootConfig {
     var agentBinary = "../../agent/macos/.build/debug/metaservice-agent"
     var localAgentPort = 9101
     var localChatPort = 9200
+    /// Connecting to other computers: loopback is a legal target only when this is on (tests and demos), and the Agent builds for other systems may sit in one folder.
+    var remoteAllowLoopback = false
+    var agentBuildsDirectory: String?
+    /// Which engine an Agent installed on another computer is started with. Empty means the right one for its system (apple on a Mac, incus on Linux); tests and demos use "simulated".
+    var remoteEngine: String?
+    /// Logins the parent allows itself on one other computer in a minute. A flood of logins looks like an attack to the network, so the default is small.
+    var remoteTriesPerMinute = 4
     var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
@@ -72,7 +79,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--local-agent-port", "--local-chat-port", "--public-url", "--ui-dir", "--bundle-dir"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--local-agent-port", "--local-chat-port", "--public-url", "--ui-dir", "--bundle-dir", "--remote-allow-loopback", "--agent-builds-dir", "--remote-engine", "--remote-tries"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -101,6 +108,10 @@ enum ConfigLoader {
         config.publicBaseURL = options["--public-url"] ?? config.publicBaseURL
         config.uiDirectory = options["--ui-dir"] ?? config.uiDirectory
         config.bundleDirectory = options["--bundle-dir"] ?? config.bundleDirectory
+        config.remoteAllowLoopback = options["--remote-allow-loopback"].map { ["yes", "true", "1"].contains($0.lowercased()) } ?? config.remoteAllowLoopback
+        config.agentBuildsDirectory = options["--agent-builds-dir"] ?? config.agentBuildsDirectory
+        config.remoteEngine = options["--remote-engine"] ?? config.remoteEngine
+        config.remoteTriesPerMinute = try number(options["--remote-tries"], named: "--remote-tries", in: 1...60, default: config.remoteTriesPerMinute)
     }
 
     private static func port(_ text: String?, default fallback: Int) throws -> Int {
@@ -134,6 +145,8 @@ enum ConfigLoader {
         config.bind = env["ROOT_BIND"] ?? config.bind
         config.agentListenBind = env["ROOT_AGENT_BIND"] ?? config.agentListenBind
         config.agentBinary = env["AGENT_BINARY"] ?? config.agentBinary
+        config.agentBuildsDirectory = env["AGENT_BUILDS_DIR"] ?? config.agentBuildsDirectory
+        config.remoteAllowLoopback = env["ROOT_REMOTE_ALLOW_LOOPBACK"].map { ["yes", "true", "1"].contains($0.lowercased()) } ?? config.remoteAllowLoopback
         if let text = env["ROOT_AGENT_PORT"] {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_AGENT_PORT") }
             config.agentListenPort = port

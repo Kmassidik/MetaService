@@ -15,6 +15,8 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     BundleRoutes(services: services, guards: guards).registerOperator(on: router.group())
     BrainRoutes(services: services, guards: guards).registerOperator(on: router.group())
     ScanRoutes(services: services, guards: guards).register(on: router.group())
+    RemoteRoutes(services: services, guards: guards).register(on: router.group())
+    RemoteInstallRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
     return Application(router: router, configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
 }

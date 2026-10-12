@@ -1,9 +1,11 @@
 <script lang="ts">
   // Add machine: install MetaService on a computer so it can create VMs. Today that is this computer; another computer by IP comes next.
   import Dialog from './Dialog.svelte'
+  import InstallSteps from './InstallSteps.svelte'
+  import Requirements from './Requirements.svelte'
   import { ApiError, installDefaults, installProgress, latestScan, startInstall } from '../lib/api.ts'
   import { PROFILES, formatGb, formatMb, installBody, installPreview, nameProblem, profileLabel } from '../lib/format.ts'
-  import type { Device, InstallDefaults, InstallForm, InstallJob, StepState } from '../lib/types.ts'
+  import type { Device, InstallDefaults, InstallForm, InstallJob } from '../lib/types.ts'
 
   let { open, onClose, onInstalled }: { open: boolean; onClose: () => void; onInstalled: () => void } = $props()
   let defaults = $state<InstallDefaults | null>(null)
@@ -17,7 +19,6 @@
   const problem = $derived(form.name ? nameProblem(form.name) : null)
   const canInstall = $derived(defaults?.agent_ready === true && !problem && Boolean(form.name) && !busy)
   const preview = $derived(installPreview(form))
-  const STATE_MARK: Record<StepState, string> = { pending: '·', running: '…', done: '✓', failed: '✗' }
 
   function emptyForm(): InstallForm {
     return { name: '', profile: 'custom', labels: '', notes: '', chat: false, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', allowGpu: true,
@@ -83,15 +84,7 @@
 
 <Dialog {open} title="Add a machine" {onClose} wide>
   {#if job}
-    <p>Installing <strong>{job.name}</strong>…</p>
-    <ol class="steps" aria-label="Install steps">
-      {#each job.steps as step (step.id)}
-        <li class={step.state}><span class="mark" aria-hidden="true">{STATE_MARK[step.state]}</span><span>{step.label}{#if step.detail}<small>{step.detail}</small>{/if}</span></li>
-      {/each}
-    </ol>
-    {#if job.state === 'failed'}<p class="bad" role="alert">{job.error}</p>{/if}
-    {#if job.state === 'done' && !job.warning}<p class="good" role="status">Done. {job.name} is ready: you can create VMs on it.</p>{/if}
-    {#if job.state === 'done' && job.warning}<p class="warn" role="status">Installed, but you can't create VMs on {job.name} yet. {job.warning}</p>{/if}
+    <InstallSteps {job} doneText="Done. {job.name} is ready: you can create VMs on it." />
     <div class="row">
       <button class="btn green" type="button" disabled={job.state === 'running'} onclick={onClose}>{job.state === 'failed' ? 'Close' : 'Done'}</button>
     </div>
@@ -108,16 +101,7 @@
       </select>
       <p class="hint muted">Other computers on your network show here after you run "Find machines".</p>
 
-      {#if defaults?.requirements}
-        <ul class="checks" aria-label="What this computer has">
-          {#each defaults.requirements as item (item.id)}
-            <li class={item.ok ? 'pass' : item.optional ? 'miss' : 'block'}>
-              <span class="mark" aria-hidden="true">{item.ok ? '✓' : item.optional ? '!' : '✗'}</span>
-              <span>{item.label}<small>{item.detail}</small></span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+      {#if defaults?.requirements}<Requirements items={defaults.requirements} />{/if}
 
       <div class="two">
         <div class="left">
@@ -208,23 +192,8 @@
   .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 14px; color: var(--black); margin-top: 12px; }
   .check input { width: auto; margin: 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-  .checks { list-style: none; margin: 14px 0 0; padding: 10px 12px; display: grid; gap: 8px; background: var(--gray2); border: 1px solid var(--gray); font-size: 13px; }
-  .checks li { display: flex; gap: 10px; align-items: baseline; }
-  .checks li.pass .mark { color: var(--run); font-weight: 700; }
-  .checks li.miss .mark { color: var(--warn); font-weight: 700; }
-  .checks li.block .mark { color: #c0392b; font-weight: 700; }
-  .checks small { display: block; font-family: var(--mono); font-size: 11px; color: var(--m50); }
   .review { margin-top: 18px; padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 13px; }
   .review ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
-  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .steps li { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
-  .steps li.pending { color: var(--m40); }
-  .steps li.failed { color: #c0392b; }
-  .steps li.done .mark { color: var(--run); font-weight: 700; }
-  .steps small { display: block; font-family: var(--mono); font-size: 11px; color: var(--m50); }
-  .mark { width: 14px; font-family: var(--mono); }
-  .good { color: var(--run); }
-  .warn { padding: 10px 12px; background: var(--warnbg); color: var(--warn); border: 1px solid var(--warn); font-size: 13px; }
   .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
   .bad { color: #d92d20; }
   .hint { font-size: 12px; margin-top: 4px; }
