@@ -1,7 +1,8 @@
-<script>
+<script lang="ts">
   import Dialog from './Dialog.svelte'
+  import type { Machine } from '../lib/types.ts'
 
-  let { machine, busy, failure, onCancel, onConfirm } = $props()
+  let { machine, busy, failure, onCancel, onConfirm }: { machine: Machine | null; busy: boolean; failure: string; onCancel: () => void; onConfirm: () => void } = $props()
 </script>
 
 <Dialog open={machine !== null} title="Remove this machine?" onClose={onCancel}>

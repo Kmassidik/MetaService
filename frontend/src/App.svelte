@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.js'
-  import { machineFromRoute, pageFor } from './lib/routes.js'
+  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, signOut, testBrain, workloadAction } from './lib/api.ts'
+  import { machineFromRoute, pageFor } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
@@ -15,34 +15,35 @@
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import ChatLink from './components/ChatLink.svelte'
+  import type { BrainStatus, BundleOverview, Command, Machine, Workload } from './lib/types.ts'
 
   const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
 
-  let phase = $state('loading')
+  let phase = $state<'loading' | 'signedOut' | 'ready' | 'error'>('loading')
   let username = $state('')
   let configured = $state(true)
-  let machines = $state([])
+  let machines = $state<Machine[]>([])
   let now = $state(Date.now())
   let route = $state(location.hash.replace(/^#/, '') || '/')
   const page = $derived(pageFor(route))
   const detailId = $derived(machineFromRoute(route))
   /** The machine a new VM is being created on, when the dialog was opened from that machine's own page. */
-  let creatingOnId = $state(null)
+  let creatingOnId = $state<string | null>(null)
   const creatingOn = $derived(machines.find((machine) => machine.id === creatingOnId) ?? null)
   let banner = $state('')
   let adding = $state(false)
-  let commands = $state([])
-  let bundles = $state(null)
-  let brain = $state(null)
+  let commands = $state<Command[]>([])
+  let bundles = $state<BundleOverview | null>(null)
+  let brain = $state<BrainStatus | null>(null)
   /** False until the first answer from the Root, so an empty list is never shown while the data is still on its way. */
   let loaded = $state(false)
-  let openLink = $state(null)
+  let openLink = $state<string | null>(null)
   let creating = $state(false)
-  let deleting = $state(null)
+  let deleting = $state<{ machine: Machine; workload: Workload } | null>(null)
   let deleteBusy = $state(false)
   let deleteFailure = $state('')
-  let removing = $state(null)
+  let removing = $state<Machine | null>(null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
 
@@ -78,7 +79,7 @@
     }
   }
 
-  function startCreate(machine) {
+  function startCreate(machine?: Machine) {
     creatingOnId = machine?.id ?? null
     creating = true
   }
@@ -105,7 +106,7 @@
   }
 
   /** Start or stop a workload; the result shows up in the activity list. */
-  async function act(machine, workload, action) {
+  async function act(machine: Machine, workload: Workload, action: 'start' | 'stop') {
     try {
       await workloadAction(machine.id, workload.id, action)
       await refresh()
@@ -114,7 +115,7 @@
     }
   }
 
-  async function tryAction(work) {
+  async function tryAction(work: () => Promise<unknown>) {
     try {
       await work()
       await refresh()
@@ -123,11 +124,11 @@
     }
   }
 
-  const pin = (version) => tryAction(() => pinBundle(version))
+  const pin = (version: string) => tryAction(() => pinBundle(version))
   const rollback = () => tryAction(() => rollbackBundle())
-  const install = (machine, workload) => tryAction(() => installBundle(machine.id, workload?.id))
+  const install = (machine: Machine, workload: Workload | null) => tryAction(() => installBundle(machine.id, workload?.id))
 
-  async function openChat(machine, workload) {
+  async function openChat(machine: Machine, workload: Workload | null) {
     try {
       openLink = await chatLink(machine.id, workload?.id)
     } catch (error) {
@@ -136,6 +137,7 @@
   }
 
   async function confirmDelete() {
+    if (!deleting) return
     deleteBusy = true
     deleteFailure = ''
     try {
@@ -150,6 +152,7 @@
   }
 
   async function confirmRemove() {
+    if (!removing) return
     removeBusy = true
     removeFailure = ''
     try {

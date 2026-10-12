@@ -1,7 +1,7 @@
-<script>
-  import { usedPercent } from '../lib/format.js'
+<script lang="ts">
+  import { usedPercent } from '../lib/format.ts'
 
-  let { label, free, total, format } = $props()
+  let { label, free, total, format }: { label: string; free: number | null | undefined; total: number | null | undefined; format: (value: number | null | undefined) => string } = $props()
   const percent = $derived(usedPercent(free, total))
 </script>
 

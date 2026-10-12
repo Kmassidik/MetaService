@@ -1,9 +1,9 @@
-<script>
+<script lang="ts">
   // Sign in and first run on one two-column page: the pitch on the left, the form on the right.
-  import { ApiError, login, setupAdmin } from '../lib/api.js'
+  import { ApiError, login, setupAdmin } from '../lib/api.ts'
   import SecretField from './SecretField.svelte'
 
-  let { configured, onDone } = $props()
+  let { configured, onDone }: { configured: boolean; onDone: () => void | Promise<void> } = $props()
   let username = $state('')
   let password = $state('')
   let confirm = $state('')
@@ -22,7 +22,7 @@
   })
   const ready = $derived(configured ? Boolean(username && password) : Boolean(username && setupToken && password.length >= MIN_LENGTH && password === confirm))
 
-  async function submit(event) {
+  async function submit(event: SubmitEvent) {
     event.preventDefault()
     busy = true
     failure = ''

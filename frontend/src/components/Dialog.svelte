@@ -1,10 +1,14 @@
-<script>
-  let { open, title, onClose, children, wide = false } = $props()
-  let element
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+
+  let { open, title, onClose, children, wide = false }: { open: boolean; title: string; onClose: () => void; children: Snippet; wide?: boolean } = $props()
+  let element: HTMLDialogElement | undefined
 
   $effect(() => {
-    if (open && !element.open) element.showModal()
-    if (!open && element.open) element.close()
+    const dialog = element
+    if (!dialog) return
+    if (open && !dialog.open) dialog.showModal()
+    if (!open && dialog.open) dialog.close()
   })
 </script>
 

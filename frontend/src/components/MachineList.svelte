@@ -1,7 +1,8 @@
-<script>
+<script lang="ts">
   import MachineRow from './MachineRow.svelte'
+  import type { Machine } from '../lib/types.ts'
 
-  let { machines, now, pinned, onRemove, onAdd } = $props()
+  let { machines, now, pinned, onRemove, onAdd }: { machines: Machine[]; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onAdd: () => void } = $props()
 </script>
 
 {#if machines.length === 0}

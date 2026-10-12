@@ -1,11 +1,20 @@
 // What the Overview, Deployments, Token ledger and Health pages show, worked out from the machines and the AI usage the Root reports.
+import type { Machine, UsageRow, Workload } from './types.ts'
+
+/** One thing that needs the operator, with the way to fix it. */
+export interface AttentionItem {
+  machine: string
+  kind: 'offline' | 'problem'
+  message: string
+  fix: string
+}
 
 /** Every VM on every machine, with the machine it lives on. */
-export function allVms(machines) {
+export function allVms(machines: Machine[]): { machine: Machine; workload: Workload }[] {
   return machines.flatMap((machine) => machine.workloads.map((workload) => ({ machine, workload })))
 }
 
-export function overviewCounts(machines) {
+export function overviewCounts(machines: Machine[]) {
   const vms = allVms(machines)
   return {
     machines: machines.length,
@@ -17,14 +26,14 @@ export function overviewCounts(machines) {
 }
 
 /** One line per thing that needs the operator: an offline machine or a machine with a problem, in plain words. */
-export function attentionItems(machines) {
-  return machines.flatMap((machine) => {
-    if (machine.state === 'offline') return [{ machine: machine.name, kind: 'offline', message: 'This machine is offline.', fix: 'Check that the computer is on and MetaService is running.' }]
-    return (machine.problems ?? []).map((problem) => ({ machine: machine.name, kind: 'problem', message: problem.message, fix: problem.fix }))
+export function attentionItems(machines: Machine[]): AttentionItem[] {
+  return machines.flatMap((machine): AttentionItem[] => {
+    if (machine.state === 'offline') return [{ machine: machine.name, kind: 'offline' as const, message: 'This machine is offline.', fix: 'Check that the computer is on and MetaService is running.' }]
+    return (machine.problems ?? []).map((problem) => ({ machine: machine.name, kind: 'problem' as const, message: problem.message, fix: problem.fix }))
   })
 }
 
-export function usageTotals(rows) {
+export function usageTotals(rows: UsageRow[]) {
   return rows.reduce((sum, row) => ({
     requests: sum.requests + row.requests,
     promptTokens: sum.promptTokens + row.prompt_tokens,
@@ -32,4 +41,4 @@ export function usageTotals(rows) {
   }), { requests: 0, promptTokens: 0, completionTokens: 0 })
 }
 
-export const usageName = (row) => (row.workload ? `${row.machine} / ${row.workload}` : row.machine)
+export const usageName = (row: UsageRow) => (row.workload ? `${row.machine} / ${row.workload}` : row.machine)

@@ -1,8 +1,8 @@
-<script>
-  import { buildingModel, formatPct, splitPercents } from '../lib/building.js';
+<script lang="ts">
+  import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. */
-  let { servers = [], host = null } = $props();
+  let { servers = [], host = null }: { servers?: BuildingServer[]; host?: BuildingHost | null } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -10,18 +10,25 @@
   const split = $derived(splitPercents([totals.rentedMiB, totals.reserveMiB, totals.vacantMiB]));
   const residents = $derived([...model.tenants].sort((a, b) =>
     Number(b.home) - Number(a.home) || (a.apt || '').localeCompare(b.apt || '', undefined, { numeric: true }) || a.name.localeCompare(b.name)));
-  const cores = $derived(totals.cpuTotal ? Array.from({ length: Math.max(totals.cpuTotal, totals.cpuPromised) }, (_, i) => i) : []);
+  const cpuTotal = $derived(totals.cpuTotal ?? 0);
+  const cores = $derived(cpuTotal ? Array.from({ length: Math.max(cpuTotal, totals.cpuPromised) }, (_, i) => i) : []);
 
-  const gb = (mib) => (mib % 1024 ? (mib / 1024).toFixed(1) : String(mib / 1024)) + ' GB';
+  const gb = (mib: number) => (mib % 1024 ? (mib / 1024).toFixed(1) : String(mib / 1024)) + ' GB';
   // Shares of this machine's memory. Normally they add up to exactly 100; when overbooked they
   // are shown against the real total so the excess is visible (and matches Occupancy).
-  const share = (mib, index) => totals.overMiB ? formatPct(model.totalMiB ? mib / model.totalMiB : 0) : split[index] + '%';
-  const letter = (column) => String.fromCharCode(65 + column);
-  const range = (count) => Array.from({ length: count }, (_, i) => i);
-  const tenantOf = (segment) => model.tenants[segment.tenant];
-  const firstOf = (segment, number) => tenantOf(segment).apt === number + letter(segment.column);
-  const statusText = (tenant) => ({ run: 'running', prog: 'starting', warn: 'needs attention' })[tenant.cls] || tenant.status;
-  const describe = (tenant) => `Apartment ${tenant.apt}: ${tenant.name} — ${gb(tenant.memMiB)} memory (${formatPct(tenant.share)} of this machine), ${tenant.cpu} vCPU, ${tenant.status}`
+  const share = (mib: number, index: number) => totals.overMiB ? formatPct(model.totalMiB ? mib / model.totalMiB : 0) : split[index] + '%';
+  const letter = (column: number) => String.fromCharCode(65 + column);
+  const range = (count: number) => Array.from({ length: count }, (_, i) => i);
+  /** Only tenant segments are asked for their tenant, so this always finds it. */
+  function tenantOf(segment: Segment): Tenant {
+    const tenant = segment.tenant === undefined ? undefined : model.tenants[segment.tenant];
+    if (!tenant) throw new Error('this segment has no tenant');
+    return tenant;
+  }
+  const firstOf = (segment: Segment, number: number) => tenantOf(segment).apt === number + letter(segment.column);
+  const STATUS_TEXT: Record<string, string> = { run: 'running', prog: 'starting', warn: 'needs attention' };
+  const statusText = (tenant: Tenant) => STATUS_TEXT[tenant.cls] || tenant.status;
+  const describe = (tenant: Tenant) => `Apartment ${tenant.apt}: ${tenant.name} — ${gb(tenant.memMiB)} memory (${formatPct(tenant.share)} of this machine), ${tenant.cpu} vCPU, ${tenant.status}`
    ;
   const idle = 'VMs on this machine cannot use this part yet. Nothing in the platform runs here.';
 </script>
@@ -50,8 +57,8 @@
         <span class="bv-fl">CPU</span>
         <div class="bv-corebody">
           {#if cores.length}
-            <span class="bv-coregrid" aria-hidden="true">{#each cores as i}<i class:on={i < totals.cpuPromised && i < totals.cpuTotal} class:over={i >= totals.cpuTotal}></i>{/each}</span>
-            <em>{totals.cpuPromised} / {totals.cpuTotal} cores promised · {formatPct(totals.cpuPromised / totals.cpuTotal)}</em>
+            <span class="bv-coregrid" aria-hidden="true">{#each cores as i}<i class:on={i < totals.cpuPromised && i < cpuTotal} class:over={i >= cpuTotal}></i>{/each}</span>
+            <em>{totals.cpuPromised} / {totals.cpuTotal} cores promised · {formatPct(totals.cpuPromised / cpuTotal)}</em>
           {:else}
             <em>{totals.cpuPromised} vCPU promised to running VMs</em>
           {/if}

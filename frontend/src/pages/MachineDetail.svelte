@@ -1,19 +1,37 @@
-<script>
+<script lang="ts">
   // One machine, as the MAAS detail page is for one server: who it is, its deployments (the VMs on it) and what has happened on it.
   import StatePill from '../components/StatePill.svelte'
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
-  import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.js'
+  import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
-  let { machine, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall } = $props()
-  const TABS = [['overview', 'Overview'], ['deployments', 'Deployments'], ['activity', 'Activity']]
-  let tab = $state('overview')
-  const activity = $derived(commands.filter((command) => command.machine === machine?.id))
+  import type { Command, Machine, Workload } from '../lib/types.ts'
+
+  type Tab = 'overview' | 'deployments' | 'activity'
+
+  interface Props {
+    machine: Machine | undefined
+    commands: Command[]
+    now: number
+    pinned: string | null | undefined
+    onCreate: (machine: Machine) => void
+    onRemove: (machine: Machine) => void
+    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
+    onDelete: (machine: Machine, workload: Workload) => void
+    onOpenChat: (machine: Machine, workload: Workload | null) => void
+    onInstall: (machine: Machine, workload: Workload | null) => void
+  }
+
+  let { machine, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
+  const TABS: [Tab, string][] = [['overview', 'Overview'], ['deployments', 'Deployments'], ['activity', 'Activity']]
+  let tab: Tab = $state('overview')
+  const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
   const flag = $derived(bundleFlag(machine?.bundle_version, pinned))
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
   const settings = $derived(machine?.settings)
   const reserved = $derived(settings && (settings.ram_reserve_mb != null || settings.disk_reserve_gb != null))
-  const gpuLabel = (mode) => ({ none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' })[mode] ?? mode
+  const GPU_LABELS: Record<string, string> = { none: 'no GPU', container: 'GPU in container', passthrough: 'GPU passthrough' }
+  const gpuLabel = (mode: string) => GPU_LABELS[mode] ?? mode
   const facts = $derived(machine ? [
     ['ID', machine.id], ['Status', null], ['Address', machine.ip ?? 'unknown'], ['Profile', machine.settings ? profileLabel(machine.settings.profile) : 'unknown'],
     ['System', `${osName(machine.os)} · ${machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch)}`],

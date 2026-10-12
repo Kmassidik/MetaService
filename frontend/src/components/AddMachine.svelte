@@ -1,24 +1,25 @@
-<script>
+<script lang="ts">
   // Add machine: install MetaService on a computer so it can create VMs. Today that is this computer; another computer by IP comes next.
   import Dialog from './Dialog.svelte'
-  import { ApiError, installDefaults, installProgress, latestScan, startInstall } from '../lib/api.js'
-  import { PROFILES, formatGb, formatMb, installBody, installPreview, nameProblem, profileLabel } from '../lib/format.js'
+  import { ApiError, installDefaults, installProgress, latestScan, startInstall } from '../lib/api.ts'
+  import { PROFILES, formatGb, formatMb, installBody, installPreview, nameProblem, profileLabel } from '../lib/format.ts'
+  import type { Device, InstallDefaults, InstallForm, InstallJob, StepState } from '../lib/types.ts'
 
-  let { open, onClose, onInstalled } = $props()
-  let defaults = $state(null)
-  let form = $state(emptyForm())
+  let { open, onClose, onInstalled }: { open: boolean; onClose: () => void; onInstalled: () => void } = $props()
+  let defaults = $state<InstallDefaults | null>(null)
+  let form = $state<InstallForm>(emptyForm())
   let busy = $state(false)
   let failure = $state('')
-  let job = $state(null)
-  let found = $state([])
+  let job = $state<InstallJob | null>(null)
+  let found = $state<Device[]>([])
   let chosen = $state('this')
-  let timer = null
+  let timer: ReturnType<typeof setInterval> | null = null
   const problem = $derived(form.name ? nameProblem(form.name) : null)
   const canInstall = $derived(defaults?.agent_ready === true && !problem && Boolean(form.name) && !busy)
   const preview = $derived(installPreview(form))
-  const STATE_MARK = { pending: '·', running: '…', done: '✓', failed: '✗' }
+  const STATE_MARK: Record<StepState, string> = { pending: '·', running: '…', done: '✓', failed: '✗' }
 
-  function emptyForm() {
+  function emptyForm(): InstallForm {
     return { name: '', profile: 'custom', labels: '', notes: '', chat: false, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', allowGpu: true,
       vmCpu: '', vmRamMb: '', vmDiskGb: '', vmImage: '', vmMaxRunning: '', subdomain: '', publicChat: false, aiModel: '' }
   }
@@ -42,7 +43,7 @@
     }
   }
 
-  async function submit(event) {
+  async function submit(event: SubmitEvent) {
     event.preventDefault()
     if (!canInstall) return
     busy = true
@@ -57,7 +58,7 @@
     }
   }
 
-  function poll(id) {
+  function poll(id: string) {
     stopPolling()
     timer = setInterval(async () => {
       try {

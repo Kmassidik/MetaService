@@ -1,15 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { allVms, attentionItems, overviewCounts, usageName, usageTotals } from './overview.js'
+import { allVms, attentionItems, overviewCounts, usageName, usageTotals } from './overview.ts'
+import { machine, workload } from './testing.ts'
 
 const machines = [
-  { id: 'a', name: 'a', state: 'online', problems: [], workloads: [{ id: 'w1', state: 'running' }, { id: 'w2', state: 'stopped' }] },
-  { id: 'b', name: 'b', state: 'offline', problems: [], workloads: [] },
-  { id: 'c', name: 'c', state: 'online', problems: [{ code: 'container_tool_missing', message: 'No tool.', fix: 'Install it.' }], workloads: [{ id: 'w3', state: 'running' }] },
+  machine({ name: 'a', workloads: [workload({ id: 'w1', state: 'running' }), workload({ id: 'w2', state: 'stopped' })] }),
+  machine({ name: 'b', state: 'offline' }),
+  machine({ name: 'c', problems: [{ code: 'container_tool_missing', message: 'No tool.', fix: 'Install it.' }], workloads: [workload({ id: 'w3', state: 'running' })] }),
 ]
 
 test('every VM comes with its machine', () => {
-  assert.deepEqual(allVms(machines).map(({ machine, workload }) => `${machine.id}/${workload.id}`), ['a/w1', 'a/w2', 'c/w3'])
+  assert.deepEqual(allVms(machines).map(({ machine, workload }) => `${machine.name}/${workload.id}`), ['a/w1', 'a/w2', 'c/w3'])
   assert.deepEqual(allVms([]), [])
 })
 

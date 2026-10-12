@@ -1,13 +1,13 @@
 // Run with `npm test` (node:test, no dependencies).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { windowSizeMiB, hostMemoryMiB, buildingModel, formatPct, splitPercents } from './building.js';
+import { windowSizeMiB, hostMemoryMiB, buildingModel, formatPct, splitPercents, type BuildingServer } from './building.ts';
 
 const GIB = 1024;
 const host64 = { ram_total_mb: 64 * GIB, ram_reserve_mb: 8 * GIB, cpu_total: 24,
   disk_total_gb: 1000, disk_alloc_gb: 120, disk_free_gb: 700 };
-const server = (id, status, memGiB, extra = {}) => ({ id, display: id, status, cls: status === 'running' ? 'run' : '',
-  bundle: 'openclaw', cpu: 2, mem_gb: memGiB, mem_mb: memGiB * GIB, disk_gb: 40, worker: false, user_environment: false, ...extra });
+const server = (id: string, status: string, memGiB: number, extra: Partial<BuildingServer> = {}): BuildingServer => ({ id, display: id, status, cls: status === 'running' ? 'run' : '',
+  cpu: 2, mem_gb: memGiB, mem_mb: memGiB * GIB, disk_gb: 40, ...extra });
 
 test('window size keeps the building at 64 windows or fewer', () => {
   assert.equal(windowSizeMiB(64 * GIB), 1024);
@@ -24,9 +24,9 @@ test('host memory prefers exact MiB and falls back to the decimal GB field', () 
 
 test('reserve fills the lobby, tenants at home rent the next windows, the rest is for rent', () => {
   const model = buildingModel([
-    server('budi', 'running', 2, { user_environment: true }),
+    server('budi', 'running', 2),
     server('vps-1', 'running', 8, { cpu: 4 }),
-    server('sari', 'stopped', 2, { user_environment: true }),
+    server('sari', 'stopped', 2),
   ], host64);
   assert.equal(model.windowMiB, 1024);
   assert.equal(model.capacity, 64);

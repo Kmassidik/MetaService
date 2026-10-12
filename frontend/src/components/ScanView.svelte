@@ -1,20 +1,21 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, addFromScan, latestScan, scanSetup, startScan } from '../lib/api.js'
-  import { sourceName, sourceProblem, suggestName, nameProblem } from '../lib/format.js'
+  import { ApiError, addFromScan, latestScan, scanSetup, startScan } from '../lib/api.ts'
+  import { sourceName, sourceProblem, suggestName, nameProblem } from '../lib/format.ts'
   import Dialog from './Dialog.svelte'
   import TokenList from './TokenList.svelte'
+  import type { Device, Invite, Scan, ScanSetup } from '../lib/types.ts'
 
   const POLL_MS = 1500
 
-  let setup = $state(null)
-  let scan = $state(null)
+  let setup = $state<ScanSetup | null>(null)
+  let scan = $state<Scan | null>(null)
   let failure = $state('')
-  let picked = $state({})
-  let names = $state({})
+  let picked = $state<Record<string, boolean>>({})
+  let names = $state<Record<string, string>>({})
   let adding = $state(false)
-  let invites = $state(null)
-  let timer = null
+  let invites = $state<Invite[] | null>(null)
+  let timer: ReturnType<typeof setTimeout> | undefined
   const running = $derived(scan?.state === 'running')
   const chosen = $derived((scan?.results ?? []).filter((row) => picked[row.id]))
   const problems = $derived(chosen.map((row) => nameProblem(names[row.id] ?? '')).filter(Boolean))
@@ -54,19 +55,20 @@
     picked = {}
     try {
       await startScan()
-      scan = { ...(scan ?? {}), state: 'running', results: [], sources: {} }
+      scan = { id: scan?.id ?? '', state: 'running', results: [], sources: {} }
       poll()
     } catch (error) {
       failure = error instanceof ApiError ? error.message : 'Something went wrong.'
     }
   }
 
-  function toggle(row) {
+  function toggle(row: Device) {
     picked[row.id] = !picked[row.id]
     if (picked[row.id] && !names[row.id]) names[row.id] = suggestName(row.hostname, row.ip)
   }
 
   async function addChosen() {
+    if (!scan) return
     adding = true
     failure = ''
     try {

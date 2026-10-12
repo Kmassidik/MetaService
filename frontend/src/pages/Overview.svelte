@@ -1,8 +1,10 @@
-<script>
+<script lang="ts">
   // Overview, as in the MAAS panel: the summary cards, the services behind the panel, and what needs the operator.
-  import { attentionItems, overviewCounts } from '../lib/overview.js'
+  import { attentionItems, overviewCounts } from '../lib/overview.ts'
 
-  let { machines, brain, bundles } = $props()
+  import type { BrainStatus, BundleOverview, Machine } from '../lib/types.ts'
+
+  let { machines, brain, bundles }: { machines: Machine[]; brain: BrainStatus | null; bundles: BundleOverview | null } = $props()
   const counts = $derived(overviewCounts(machines))
   const items = $derived(attentionItems(machines))
   const cards = $derived([['Machines', counts.machines], ['Online', counts.online], ['VMs', counts.vms], ['Running', counts.running], ['Need attention', counts.needAttention]])

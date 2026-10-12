@@ -3,6 +3,57 @@
 // and whatever is left is for rent. Suspended VMs are away: they keep their disk in the
 // basement but hold no memory. Pure functions only, so `npm test` covers the layout.
 export const WINDOWS_PER_FLOOR = 8;
+
+/** A VM as the building sees it. */
+export interface BuildingServer {
+  id: string
+  display?: string
+  status: string
+  cls?: string
+  mem_mb?: number
+  mem_gb?: number
+  cpu?: number
+  disk_gb?: number
+}
+
+/** The machine as the host of its VMs. */
+export interface BuildingHost {
+  chip?: string
+  apple?: boolean
+  ram_total_mb?: number
+  ram_total_gb?: number
+  ram_reserve_mb?: number
+  cpu_total?: number
+  disk_total_gb?: number
+  disk_free_gb?: number | null
+  disk_alloc_gb?: number
+}
+
+export interface Tenant {
+  id: string
+  name: string
+  status: string
+  cls: string
+  home: boolean
+  memMiB: number
+  cpu: number
+  diskGB: number
+  share: number
+  apt: string | null
+  windows: number
+  over: boolean
+}
+
+type Cell = { kind: 'reserve' | 'vacant' } | { kind: 'tenant'; tenant: number }
+
+/** A run of adjacent windows of one apartment on one floor. */
+export interface Segment {
+  kind: Cell['kind']
+  tenant?: number
+  over: boolean
+  span: number
+  column: number
+}
 // Preferred floor widths, tried in order: the first that divides the windows evenly wins,
 // so a 36 GB Mac (36 windows) gets six complete floors of 6 instead of a half-built top.
 const FLOOR_WIDTHS = [WINDOWS_PER_FLOOR, 6, 9, 10, 7, 12, 5, 4];
@@ -11,31 +62,31 @@ const HOME = new Set(['running', 'unhealthy', 'flapping', 'provisioning', 'start
 const DEFAULT_RESERVE_MIB = 8192; // what MetaService keeps for the system when nothing else is set
 
 /** MiB drawn by one window: the smallest size that keeps the building at ≤ maxWindows. */
-export function windowSizeMiB(totalMiB, maxWindows = 64) {
-  return WINDOW_SIZES_MIB.find(size => Math.floor(totalMiB / size) <= maxWindows) ?? WINDOW_SIZES_MIB.at(-1);
+export function windowSizeMiB(totalMiB: number, maxWindows = 64): number {
+  return WINDOW_SIZES_MIB.find(size => Math.floor(totalMiB / size) <= maxWindows) ?? WINDOW_SIZES_MIB[WINDOW_SIZES_MIB.length - 1];
 }
 
 /** Host memory in MiB; a decimal GB figure is accepted too. */
-export function hostMemoryMiB(host) {
-  if (host?.ram_total_mb > 0) return host.ram_total_mb;
-  if (host?.ram_total_gb > 0) return Math.floor(host.ram_total_gb * 1e9 / 1048576);
+export function hostMemoryMiB(host: BuildingHost | null | undefined): number {
+  if (host?.ram_total_mb && host.ram_total_mb > 0) return host.ram_total_mb;
+  if (host?.ram_total_gb && host.ram_total_gb > 0) return Math.floor(host.ram_total_gb * 1e9 / 1048576);
   return 0;
 }
 
-export function formatPct(fraction) {
+export function formatPct(fraction: number): string {
   if (!(fraction > 0)) return '0%';
   const value = Math.round(fraction * 100);
   return value < 1 ? '<1%' : value + '%';
 }
 
 /** Whole percentages of one total that always add up to 100 (largest remainder). */
-export function splitPercents(parts) {
+export function splitPercents(parts: number[]): number[] {
   const total = parts.reduce((sum, part) => sum + part, 0);
   if (!(total > 0)) return parts.map(() => 0);
   const exact = parts.map(part => part / total * 100);
   const result = exact.map(value => Math.floor(value));
   let missing = 100 - result.reduce((sum, value) => sum + value, 0);
-  const order = exact.map((value, index) => [value - Math.floor(value), index])
+  const order = exact.map((value, index): [number, number] => [value - Math.floor(value), index])
     .sort((a, b) => b[0] - a[0] || a[1] - b[1]);
   for (const [, index] of order) {
     if (missing <= 0) break;
@@ -45,13 +96,13 @@ export function splitPercents(parts) {
   return result;
 }
 
-export function buildingModel(servers = [], host = null) {
+export function buildingModel(servers: BuildingServer[] | null = [], host: BuildingHost | null = null) {
   const totalMiB = hostMemoryMiB(host);
   const windowMiB = windowSizeMiB(totalMiB);
   const capacity = Math.floor(totalMiB / windowMiB);
   const perFloor = FLOOR_WIDTHS.find(width => capacity % width === 0) ?? WINDOWS_PER_FLOOR;
   const reserveMiB = Math.min(host?.ram_reserve_mb ?? DEFAULT_RESERVE_MIB, totalMiB);
-  const tenants = (servers || []).map(server => {
+  const tenants: Tenant[] = (servers || []).map(server => {
     const memMiB = server.mem_mb ?? (server.mem_gb || 0) * 1024;
     return {
       id: server.id, name: server.display || server.id, status: server.status, cls: server.cls || '',
@@ -60,7 +111,7 @@ export function buildingModel(servers = [], host = null) {
     };
   });
 
-  const cells = [];
+  const cells: Cell[] = [];
   if (capacity > 0) {
     for (let i = 0; i < Math.ceil(reserveMiB / windowMiB); i++) cells.push({ kind: 'reserve' });
     tenants.forEach((tenant, index) => {
@@ -72,7 +123,7 @@ export function buildingModel(servers = [], host = null) {
   }
 
   // Floors run bottom-up; each floor merges adjacent windows of one apartment into a segment.
-  const floors = [];
+  const floors: Segment[][] = [];
   cells.forEach((cell, position) => {
     const floor = Math.floor(position / perFloor);
     const column = position % perFloor;
@@ -83,9 +134,10 @@ export function buildingModel(servers = [], host = null) {
       tenant.over ||= over;
     }
     const segments = floors[floor] ??= [];
+    const owner = cell.kind === 'tenant' ? cell.tenant : undefined;
     const last = segments.at(-1);
-    if (last && last.kind === cell.kind && last.tenant === cell.tenant && last.over === over) last.span++;
-    else segments.push({ kind: cell.kind, tenant: cell.tenant, over, span: 1, column });
+    if (last && last.kind === cell.kind && last.tenant === owner && last.over === over) last.span++;
+    else segments.push({ kind: cell.kind, tenant: owner, over, span: 1, column });
   });
 
   const home = tenants.filter(tenant => tenant.home);
@@ -95,7 +147,7 @@ export function buildingModel(servers = [], host = null) {
     vacantMiB: Math.max(0, totalMiB - reserveMiB - rentedMiB),
     overMiB: Math.max(0, reserveMiB + rentedMiB - totalMiB),
     cpuPromised: home.reduce((sum, tenant) => sum + tenant.cpu, 0),
-    cpuTotal: host?.cpu_total > 0 ? host.cpu_total : null,
+    cpuTotal: host?.cpu_total && host.cpu_total > 0 ? host.cpu_total : null,
     home: home.length, away: tenants.length - home.length,
     diskAllocGB: host?.disk_alloc_gb ?? tenants.reduce((sum, tenant) => sum + tenant.diskGB, 0),
     diskTotalGB: host?.disk_total_gb ?? 0,

@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
   // Settings, as in the MAAS panel: the AI provider and the Ruvio chat bundle, one page.
   import Brain from '../components/Brain.svelte'
   import Bundles from '../components/Bundles.svelte'
+  import type { BrainStatus, BundleOverview } from '../lib/types.ts'
 
-  let { brain, bundles, onTest, onPin, onRollback } = $props()
+  let { brain, bundles, onTest, onPin, onRollback }: { brain: BrainStatus | null; bundles: BundleOverview | null; onTest: () => Promise<unknown>; onPin: (version: string) => void; onRollback: () => void } = $props()
 </script>
 
 <div class="phead"><h1>Settings</h1><span class="crumb">Operator › Settings</span></div>

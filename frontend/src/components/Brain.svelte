@@ -1,9 +1,10 @@
-<script>
-  import { ApiError } from '../lib/api.js'
+<script lang="ts">
+  import { ApiError } from '../lib/api.ts'
+  import type { BrainStatus, UsageRow } from '../lib/types.ts'
 
-  let { status, onTest } = $props()
+  let { status, onTest }: { status: BrainStatus | null | undefined; onTest: () => Promise<unknown> } = $props()
   let busy = $state(false)
-  let result = $state(null)
+  let result: { ok: boolean; text: string } | null = $state(null)
 
   async function test() {
     busy = true
@@ -18,9 +19,9 @@
     }
   }
 
-  const sentence = (text) => text.charAt(0).toUpperCase() + text.slice(1) + (text.endsWith('.') ? '' : '.')
-  const who = (row) => (row.workload ? `${row.machine} / ${row.workload}` : row.machine)
-  const number = (value) => value.toLocaleString('en')
+  const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1) + (text.endsWith('.') ? '' : '.')
+  const who = (row: UsageRow) => (row.workload ? `${row.machine} / ${row.workload}` : row.machine)
+  const number = (value: number) => value.toLocaleString('en')
 </script>
 
 <section class="brain" aria-label="AI provider">
@@ -33,7 +34,7 @@
   {:else if !status.configured}
     <p class="muted">Not set up. The chat answers with a plain message until the Root machine's protected env file holds <span class="mono">AI_BASE_URL</span>, <span class="mono">AI_API_KEY</span> and <span class="mono">AI_DEFAULT_MODEL</span>, and the Root is restarted.</p>
   {:else}
-    <p class="line"><span class="ready">Configured</span> <span class="mono">{status.model}</span> <span class="muted">at {status.host} · up to {number(status.max_tokens)} tokens per reply</span></p>
+    <p class="line"><span class="ready">Configured</span> <span class="mono">{status.model}</span> <span class="muted">at {status.host} · up to {number(status.max_tokens ?? 0)} tokens per reply</span></p>
     {#if result}<p class:good={result.ok} class:bad={!result.ok} role="status">{result.text}</p>{/if}
     {#if status.usage.length > 0}
       <ul>

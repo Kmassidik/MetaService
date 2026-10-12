@@ -1,25 +1,44 @@
-<script module>
+<script module lang="ts">
+  type ViewId = 'building' | 'table' | 'cards'
+
   /** The view picked last stays picked while the panel is open (kept in memory: the panel stores nothing in the browser). */
-  let lastView = 'building'
+  let lastView: ViewId = 'building'
 </script>
 
-<script>
+<script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
-  import { bundleFlag, formatGb, formatMb } from '../../lib/format.js'
-  import { hostFor, vmServers } from '../../lib/deployments.js'
+  import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
+  import { hostFor, vmServers } from '../../lib/deployments.ts'
+  import type { BuildingServer } from '../../lib/building.ts'
+  import type { Machine, Workload } from '../../lib/types.ts'
 
-  let { machine, pinned, onCreate, onAct, onDelete, onInstall, onOpenChat } = $props()
-  const VIEWS = [['building', 'Building'], ['table', 'Table'], ['cards', 'Cards']]
+  interface Props {
+    machine: Machine
+    pinned: string | null | undefined
+    onCreate: () => void
+    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
+    onDelete: (machine: Machine, workload: Workload) => void
+    onInstall: (machine: Machine, workload: Workload | null) => void
+    onOpenChat: (machine: Machine, workload: Workload | null) => void
+  }
+
+  let { machine, pinned, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
+  const VIEWS: [ViewId, string][] = [['building', 'Building'], ['table', 'Table'], ['cards', 'Cards']]
   let view = $state(lastView)
   const servers = $derived(vmServers(machine))
   const host = $derived(hostFor(machine))
   const running = $derived(servers.filter((server) => server.status === 'running').length)
-  const diskPct = $derived(host.disk_total_gb ? Math.min(100, Math.round((host.disk_alloc_gb / host.disk_total_gb) * 100)) : 0)
-  const ramAllocMb = $derived(servers.filter((server) => server.status === 'running').reduce((sum, server) => sum + server.mem_mb, 0))
-  const workloadOf = (server) => machine.workloads.find((workload) => workload.id === server.id)
+  const diskPct = $derived(host.disk_total_gb ? Math.min(100, Math.round(((host.disk_alloc_gb ?? 0) / host.disk_total_gb) * 100)) : 0)
+  const ramAllocMb = $derived(servers.filter((server) => server.status === 'running').reduce((sum, server) => sum + (server.mem_mb ?? 0), 0))
+  /** Every server was made from one of the machine's workloads, so this always finds it. */
+  function workloadOf(server: BuildingServer): Workload {
+    const found = machine.workloads.find((workload) => workload.id === server.id)
+    if (!found) throw new Error(`no workload for server ${server.id}`)
+    return found
+  }
 
-  function setView(next) {
+  function setView(next: ViewId) {
     view = next
     lastView = next
   }

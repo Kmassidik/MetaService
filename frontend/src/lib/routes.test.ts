@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { machineFromRoute, machineHref, pageFor } from './routes.js'
+import { machineFromRoute, machineHref, pageFor } from './routes.ts'
 
 test('each address leads to its page', () => {
   assert.deepEqual(['/', '/machines', '/machines/find', '/usage', '/health', '/settings'].map(pageFor), ['overview', 'machines', 'machines', 'usage', 'health', 'settings'])

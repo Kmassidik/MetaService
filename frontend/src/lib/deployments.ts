@@ -1,9 +1,12 @@
 // What a machine's Deployments tab needs, worked out from the machine the Root reports: its VMs as "servers" and the machine as the "host" of the building view.
 
+import type { BuildingHost, BuildingServer } from './building.ts'
+import type { Machine } from './types.ts'
+
 const PROGRESS = new Set(['creating', 'starting', 'provisioning'])
 
 /** The VMs on one machine in the shape the building, cards and table all use. */
-export function vmServers(machine) {
+export function vmServers(machine: Machine): BuildingServer[] {
   return machine.workloads.map((workload) => ({
     id: workload.id,
     display: workload.name,
@@ -16,7 +19,7 @@ export function vmServers(machine) {
 }
 
 /** The machine as the host of its VMs: how much memory, cores and disk it has and how much of the disk its VMs take. */
-export function hostFor(machine) {
+export function hostFor(machine: Machine): BuildingHost {
   return {
     chip: machine.name,
     apple: machine.os === 'macos' && machine.arch === 'arm64',

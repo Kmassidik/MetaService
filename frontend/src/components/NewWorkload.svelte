@@ -1,12 +1,13 @@
-<script>
+<script lang="ts">
   import { untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
-  import { ApiError, createWorkload, refusalText } from '../lib/api.js'
-  import { workloadBody, workloadProblem } from '../lib/format.js'
+  import { ApiError, createWorkload, refusalText } from '../lib/api.ts'
+  import { workloadBody, workloadProblem } from '../lib/format.ts'
+  import type { Machine, WorkloadForm } from '../lib/types.ts'
 
   /** `only` is set when the dialog was opened from one machine's own page: the VM goes there and nowhere else. */
-  let { open, machines, only = null, onClose, onCreated } = $props()
-  let form = $state({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' })
+  let { open, machines, only = null, onClose, onCreated }: { open: boolean; machines: Machine[]; only?: Machine | null; onClose: () => void; onCreated: () => void } = $props()
+  let form: WorkloadForm & { machine: string } = $state({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' })
   let busy = $state(false)
   let failure = $state('')
   const problem = $derived(form.name ? workloadProblem(form) : null)
@@ -25,14 +26,14 @@
 
   /** Picking a machine fills in what a new VM gets on it, if that machine was set up with such sizes. */
   function useMachineDefaults() {
-    const settings = machines.find((machine) => machine.id === form.machine)?.settings
+    const settings = machines.find((machine: Machine) => machine.id === form.machine)?.settings
     if (!settings) return
     if (settings.vm_cpu) form.cpu = settings.vm_cpu
     if (settings.vm_ram_mb) form.ramGb = settings.vm_ram_mb / 1024
     if (settings.vm_disk_gb) form.diskGb = settings.vm_disk_gb
   }
 
-  async function submit(event) {
+  async function submit(event: SubmitEvent) {
     event.preventDefault()
     if (!ready) return
     busy = true

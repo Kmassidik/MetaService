@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
   import Dialog from './Dialog.svelte'
 
-  let { link, onClose } = $props()
+  let { link, onClose }: { link: string | null; onClose: () => void } = $props()
 </script>
 
 <Dialog open={link !== null} title="Open chat" {onClose}>

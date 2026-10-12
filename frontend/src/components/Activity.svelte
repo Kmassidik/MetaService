@@ -1,7 +1,8 @@
-<script>
-  import { relativeTime, commandName, commandOutcome } from '../lib/format.js'
+<script lang="ts">
+  import { relativeTime, commandName, commandOutcome } from '../lib/format.ts'
+  import type { Command } from '../lib/types.ts'
 
-  let { commands, now } = $props()
+  let { commands, now }: { commands: Command[]; now: number } = $props()
 </script>
 
 <section class="activity" aria-label="Recent activity">

@@ -6,13 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "node scripts/check-safe-markup.mjs",
-    "test": "node --test src/lib/*.test.js"
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "node scripts/check-safe-markup.mjs && npm run typecheck",
+    "test": "node --test src/lib/*.test.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@types/node": "^26.6.5",
     "puppeteer-core": "^25.13.0",
     "svelte": "^5.19.0",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3",
     "vite": "^6.0.7"
   }
 }

@@ -1,10 +1,12 @@
-<script>
+<script lang="ts">
   import StatePill from './StatePill.svelte'
   import Meter from './Meter.svelte'
-  import { machineHref } from '../lib/routes.js'
-  import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.js'
+  import { machineHref } from '../lib/routes.ts'
+  import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
-  let { machine, now, pinned, onRemove } = $props()
+  import type { Machine } from '../lib/types.ts'
+
+  let { machine, now, pinned, onRemove }: { machine: Machine; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void } = $props()
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')

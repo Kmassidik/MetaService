@@ -1,9 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.js'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.ts'
+import { command, installForm, machine, workload } from './testing.ts'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
-const ago = (ms) => new Date(now - ms).toISOString()
+const ago = (ms: number) => new Date(now - ms).toISOString()
 
 test('relativeTime', () => {
   assert.equal(relativeTime(null, now), 'never')
@@ -44,7 +45,7 @@ test('usedPercent', () => {
 })
 
 test('summarize', () => {
-  const machines = [{ state: 'online', workloads: [1, 2] }, { state: 'busy', workloads: [] }, { state: 'offline', workloads: [3] }]
+  const machines = [machine({ state: 'online', workloads: [workload(), workload()] }), machine({ state: 'busy' }), machine({ state: 'offline', workloads: [workload()] })]
   assert.deepEqual(summarize(machines), { machines: 3, online: 2, workloads: 3 })
   assert.deepEqual(summarize([]), { machines: 0, online: 0, workloads: 0 })
 })
@@ -71,7 +72,7 @@ test('suggestName always gives a name the Root accepts', () => {
 
 test('source messages', () => {
   assert.equal(sourceProblem('ok'), null)
-  assert.match(sourceProblem('refused_401'), /login refused/)
+  assert.match(sourceProblem('refused_401') ?? '', /login refused/)
   assert.equal(sourceProblem('refused_500'), 'refused (500)')
   assert.equal(sourceProblem('missing'), 'not installed')
   assert.equal(sourceProblem('something-new'), 'did not run')
@@ -94,11 +95,11 @@ test('workload body is what the Root expects', () => {
 })
 
 test('command outcomes', () => {
-  assert.equal(commandOutcome({ state: 'running' }), 'working…')
-  assert.equal(commandOutcome({ state: 'failed', result: { error: 'no room' } }), 'no room')
-  assert.equal(commandOutcome({ state: 'failed' }), 'failed')
-  assert.equal(commandOutcome({ state: 'succeeded', result: { backup_id: 'w-1.tar' } }), 'backup kept: w-1.tar')
-  assert.equal(commandOutcome({ state: 'succeeded', result: { backup_id: 'none' } }), 'done')
+  assert.equal(commandOutcome(command({ state: 'running' })), 'working…')
+  assert.equal(commandOutcome(command({ state: 'failed', result: { error: 'no room' } })), 'no room')
+  assert.equal(commandOutcome(command({ state: 'failed' })), 'failed')
+  assert.equal(commandOutcome(command({ state: 'succeeded', result: { backup_id: 'w-1.tar' } })), 'backup kept: w-1.tar')
+  assert.equal(commandOutcome(command({ state: 'succeeded', result: { backup_id: 'none' } })), 'done')
   assert.equal(commandName('delete'), 'Delete')
   assert.equal(commandName('odd'), 'odd')
 })
@@ -117,13 +118,12 @@ test('labels are lowercase, trimmed and without repeats', () => {
 })
 
 test('the install request leaves out what was left empty and carries what was filled in', () => {
-  const form = { name: 'mini', chat: false, profile: 'custom', allowGpu: true, publicChat: false, ramReserveMb: 4096, diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: null,
-    vmCpu: 2, vmRamMb: '', vmDiskGb: '', vmMaxRunning: '', notes: '  ', vmImage: '', subdomain: ' mac1 ', aiModel: '', labels: 'Office, desk' }
+  const form = installForm({ name: 'mini', ramReserveMb: 4096, diskAllowanceGb: null, vmCpu: 2, notes: '  ', subdomain: ' mac1 ', labels: 'Office, desk' })
   assert.deepEqual(installBody(form), { target: 'this', name: 'mini', chat: false, profile: 'custom', allow_gpu: true, public_chat: false, ram_reserve_mb: 4096, vm_cpu: 2, subdomain: 'mac1', labels: ['office', 'desk'] })
 })
 
 test('the preview says what will change, and only what applies', () => {
-  const base = { name: 'mini', chat: false, allowGpu: true, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', vmMaxRunning: '', aiModel: '', subdomain: '' }
+  const base = installForm({ name: 'mini' })
   assert.deepEqual(installPreview(base), ['Add "mini" as a machine and start MetaService on this computer. It is kept running and started again after a restart.', 'Do not install Ruvio.'])
   const rich = installPreview({ ...base, chat: true, allowGpu: false, ramReserveMb: 4096, diskReserveGb: 30, vmMaxRunning: 3, aiModel: 'a/b', subdomain: 'mac1' })
   assert.ok(rich.some((line) => line.includes('4096 MB of memory and 30 GB')))

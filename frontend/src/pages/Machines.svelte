@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
   // Machines: the computers MetaService runs on. Open one to see everything about it, its deployments (VMs) and its activity.
   import MachineList from '../components/MachineList.svelte'
   import ScanView from '../components/ScanView.svelte'
+  import type { Machine } from '../lib/types.ts'
 
-  let { machines, now, pinned, banner, onAdd, onRemove, showScan } = $props()
+  let { machines, now, pinned, banner, onAdd, onRemove, showScan }: { machines: Machine[]; now: number; pinned: string | null | undefined; banner: string; onAdd: () => void; onRemove: (machine: Machine) => void; showScan: boolean } = $props()
 </script>
 
 <div class="phead">

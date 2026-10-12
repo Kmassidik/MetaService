@@ -15,7 +15,7 @@ const FORBIDDEN = [
   [/javascript:/i, 'javascript: URL'],
   [/localStorage|sessionStorage/, 'browser storage (the CSRF token lives in memory only)'],
 ]
-const EXTENSIONS = new Set(['.svelte', '.js', '.html'])
+const EXTENSIONS = new Set(['.svelte', '.js', '.ts', '.html'])
 
 function* files(dir) {
   for (const name of readdirSync(dir)) {
@@ -29,7 +29,7 @@ const problems = []
 for (const root of ['src', 'index.html']) {
   const list = statSync(root).isDirectory() ? [...files(root)] : [root]
   for (const path of list) {
-    if (path.endsWith('.test.js')) continue
+    if (/\.test\.[jt]s$/.test(path)) continue
     readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
       for (const [pattern, label] of FORBIDDEN) if (pattern.test(line)) problems.push(`${path}:${index + 1}: ${label}`)
     })

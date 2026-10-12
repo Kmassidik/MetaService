@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
   // Health & alerts, as in the MAAS panel: what is wrong with a machine, then what happened lately.
   import Activity from '../components/Activity.svelte'
-  import { attentionItems } from '../lib/overview.js'
+  import { attentionItems } from '../lib/overview.ts'
+  import type { Command, Machine } from '../lib/types.ts'
 
-  let { machines, commands, now } = $props()
+  let { machines, commands, now }: { machines: Machine[]; commands: Command[]; now: number } = $props()
   const items = $derived(attentionItems(machines))
 </script>
 

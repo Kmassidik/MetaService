@@ -1,6 +1,16 @@
-<script>
+<script lang="ts">
   // A password-style input with an eye on the right to show what was typed.
-  let { label, value = $bindable(''), name, autocomplete = 'off', placeholder = '' } = $props()
+  import type { FullAutoFill } from 'svelte/elements'
+
+  interface Props {
+    label: string
+    value?: string
+    name: string
+    autocomplete?: FullAutoFill
+    placeholder?: string
+  }
+
+  let { label, value = $bindable(''), name, autocomplete = 'off', placeholder = '' }: Props = $props()
   let shown = $state(false)
 </script>
 

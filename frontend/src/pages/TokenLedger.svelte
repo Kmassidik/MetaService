@@ -1,11 +1,13 @@
-<script>
+<script lang="ts">
   // Token ledger, as in the MAAS panel: what each machine and VM has used of the AI, as the Root counted it.
-  import { usageName, usageTotals } from '../lib/overview.js'
+  import { usageName, usageTotals } from '../lib/overview.ts'
 
-  let { brain } = $props()
+  import type { BrainStatus } from '../lib/types.ts'
+
+  let { brain }: { brain: BrainStatus | null | undefined } = $props()
   const rows = $derived(brain?.usage ?? [])
   const totals = $derived(usageTotals(rows))
-  const number = (value) => value.toLocaleString('en')
+  const number = (value: number) => value.toLocaleString('en')
 </script>
 
 <div class="phead"><h1>Token ledger</h1><span class="crumb">Operator › Token ledger</span></div>

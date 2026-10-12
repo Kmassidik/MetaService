@@ -1,7 +1,8 @@
-<script>
+<script lang="ts">
   import Dialog from './Dialog.svelte'
+  import type { Machine, Workload } from '../lib/types.ts'
 
-  let { target, busy, failure, onCancel, onConfirm } = $props()
+  let { target, busy, failure, onCancel, onConfirm }: { target: { machine: Machine; workload: Workload } | null; busy: boolean; failure: string; onCancel: () => void; onConfirm: () => void } = $props()
 </script>
 
 <Dialog open={target !== null} title="Delete this VM?" onClose={onCancel}>

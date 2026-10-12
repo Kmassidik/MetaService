@@ -1,8 +1,10 @@
-<script>
-  let { invites } = $props()
+<script lang="ts">
+  import type { Invite } from '../lib/types.ts'
+
+  let { invites }: { invites: Invite[] } = $props()
   let copied = $state('')
 
-  async function copy(invite) {
+  async function copy(invite: Invite) {
     try {
       await navigator.clipboard.writeText(invite.enrollment_token)
       copied = invite.name

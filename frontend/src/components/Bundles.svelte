@@ -1,5 +1,7 @@
-<script>
-  let { overview, onPin, onRollback } = $props()
+<script lang="ts">
+  import type { BundleOverview } from '../lib/types.ts'
+
+  let { overview, onPin, onRollback }: { overview: BundleOverview | null; onPin: (version: string) => void; onRollback: () => void } = $props()
 </script>
 
 <section class="bundles" aria-label="Chat bundle">

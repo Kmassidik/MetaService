@@ -1,16 +1,23 @@
-<script>
-  let { active = 'overview', username, onSignOut } = $props()
+<script lang="ts">
+  interface NavPage {
+    id: string
+    label: string
+    href: string
+    icon: string
+  }
+
+  let { active = 'overview', username, onSignOut }: { active?: string; username: string; onSignOut: () => void } = $props()
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
-  const operator = [
+  const operator: NavPage[] = [
     { id: 'overview', label: 'Overview', href: '#/', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
     { id: 'usage', label: 'Token ledger', href: '#/usage', icon: 'M5 3h14v18H5z M8 7h8 M8 11h8 M8 15h5' },
     { id: 'settings', label: 'Settings', href: '#/settings', icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M4.9 19.1 7 17 M17 7l2.1-2.1' },
     { id: 'health', label: 'Health & alerts', href: '#/health', icon: 'M2 12h5l3-8 4 16 3-8h5' },
   ]
-  const infrastructure = [
+  const infrastructure: NavPage[] = [
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
   ]
-  const groups = [['Operator', operator], ['Infrastructure', infrastructure]]
+  const groups: [string, NavPage[]][] = [['Operator', operator], ['Infrastructure', infrastructure]]
 </script>
 
 <aside class="side">
