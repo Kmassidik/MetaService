@@ -194,11 +194,20 @@ def check_without_the_container_program_the_agent_runs_and_says_what_is_missing(
         agent.stop()
 
 
+def check_a_stopped_container_service_is_reported_and_the_machine_keeps_answering():
+    with apple_agent(world=FakeContainerWorld(FAKE_CONTAINER_FAIL="list")) as running:
+        status, facts = running.call("GET", "/v1/facts")
+        expect(status == 200, f"facts while the service does not answer: {status} {facts}")
+        expect("container_service_stopped" in [p["code"] for p in facts["problems"]], f"problems: {facts['problems']}")
+        expect("container system start" in facts["problems"][0]["fix"], "the fix says what to run")
+        expect(running.call("GET", "/v1/workloads") == (200, {"workloads": []}), "workloads are empty, not an error")
+
+
 CHECKS = [
     check_create_runs_one_fixed_command_and_remembers_the_workload, check_the_image_is_pulled_once_and_a_bad_pull_fails_cleanly,
     check_a_failed_run_leaves_nothing_and_frees_the_budget, check_the_container_system_is_started_when_it_is_down_and_a_stuck_one_fails_cleanly,
     check_start_and_stop_go_through_the_tool, check_changes_made_outside_the_agent_show_up, check_delete_backs_up_first_and_keeps_the_backup,
     check_a_failed_or_empty_backup_stops_the_delete, check_deleting_something_already_gone_just_clears_the_record,
     check_everything_survives_an_agent_restart, check_a_command_running_when_the_agent_dies_is_reported_failed, check_the_budget_counts_apple_workloads,
-    check_without_the_container_program_the_agent_runs_and_says_what_is_missing,
+    check_without_the_container_program_the_agent_runs_and_says_what_is_missing, check_a_stopped_container_service_is_reported_and_the_machine_keeps_answering,
 ]

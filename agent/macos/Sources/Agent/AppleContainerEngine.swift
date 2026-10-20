@@ -11,6 +11,7 @@ actor AppleContainerEngine: Engine {
     private let backupDirectory: String
     private let defaultImage: String
     private let waitSeconds: Int
+    private nonisolated let service = ServiceFlag()
     private static let quick: TimeInterval = 30
     private static let slow: TimeInterval = 900
 
@@ -24,13 +25,31 @@ actor AppleContainerEngine: Engine {
 
     // MARK: reading
 
+    /// What is wrong with reading right now. A stopped container service must not make the whole machine fall silent: it reports a problem and the machine keeps reporting in.
+    nonisolated var problems: [HostProblem] {
+        service.isDown ? [HostProblem(code: "container_service_stopped", message: "Apple's container service is not running on this Mac, so VMs cannot be listed or created right now.",
+                                      fix: "Run `container system start` in a terminal on this Mac. MetaService starts it by itself the next time a VM is created.")] : []
+    }
+
     func list() async throws -> [Workload] {
-        let found = Dictionary(uniqueKeysWithValues: try await containers().map { ($0.name, $0) })
+        let found = Dictionary(uniqueKeysWithValues: await liveContainers().map { ($0.name, $0) })
         return records.all().map { id, record in
             let live = found[AppleContainer.name(for: id)]
             return Workload(id: id, name: record.name, kind: WorkloadKind(rawValue: record.kind) ?? .vm, state: live.map { ContainerStates.workloadState($0.state) } ?? .failed,
                             cpu: record.cpu, ramMb: record.ramMb, diskGb: record.diskGb, gpuMode: GpuMode(rawValue: record.gpuMode) ?? .none,
                             address: live?.ipv4, bundleVersion: record.bundleVersion)
+        }
+    }
+
+    /// The containers the tool shows, or none when it cannot answer (and the problem is remembered for `problems`).
+    private func liveContainers() async -> [ContainerInfo] {
+        do {
+            let found = try await containers()
+            service.isDown = false
+            return found
+        } catch {
+            service.isDown = true
+            return []
         }
     }
 
@@ -129,5 +148,16 @@ actor AppleContainerEngine: Engine {
             try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         throw EngineError.failed("the machine did not reach \(state) in time")
+    }
+}
+
+/// Whether the container service answered the last time it was asked. Read from outside the actor, so it is guarded by a lock.
+private final class ServiceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var down = false
+
+    var isDown: Bool {
+        get { lock.withLock { down } }
+        set { lock.withLock { down = newValue } }
     }
 }
