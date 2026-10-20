@@ -30,10 +30,16 @@ struct AgentRoutes {
         return try Json.response(EnrollReply(machineToken: machineToken, commandToken: commandToken, heartbeatSeconds: MachineStates.heartbeatSeconds))
     }
 
+    /// A machine that reports through its SSH tunnel arrives from loopback, so its address stays what the install recorded.
+    private func reportedAddress(of machineId: String, _ context: RootContext) -> String? {
+        guard IPv4.isLoopback(context.remoteIP), (try? services.remoteMachines.get(machineId)) != nil else { return context.remoteIP }
+        return nil
+    }
+
     func heartbeat(_ request: Request, context: RootContext) async throws -> Response {
         let machineId = try guards.machine(request, context: context)
         let beat = try HeartbeatRequest(body: try await guards.body(request))
-        try services.machines.recordHeartbeat(machineId: machineId, request: beat, ip: context.remoteIP, now: services.clock.now)
+        try services.machines.recordHeartbeat(machineId: machineId, request: beat, ip: reportedAddress(of: machineId, context), now: services.clock.now)
         return Response(status: .noContent)
     }
 }

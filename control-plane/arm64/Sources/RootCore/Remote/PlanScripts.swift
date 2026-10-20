@@ -97,7 +97,8 @@ public enum PlanScripts {
     public static func keyLine(publicKey: String, options: RemoteInstallOptions) -> String {
         let parts = publicKey.split(separator: " ")
         let key = parts.prefix(2).joined(separator: " ")
-        return "restrict,port-forwarding,permitopen=\"127.0.0.1:\(options.agentPort)\",command=\"exit 1\" \(key) \(keyMarker(options.name))"
+        let listen = options.reversePort.map { ",permitlisten=\"127.0.0.1:\($0)\"" } ?? ""
+        return "restrict,port-forwarding,permitopen=\"127.0.0.1:\(options.agentPort)\"\(listen),command=\"exit 1\" \(key) \(keyMarker(options.name))"
     }
 
     // MARK: operations to script

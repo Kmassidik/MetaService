@@ -37,6 +37,8 @@ final class RemoteInstallService: @unchecked Sendable {
         let fingerprint: String
         let binary: (path: String, size: Int, sha256: String)
         let token: String
+        /// The computer's address, which is what the machine list shows (the Agent itself reports through the tunnel, from loopback).
+        let address: String
     }
 
     let parts: Parts
@@ -59,16 +61,17 @@ final class RemoteInstallService: @unchecked Sendable {
     func plan(_ request: PlanRequest) throws -> PlanPreview {
         let target = try RemoteTarget(host: request.host, user: "probe")
         let address = try parts.ssh.allowedAddress(target)
-        guard let url = parts.ssh.parentURL(for: address) else { throw RemoteFailure.parentUnreachable }
-        let plan = try Self.makePlan(request.choices, home: request.home, isMac: request.isMac, rootURL: url, config: parts.config, binarySize: nil)
+        let plan = try Self.makePlan(request.choices, home: request.home, isMac: request.isMac, rootURL: parts.ssh.parentURL, reversePort: parts.ssh.reversePort(for: address), config: parts.config, binarySize: nil)
         return PlanPreview(box: plan.options.box, level: plan.options.level.rawValue, steps: plan.steps.map { .init(id: $0.id, label: $0.label, changes: $0.changes) },
                            notes: ["Nothing that already exists on that computer is modified or removed.", "If any step fails, everything added so far is taken away again."])
     }
 
-    private static func makePlan(_ choices: InstallChoices, home: String, isMac: Bool, rootURL: String, config: RootConfig, binarySize: Int?) throws -> InstallPlan {
+    private static func makePlan(_ choices: InstallChoices, home: String, isMac: Bool, rootURL: String, reversePort: Int?, config: RootConfig, binarySize: Int?) throws -> InstallPlan {
         do {
             let engine = config.remoteEngine ?? (isMac ? "apple" : "incus")
-            return try InstallPlan.make(try choices.options(home: home, engine: engine, rootURL: rootURL), agentSize: binarySize)
+            var options = try choices.options(home: home, engine: engine, rootURL: rootURL)
+            options.reversePort = reversePort
+            return try InstallPlan.make(options, agentSize: binarySize)
         } catch RemoteInstallError.notAvailable(let why) {
             throw RemoteFailure.badOptions(why)
         } catch {
@@ -132,17 +135,19 @@ final class RemoteInstallService: @unchecked Sendable {
         try parts.ssh.trust(key.line)
         let credentials = try await parts.ssh.credentials(login.login)
         let facts = try await RemoteService.readFacts(parts.ssh, target, credentials)
-        guard let url = parts.ssh.parentURL(for: address) else { throw RemoteFailure.parentUnreachable }
+        let url = parts.ssh.parentURL
+        let reversePort = parts.ssh.reversePort(for: address)
         let builds = AgentBuilds.available(config: parts.config)
         let verification = RemoteService.result(target.host, key.fingerprint, facts, parentURL: url, builds: Set(builds.keys))
         guard verification.canAdd else { throw InstallFailure("the computer no longer passes the check: " + (verification.requirements.first { !$0.optional && !$0.ok }?.detail ?? "see Connect")) }
         guard let path = builds[facts.agentBuild], let content = FileManager.default.contents(atPath: path) else { throw InstallFailure("there is no MetaService program for \(facts.agentBuild)") }
-        let plan = try Self.makePlan(request.choices, home: facts.home, isMac: facts.isMac, rootURL: url, config: parts.config, binarySize: content.count)
+        let plan = try Self.makePlan(request.choices, home: facts.home, isMac: facts.isMac, rootURL: url, reversePort: reversePort, config: parts.config, binarySize: content.count)
         let before = try await preflight(plan.options, target, credentials)
-        let token = try parts.enrollments.create(machineName: plan.options.name, expectedIp: address, now: parts.clock.now).token
+        // Through the return path the Agent arrives from loopback, so the token cannot be pinned to the computer's address; it is still used once, within minutes, over that SSH connection.
+        let token = try parts.enrollments.create(machineName: plan.options.name, expectedIp: reversePort == nil ? address : nil, now: parts.clock.now).token
         let sha = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
         return ("\(verification.system). The box goes to \(plan.options.box).",
-                Context(target: target, credentials: credentials, plan: plan, before: before, fingerprint: key.fingerprint, binary: (path, content.count, sha), token: token))
+                Context(target: target, credentials: credentials, plan: plan, before: before, fingerprint: key.fingerprint, binary: (path, content.count, sha), token: token, address: address))
     }
 
     private func step(_ id: String, _ stepId: String, _ work: () async throws -> (detail: String, context: Context)) async throws -> Context {
@@ -193,7 +198,9 @@ final class RemoteInstallService: @unchecked Sendable {
         let options = context.plan.options
         let manifest = PlanScripts.manifest(options, createdAt: ISO8601DateFormatter().string(from: parts.clock.now), before: context.before)
         let script = try PlanScripts.script(planned.operations, enrollToken: context.token, keyLine: keyLine, manifest: manifest)
-        let result = try await parts.ssh.run(script, on: context.target, with: context.credentials, timeout: Self.stepSeconds)
+        // Only the enrollment needs the way back to the parent; the program reports through the tunnel that the next steps open.
+        let reversePort = planned.id == "enroll" ? options.reversePort : nil
+        let result = try await parts.ssh.run(script, on: context.target, with: context.credentials, timeout: Self.stepSeconds, reversePort: reversePort)
         try Self.require(result, planned.label)
     }
 
@@ -231,6 +238,7 @@ final class RemoteInstallService: @unchecked Sendable {
                                                     level: options.level.rawValue, box: options.box, sshDirectory: options.sshDirectory, agentPort: options.agentPort, engine: options.engine,
                                                     keyName: key?.name, keyFile: file, keyMarker: key == nil ? nil : PlanScripts.keyMarker(options.name),
                                                     keyFileCreated: key != nil && !context.before.keyFileExisted, sshDirCreated: key != nil && !context.before.sshDirExisted), now: parts.clock.now)
+        try parts.machines.setIp(id: options.name, ip: context.address)
     }
 
     private func openTunnel(_ name: String) async throws -> String {

@@ -96,7 +96,8 @@ final class TunnelSupervisor: @unchecked Sendable {
               let credentials = try? await ssh.keyCredentials(key), case .key(let keyPath) = credentials.auth, let local = Self.freePort() else { return false }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = SshArguments.tunnel(target: target, keyPath: keyPath, knownHosts: ssh.pins.path, localPort: local, remotePort: record.agentPort)
+        process.arguments = SshArguments.tunnel(target: target, keyPath: keyPath, knownHosts: ssh.pins.path, localPort: local, remotePort: record.agentPort,
+                                                  reversePort: ParentUrl.reversePort(listenPort: ssh.parts.config.agentListenPort, target: HostResolver.ipv4(record.host) ?? record.host))
         process.environment = SshProcess.baseEnvironment.merging(credentials.environment) { $1 }
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice

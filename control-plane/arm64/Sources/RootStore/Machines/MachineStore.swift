@@ -31,6 +31,11 @@ public struct MachineStore: @unchecked Sendable {
         }
     }
 
+    /// The address the machine list shows, for a machine that reports through a tunnel (the Agent itself only ever arrives from loopback).
+    public func setIp(id: String, ip: String) throws {
+        try database.execute("UPDATE machines SET ip = ? WHERE id = ?", [.text(ip), .text(id)])
+    }
+
     /// The machine id that owns this token hash, or nil.
     public func authenticate(tokenHash: String) throws -> String? {
         try database.query("SELECT id FROM machines WHERE token_hash = ?", [.text(tokenHash)]).first?.string("id")

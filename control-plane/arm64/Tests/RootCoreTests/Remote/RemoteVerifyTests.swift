@@ -44,12 +44,12 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertTrue(unknown.canAdd, "a port that could not be checked does not block")
     }
 
-    func testAParentThatOnlyListensOnItsOwnComputerBlocks() {
-        let result = RemoteVerify.run(facts: facts(mac), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: nil)
-        XCTAssertFalse(result.canAdd)
-        XCTAssertFalse(row(result, "parent").ok)
-        XCTAssertFalse(row(result, "parent").optional)
-        XCTAssertTrue(row(result, "parent").detail.contains("ROOT_AGENT_BIND"))
+    func testTheParentIsReachedThroughTheSshConnectionSoNothingHasToBeSetOnTheParent() {
+        let result = RemoteVerify.run(facts: facts(mac), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://127.0.0.1:9102")
+        XCTAssertTrue(result.canAdd)
+        XCTAssertTrue(row(result, "parent").ok)
+        XCTAssertTrue(row(result, "parent").detail.contains("http://127.0.0.1:9102"))
+        XCTAssertFalse(row(result, "parent").detail.contains("ROOT_AGENT_BIND"))
     }
 
     func testAnUnsupportedSystemBlocks() {

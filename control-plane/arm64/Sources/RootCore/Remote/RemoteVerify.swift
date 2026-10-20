@@ -14,20 +14,16 @@ public enum RemoteVerify {
     public static let minimumRamMb = 4096
     public static let agentPort = 9101
 
-    /// `parentURL` is where that computer can reach the parent (nil when the parent only listens on this computer, so a remote Agent could never report in).
-    public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String?) -> RemoteVerification {
+    /// `parentURL` is where an Agent there will find the parent: its own loopback, through the SSH connection (see ParentUrl).
+    public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String) -> RemoteVerification {
         let rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts), python(facts), admin(facts), port(facts), parent(parentURL)]
         let blocking = rows.filter { !$0.optional }
         return RemoteVerification(requirements: rows, canAdd: blocking.allSatisfy(\.ok), isolation: facts.sudo == .none ? ["folder"] : ["folder", "dedicated_user"],
                                   system: [facts.version, facts.chip, facts.arch].filter { !$0.isEmpty }.joined(separator: " · "))
     }
 
-    static func parent(_ url: String?) -> Requirement {
-        guard let url else {
-            return Requirement(id: "parent", label: "The parent can be reached from there", ok: false, optional: false,
-                               detail: "The parent only listens on this computer. Set ROOT_AGENT_BIND in .env to this computer's address on the network and start it again, so an Agent there can report in.")
-        }
-        return Requirement(id: "parent", label: "The parent can be reached from there", ok: true, optional: false, detail: "The Agent will report to \(url).")
+    static func parent(_ url: String) -> Requirement {
+        Requirement(id: "parent", label: "The parent can be reached from there", ok: true, optional: false, detail: "The Agent will report to \(url) there, which leads back through this SSH connection.")
     }
 
     static func login(_ facts: RemoteFacts, _ fingerprint: String) -> Requirement {

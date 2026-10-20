@@ -173,6 +173,13 @@ final class PlanScriptsTests: XCTestCase {
         XCTAssertFalse(line.contains("comment-to-drop"))
     }
 
+    func testTheKeyLineAlsoAllowsListeningForTheWayBackToTheParentWhenThereIsOne() {
+        var withReturn = options
+        withReturn.reversePort = 9102
+        let line = PlanScripts.keyLine(publicKey: "ssh-ed25519 AAAAKEY", options: withReturn)
+        XCTAssertEqual(line, "restrict,port-forwarding,permitopen=\"127.0.0.1:9333\",permitlisten=\"127.0.0.1:9102\",command=\"exit 1\" ssh-ed25519 AAAAKEY metaservice-office-mini")
+    }
+
     func testTheManifestIsCompactSortedAndHoldsNoSecret() {
         let text = PlanScripts.manifest(options, createdAt: "2026-10-12T00:00:00Z", before: .init(sshDirExisted: true, keyFileExisted: false))
         XCTAssertTrue(text.hasPrefix("{\"agent_port\":9333,\"box\":"))

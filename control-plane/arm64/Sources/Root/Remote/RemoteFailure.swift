@@ -6,7 +6,7 @@ import RootCore
 enum RemoteFailure: Error {
     case notAllowed, unreachable, noHostKey, hostKeyChanged, fingerprintMismatch, loginRefused, passwordNotAccepted, keyNotAccepted, noAnswer, timedOut, noSsh, tooManyTries
     case closed
-    case parentUnreachable, machineExists, installRunning, notRemote, badOptions(String)
+    case machineExists, installRunning, notRemote, badOptions(String)
 
     var api: ApiFailure {
         switch self {
@@ -22,7 +22,6 @@ enum RemoteFailure: Error {
         case .timedOut: return ApiFailure(status: .gatewayTimeout, code: "remote_timeout", message: "the computer did not answer in time")
         case .noSsh: return ApiFailure(status: .internalServerError, code: "remote_no_ssh", message: "the ssh program is missing on the control plane computer")
         case .closed: return ApiFailure(status: .badGateway, code: "remote_closed", message: "that computer closed the connection. It may be blocking repeated login attempts (OpenSSH does that after a failed login): wait a minute and try again")
-        case .parentUnreachable: return ApiFailure(status: .conflict, code: "remote_parent_unreachable", message: "the parent only listens on this computer, so a computer on the network could never report in: set ROOT_AGENT_BIND in .env to this computer's address on the network and start it again")
         case .machineExists: return ApiFailure(status: .conflict, code: "machine_exists", message: "a machine with that name is already added")
         case .installRunning: return ApiFailure(status: .conflict, code: "install_running", message: "another install is still running")
         case .notRemote: return ApiFailure(status: .notFound, code: "not_found", message: "that machine was not installed over SSH")

@@ -76,7 +76,7 @@ public struct InstallPlan: Equatable, Sendable {
     private static func enroll(_ options: RemoteInstallOptions) -> PlannedStep {
         let token = options.box + "/state/enroll.token"
         return PlannedStep(id: "enroll", label: "Enroll it with the parent",
-                           changes: ["Introduce it to the parent at \(options.rootURL) with a one-time token that is used once and then deleted."],
+                           changes: ["Introduce it to the parent at \(options.rootURL) with a one-time token that is used once and then deleted."] + (options.reversePort == nil ? [] : ["The way to the parent goes back through the SSH connection itself, so the parent does not listen on your network."]),
                            operations: [.putFile(path: token, mode: "600", source: .enrollToken), .run(command: PlanScripts.enrollCommand(options)), .run(command: "rm -f -- " + Shell.quote(token))])
     }
 
@@ -94,7 +94,7 @@ public struct InstallPlan: Equatable, Sendable {
     private static func key(_ options: RemoteInstallOptions) -> PlannedStep {
         let file = options.sshDirectory + "/authorized_keys"
         return PlannedStep(id: "key", label: "Allow the parent's tunnel",
-                           changes: ["Add ONE line to \(file) for a key made for this machine. The line is marked \(PlanScripts.keyMarker(options.name)) and is restricted: it can only forward the Agent's port \(options.agentPort), no shell, nothing else.",
+                           changes: ["Add ONE line to \(file) for a key made for this machine. The line is marked \(PlanScripts.keyMarker(options.name)) and is restricted: it can only forward the Agent's port \(options.agentPort)\(options.reversePort.map { " and the way back to the parent (port \($0))" } ?? ""), no shell, nothing else.",
                                      "This is the only change to a file that already exists. Removing the machine removes the line again."],
                            operations: [.addKeyLine(file: file)])
     }

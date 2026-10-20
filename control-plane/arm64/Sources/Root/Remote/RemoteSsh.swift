@@ -44,9 +44,10 @@ final class RemoteSsh: @unchecked Sendable {
         return address
     }
 
-    func parentURL(for address: String) -> String? {
-        ParentUrl.make(bind: parts.config.agentListenBind, port: parts.config.agentListenPort, target: address, localAddresses: LocalAddresses.ipv4())
-    }
+    /// Where an Agent on another computer finds the parent: its own loopback, through the SSH connection (see ParentUrl).
+    var parentURL: String { ParentUrl.make(port: parts.config.agentListenPort) }
+
+    func reversePort(for address: String) -> Int? { ParentUrl.reversePort(listenPort: parts.config.agentListenPort, target: address) }
 
     /// A few logins a minute on one computer: more would look like an attack on the network.
     func allowTry(_ target: RemoteTarget) throws {
@@ -121,8 +122,8 @@ final class RemoteSsh: @unchecked Sendable {
     // MARK: running things there
 
     /// Runs a script on the other computer: one login, the script on its standard input.
-    func run(_ script: String, on target: RemoteTarget, with credentials: SshCredentials, timeout: TimeInterval) async throws -> SshResult {
-        try await ssh(target, credentials, command: ["sh", "-s"], input: Data(script.utf8), timeout: timeout)
+    func run(_ script: String, on target: RemoteTarget, with credentials: SshCredentials, timeout: TimeInterval, reversePort: Int? = nil) async throws -> SshResult {
+        try await ssh(target, credentials, command: ["sh", "-s"], input: Data(script.utf8), timeout: timeout, reversePort: reversePort)
     }
 
     /// Streams a local file into a file on the other computer (made private first). The path was checked to be plain, so it is safe in the remote command.
@@ -131,8 +132,8 @@ final class RemoteSsh: @unchecked Sendable {
         return try await ssh(target, credentials, command: ["umask 077; cat > " + Shell.quote(remotePath)], input: content, timeout: timeout)
     }
 
-    private func ssh(_ target: RemoteTarget, _ credentials: SshCredentials, command: [String], input: Data, timeout: TimeInterval) async throws -> SshResult {
-        let arguments = SshArguments.login(target: target, auth: credentials.auth, knownHosts: pins.path, command: command)
+    private func ssh(_ target: RemoteTarget, _ credentials: SshCredentials, command: [String], input: Data, timeout: TimeInterval, reversePort: Int? = nil) async throws -> SshResult {
+        let arguments = SshArguments.login(target: target, auth: credentials.auth, knownHosts: pins.path, command: command, reversePort: reversePort)
         do {
             return try await SshProcess.run("/usr/bin/ssh", arguments, input: input, environment: credentials.environment, timeout: timeout, maxOutput: 4 * 1_048_576)
         } catch SshProcessFailure.timedOut {

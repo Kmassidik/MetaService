@@ -42,6 +42,17 @@ final class SshArgumentsTests: XCTestCase {
         XCTAssertEqual(Array(arguments.prefix(2)), ["-F", "/dev/null"])
     }
 
+    func testTheWayBackToTheParentIsOneLoopbackPortOnTheOtherComputerAndNothingElse() {
+        let login = SshArguments.login(target: target, auth: .password, knownHosts: "/k", command: ["sh", "-s"], reversePort: 9102)
+        XCTAssertEqual(login[login.firstIndex(of: "-R")! + 1], "127.0.0.1:9102:127.0.0.1:9102")
+        XCTAssertTrue(login.contains("ExitOnForwardFailure=yes"), "a forward that cannot be made must fail the login, not be skipped")
+        XCTAssertEqual(login.filter { $0 == "-R" }.count, 1)
+        XCTAssertFalse(SshArguments.login(target: target, auth: .password, knownHosts: "/k", command: ["true"]).contains("-R"))
+        let tunnel = SshArguments.tunnel(target: target, keyPath: "/k", knownHosts: "/kh", localPort: 54001, remotePort: 9101, reversePort: 9102)
+        XCTAssertEqual(tunnel[tunnel.firstIndex(of: "-R")! + 1], "127.0.0.1:9102:127.0.0.1:9102")
+        XCTAssertEqual(tunnel.last, "kurnia@192.168.100.40")
+    }
+
     func testATunnelForwardsOneLocalLoopbackPortToTheAgentsLoopbackPort() {
         let arguments = SshArguments.tunnel(target: target, keyPath: "/k", knownHosts: "/kh", localPort: 54001, remotePort: 9101)
         XCTAssertEqual(arguments[arguments.firstIndex(of: "-L")! + 1], "127.0.0.1:54001:127.0.0.1:9101")

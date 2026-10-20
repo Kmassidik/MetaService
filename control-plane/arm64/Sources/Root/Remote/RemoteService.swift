@@ -73,14 +73,14 @@ final class RemoteService: @unchecked Sendable {
 
     private func verifyChecked(_ request: VerifyRequest) async throws -> VerifyResult {
         let target = request.target
-        let address = try ssh.allowedAddress(target)
+        _ = try ssh.allowedAddress(target)
         try ssh.allowTry(target)
         let key = try await ssh.scanKey(target)
         guard key.fingerprint == request.fingerprint else { throw RemoteFailure.fingerprintMismatch }
         try ssh.trust(key.line)
         let credentials = try await ssh.credentials(request.login)
         let facts = try await Self.readFacts(ssh, target, credentials)
-        return Self.result(target.host, key.fingerprint, facts, parentURL: ssh.parentURL(for: address), builds: Set(AgentBuilds.available(config: config).keys))
+        return Self.result(target.host, key.fingerprint, facts, parentURL: ssh.parentURL, builds: Set(AgentBuilds.available(config: config).keys))
     }
 
     /// The same read the installer does again just before it changes anything.
@@ -97,7 +97,7 @@ final class RemoteService: @unchecked Sendable {
         return facts
     }
 
-    static func result(_ host: String, _ fingerprint: String, _ facts: RemoteFacts, parentURL: String?, builds: Set<String>) -> VerifyResult {
+    static func result(_ host: String, _ fingerprint: String, _ facts: RemoteFacts, parentURL: String, builds: Set<String>) -> VerifyResult {
         let verification = RemoteVerify.run(facts: facts, fingerprint: fingerprint, agentBuilds: builds, parentURL: parentURL)
         return VerifyResult(host: host, fingerprint: fingerprint,
                             facts: .init(os: facts.os, arch: facts.arch, version: facts.version, chip: facts.chip, user: facts.user, home: facts.home, cpuCores: facts.cpuCores, ramMb: facts.ramMb, diskFreeGb: facts.diskFreeGb),
