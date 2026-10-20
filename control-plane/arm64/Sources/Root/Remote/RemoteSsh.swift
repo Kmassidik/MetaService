@@ -66,6 +66,12 @@ final class RemoteSsh: @unchecked Sendable {
         return (line, fingerprint)
     }
 
+    /// Which logins that computer accepts (["publickey", "password"] ...), or nil when it did not say. Only asks; nothing is tried and nothing is trusted.
+    func loginMethods(_ target: RemoteTarget) async -> [String]? {
+        guard let result = try? await SshProcess.run("/usr/bin/ssh", SshArguments.methodsProbe(target: target), timeout: Self.scanSeconds) else { return nil }
+        return SshErrors.methods(in: result.errors)
+    }
+
     /// Trusts a key the operator confirmed. A key that is already trusted is left as it is; a different one for the same host is refused.
     func trust(_ line: String) throws {
         switch pins.status(of: line) {

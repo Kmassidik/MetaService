@@ -87,6 +87,11 @@ try {
     const handle = await page.evaluateHandle((wanted) => [...(document.querySelector('dialog[open]') ?? document).querySelectorAll('button')].find((b) => b.textContent.trim() === wanted), label)
     await handle.asElement().click()
   }
+  // The test server takes only keys, so the key steps are already showing; a server that said nothing would offer the link instead.
+  const useTheKey = async () => {
+    const link = await page.evaluateHandle(() => [...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'No password for it? Use a key instead') ?? null)
+    if (link.asElement()) await link.asElement().click()
+  }
   const type = async (selector, value) => {
     await page.$eval(selector, (input) => { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })) })
     await page.type(selector, value)
@@ -125,17 +130,17 @@ try {
     await type('#connect-host', '127.0.0.1')
     await type('#connect-port', String(sshd.port))
     await click('Look at it')
-    await waitForDialog(/Is this the computer you mean/)
+    await waitForDialog(/Found a computer at/)
     await type('#connect-user', userInfo().username)
-    await click('No password for it? Use a key instead')
-    await page.waitForFunction(() => /ssh-ed25519/.test(document.querySelector('dialog[open] [aria-label="MetaService\'s public key"]')?.textContent ?? ''), { timeout: 10000 })
+    await useTheKey()
+    await page.waitForFunction(() => /ssh-ed25519/.test(document.querySelector('dialog[open] [aria-label="Command that lets MetaService in"]')?.textContent ?? ''), { timeout: 10000 })
     await click('Log in and check')
     await waitForDialog(/Looks good/)
   }
 
   await type('#connect-port', String(sshd.port))
   await click('Look at it')
-  await waitForDialog(/Is this the computer you mean/)
+  await waitForDialog(/Found a computer at/)
   const shown = (await page.$eval('dialog[open] [aria-label="ID code of the computer (host key fingerprint)"]', (node) => node.textContent)).replace(/\s+/g, '')
   check('step 2 shows the server\'s real host key fingerprint', shown === sshd.fingerprint, `${shown} vs ${sshd.fingerprint}`)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'connect-confirm.png') })
@@ -147,9 +152,9 @@ try {
   await waitForDialog(/login was refused/)
   check('a refused login is said plainly, and the password box is emptied', /check the user name and the password/i.test(await dialog()) && (await page.$eval('dialog[open] input[name=password]', (i) => i.value)) === '')
 
-  await click('No password for it? Use a key instead')
-  await page.waitForFunction((key) => document.querySelector('dialog[open] [aria-label="MetaService\'s public key"]')?.textContent === key, { timeout: 10000 }, publicKey)
-  check('choosing a key shows its public key to put on that computer', true)
+  await useTheKey()
+  await page.waitForFunction((key) => document.querySelector('dialog[open] [aria-label="Command that lets MetaService in"]')?.textContent.includes(key), { timeout: 10000 }, publicKey)
+  check('the key steps show a line with the public key to paste on that computer', true)
   await click('Log in and check')
   await waitForDialog(/Looks good/)
   const result = await dialog()

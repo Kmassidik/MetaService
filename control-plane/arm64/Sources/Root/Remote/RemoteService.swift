@@ -10,6 +10,8 @@ struct ProbeResult: Encodable {
     let fingerprint: String
     /// True when this computer's key is already trusted (it was confirmed before).
     let trusted: Bool
+    /// The logins that computer accepts, as ssh names them ("publickey", "password"...). Nil when it did not say; the page then offers both ways.
+    let loginMethods: [String]?
 }
 
 struct VerifyResult: Encodable {
@@ -52,7 +54,7 @@ final class RemoteService: @unchecked Sendable {
         let status = ssh.pins.status(of: key.line)
         guard status != .changed else { throw RemoteFailure.hostKeyChanged }
         record(actor, "remote.probe", target, ["result": "ok", "address": address])
-        return ProbeResult(host: target.host, address: address, keyType: key.line.split(separator: " ")[1].description, fingerprint: key.fingerprint, trusted: status == .same)
+        return ProbeResult(host: target.host, address: address, keyType: key.line.split(separator: " ")[1].description, fingerprint: key.fingerprint, trusted: status == .same, loginMethods: await ssh.loginMethods(target))
     }
 
     // MARK: step two

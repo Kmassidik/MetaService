@@ -16,6 +16,17 @@ public enum SshArguments {
         common(target: target, auth: auth, knownHosts: knownHosts) + ["--", "\(target.user)@\(target.host)"] + command
     }
 
+    /// Asks which logins a computer accepts, without trying any: the "none" login is always refused, and ssh then prints the list in its refusal. No secret is sent and
+    /// the host key is not trusted by this (that stays the operator's decision), so the key check is off for this one call only.
+    public static func methodsProbe(target: RemoteTarget) -> [String] {
+        ["-F", "/dev/null", "-p", String(target.port), "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "GlobalKnownHostsFile=/dev/null",
+         "-o", "ConnectTimeout=\(connectSeconds)", "-o", "BatchMode=yes", "-o", "PreferredAuthentications=none", "-o", "PubkeyAuthentication=no", "-o", "LogLevel=ERROR",
+         "--", "\(probeUser)@\(target.host)", "true"]
+    }
+
+    /// A user name that does not exist anywhere, so the probe never looks like a try at a real account.
+    static let probeUser = "metaservice-probe"
+
     /// `ssh -N -L local:127.0.0.1:remote user@host`: keeps a tunnel from a local port to the Agent's loopback port on the other computer.
     public static func tunnel(target: RemoteTarget, keyPath: String, knownHosts: String, localPort: Int, remotePort: Int) -> [String] {
         common(target: target, auth: .key(path: keyPath), knownHosts: knownHosts)

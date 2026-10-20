@@ -6,7 +6,7 @@
   import Requirements from './Requirements.svelte'
   import SecretField from './SecretField.svelte'
   import { ApiError, parentKey, remoteProbe, remoteVerify } from '../lib/api.ts'
-  import { emptyConnectForm, groupedFingerprint, isolationText, loginProblem, probeBody, verifyBody, whereProblem } from '../lib/remote.ts'
+  import { emptyConnectForm, groupedFingerprint, isolationText, keyCommand, loginProblem, passwordAccepted, probeBody, verifyBody, whereProblem } from '../lib/remote.ts'
   import { formatGb, formatMb } from '../lib/format.ts'
   import type { ConnectForm, ProbeResult, VerifyResult } from '../lib/types.ts'
 
@@ -15,7 +15,7 @@
   let { open, host = '', onClose, onInstalled }: { open: boolean; host?: string; onClose: () => void; onInstalled: () => void } = $props()
   let step: Step = $state('where')
   let form: ConnectForm = $state(emptyConnectForm())
-  let probe: ProbeResult | null = $state(null)
+  let probe = $state<ProbeResult | null>(null)
   let result: VerifyResult | null = $state(null)
   let publicKey = $state('')
   let busy = $state(false)
@@ -52,7 +52,13 @@
 
   const look = (event: SubmitEvent) => {
     event.preventDefault()
-    if (!whereWrong && form.host) attempt(async () => { probe = await remoteProbe(probeBody(form)); step = 'confirm' })
+    if (!whereWrong && form.host) attempt(async () => {
+      const found = await remoteProbe(probeBody(form))
+      probe = found
+      step = 'confirm'
+      // A computer that takes only keys gets the key steps at once: a password box would be a dead end.
+      if (!passwordAccepted(found.login_methods)) await chooseKey(true)
+    })
   }
 
   async function chooseKey(useKey: boolean) {
@@ -78,11 +84,13 @@
   }
 
   const refused = $derived(/refused/i.test(failure))
+  const passwordOk = $derived(passwordAccepted(probe?.login_methods))
+  const pasteLine = $derived(keyCommand(publicKey))
   let copied = $state(false)
 
   async function copyKey() {
     try {
-      await navigator.clipboard.writeText(publicKey)
+      await navigator.clipboard.writeText(pasteLine ?? publicKey)
       copied = true
     } catch {
       failure = 'Could not copy. Select the key and copy it by hand.'
@@ -132,12 +140,23 @@
       <label for="connect-user">User name</label>
       <input id="connect-user" bind:value={form.user} autocomplete="off" autocapitalize="off" spellcheck="false" />
       {#if form.useKey}
-        <p class="muted keyhelp">Instead of a password, give that computer MetaService's key. On that computer, add this line to the file <span class="mono">~/.ssh/authorized_keys</span> of that user:</p>
-        <code class="key mono" aria-label="MetaService's public key">{publicKey || '…'}</code>
-        <div class="keyactions">
-          <button class="btn line sm" type="button" onclick={copyKey} disabled={!publicKey}>{copied ? 'Copied' : 'Copy the key'}</button>
+        <ol class="how" aria-label="Steps to let MetaService in">
+          <li><b>1</b><div>Open <strong>Terminal</strong> on that computer, signed in as <span class="mono">{form.user || 'that user'}</span>.<p class="muted">On a Mac: press ⌘ Space, type Terminal, press Enter.</p></div></li>
+          <li>
+            <b>2</b>
+            <div>
+              Paste this line there and press Enter.
+              <code class="key mono" aria-label="Command that lets MetaService in">{pasteLine ?? (publicKey || '…')}</code>
+              <button class="btn green sm" type="button" onclick={copyKey} disabled={!publicKey}>{copied ? 'Copied ✓' : 'Copy the line'}</button>
+            </div>
+          </li>
+          <li><b>3</b><div>Come back here and press <strong>Log in and check</strong>.</div></li>
+        </ol>
+        {#if passwordOk}
           <button class="link" type="button" onclick={() => chooseKey(false)}>Use a password instead</button>
-        </div>
+        {:else}
+          <p class="muted keyhelp">This computer only accepts keys, so there is no password to type.</p>
+        {/if}
       {:else}
         <SecretField label="Password" name="password" bind:value={form.password} />
         <button class="link" type="button" onclick={() => chooseKey(true)}>No password for it? Use a key instead</button>
@@ -183,9 +202,12 @@
   .ico { flex: none; color: var(--green); }
   .why { margin-top: 12px; font-size: 13px; }
   .why summary { cursor: pointer; color: var(--m50); }
-  .keyactions { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  .how { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 14px; }
+  .how li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; }
+  .how b { display: inline-block; width: 22px; height: 22px; line-height: 20px; text-align: center; border: 1px solid var(--green); border-radius: 50%; font-size: 12px; }
+  .how p { margin: 2px 0 0; font-size: 13px; }
+  .how .btn { margin-top: 8px; }
   .link { background: none; border: 0; padding: 0; margin-top: 10px; color: var(--m50); font-size: 13px; text-decoration: underline; cursor: pointer; }
-  .keyactions .link { margin-top: 0; }
   .print { padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 15px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
   .key { display: block; padding: 10px; border: 1px solid var(--gray); background: var(--bg); overflow-wrap: anywhere; user-select: all; font-size: 12px; }
   .sub { margin: 16px 0 6px; font-size: 13px; }

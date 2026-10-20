@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, verifyBody, whereProblem } from './remote.ts'
+import { keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
@@ -111,4 +111,22 @@ test('the screen choice is sent only when it is ticked', () => {
   assert.equal('allow_screen' in plain, false)
   const ticked = planBody(form(), result(), { ...defaultAddChoices('office-mini'), allowScreen: true })
   assert.equal(ticked.allow_screen, true)
+})
+
+test('a password box is offered unless the computer said it takes only keys', () => {
+  assert.equal(passwordAccepted(undefined), true)
+  assert.equal(passwordAccepted(null), true)
+  assert.equal(passwordAccepted([]), true)
+  assert.equal(passwordAccepted(['publickey', 'password']), true)
+  assert.equal(passwordAccepted(['publickey', 'keyboard-interactive']), true)
+  assert.equal(passwordAccepted(['publickey']), false)
+})
+
+test('the key command adds the key once and refuses anything that is not a plain key', () => {
+  const key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwjwIYPmV4ChyokDCF+LCmk3pi0LkdCycg7KQ4h1+u/ metaservice-parent'
+  const command = keyCommand(`${key}\n`) ?? ''
+  assert.match(command, /^mkdir -p ~\/\.ssh && chmod 700 ~\/\.ssh && \(grep -qxF '/)
+  assert.match(command, /chmod 600 ~\/\.ssh\/authorized_keys/)
+  assert.equal(command.split(key).length - 1, 2, 'the key is in the check and in the append')
+  for (const bad of ['', "ssh-ed25519 AAAA'; rm -rf ~; '", 'ssh-rsa AAAA x', 'ssh-ed25519 AAAA x\nssh-ed25519 BBBB y', "ssh-ed25519 AAAA $(id)"]) assert.equal(keyCommand(bad), null, bad)
 })

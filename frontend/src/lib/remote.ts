@@ -37,6 +37,25 @@ export function verifyBody(form: ConnectForm, fingerprint: string): Record<strin
   return form.useKey ? { ...base, use_key: true } : { ...base, password: form.password }
 }
 
+/** True unless the computer said it takes only keys: then a password box would be a dead end. When it did not say, both ways are offered. */
+export function passwordAccepted(methods: string[] | null | undefined): boolean {
+  if (!methods || methods.length === 0) return true
+  return methods.includes('password') || methods.includes('keyboard-interactive')
+}
+
+const PUBLIC_KEY = /^ssh-ed25519 [A-Za-z0-9+/]+={0,2}( [A-Za-z0-9._-]+)?$/
+
+/**
+ * One line to paste in a terminal on the other computer: it makes the folder, adds the key once (never twice) and fixes the permissions.
+ * Null for anything that is not a plain public key, so nothing else is ever put into a command.
+ */
+export function keyCommand(publicKey: string): string | null {
+  const key = publicKey.trim()
+  if (!PUBLIC_KEY.test(key)) return null
+  const file = '~/.ssh/authorized_keys'
+  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && (grep -qxF '${key}' ${file} 2>/dev/null || echo '${key}' >> ${file}) && chmod 600 ${file} && echo 'Done: MetaService can log in now.'`
+}
+
 /** The fingerprint in groups, so a person can compare it with the other computer's by eye. */
 export function groupedFingerprint(fingerprint: string): string {
   const [kind, value = ''] = fingerprint.split(':')

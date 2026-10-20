@@ -97,6 +97,7 @@ def check_the_host_key_fingerprint_shown_is_the_one_ssh_keygen_shows():
         expect(reply.body["fingerprint"] == server.fingerprint(), f"fingerprint {reply.body['fingerprint']} != {server.fingerprint()}")
         expect(reply.body["key_type"] == "ssh-ed25519" and reply.body["trusted"] is False and reply.body["address"] == "127.0.0.1", f"probe body: {reply.body}")
         expect(not os.path.exists(os.path.join(root.dir, "ssh", "known_hosts")), "a probe must not trust the key by itself")
+        expect(reply.body.get("login_methods") in (None, ["publickey"]), f"a key-only server should list only publickey (or say nothing): {reply.body.get('login_methods')}")
 
 
 def answer_plain(listener, stop):

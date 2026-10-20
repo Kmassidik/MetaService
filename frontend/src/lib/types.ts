@@ -278,6 +278,8 @@ export interface ProbeResult {
   key_type: string
   fingerprint: string
   trusted: boolean
+  /** The logins that computer accepts (ssh's names: publickey, password...). Missing when it did not say. */
+  login_methods?: string[] | null
 }
 
 /** Step two of Connect: what the computer is, and whether MetaService can be installed there. */

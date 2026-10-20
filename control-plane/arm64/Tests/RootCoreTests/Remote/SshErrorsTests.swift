@@ -18,6 +18,13 @@ final class SshErrorsTests: XCTestCase {
         XCTAssertFalse(SshErrors.offersOnlyKeys(""))
     }
 
+    func testTheAcceptedLoginsAreReadFromTheRefusal() {
+        XCTAssertEqual(SshErrors.methods(in: "x@10.0.0.9: Permission denied (publickey,password,keyboard-interactive)."), ["publickey", "password", "keyboard-interactive"])
+        XCTAssertEqual(SshErrors.methods(in: "Permission denied (publickey)."), ["publickey"])
+        XCTAssertNil(SshErrors.methods(in: "Permission denied, please try again."))
+        XCTAssertNil(SshErrors.methods(in: "Connection refused"))
+    }
+
     func testAChangedHostKeyIsRecognised() {
         XCTAssertEqual(kind("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"), .hostKeyChanged)
         XCTAssertEqual(kind("Host key verification failed."), .hostKeyChanged)
