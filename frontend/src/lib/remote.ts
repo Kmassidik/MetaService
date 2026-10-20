@@ -54,6 +54,8 @@ export const isolationText = (level: string): string => ISOLATION_TEXT[level] ??
 export interface AddChoices {
   name: string
   installKey: boolean
+  /** Lets the panel see and control this computer's screen. Off unless ticked. */
+  allowScreen: boolean
   box: string
   sshDir: string
   agentPort: string
@@ -64,7 +66,7 @@ const PLAIN_PATH = /^\/[A-Za-z0-9._@+/-]{1,200}$/
 const LOWEST_PORT = 1024
 const HIGHEST_PORT = 65000
 
-export const defaultAddChoices = (host: string): AddChoices => ({ name: suggestMachineName(host), installKey: true, box: '', sshDir: '', agentPort: '' })
+export const defaultAddChoices = (host: string): AddChoices => ({ name: suggestMachineName(host), installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
 
 /** A machine name from the address or host name: lowercase, letters, digits and dashes. */
 export function suggestMachineName(host: string): string {
@@ -88,6 +90,7 @@ export function advancedProblem(choices: AddChoices): string | null {
 /** The fields that both the plan and the install carry. An advanced choice that was left empty is not sent, so the default applies. */
 function choiceFields(choices: AddChoices): Record<string, unknown> {
   const fields: Record<string, unknown> = { name: choices.name, install_key: choices.installKey }
+  if (choices.allowScreen) fields.allow_screen = true
   if (choices.box !== '') fields.box = choices.box
   if (choices.sshDir !== '') fields.ssh_dir = choices.sshDir
   if (choices.agentPort !== '') fields.agent_port = Number(choices.agentPort)

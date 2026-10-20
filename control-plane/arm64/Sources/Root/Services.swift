@@ -32,6 +32,7 @@ struct Services {
     let tunnels: TunnelSupervisor
     let remoteMachines: RemoteMachineStore
     let remoteInstalls: RemoteInstallService
+    let screens: ScreenService
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -62,6 +63,7 @@ struct Services {
         tunnels = TunnelSupervisor(ssh: remoteSsh, remoteMachines: remoteMachines, ports: tunnelPorts, clock: clock)
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
+        screens = ScreenService(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), audit: audit, clock: clock)
         installs = InstallService(parts: .init(config: config, clock: clock, machines: machines, enrollments: enrollments, audit: audit, commands: commands, bundles: bundles, workloads: workloads, settings: machineSettings),
                                   supervisor: localAgents)
     }

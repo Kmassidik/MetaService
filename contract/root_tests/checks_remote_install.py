@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import time
 
-from contract.root_tests.checks_remote import authorize_parent, remote, rows, verify_body
+from contract.root_tests.checks_remote import BOXES, authorize_parent, remote, rows, verify_body
 from contract.root_tests.support import _free_port, expect
 
 STEPS = ["check", "folder", "agent", "enroll", "start", "key", "manifest", "tunnel", "online"]
@@ -54,7 +54,9 @@ def start_install(operator, body, status=202):
 
 
 def box_folder():
-    return pathlib.Path(tempfile.mkdtemp(prefix="ms-box-parent-")) / "metaservice-box"
+    box = pathlib.Path(tempfile.mkdtemp(prefix="ms-box-parent-")) / "metaservice-box"
+    BOXES.append(box)
+    return box
 
 
 def running(pid_file):

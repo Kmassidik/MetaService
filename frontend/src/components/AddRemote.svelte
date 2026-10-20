@@ -99,6 +99,8 @@
     <input id="remote-name" bind:value={choices.name} onchange={loadPlan} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" aria-invalid={nameProblem ? 'true' : 'false'} />
     <p class="hint {nameProblem ? 'bad' : 'muted'}">{nameProblem ?? 'This is how the machine appears in the dashboard.'}</p>
     <label class="check"><input type="checkbox" bind:checked={choices.installKey} onchange={loadPlan} /> Allow the parent's tunnel (adds one restricted line to authorized_keys)</label>
+    <label class="check"><input type="checkbox" bind:checked={choices.allowScreen} onchange={loadPlan} /> Let this panel see and control this computer's screen</label>
+    {#if choices.allowScreen}<p class="hint muted">Off by default. A Mac still asks the person at it to allow Screen Recording and Accessibility once.</p>{/if}
     {#if !choices.installKey}<p class="hint muted">Without it the machine can report in, but the parent cannot send it commands yet.</p>{/if}
     <details class="advanced">
       <summary>Advanced: where it goes</summary>

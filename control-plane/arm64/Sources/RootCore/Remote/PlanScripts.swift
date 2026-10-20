@@ -22,6 +22,7 @@ public enum PlanScripts {
         let limits: [(String, Int?)] = [("--ram-reserve-mb", options.settings.ramReserveMb), ("--disk-reserve-gb", options.settings.diskReserveGb),
                                         ("--ram-allowance-mb", options.settings.ramAllowanceMb), ("--disk-allowance-gb", options.settings.diskAllowanceGb)]
         for (flag, value) in limits { if let value { arguments += [flag, String(value)] } }
+        if options.allowScreen { arguments += ["--screen", options.engine == "simulated" ? "simulated" : "mac"] }
         return arguments
     }
 

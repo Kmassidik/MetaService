@@ -315,3 +315,26 @@ export interface RemoteMachineInfo {
   /** Absent when the machine has no tunnel (it only reports in). */
   tunnel?: { state: 'connecting' | 'connected' | 'disconnected'; since: string; local_port: number | null; failures: number }
 }
+
+/** What a machine's screen can do right now. */
+export interface ScreenStatus {
+  access: 'off' | 'needs_permission' | 'ready'
+  width: number
+  height: number
+  message: string | null
+}
+
+/** An open screen: the ticket belongs to the operator who opened it. */
+export interface ScreenSession {
+  ticket: string
+  machine: string
+  mode: 'view' | 'control'
+  idle_seconds: number
+  max_seconds: number
+}
+
+export type ScreenInput =
+  | { type: 'move'; x: number; y: number }
+  | { type: 'button'; button: 'left' | 'middle' | 'right'; down: boolean }
+  | { type: 'scroll'; dx: number; dy: number }
+  | { type: 'key'; code: number; down: boolean }

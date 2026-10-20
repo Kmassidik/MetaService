@@ -1,5 +1,5 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Invite, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Invite, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScreenStatus, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -135,3 +135,24 @@ export const remoteInstall = (body: Record<string, unknown>) => call<{ id: strin
 export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/api/remote/installs/${encodeURIComponent(id)}`)
 export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
 export const remoteRemove = (machine: string, body: Record<string, unknown>) => call<null>('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
+
+export const screenStatus = (machine: string) => call<ScreenStatus>('GET', `/api/machines/${encodeURIComponent(machine)}/screen`)
+export const openScreen = (machine: string) => call<ScreenSession>('POST', `/api/machines/${encodeURIComponent(machine)}/screen`)
+export const takeScreenControl = (ticket: string) => call<ScreenSession>('POST', `/api/screen/${encodeURIComponent(ticket)}/control`, { confirm: true })
+export const sendScreenInput = (ticket: string, events: ScreenInput[]) => call<null>('POST', `/api/screen/${encodeURIComponent(ticket)}/input`, { events })
+export const closeScreen = (ticket: string) => call<null>('DELETE', `/api/screen/${encodeURIComponent(ticket)}`)
+
+/** One picture of the screen as an image bitmap, or the reason there is none (the session ended, the machine did not answer). */
+export async function screenPicture(ticket: string): Promise<ImageBitmap> {
+  let response: Response
+  try {
+    response = await fetch(`/api/screen/${encodeURIComponent(ticket)}/frame`, { credentials: 'same-origin', cache: 'no-store' })
+  } catch {
+    throw new ApiError(0, 'unreachable', 'Cannot reach the Root.')
+  }
+  if (!response.ok) {
+    const detail = ((await response.json().catch(() => null)) as ErrorBody | null)?.error
+    throw new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'No picture.')
+  }
+  return createImageBitmap(await response.blob())
+}

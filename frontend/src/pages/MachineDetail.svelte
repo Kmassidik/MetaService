@@ -3,6 +3,7 @@
   import StatePill from '../components/StatePill.svelte'
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
+  import ScreenViewer from '../components/ScreenViewer.svelte'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
   import { connectionText } from '../lib/remote.ts'
@@ -27,6 +28,7 @@
   let { machine, remote, commands, now, pinned, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
   const TABS: [Tab, string][] = [['overview', 'Overview'], ['deployments', 'Deployments'], ['activity', 'Activity']]
   let tab: Tab = $state('overview')
+  let screenOpen = $state(false)
   const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
   const flag = $derived(bundleFlag(machine?.bundle_version, pinned))
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
@@ -79,7 +81,9 @@
       <div class="chatbar">
         <button class="btn line sm" type="button" onclick={() => onInstall(machine, null)}>{machine.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>
         {#if machine.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, null)}>Open chat</button>{/if}
+        <button class="btn line sm" type="button" disabled={machine.state === 'offline'} onclick={() => (screenOpen = true)}>Open screen</button>
       </div>
+      <ScreenViewer machine={machine.id} name={machine.name} open={screenOpen} onClose={() => (screenOpen = false)} />
       {#if machine.capabilities}
         <p class="id">
           Can run: {machine.capabilities.vm || machine.capabilities.container ? [machine.capabilities.vm && 'VMs', machine.capabilities.container && 'containers'].filter(Boolean).join(' and ') : 'nothing yet'}

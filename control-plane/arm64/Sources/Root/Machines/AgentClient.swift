@@ -21,6 +21,7 @@ struct AgentClient: Sendable {
     let tunnels: TunnelPorts
 
     private static let maxReplyBytes = 256 * 1024
+    private static let maxFrameBytes = 4 * 1024 * 1024
     private static let session: URLSession = {
         let options = URLSessionConfiguration.ephemeral
         options.timeoutIntervalForRequest = 15
@@ -30,6 +31,16 @@ struct AgentClient: Sendable {
     }()
 
     func call(machine: String, method: String, path: String, body: [String: Any]? = nil, commandId: String? = nil) async throws -> AgentReply {
+        let reply = try await send(machine: machine, method: method, path: path, body: body, commandId: commandId, maxBytes: Self.maxReplyBytes)
+        return AgentReply(status: reply.status, json: (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any])
+    }
+
+    /// One call whose answer is bytes (a screen picture) and not JSON.
+    func fetch(machine: String, method: String, path: String, body: [String: Any]? = nil) async throws -> (status: Int, contentType: String?, data: Data) {
+        try await send(machine: machine, method: method, path: path, body: body, commandId: nil, maxBytes: Self.maxFrameBytes)
+    }
+
+    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?, maxBytes: Int) async throws -> (status: Int, contentType: String?, data: Data) {
         guard let endpoint = try machines.endpoint(id: machine) else { throw AgentCallFailure.neverHeardFrom }
         let (host, port) = try Self.address(of: endpoint, through: tunnels.route(for: machine))
         guard IPv4.isLoopbackOrPrivate(host), let url = URL(string: "http://\(host):\(port)\(path)") else { throw AgentCallFailure.notAllowedAddress }
@@ -41,8 +52,8 @@ struct AgentClient: Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
-        guard let (data, response) = try? await Self.session.data(for: request), let http = response as? HTTPURLResponse, data.count <= Self.maxReplyBytes else { throw AgentCallFailure.unreachable }
-        return AgentReply(status: http.statusCode, json: (try? JSONSerialization.jsonObject(with: data)) as? [String: Any])
+        guard let (data, response) = try? await Self.session.data(for: request), let http = response as? HTTPURLResponse, data.count <= maxBytes else { throw AgentCallFailure.unreachable }
+        return (http.statusCode, http.value(forHTTPHeaderField: "Content-Type"), data)
     }
 
     /// A machine with a tunnel is called on the tunnel's local port, and on nothing else; one without is called on the address it reported from.

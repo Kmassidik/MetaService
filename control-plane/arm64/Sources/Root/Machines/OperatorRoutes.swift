@@ -53,6 +53,7 @@ struct OperatorRoutes {
         try services.chatAccess.remove(target: id)
         try services.machineSettings.remove(machine: id)
         services.localAgents.forget(machine: id)
+        services.screens.closeAll(machine: id)
         try services.audit.record(actor: caller.name, action: "machine.remove", target: id, at: services.clock.now)
         return Response(status: .noContent)
     }

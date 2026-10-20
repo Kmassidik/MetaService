@@ -59,11 +59,11 @@ test('a machine name is suggested from the address or the host name', () => {
   assert.equal(suggestMachineName('a'.repeat(100)).length, 63)
   assert.equal(nameWrong('office-mini'), null)
   assert.match(nameWrong('Office Mini') ?? '', /lowercase/)
-  assert.deepEqual(defaultAddChoices('office-mini.local'), { name: 'office-mini', installKey: true, box: '', sshDir: '', agentPort: '' })
+  assert.deepEqual(defaultAddChoices('office-mini.local'), { name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
 })
 
 test('the plan request carries the home folder and the system that Connect read, and no login', () => {
-  const body = planBody(form(), result(), { name: 'office-mini', installKey: true, box: '', sshDir: '', agentPort: '' })
+  const body = planBody(form(), result(), { name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
   assert.deepEqual(body, { host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true })
   assert.equal(JSON.stringify(body).includes('secret'), false)
   assert.equal(planBody(form(), result('Linux'), { ...defaultAddChoices('x'), installKey: false }).os, 'Linux')
@@ -104,4 +104,11 @@ test('the connection of a machine installed over SSH is said in one plain line',
   assert.equal(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 1 }), now), 'SSH tunnel · down since 5m ago, trying again')
   assert.equal(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 3 }), now), 'SSH tunnel · down since 5m ago, trying again (3 tries)')
   assert.match(connectionText(info(undefined), now), /No tunnel/)
+})
+
+test('the screen choice is sent only when it is ticked', () => {
+  const plain = planBody(form(), result(), defaultAddChoices('office-mini'))
+  assert.equal('allow_screen' in plain, false)
+  const ticked = planBody(form(), result(), { ...defaultAddChoices('office-mini'), allowScreen: true })
+  assert.equal(ticked.allow_screen, true)
 })

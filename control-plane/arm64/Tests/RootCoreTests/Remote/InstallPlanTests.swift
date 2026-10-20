@@ -65,4 +65,16 @@ final class InstallPlanTests: XCTestCase {
         XCTAssertThrowsError(try plan { $0.box = "/a b" })
         XCTAssertThrowsError(try plan { $0.name = "Bad" })
     }
+
+    func testScreenControlIsOffUnlessAskedForAndSaysSoInPlainWords() throws {
+        let off = try plan()
+        XCTAssertFalse(PlanScripts.runArguments(off.options).contains("--screen"))
+        XCTAssertFalse(off.steps.flatMap(\.changes).joined().contains("screen"))
+        let on = try plan { $0.allowScreen = true }
+        XCTAssertEqual(PlanScripts.runArguments(on.options).drop { $0 != "--screen" }.prefix(2).last, "mac")
+        XCTAssertTrue(on.steps.first { $0.id == "start" }!.changes.joined().contains("screen"))
+        XCTAssertTrue(on.steps.first { $0.id == "start" }!.changes.joined().contains("Screen Recording and Accessibility"))
+        let simulated = try plan { $0.allowScreen = true; $0.engine = "simulated" }
+        XCTAssertEqual(PlanScripts.runArguments(simulated.options).drop { $0 != "--screen" }.prefix(2).last, "simulated")
+    }
 }

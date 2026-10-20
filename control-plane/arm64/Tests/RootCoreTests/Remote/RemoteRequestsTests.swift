@@ -60,6 +60,7 @@ final class RemoteRequestsTests: XCTestCase {
         XCTAssertTrue(request.choices.installKey)
         XCTAssertFalse(request.choices.installVmTool, "the VM tool is only added when asked for")
         XCTAssertFalse(request.choices.chat)
+        XCTAssertFalse(request.choices.allowScreen, "the screen is only shared when asked for")
         XCTAssertNil(request.choices.box)
     }
 
@@ -71,6 +72,8 @@ final class RemoteRequestsTests: XCTestCase {
         XCTAssertTrue(try add(["install_vm_tool": true]).choices.installVmTool, "the choice is read; the install refuses it until it is built")
         XCTAssertThrowsError(try add(["install_vm_tool": true]).choices.options(home: "/Users/kurnia", engine: "apple", rootURL: "u"))
         XCTAssertEqual(request.choices.settings.ramReserveMb, 4096)
+        XCTAssertTrue(try add(["allow_screen": true]).choices.allowScreen)
+        XCTAssertTrue(try add(["allow_screen": true]).choices.options(home: "/Users/kurnia", engine: "apple", rootURL: "u").allowScreen)
         let options = try request.choices.options(home: "/Users/kurnia", engine: "apple", rootURL: "http://192.168.100.40:9102")
         XCTAssertEqual([options.box, options.sshDirectory, options.rootURL], ["/opt/x/box", "/opt/x/.ssh", "http://192.168.100.40:9102"])
         XCTAssertEqual(try add().choices.options(home: "/Users/kurnia", engine: "apple", rootURL: "u").box, "/Users/kurnia/metaservice-box")

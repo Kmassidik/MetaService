@@ -2,6 +2,7 @@
 import getpass
 import glob
 import os
+import signal
 import pathlib
 import socket
 import subprocess
@@ -19,6 +20,19 @@ LINUX = "os=Linux\narch=x86_64\nuser=build\nhome=/home/build\nversion=Ubuntu 24.
 OTHER_FINGERPRINT = "SHA256:" + "A" * 43
 
 
+BOXES = []
+
+
+def stop_boxes():
+    """Stops the programs a test left running in its boxes (a box that was removed has none), so a test run never leaves processes behind."""
+    while BOXES:
+        pid_file = BOXES.pop() / "state" / "agent.pid"
+        try:
+            os.kill(int(pid_file.read_text()), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
+
+
 @contextmanager
 def remote(answer=None, allow_loopback=True, agent_binary=MACOS_BINARY):
     if not available():
@@ -30,6 +44,7 @@ def remote(answer=None, allow_loopback=True, agent_binary=MACOS_BINARY):
         yield root, Browser(root), server
     finally:
         root.stop()
+        stop_boxes()
         server.stop()
 
 
