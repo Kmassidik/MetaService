@@ -91,8 +91,20 @@ public enum Migrations {
               created_at INTEGER NOT NULL
             );
             """) }),
-        // A scan is a look at the network right now and is no longer stored (see ScanStore).
         (14, { try $0.exec("DROP TABLE IF EXISTS scan_results; DROP TABLE IF EXISTS scan_runs;") }),
+        // The latest scans are kept again, so Find machines opens on the last result at once and a new scan is only run when asked for.
+        (15, { try $0.exec("""
+            CREATE TABLE scan_runs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, subnet TEXT NOT NULL,
+              state TEXT NOT NULL, sources_json TEXT NOT NULL DEFAULT '{}',
+              started_at INTEGER NOT NULL, finished_at INTEGER
+            );
+            CREATE TABLE scan_results (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER NOT NULL REFERENCES scan_runs(id) ON DELETE CASCADE,
+              ip TEXT NOT NULL, mac TEXT, hostname TEXT, vendor TEXT, seen_by TEXT NOT NULL, agent_port_open INTEGER NOT NULL DEFAULT 0,
+              UNIQUE (run_id, ip)
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

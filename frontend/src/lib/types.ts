@@ -120,6 +120,7 @@ export type ScanSourceResult = string
 export interface Scan {
   id: string
   state: string
+  finished_at?: string | null
   results: Device[]
   sources: Record<string, ScanSourceResult>
 }

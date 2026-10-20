@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { ApiError, addFromScan, latestScan, scanSetup, startScan } from '../lib/api.ts'
-  import { sourceName, sourceProblem, suggestName } from '../lib/format.ts'
+  import { relativeTime, sourceName, sourceProblem, suggestName } from '../lib/format.ts'
   import Dialog from './Dialog.svelte'
   import TokenList from './TokenList.svelte'
   import type { Device, Invite, Scan, ScanSetup } from '../lib/types.ts'
@@ -29,7 +29,7 @@
   const isSelf = (ip: string) => !!setup?.own_addresses?.includes(ip)
   const notAComputerToAdd = (ip: string) => isGateway(ip) || isSelf(ip)
 
-  /** Opening the page looks at the network right away: nothing is kept from an earlier scan. */
+  /** Opening the page shows the last scan at once (it is kept), and follows one that is still running. A new scan only starts when asked for. */
   async function load() {
     try {
       setup = await scanSetup()
@@ -37,7 +37,13 @@
       failure = error instanceof ApiError ? error.message : 'Something went wrong.'
       return
     }
-    if (setup.subnet) await begin()
+    try {
+      scan = await latestScan()
+    } catch (error) {
+      showFailure(error)
+      return
+    }
+    if (running) poll()
   }
 
   const showFailure = (error: unknown) => (failure = error instanceof ApiError ? error.message : 'Something went wrong.')
@@ -99,8 +105,9 @@
         {#if setup?.subnet}Looks at <span class="mono">{setup.subnet}</span> only, with nmap and the ARP table. Nothing is added until you choose it.
         {:else}Looking for the network…{/if}
       </p>
+      {#if scan?.finished_at && !running}<p class="muted">Last scan {relativeTime(scan.finished_at)}. A computer's address changed? Scan again.</p>{/if}
     </div>
-    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan again'}</button>
+    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : scan ? 'Scan again' : 'Scan now'}</button>
   </div>
 
   {#if setup && !setup.nmap_available}
@@ -113,6 +120,8 @@
 
   {#if scan?.state === 'failed'}
     <p class="note bad">The scan could not use any source. Check the notes above.</p>
+  {:else if !scan && setup?.subnet}
+    <p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p>
   {:else if scan && scan.state === 'done' && scan.results.length === 0}
     <p class="muted">The scan found nothing on this network.</p>
   {:else if running}

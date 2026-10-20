@@ -175,23 +175,23 @@ final class ScanStoreTests: XCTestCase {
 
     func testOnlyOneRunAtATime() throws {
         let scans = ScanStore(database)
-        let first = try scans.start(subnet: "192.168.100.0/24", now: now)
-        XCTAssertThrowsError(try scans.start(subnet: "192.168.100.0/24", now: now)) { XCTAssertEqual($0 as? ScanError, .alreadyRunning) }
-        scans.finish(runId: first, findings: [], sources: [:], now: now)
-        XCTAssertNoThrow(try scans.start(subnet: "192.168.100.0/24", now: now))
+        let first = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        XCTAssertThrowsError(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)) { XCTAssertEqual($0 as? ScanError, .alreadyRunning) }
+        try scans.finish(runId: first, findings: [], sources: [:], now: now)
+        XCTAssertNoThrow(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now))
     }
 
     func testACrashedRunStopsBlockingAfterAWhile() throws {
         let scans = ScanStore(database)
-        _ = try scans.start(subnet: "192.168.100.0/24", now: now)
-        XCTAssertNoThrow(try scans.start(subnet: "192.168.100.0/24", now: now.addingTimeInterval(ScanStore.staleAfter + 1)))
+        _ = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        XCTAssertNoThrow(try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now.addingTimeInterval(ScanStore.staleAfter + 1)))
     }
 
-    func testResultsAreSortedAndMarkedManaged() throws {
+    func testResultsAreStoredSortedAndMarkedManaged() throws {
         let scans = ScanStore(database)
         try MachineStore(database).enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: "192.168.100.9", now: now)
-        let id = try scans.start(subnet: "192.168.100.0/24", now: now)
-        scans.finish(runId: id, findings: [finding("192.168.100.40", mac: "AA:BB:CC:00:00:40"), finding("192.168.100.9")], sources: ["router": "ok", "nmap": "ok"], now: now)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        try scans.finish(runId: id, findings: [finding("192.168.100.40", mac: "AA:BB:CC:00:00:40"), finding("192.168.100.9")], sources: ["router": "ok", "nmap": "ok"], now: now)
         let run = try XCTUnwrap(try scans.latest())
         XCTAssertEqual(run.state, "done")
         XCTAssertEqual(run.sources, ["router": "ok", "nmap": "ok"])
@@ -203,40 +203,33 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertThrowsError(try scans.result(runId: id, resultId: 9999))
     }
 
-    func testANewScanReplacesTheOldOneAndStartsEmpty() throws {
-        let scans = ScanStore(database)
-        let old = try scans.start(subnet: "192.168.100.0/24", now: now)
-        scans.finish(runId: old, findings: [finding("192.168.100.5")], sources: ["nmap": "ok"], now: now)
-        let fresh = try scans.start(subnet: "192.168.100.0/24", now: now)
-        XCTAssertNotEqual(old, fresh)
-        XCTAssertThrowsError(try scans.get(id: old)) { XCTAssertEqual($0 as? ScanError, .notFound) }
-        let run = try XCTUnwrap(try scans.latest())
-        XCTAssertEqual(run.state, "running")
-        XCTAssertTrue(run.results.isEmpty)
-        scans.finish(runId: old, findings: [finding("192.168.100.6")], sources: [:], now: now)
-        XCTAssertEqual(try scans.latest()?.state, "running", "a replaced run must not overwrite the new one")
+    func testTheLatestScanSurvivesARestart() throws {
+        let id = try ScanStore(database).start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        try ScanStore(database).finish(runId: id, findings: [finding("192.168.100.5")], sources: ["arp": "ok"], now: now)
+        let run = try XCTUnwrap(try ScanStore(database).latest())
+        XCTAssertEqual(run.state, "done")
+        XCTAssertEqual(run.results.map(\.ip), ["192.168.100.5"])
     }
 
-    func testAFailedRunIsReportedAsFailed() throws {
+    func testFailedRunsAndOldRunsArePruned() throws {
         let scans = ScanStore(database)
-        let id = try scans.start(subnet: "192.168.100.0/24", now: now)
-        scans.fail(runId: id, sources: ["nmap": "missing"], now: now)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+        try scans.fail(runId: id, sources: ["nmap": "missing"], now: now)
         XCTAssertEqual(try scans.get(id: id).state, "failed")
+        for _ in 0..<(ScanStore.keepRuns + 3) {
+            let next = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
+            try scans.finish(runId: next, findings: [finding("192.168.100.5")], sources: [:], now: now)
+        }
+        XCTAssertThrowsError(try scans.get(id: id)) { XCTAssertEqual($0 as? ScanError, .notFound) }
+        XCTAssertLessThanOrEqual(try database.query("SELECT COUNT(*) AS n FROM scan_runs").first?.int("n") ?? 99, ScanStore.keepRuns + 1)
+        XCTAssertLessThanOrEqual(try database.query("SELECT COUNT(*) AS n FROM scan_results").first?.int("n") ?? 99, ScanStore.keepRuns + 1)
     }
 
-    func testNoScanIsEverWrittenToTheDatabase() throws {
+    func testHostileDeviceNamesAreStoredAsText() throws {
         let scans = ScanStore(database)
-        XCTAssertNil(try scans.latest())
-        let id = try scans.start(subnet: "192.168.100.0/24", now: now)
-        scans.finish(runId: id, findings: [finding("192.168.100.5")], sources: [:], now: now)
-        XCTAssertTrue(try database.query("SELECT name FROM sqlite_master WHERE name LIKE 'scan_%'").isEmpty)
-    }
-
-    func testHostileDeviceNamesAreKeptAsText() throws {
-        let scans = ScanStore(database)
-        let id = try scans.start(subnet: "192.168.100.0/24", now: now)
+        let id = try scans.start(actor: "k", subnet: "192.168.100.0/24", now: now)
         let hostile = ScanFinding(ip: "192.168.100.5", mac: nil, hostname: "x'; DROP TABLE machines;--<script>", vendor: nil, seenBy: [.nmap], agentPortOpen: false)
-        scans.finish(runId: id, findings: [hostile], sources: [:], now: now)
+        try scans.finish(runId: id, findings: [hostile], sources: [:], now: now)
         XCTAssertEqual(try scans.latest()?.results.first?.hostname, "x'; DROP TABLE machines;--<script>")
         XCTAssertNoThrow(try database.query("SELECT COUNT(*) FROM machines"))
     }
