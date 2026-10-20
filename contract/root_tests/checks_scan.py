@@ -65,8 +65,9 @@ def check_scan_setup_describes_what_is_available():
         operator = Browser(root)
         expect(operator.request("GET", "/api/scan/setup", headers={"Host": "evil.example"}).status == 403, "setup answers a foreign Host")
         setup = operator.request("GET", "/api/scan/setup").body
-        expect({key: value for key, value in setup.items() if key != "gateway"} == {"subnet": f"{root.scan_prefix}.0/24", "router_configured": True, "nmap_available": True}, f"setup: {setup}")
+        expect({key: value for key, value in setup.items() if key not in ("gateway", "own_addresses")} == {"subnet": f"{root.scan_prefix}.0/24", "router_configured": True, "nmap_available": True}, f"setup: {setup}")
         expect("gateway" in setup, "setup does not say which address is the gateway (null when unknown)")
+        expect(isinstance(setup.get("own_addresses"), list), "setup does not list this computer's own addresses")
 
 
 def check_a_scan_merges_router_nmap_and_arp():

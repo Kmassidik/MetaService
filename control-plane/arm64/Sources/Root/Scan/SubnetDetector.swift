@@ -14,6 +14,21 @@ enum SubnetDetector {
         return nil
     }
 
+    /// Every IPv4 address this machine has on an interface that is up (loopback left out), as text like `192.168.0.40`.
+    static func localAddresses() -> [String] {
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0, let first = list else { return [] }
+        defer { freeifaddrs(list) }
+        return sequence(first: first, next: { $0.pointee.ifa_next }).compactMap { address(of: $0.pointee) }
+    }
+
+    private static func address(of entry: ifaddrs) -> String? {
+        let flags = Int32(entry.ifa_flags)
+        guard flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0, let address = entry.ifa_addr, address.pointee.sa_family == UInt8(AF_INET) else { return nil }
+        let ip = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { UInt32(bigEndian: $0.pointee.sin_addr.s_addr) }
+        return Subnet.text(ip)
+    }
+
     private static func subnet(of entry: ifaddrs) -> Subnet? {
         let flags = Int32(entry.ifa_flags)
         guard flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0, let address = entry.ifa_addr, let mask = entry.ifa_netmask,

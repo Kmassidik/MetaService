@@ -214,6 +214,8 @@ export interface ScanSetup {
   nmap_available: boolean
   /** The router's address when it is on the scanned network; it is not a machine to add. */
   gateway?: string | null
+  /** This computer's own addresses on the scanned network; it runs MetaService, so it is not a machine to add. */
+  own_addresses?: string[]
 }
 
 /** A one-time token for a machine added from a scan. */

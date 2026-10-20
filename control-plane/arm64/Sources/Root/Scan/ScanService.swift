@@ -8,6 +8,8 @@ struct ScanSetup: Encodable {
     let nmapAvailable: Bool
     /// The router every machine here uses to reach the internet. It is not a computer to add, so the page marks it.
     let gateway: String?
+    /// This computer's own addresses on the scanned network. It runs MetaService, so it is not a computer to add either.
+    let ownAddresses: [String]
 }
 
 /// Finds machines on the Root's own subnet: the router first, then nmap, then the ARP table. Read only; it never adds anything.
@@ -33,13 +35,18 @@ final class ScanService: @unchecked Sendable {
     var subnet: Subnet? { config.scanSubnet ?? SubnetDetector.detect() }
 
     func setup() async -> ScanSetup {
-        ScanSetup(subnet: subnet?.description, routerConfigured: router != nil, nmapAvailable: nmapExecutable() != nil, gateway: await gateway())
+        ScanSetup(subnet: subnet?.description, routerConfigured: router != nil, nmapAvailable: nmapExecutable() != nil, gateway: await gateway(), ownAddresses: ownAddresses())
     }
 
     /// The default gateway, when it is inside the scanned subnet. Nil when it cannot be found: the page then just shows every row as usual.
     private func gateway() async -> String? {
         guard let subnet, let data = try? await CommandRunner.run(config.routePath, ["-n", "get", "default"], timeout: 5) else { return nil }
         return DefaultGateway.parse(String(decoding: data, as: UTF8.self)).flatMap { subnet.contains($0) ? $0 : nil }
+    }
+
+    private func ownAddresses() -> [String] {
+        guard let subnet else { return [] }
+        return SubnetDetector.localAddresses().filter { subnet.contains($0) }
     }
 
     /// Starts a run in the background and returns its id. Refuses when there is no subnet or a run is already going.

@@ -30,6 +30,8 @@
   )
 
   const isGateway = (ip: string) => !!setup?.gateway && setup.gateway === ip
+  const isSelf = (ip: string) => !!setup?.own_addresses?.includes(ip)
+  const notAComputerToAdd = (ip: string) => isGateway(ip) || isSelf(ip)
 
   /** Opening the page looks at the network right away: nothing is kept from an earlier scan. */
   async function load() {
@@ -132,7 +134,7 @@
       {#each scan.results as row (row.id)}
         <div class="row" role="row">
           <span class="pick">
-            <input type="checkbox" checked={!!picked[row.id]} disabled={!!row.machine || isGateway(row.ip)} onchange={() => toggle(row)} aria-label="Pick {row.ip}" />
+            <input type="checkbox" checked={!!picked[row.id]} disabled={!!row.machine || notAComputerToAdd(row.ip)} onchange={() => toggle(row)} aria-label="Pick {row.ip}" />
           </span>
           <span class="mono" data-label="Address">{row.ip}</span>
           <span data-label="Name">{row.hostname ?? '–'}{#if row.vendor}<span class="muted vendor">· {row.vendor}</span>{/if}</span>
@@ -140,6 +142,7 @@
           <span class="tags" data-label="Seen by">{#each row.seen_by as source (source)}<span class="tag">{sourceName(source)}</span>{/each}</span>
           <span data-label="Status">
             {#if isGateway(row.ip)}<span class="muted">Router (gateway), not a computer to add</span>
+            {:else if isSelf(row.ip)}<span class="muted">This computer (running MetaService), not a computer to add</span>
             {:else if row.machine}Enrolled as <strong>{row.machine}</strong>
             {:else if row.agent_port_open}<span class="ok">Agent answering</span>
             {:else}<span class="muted">Unknown device</span> <button class="btn line sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Connect {row.ip}">Connect</button>{/if}
