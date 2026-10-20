@@ -12,6 +12,7 @@ actor AppleContainerEngine: Engine {
     private let defaultImage: String
     private let waitSeconds: Int
     private nonisolated let service = ServiceFlag()
+    private var knownVersion: String?
     private static let quick: TimeInterval = 30
     private static let slow: TimeInterval = 900
 
@@ -24,6 +25,16 @@ actor AppleContainerEngine: Engine {
     }
 
     // MARK: reading
+
+    static let engineName = "apple-container"
+
+    /// The tool's version, asked once it answers and then remembered. Nil while it cannot be read: it is never guessed.
+    func identity() async -> EngineIdentity {
+        if knownVersion == nil {
+            knownVersion = (try? await cli.run(AppleContainer.version, timeout: Self.quick)).flatMap { AppleContainer.parseVersion(String(decoding: $0, as: UTF8.self)) }
+        }
+        return EngineIdentity(name: Self.engineName, version: knownVersion)
+    }
 
     /// What is wrong with reading right now. A stopped container service must not make the whole machine fall silent: it reports a problem and the machine keeps reporting in.
     nonisolated var problems: [HostProblem] {
@@ -108,7 +119,7 @@ actor AppleContainerEngine: Engine {
         try records.remove(id)
     }
 
-    func setBundleVersion(id: String, version: String) async throws {
+    func setBundleVersion(id: String, version: String?) async throws {
         guard var record = records.all()[id] else { throw EngineError.notFound }
         record.bundleVersion = version
         try records.set(id, record)

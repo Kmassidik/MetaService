@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub const CONTRACT_VERSION: &str = "1.2.0";
+pub const CONTRACT_VERSION: &str = "1.3.0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -78,6 +78,21 @@ pub struct Problem {
     pub fix: String,
 }
 
+/// What an engine is: a short name and its version, or None when it cannot tell. Never guessed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EngineIdentity {
+    pub name: String,
+    pub version: Option<String>,
+}
+
+/// The engine as the facts report it. A missing version is sent as null.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct EngineInfo {
+    pub name: String,
+    pub version: Option<String>,
+    pub ready: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Facts {
     pub os: String,
@@ -90,6 +105,8 @@ pub struct Facts {
     pub gpu: Vec<Gpu>,
     pub capabilities: Capabilities,
     pub problems: Vec<Problem>,
+    pub agent_version: String,
+    pub engine: EngineInfo,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,6 +117,7 @@ pub enum CommandType {
     Stop,
     Delete,
     BundleInstall,
+    BundleUninstall,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

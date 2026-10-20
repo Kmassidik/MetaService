@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MetaService Root-Agent contract
-  version: 1.2.0
+  version: 1.3.0
   description: >
     The one API every MetaService Agent implements, and the part of the Root that Agents call.
     An Agent that passes contract/tests works with the Root, whatever language it is written in.
@@ -72,6 +72,17 @@ paths:
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/BundleInstall' } } }
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/bundle/uninstall:
+    post:
+      summary: Turn the chat off on the machine or in a workload. It stops; the folder with its conversations stays, so installing again brings them back.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BundleUninstall' } } }
       responses:
         '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
         '400': { $ref: '#/components/responses/Invalid' }
@@ -171,12 +182,12 @@ components:
       additionalProperties: false
       properties:
         status: { type: string, enum: [ok] }
-        agent_version: { type: string }
+        agent_version: { $ref: '#/components/schemas/ReportedVersion' }
         contract_version: { type: string }
         bundle_version: { type: string, nullable: true }
     Facts:
       type: object
-      required: [os, arch, cpu_cores, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb, gpu, capabilities]
+      required: [os, arch, cpu_cores, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb, gpu, capabilities, agent_version, engine]
       additionalProperties: false
       properties:
         os: { type: string, enum: [macos, linux, windows] }
@@ -205,6 +216,18 @@ components:
             container: { type: boolean }
             gpu_in_vm: { type: boolean }
             gpu_in_container: { type: boolean }
+        agent_version:
+          description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
+          $ref: '#/components/schemas/ReportedVersion'
+        engine:
+          description: The program this Agent makes VMs with, its version when it can tell, and whether it works right now. (Contract 1.3.0)
+          type: object
+          required: [name, version, ready]
+          additionalProperties: false
+          properties:
+            name: { type: string, pattern: '^[a-z0-9][a-z0-9-]{0,31}$', description: 'for example apple-container, incus, simulated' }
+            version: { description: Null when the engine cannot tell its version; never guessed., type: string, nullable: true, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$' }
+            ready: { type: boolean, description: False while the machine has a problem that stops it from running workloads }
         problems:
           description: >
             Things on the machine that stop it from running workloads, each with the way to fix it. Empty or missing means ready.
@@ -219,6 +242,9 @@ components:
               code: { type: string, pattern: '^[a-z0-9_]{1,64}$' }
               message: { type: string, minLength: 1, maxLength: 300 }
               fix: { type: string, maxLength: 500 }
+    ReportedVersion:
+      type: string
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$'
     Workload:
       type: object
       required: [id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, bundle_version]
@@ -264,6 +290,13 @@ components:
         version: { type: string, pattern: '^[0-9]+\.[0-9]+\.[0-9]+$' }
         sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
         workload_id: { $ref: '#/components/schemas/Id' }
+    BundleUninstall:
+      type: object
+      required: [command_id]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        workload_id: { $ref: '#/components/schemas/Id' }
     CommandAccepted:
       type: object
       required: [command_id, state]
@@ -277,7 +310,7 @@ components:
       additionalProperties: false
       properties:
         command_id: { $ref: '#/components/schemas/Id' }
-        type: { type: string, enum: [create, start, stop, delete, bundle_install] }
+        type: { type: string, enum: [create, start, stop, delete, bundle_install, bundle_uninstall] }
         state: { type: string, enum: [queued, running, succeeded, failed] }
         workload_id: { $ref: '#/components/schemas/Id' }
         result:

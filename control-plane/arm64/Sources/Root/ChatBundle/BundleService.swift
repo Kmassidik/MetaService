@@ -9,25 +9,31 @@ final class BundleService: @unchecked Sendable {
     private let commands: CommandStore
     private let bundles: BundleStore
     private let workloads: WorkloadService
+    private let autoPin: BundleAutoPin
     private let clock: Clock
     private static let tickSeconds: UInt64 = 5
-    private static let retryAfter: TimeInterval = 300
 
-    init(machines: MachineStore, commands: CommandStore, bundles: BundleStore, workloads: WorkloadService, clock: Clock) {
+    init(machines: MachineStore, commands: CommandStore, bundles: BundleStore, workloads: WorkloadService, autoPin: BundleAutoPin, clock: Clock) {
         self.machines = machines
         self.commands = commands
         self.bundles = bundles
         self.workloads = workloads
+        self.autoPin = autoPin
         self.clock = clock
     }
 
     func start() {
+        pinTheOnlyBuiltVersion()
         Task.detached { [self] in
             while !Task.isCancelled {
                 await reconcile()
                 try? await Task.sleep(nanoseconds: Self.tickSeconds * 1_000_000_000)
             }
         }
+    }
+
+    private func pinTheOnlyBuiltVersion() {
+        do { try autoPin.run() } catch { RemoteLog.say("could not pin the built chat: \(error)") }
     }
 
     func reconcile() async {
@@ -46,11 +52,11 @@ final class BundleService: @unchecked Sendable {
         return own + inside
     }
 
-    /// Not while one is already going, and not again at once after a failure.
+    /// Not while one is already going, not again at once after a failure, and never after the person turned the chat off.
     private func isDue(_ machine: String, _ workload: String?) -> Bool {
-        guard let last = try? commands.lastBundleInstall(machine: machine, workloadId: workload) else { return true }
-        guard last.state == "failed" else { return last.state == "succeeded" }
-        guard let finished = last.finishedAt.flatMap({ ISO8601DateFormatter().date(from: $0) }) else { return false }
-        return clock.now.timeIntervalSince(finished) > Self.retryAfter
+        guard let last = try? commands.lastBundleCommand(machine: machine, workloadId: workload) else { return true }
+        guard let kind = BundleCommandKind(rawValue: last.type) else { return false }
+        let finished = last.finishedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        return BundleSchedule.isDue(last: BundleCommandFacts(kind: kind, state: last.state, finishedAt: finished), now: clock.now)
     }
 }

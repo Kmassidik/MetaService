@@ -76,6 +76,22 @@ public enum AppleContainer {
     exit 1
     """
 
+    /// Turns the chat off inside a workload: the service stops and is not started again, but /opt/metaservice/chat-data (the conversations) and the key stay.
+    /// Fixed text; nothing is interpolated into it.
+    public static let bundleUninstallScript = """
+    systemctl disable --now metaservice-chat >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/metaservice-chat.service
+    systemctl daemon-reload
+    """
+
+    public static let version = ["--version"]
+    private static let versionPattern = #/\b(\d{1,4}\.\d{1,4}\.\d{1,4})\b/#
+
+    /// The version in what `container --version` prints (for example "container CLI version 0.5.1 (build: release)"), or nil when there is none.
+    public static func parseVersion(_ output: String) -> String? {
+        output.firstMatch(of: versionPattern).map { String($0.output.1) }
+    }
+
     public static let listAll = ["list", "--all", "--format", "json"]
     public static let systemStatus = ["system", "status"]
     public static let systemStart = ["system", "start"]

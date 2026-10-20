@@ -45,3 +45,14 @@ public struct BundleInstallRequest: Equatable {
         workloadId = object.has("workload_id") ? try object.id("workload_id") : nil
     }
 }
+
+public struct BundleUninstallRequest: Equatable {
+    public let commandId: String
+    public let workloadId: String?
+
+    public init(body: Data) throws {
+        let object = try StrictObject(data: body, allowed: ["command_id", "workload_id"])
+        commandId = try object.id("command_id")
+        workloadId = object.has("workload_id") ? try object.id("workload_id") : nil
+    }
+}

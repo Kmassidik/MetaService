@@ -7,6 +7,9 @@ from contract.spec import CONTRACT_VERSION
 
 DEFAULT_BUNDLE_VERSION = None
 BACKUP_PREFIX = "backup"
+ENGINE_NAME = "fake"
+ENGINE_VERSION = "1.0.0"
+KEPT_CHAT_DATA = "chat-data"
 
 
 @dataclass
@@ -65,6 +68,8 @@ class FakeEngine:
                 "vm": spec.vm, "container": spec.container,
                 "gpu_in_vm": spec.gpu_in_vm, "gpu_in_container": spec.gpu_in_container,
             },
+            "agent_version": self.agent_version,
+            "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},
         }
 
     def _free_ram(self):
@@ -154,6 +159,19 @@ class FakeEngine:
             else:
                 self._get(target)["bundle_version"] = body["version"]
             return self._finish(body["command_id"], "bundle_install", target, {"version": body["version"], "port": "9200", "chat_key": "fake-key-" + body["version"]})
+
+    def uninstall_bundle(self, body):
+        """Turns the chat off. The folder with its conversations is kept, so a later install brings them back."""
+        with self._lock:
+            existing = self._commands.get(body["command_id"])
+            if existing is not None:
+                return dict(existing)
+            target = body.get("workload_id")
+            if target is None:
+                self.bundle_version = None
+            else:
+                self._get(target)["bundle_version"] = None
+            return self._finish(body["command_id"], "bundle_uninstall", target, {"kept": KEPT_CHAT_DATA})
 
     def _get(self, workload_id):
         found = self._workloads.get(workload_id)

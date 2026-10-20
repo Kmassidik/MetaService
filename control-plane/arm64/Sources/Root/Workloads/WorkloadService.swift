@@ -12,6 +12,7 @@ final class WorkloadService: @unchecked Sendable {
     private let client: AgentClient
     private let clock: Clock
     private let bundles: BundleStore
+    private let autoPin: BundleAutoPin
     private let chatAccess: ChatAccessStore
     private let secrets: SecretBox
     private let creating = NSLock()
@@ -19,8 +20,9 @@ final class WorkloadService: @unchecked Sendable {
     private static let giveUpAfterSeconds = 20 * 60
     private static let lostContactAfterPolls = 300
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, chatAccess: ChatAccessStore, secrets: SecretBox) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox) {
         self.bundles = bundles
+        self.autoPin = autoPin
         self.chatAccess = chatAccess
         self.secrets = secrets
         self.machines = machines
@@ -71,17 +73,44 @@ final class WorkloadService: @unchecked Sendable {
 
     /// Installs (or upgrades, or rolls back) the pinned chat bundle on a machine or one of its workloads.
     func installBundle(actor: String, machine: String, workload: String?) async throws -> CommandRow {
-        guard let version = try bundles.pinned() else { throw ApiFailure(status: .conflict, code: "no_bundle_pinned", message: "pin a chat bundle version first") }
+        let version = try pinnedVersion()
         guard let bundle = try bundles.find(version: version, platform: "noarch") else { throw ApiFailure(status: .conflict, code: "bundle_missing", message: "the pinned bundle file is not on the Root machine") }
-        let known: MachineSummary
-        do { known = try machines.get(id: machine, now: clock.now) } catch MachineError.notFound { throw ApiFailure.notFound }
-        guard workload == nil || known.workloads.contains(where: { $0.id == workload }) else { throw ApiFailure.notFound }
+        _ = try knownTarget(machine: machine, workload: workload)
         let id = Self.newCommandId()
         try commands.create(id: id, machine: machine, workloadId: workload, type: "bundle_install", params: ["version": version], actor: actor, now: clock.now)
         try audit.record(actor: actor, action: "bundle.install", target: machine, detail: ["version": version, "workload": workload ?? "", "command": id], at: clock.now)
         var body: [String: Any] = ["command_id": id, "version": version, "sha256": bundle.sha256]
         body["workload_id"] = workload
         return try await send(id, machine: machine, method: "POST", path: "/v1/bundle/install", body: body)
+    }
+
+    /// Turns the chat off on a machine or one of its workloads: it stops, and its chat data stays where it is.
+    func uninstallBundle(actor: String, machine: String, workload: String?) async throws -> CommandRow {
+        let installed = try knownTarget(machine: machine, workload: workload)
+        guard installed != nil else { throw ApiFailure(status: .conflict, code: "chat_not_installed", message: "the chat is not installed there") }
+        let id = Self.newCommandId()
+        try commands.create(id: id, machine: machine, workloadId: workload, type: "bundle_uninstall", params: [:], actor: actor, now: clock.now)
+        try audit.record(actor: actor, action: "bundle.uninstall", target: machine, detail: ["workload": workload ?? "", "command": id], at: clock.now)
+        var body: [String: Any] = ["command_id": id]
+        body["workload_id"] = workload
+        return try await send(id, machine: machine, method: "POST", path: "/v1/bundle/uninstall", body: body)
+    }
+
+    /// The pinned chat version. With none pinned and one built, that one is pinned first; with none built the answer says so.
+    private func pinnedVersion() throws -> String {
+        try autoPin.run()
+        if let version = try bundles.pinned() { return version }
+        guard try bundles.overview(now: clock.now).bundles.isEmpty else { throw ApiFailure(status: .conflict, code: "no_bundle_pinned", message: "pin a chat bundle version first") }
+        throw ApiFailure(status: .conflict, code: "no_chat_built", message: "no chat is built on the parent")
+    }
+
+    /// Checks the machine (and the workload on it) exist, and returns the chat version that is installed there, if any.
+    private func knownTarget(machine: String, workload: String?) throws -> String? {
+        let known: MachineSummary
+        do { known = try machines.get(id: machine, now: clock.now) } catch MachineError.notFound { throw ApiFailure.notFound }
+        guard let workload else { return known.bundleVersion }
+        guard let found = known.workloads.first(where: { $0.id == workload }) else { throw ApiFailure.notFound }
+        return found.bundleVersion
     }
 
     /// After a restart, keep following whatever was still running.

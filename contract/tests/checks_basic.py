@@ -4,7 +4,7 @@ from contract.tests.support import expect, expect_error, expect_schema
 
 ENDPOINTS_NEEDING_TOKEN = [
     ("GET", "/v1/health"), ("GET", "/v1/facts"), ("GET", "/v1/workloads"),
-    ("POST", "/v1/workloads"), ("POST", "/v1/bundle/install"), ("GET", "/v1/commands/abc"),
+    ("POST", "/v1/workloads"), ("POST", "/v1/bundle/install"), ("POST", "/v1/bundle/uninstall"), ("GET", "/v1/commands/abc"),
     ("POST", "/v1/workloads/abc/start"), ("POST", "/v1/workloads/abc/stop"), ("DELETE", "/v1/workloads/abc"),
 ]
 WRONG_TOKENS = ["", "wrong", "Bearer", "x" * 500]
@@ -52,6 +52,14 @@ def check_facts(ctx):
     expect(facts["free_disk_gb"] <= facts["disk_total_gb"], "free disk is larger than total disk")
 
 
+def check_facts_say_which_helper_and_engine_run(ctx):
+    facts, health = ctx.facts(), ctx.get("/v1/health").body
+    expect(facts["agent_version"] == health["agent_version"], f"facts say helper {facts['agent_version']!r}, health says {health['agent_version']!r}")
+    engine = facts["engine"]
+    expect(engine["version"] is None or engine["version"].strip() == engine["version"], f"the engine version is odd: {engine['version']!r}")
+    expect(engine["ready"] == (not facts.get("problems")), f"engine ready={engine['ready']} but problems={facts.get('problems')}")
+
+
 def check_unknown_path_is_404_json(ctx):
     expect_error(ctx.get("/v1/nope"), 404, "unknown path")
     expect_error(ctx.get("/"), 404, "root path")
@@ -67,6 +75,6 @@ def check_errors_never_leak_the_token(ctx):
 
 CHECKS = [
     check_no_token_is_401_everywhere, check_wrong_token_is_401, check_wrong_token_changes_nothing,
-    check_contract_header_on_every_reply, check_health, check_facts, check_unknown_path_is_404_json,
+    check_contract_header_on_every_reply, check_health, check_facts, check_facts_say_which_helper_and_engine_run, check_unknown_path_is_404_json,
     check_errors_never_leak_the_token,
 ]

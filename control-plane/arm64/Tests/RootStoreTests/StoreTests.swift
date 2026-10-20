@@ -28,6 +28,12 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), Migrations.latest)
     }
 
+    func testTheTableOfTheRemovedLocalInstallIsDropped() throws {
+        let tables = try database.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'local_agents'")
+        XCTAssertTrue(tables.isEmpty, "migration 16 drops local_agents")
+        XCTAssertGreaterThanOrEqual(Migrations.latest, 16)
+    }
+
     func testAuditLogIsAppendOnly() throws {
         let audit = AuditStore(database)
         try audit.record(actor: "kurnia", action: "test", target: "x", detail: ["k": "v"], at: now)

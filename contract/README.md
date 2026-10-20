@@ -9,3 +9,7 @@ the Root, whatever language it is written in.
 - `tests/mutation.py` checks the suite itself: deliberately broken Fake Agents must fail it.
 
 Run inside the Nix dev shell (`nix develop`): `python3 -m contract.tests.run_fake` and `python3 -m contract.tests.mutation`.
+
+## Versions
+
+- 1.3.0 (additive): `Facts` carries `agent_version` (the same text as `/v1/health`) and `engine` (`name`, `version` or null, `ready`); `POST /v1/bundle/uninstall` turns the chat off on the machine or in a workload and keeps its conversations; command type `bundle_uninstall`. The Root accepts a helper that does not say these (they stay null in the panel); an Agent that claims 1.3.0 must.

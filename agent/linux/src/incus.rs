@@ -1,17 +1,19 @@
 //! Workloads as Incus instances: VMs and containers, one engine. Every call is the `incus` program with a fixed argument list;
 //! nothing a user typed can become a flag, because names and ids are checked against the id pattern and the image against the image pattern first.
 use crate::engine::Engine;
-use crate::models::{Capabilities, EngineError, GpuMode, Kind, Problem, State, Workload};
+use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
 use crate::preflight::{self, HostProbe, NoHostChecks};
 use crate::validate::CreateRequest;
 use serde_json::Value;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const PREFIX: &str = "ms-";
+pub const ENGINE_NAME: &str = "incus";
+const BUNDLE_VERSION_KEY: &str = "user.metaservice.bundle_version";
 const STOP_SECONDS: &str = "30";
 const QUICK: Duration = Duration::from_secs(30);
 const SLOW: Duration = Duration::from_secs(900);
@@ -54,6 +56,8 @@ pub struct IncusEngine {
     default_image: String,
     wait_seconds: u64,
     probe: Arc<dyn HostProbe>,
+    /// Asked for once the program answers, then remembered.
+    version: Mutex<Option<String>>,
 }
 
 fn name_of(id: &str) -> String {
@@ -66,7 +70,7 @@ fn args(items: &[&str]) -> Vec<String> {
 
 impl IncusEngine {
     pub fn new(runner: Arc<dyn Runner>, capabilities: Capabilities, backup_dir: PathBuf, default_image: String, wait_seconds: u64) -> Self {
-        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks) }
+        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks), version: Mutex::new(None) }
     }
 
     /// Lets the engine look at the host (the firewall) when it reports problems.
@@ -153,6 +157,14 @@ impl Engine for IncusEngine {
         self.capabilities
     }
 
+    fn identity(&self) -> EngineIdentity {
+        let mut known = self.version.lock().unwrap();
+        if known.is_none() {
+            *known = self.runner.run(&args(&["version"]), QUICK).ok().and_then(|text| crate::version::parse_incus_version(&text));
+        }
+        EngineIdentity { name: ENGINE_NAME.into(), version: known.clone() }
+    }
+
     fn problems(&self) -> Vec<Problem> {
         preflight::incus_host(self.runner.as_ref(), self.probe.as_ref())
     }
@@ -198,9 +210,13 @@ impl Engine for IncusEngine {
         if self.find(id)?.is_some() { Err(EngineError::Failed("the machine is still there after delete".into())) } else { Ok(()) }
     }
 
-    fn set_bundle_version(&self, id: &str, version: &str) -> Result<(), EngineError> {
+    fn set_bundle_version(&self, id: &str, version: Option<&str>) -> Result<(), EngineError> {
         self.require(id)?;
-        self.runner.run(&args(&["config", "set", &name_of(id), "user.metaservice.bundle_version", version]), QUICK).map(|_| ())
+        let call = match version {
+            Some(version) => args(&["config", "set", &name_of(id), BUNDLE_VERSION_KEY, version]),
+            None => args(&["config", "unset", &name_of(id), BUNDLE_VERSION_KEY]),
+        };
+        self.runner.run(&call, QUICK).map(|_| ())
     }
 
     fn push(&self, id: &str, host_path: &str, container_path: &str) -> Result<(), EngineError> {
@@ -244,6 +260,61 @@ mod tests {
         for flag in ["--privileged", "security.privileged", "raw.lxc", "--target", "-p"] {
             assert!(!vm.iter().chain(&gpu).any(|a| a.contains(flag)), "{flag}");
         }
+    }
+
+    /// Answers `incus version` and records every call.
+    struct Scripted {
+        calls: Mutex<Vec<Vec<String>>>,
+        version_answer: Result<String, ()>,
+    }
+
+    impl Runner for Scripted {
+        fn run(&self, arguments: &[String], _timeout: Duration) -> Result<String, EngineError> {
+            self.calls.lock().unwrap().push(arguments.to_vec());
+            match arguments.first().map(String::as_str) {
+                Some("version") => self.version_answer.clone().map_err(|_| EngineError::Failed("no".into())),
+                Some("list") => Ok(r#"[{"name":"ms-w-1","status":"Running","config":{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"container","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1"},"state":null}]"#.into()),
+                _ => Ok(String::new()),
+            }
+        }
+    }
+
+    fn engine_with(version_answer: Result<String, ()>) -> (IncusEngine, Arc<Scripted>) {
+        let runner = Arc::new(Scripted { calls: Mutex::new(Vec::new()), version_answer });
+        let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+        (IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1), runner)
+    }
+
+    #[test]
+    fn the_engine_says_its_name_and_the_version_incus_prints() {
+        let (engine, _) = engine_with(Ok("Client version: 6.0.3\nServer version: 6.0.3\n".into()));
+        assert_eq!(engine.identity(), EngineIdentity { name: "incus".into(), version: Some("6.0.3".into()) });
+    }
+
+    #[test]
+    fn a_version_incus_cannot_give_is_none_and_is_asked_again_next_time() {
+        let (engine, runner) = engine_with(Err(()));
+        assert_eq!(engine.identity().version, None);
+        assert_eq!(engine.identity().version, None);
+        assert_eq!(runner.calls.lock().unwrap().iter().filter(|c| c[0] == "version").count(), 2);
+    }
+
+    #[test]
+    fn a_known_version_is_asked_for_once() {
+        let (engine, runner) = engine_with(Ok("Server version: 6.1".into()));
+        assert_eq!(engine.identity().version.as_deref(), Some("6.1"));
+        assert_eq!(engine.identity().version.as_deref(), Some("6.1"));
+        assert_eq!(runner.calls.lock().unwrap().iter().filter(|c| c[0] == "version").count(), 1);
+    }
+
+    #[test]
+    fn clearing_a_workloads_bundle_version_unsets_the_key_and_setting_it_sets_it() {
+        let (engine, runner) = engine_with(Ok(String::new()));
+        engine.set_bundle_version("w-1", Some("1.2.3")).unwrap();
+        engine.set_bundle_version("w-1", None).unwrap();
+        let calls = runner.calls.lock().unwrap();
+        assert!(calls.contains(&args(&["config", "set", "ms-w-1", "user.metaservice.bundle_version", "1.2.3"])));
+        assert!(calls.contains(&args(&["config", "unset", "ms-w-1", "user.metaservice.bundle_version"])));
     }
 
     #[test]

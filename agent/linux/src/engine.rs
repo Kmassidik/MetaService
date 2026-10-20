@@ -1,11 +1,13 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
-use crate::models::{Capabilities, EngineError, GpuMode, Kind, Problem, State, Workload};
+use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
 use crate::validate::CreateRequest;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub trait Engine: Send + Sync {
     fn capabilities(&self) -> Capabilities;
+    /// What this engine is, for the facts: a short name and its version, or None when it cannot tell. Never guessed.
+    fn identity(&self) -> EngineIdentity;
     /// What on this machine stops it from running workloads right now. Empty means ready.
     fn problems(&self) -> Vec<Problem> {
         Vec::new()
@@ -16,7 +18,8 @@ pub trait Engine: Send + Sync {
     /// Copies the workload's disk somewhere safe and returns the backup's name. Called before every delete.
     fn backup(&self, id: &str) -> Result<String, EngineError>;
     fn delete(&self, id: &str) -> Result<(), EngineError>;
-    fn set_bundle_version(&self, id: &str, version: &str) -> Result<(), EngineError>;
+    /// Records which chat bundle version a workload has (None: none, the chat was turned off).
+    fn set_bundle_version(&self, id: &str, version: Option<&str>) -> Result<(), EngineError>;
     /// Copies a file from this machine into the workload.
     fn push(&self, id: &str, host_path: &str, container_path: &str) -> Result<(), EngineError>;
     /// Runs one program inside the workload and returns what it printed. Values go in through `environment`, never into the arguments.
@@ -28,6 +31,8 @@ pub struct SimulatedEngine {
     capabilities: Capabilities,
     store: Mutex<HashMap<String, Workload>>,
 }
+
+pub const SIMULATED_ENGINE: &str = "simulated";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
@@ -44,6 +49,10 @@ impl SimulatedEngine {
 impl Engine for SimulatedEngine {
     fn capabilities(&self) -> Capabilities {
         self.capabilities
+    }
+
+    fn identity(&self) -> EngineIdentity {
+        EngineIdentity { name: SIMULATED_ENGINE.into(), version: None }
     }
 
     fn list(&self) -> Result<Vec<Workload>, EngineError> {
@@ -72,8 +81,8 @@ impl Engine for SimulatedEngine {
         self.store.lock().unwrap().remove(id).map(|_| ()).ok_or(EngineError::NotFound)
     }
 
-    fn set_bundle_version(&self, id: &str, version: &str) -> Result<(), EngineError> {
-        self.change(id, |w| w.bundle_version = Some(version.to_string()))
+    fn set_bundle_version(&self, id: &str, version: Option<&str>) -> Result<(), EngineError> {
+        self.change(id, |w| w.bundle_version = version.map(str::to_string))
     }
 
     fn push(&self, id: &str, _host_path: &str, _container_path: &str) -> Result<(), EngineError> {

@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 from contract.agent_tests.support import FakeContainerWorld, FakeIncusWorld, LINUX_BINARY, RunningAgent, run_cli, wait_for, write_secret
 from contract.root_tests.support import Browser, RunningRoot, expect, _free_port
-from contract.tests.bundle_source import BundleSource
+from contract.tests.bundle_source import VERSIONS as BUNDLE_VERSIONS, BundleSource
 
 
 class Machine:
@@ -31,8 +31,9 @@ class Machine:
 
 
 class World:
-    def __init__(self, root_env=None, with_bundles=False):
-        self.bundles = BundleSource("unused") if with_bundles else None
+    def __init__(self, root_env=None, with_bundles=False, bundle_versions=None):
+        """`bundle_versions`: which chat versions to build for this Root (default: two). An empty list is a parent with no chat built."""
+        self.bundles = BundleSource("unused", versions=bundle_versions if bundle_versions is not None else BUNDLE_VERSIONS) if with_bundles else None
         extra = ["--ui-dir", "/nonexistent-ui"] + (["--bundle-dir", str(self.bundles.dir)] if self.bundles else [])
         self.root = RunningRoot(env_text=root_env, extra_args=extra).start()
         self.operator = Browser(self.root)

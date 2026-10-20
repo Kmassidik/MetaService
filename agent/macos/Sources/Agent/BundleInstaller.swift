@@ -45,6 +45,14 @@ actor BundleInstaller: BundleInstalling {
         return try await installOne(request)
     }
 
+    /// Turns the chat off here or in a workload. It stops and is not started again; the folder with its conversations, and its key, stay, so installing again brings everything back.
+    func uninstall(workloadId: String?) async throws {
+        await acquire()
+        defer { release() }
+        guard let workloadId else { return try await uninstallHere() }
+        try await uninstallInside(workloadId)
+    }
+
     private func acquire() async {
         guard busy else { busy = true; return }
         await withCheckedContinuation { waiting.append($0) }
@@ -131,6 +139,14 @@ actor BundleInstaller: BundleInstalling {
         prune(keeping: request.version, previous: previous)
     }
 
+    private func uninstallHere() async throws {
+        await supervisor?.stop()
+        machineVersion = nil
+        let path = config.stateDirectory + "/bundle.json"
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        try FileManager.default.removeItem(atPath: path)
+    }
+
     private func chatArguments(version: String, keyFile: String) -> [String] {
         let folder = config.stateDirectory + "/bundles/\(version)"
         let base = [folder + "/service/chat.py", "--port", String(config.chatPort), "--bind", config.chatBind ?? config.bind, "--key-file", keyFile, "--web-dir", folder + "/web", "--version", version]
@@ -181,6 +197,11 @@ actor BundleInstaller: BundleInstalling {
         try await engine.push(id: workload, hostPath: keyPath, containerPath: "/tmp/metaservice-chat.key")
         _ = try await engine.exec(id: workload, arguments: ["sh", "-c", AppleContainer.bundleInstallScript], environment: ["MS_VERSION": request.version, "MS_PORT": String(config.chatPort), "MS_BRAIN_URL": brainURL ?? ""])
         try await engine.setBundleVersion(id: workload, version: request.version)
+    }
+
+    private func uninstallInside(_ workload: String) async throws {
+        _ = try await engine.exec(id: workload, arguments: ["sh", "-c", AppleContainer.bundleUninstallScript], environment: [:])
+        try await engine.setBundleVersion(id: workload, version: nil)
     }
 
     private func remember(_ key: String, for target: String) throws {

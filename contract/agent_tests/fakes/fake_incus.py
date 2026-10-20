@@ -101,10 +101,15 @@ elif command == "export":
         if not os.environ.get("FAKE_INCUS_EMPTY_EXPORT"):
             out.write(b"fake backup of " + name.encode())
 elif command == "config":
-    sub, name, key, value = args[1:5]
-    if sub != "set" or name not in state["instances"]:
+    sub, name, key = args[1:4]
+    if sub not in ("set", "unset") or name not in state["instances"] or len(args) != (5 if sub == "set" else 4):
         die("bad config command", 2)
-    state["instances"][name]["config"][key] = value
+    if sub == "set":
+        state["instances"][name]["config"][key] = args[4]
+    else:
+        state["instances"][name]["config"].pop(key, None)
+elif command == "version":
+    print(f"Client version: {os.environ.get('FAKE_INCUS_VERSION', '6.0.3')}\nServer version: {os.environ.get('FAKE_INCUS_VERSION', '6.0.3')}")
 elif command == "file":
     values, positional = flags(args[1:], set())
     if positional[0] != "push":

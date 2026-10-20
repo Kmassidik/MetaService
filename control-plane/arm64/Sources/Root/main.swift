@@ -16,7 +16,6 @@ do {
         fflush(stdout)
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
-    services.localAgents.resume()
     services.tunnels.resume()
     services.workloads.resume()
     services.bundleService.start()
@@ -29,7 +28,6 @@ do {
         defer { group.cancelAll() }
         try await group.next()
     }
-    services.localAgents.stopAll()
     services.tunnels.stopAll()
     services.remoteSsh.stop()
 } catch {

@@ -27,6 +27,12 @@ public struct StrictObject {
 
     public func has(_ key: String) -> Bool { values[key] != nil && !(values[key] is NSNull) }
 
+    /// True when the key is there and is an explicit JSON null (so "clear this" can be told from "not mentioned").
+    public func isNull(_ key: String) -> Bool { values[key] is NSNull }
+
+    /// The keys the body mentioned, null or not.
+    public var keys: Set<String> { Set(values.keys) }
+
     public func string(_ key: String, pattern: Regex<Substring>? = nil, maxLength: Int = 256, minLength: Int = 0) throws -> String {
         guard let text = values[key] as? String, !(values[key] is NSNumber) else { throw InputError("\(path)\(key) must be a string") }
         guard (minLength...maxLength).contains(text.count) else { throw InputError("\(path)\(key) has a bad length") }

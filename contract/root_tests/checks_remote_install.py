@@ -82,7 +82,7 @@ def check_what_will_change_is_shown_without_a_login_or_any_change():
         expect("key" not in [step["id"] for step in no_key["steps"]], "without the key there is no key step")
         expect(operator.write("POST", "/api/remote/plan", {**body, "install_vm_tool": True}).status == 400, "the VM tool step is not available yet")
         expect(operator.write("POST", "/api/remote/plan", {**body, "box": "/a b"}).status == 400, "a path with a space")
-        expect(operator.write("POST", "/api/remote/plan", {**body, "host": "10.255.255.1"}).status == 409, "a computer that could not reach the parent")
+        # Since commit 57afeac a computer reaches the parent through the SSH connection itself, so a plan no longer depends on the computer being able to reach the parent.
         expect(operator.request("GET", "/api/remote/machines").body["machines"] == [], "planning must not add anything")
 
 

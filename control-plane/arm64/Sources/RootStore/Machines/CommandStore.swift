@@ -70,12 +70,18 @@ public struct CommandStore {
             """).map(row)
     }
 
-    /// The newest bundle install for one machine (and workload, if any), so a failing install is not retried every few seconds.
-    public func lastBundleInstall(machine: String, workloadId: String?) throws -> CommandRow? {
+    /// The newest chat install or uninstall for one machine (and workload, if any): a failing install is not retried every few seconds, and a removal is not undone.
+    public func lastBundleCommand(machine: String, workloadId: String?) throws -> CommandRow? {
         try database.query("""
             SELECT id, machine_id, workload_id, type, params_json, state, result_json, actor, created_at, finished_at FROM commands
-            WHERE machine_id = ? AND type = 'bundle_install' AND COALESCE(workload_id, '') = ? ORDER BY created_at DESC, id DESC LIMIT 1
+            WHERE machine_id = ? AND type IN ('bundle_install', 'bundle_uninstall') AND COALESCE(workload_id, '') = ? ORDER BY created_at DESC, id DESC LIMIT 1
             """, [.text(machine), .text(workloadId ?? "")]).first.map(row)
+    }
+
+    /// The kind of chat command that is still going on this machine (or workload), if one is.
+    public func goingBundleCommand(machine: String, workloadId: String?) throws -> BundleCommandKind? {
+        guard let last = try lastBundleCommand(machine: machine, workloadId: workloadId), ["queued", "running"].contains(last.state) else { return nil }
+        return BundleCommandKind(rawValue: last.type)
     }
 
     /// RAM and disk already promised to creates that have not finished, so two quick requests cannot both take the same room.

@@ -12,6 +12,10 @@ public actor SimulatedEngine: Engine {
         self.capabilities = capabilities
     }
 
+    public static let engineName = "simulated"
+
+    public func identity() async -> EngineIdentity { EngineIdentity(name: Self.engineName, version: nil) }
+
     public func list() async throws -> [Workload] {
         Array(store.values)
     }
@@ -35,7 +39,7 @@ public actor SimulatedEngine: Engine {
         guard store.removeValue(forKey: id) != nil else { throw EngineError.notFound }
     }
 
-    public func setBundleVersion(id: String, version: String) async throws {
+    public func setBundleVersion(id: String, version: String?) async throws {
         try change(id) { $0.bundleVersion = version }
     }
 

@@ -61,6 +61,13 @@ done
 exit 1
 "#;
 
+/// Turns the chat off inside a workload: the service stops and is not started again, but /opt/metaservice/chat-data (the conversations) and the key stay.
+/// Fixed text; nothing is interpolated into it.
+pub const WORKLOAD_UNINSTALL_SCRIPT: &str = r#"systemctl disable --now metaservice-chat >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/metaservice-chat.service
+systemctl daemon-reload
+"#;
+
 #[derive(Default)]
 struct Persisted {
     keys: HashMap<String, String>,
@@ -201,7 +208,25 @@ impl BundleInstaller {
         self.engine.push(workload, &key_path.display().to_string(), "/tmp/metaservice-chat.key").map_err(failed)?;
         let environment = [("MS_VERSION".to_string(), request.version.clone()), ("MS_PORT".to_string(), self.config.chat_port.to_string()), ("MS_BRAIN_URL".to_string(), self.brain_url().unwrap_or_default())];
         self.engine.exec(workload, &["sh".into(), "-c".into(), WORKLOAD_SCRIPT.into()], &environment).map_err(failed)?;
-        self.engine.set_bundle_version(workload, &request.version).map_err(failed)
+        self.engine.set_bundle_version(workload, Some(&request.version)).map_err(failed)
+    }
+
+    /// The chat on this machine stops and is not started again. Its folder, its conversations and its key stay, so installing again brings them back.
+    fn uninstall_here(&self) -> Result<(), String> {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.stop();
+        }
+        self.state.lock().unwrap().version = None;
+        match std::fs::remove_file(self.config.state_dir.join("bundle.json")) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()),
+            _ => Ok(()),
+        }
+    }
+
+    fn uninstall_inside(&self, workload: &str) -> Result<(), String> {
+        let failed = |e: crate::models::EngineError| format!("{e:?}");
+        self.engine.exec(workload, &["sh".into(), "-c".into(), WORKLOAD_UNINSTALL_SCRIPT.into()], &[]).map_err(failed)?;
+        self.engine.set_bundle_version(workload, None).map_err(failed)
     }
 
     fn remember_key(&self, target: &str, key: &str) -> Result<(), String> {
@@ -212,6 +237,14 @@ impl BundleInstaller {
 }
 
 impl BundleInstalling for BundleInstaller {
+    fn uninstall(&self, workload_id: Option<&str>) -> Result<(), String> {
+        let _only_one = self.one_at_a_time.lock().unwrap();
+        match workload_id {
+            Some(workload) => self.uninstall_inside(workload),
+            None => self.uninstall_here(),
+        }
+    }
+
     fn installed_version(&self) -> Option<String> {
         self.state.lock().unwrap().version.clone()
     }

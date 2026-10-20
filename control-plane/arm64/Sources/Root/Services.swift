@@ -17,15 +17,14 @@ struct Services {
     let bundles: BundleStore
     let chatAccess: ChatAccessStore
     let bundleService: BundleService
+    let machineDetails: MachineDetails
     let brain: BrainStore
     let brainService: BrainService
     let throttle: Throttle
     let admin: AdminStore
     let setupGate: SetupGate
     let sessions: SessionStore
-    let installs: InstallService
     let machineSettings: MachineSettingsStore
-    let localAgents: LocalAgentSupervisor
     let remote: RemoteService
     let remoteSsh: RemoteSsh
     let tunnelPorts = TunnelPorts()
@@ -52,19 +51,18 @@ struct Services {
         chatAccess = ChatAccessStore(database)
         brain = BrainStore(database)
         brainService = BrainService(config: config)
+        let autoPin = BundleAutoPin(bundles: bundles, audit: audit, clock: clock)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
-                                    bundles: bundles, chatAccess: chatAccess, secrets: secrets)
-        bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, clock: clock)
+                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets)
+        bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, autoPin: autoPin, clock: clock)
         machineSettings = MachineSettingsStore(database)
-        localAgents = LocalAgentSupervisor(store: LocalAgentStore(database))
         remoteSsh = RemoteSsh(parts: .init(config: config, clock: clock, keys: RemoteKeyStore(database), secrets: secrets, throttle: throttle))
         remote = RemoteService(ssh: remoteSsh, config: config, audit: audit, clock: clock)
         remoteMachines = RemoteMachineStore(database)
+        machineDetails = MachineDetails(machines: machines, remoteMachines: remoteMachines, bundles: bundles, commands: commands, clock: clock)
         tunnels = TunnelSupervisor(ssh: remoteSsh, remoteMachines: remoteMachines, ports: tunnelPorts, clock: clock)
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
         screens = ScreenService(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), audit: audit, clock: clock)
-        installs = InstallService(parts: .init(config: config, clock: clock, machines: machines, enrollments: enrollments, audit: audit, commands: commands, bundles: bundles, workloads: workloads, settings: machineSettings),
-                                  supervisor: localAgents)
     }
 }

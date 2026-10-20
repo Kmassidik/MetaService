@@ -46,12 +46,42 @@ def _delete_wrapper():
     return broken
 
 
+def _uninstall_that_changes_nothing():
+    def broken(self, body):
+        return self._finish(body["command_id"], "bundle_uninstall", body.get("workload_id"), {})
+
+    return broken
+
+
+def _facts_without_the_helper_version():
+    original = FakeEngine._facts
+
+    def broken(self):
+        facts = original(self)
+        del facts["agent_version"]
+        return facts
+
+    return broken
+
+
+def _facts_with_a_different_helper_version():
+    original = FakeEngine._facts
+
+    def broken(self):
+        return {**original(self), "agent_version": "someone-else"}
+
+    return broken
+
+
 MUTANTS = [
     ("no input validation", spec, "problems", lambda name, instance: [], "check_create_rejects_bad_names"),
     ("any token accepted", fake_server.hmac, "compare_digest", lambda a, b: True, "check_wrong_token_is_401"),
     ("no disk limit", FakeEngine, "_free_disk", lambda self: 10**9, "check_disk_is_counted_and_returned"),
     ("no RAM limit", FakeEngine, "_free_ram", lambda self: 10**9, "check_ram_counts_only_while_running"),
     ("delete without backup", FakeEngine, "delete", _delete_wrapper(), "check_delete_backs_up_first"),
+    ("uninstall changes nothing", FakeEngine, "uninstall_bundle", _uninstall_that_changes_nothing(), "check_machine_uninstall_clears_the_version_in_health"),
+    ("facts without the helper version", FakeEngine, "_facts", _facts_without_the_helper_version(), "check_facts"),
+    ("facts name another helper version than health", FakeEngine, "_facts", _facts_with_a_different_helper_version(), "check_facts_say_which_helper_and_engine_run"),
 ]
 
 

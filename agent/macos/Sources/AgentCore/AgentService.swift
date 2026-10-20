@@ -30,6 +30,8 @@ public enum Contract {
 /// Puts the chat bundle on this machine or inside a workload. The result carries the version, the port and the access key.
 public protocol BundleInstalling: Sendable {
     func install(_ request: BundleInstallRequest) async throws -> [String: String]
+    /// Turns the chat off on this machine or in a workload. It stops; its conversations stay where they are.
+    func uninstall(workloadId: String?) async throws
     /// The version installed on this machine itself, if any.
     func installedVersion() async -> String?
 }
@@ -67,7 +69,9 @@ public actor AgentService {
 
     public func facts() async throws -> Facts {
         let all = try await workloads()
-        return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities, problems: engine.problems)
+        let engineInfo = EngineInfo(identity: await engine.identity(), ready: engine.problems.isEmpty)
+        return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities,
+                     problems: engine.problems, agentVersion: agentVersion, engine: engineInfo)
     }
 
     public func workloads() async throws -> [Workload] {
@@ -183,6 +187,33 @@ public actor AgentService {
         } catch {
             done.state = .failed
             done.result = ["error": "the bundle could not be installed"]
+        }
+        ledger.record(done)
+        onChange?()
+    }
+
+    /// Turns the chat off in the background. A repeat of the same command id changes nothing.
+    public func uninstallBundle(_ request: BundleUninstallRequest) async throws -> Command {
+        if let existing = ledger.find(request.commandId) { return existing }
+        if let target = request.workloadId {
+            guard try await workloads().contains(where: { $0.id == target && $0.state == .running }) else { throw AgentError.notFound }
+        }
+        let command = Command(commandId: request.commandId, type: .bundleUninstall, state: .running, workloadId: request.workloadId)
+        ledger.record(command)
+        Task { await self.finishUninstall(command, request) }
+        return command
+    }
+
+    private func finishUninstall(_ started: Command, _ request: BundleUninstallRequest) async {
+        var done = started
+        do {
+            guard let installer else { throw EngineError.failed("this Agent has no bundle installer") }
+            try await installer.uninstall(workloadId: request.workloadId)
+            done.state = .succeeded
+            done.result = ["kept": "chat-data"]
+        } catch {
+            done.state = .failed
+            done.result = ["error": "the chat could not be turned off"]
         }
         ledger.record(done)
         onChange?()

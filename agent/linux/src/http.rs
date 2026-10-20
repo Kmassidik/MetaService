@@ -1,7 +1,7 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::service::{Failure, Service};
-use crate::validate::{is_id, BundleRequest, CreateRequest};
+use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
 use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
@@ -56,6 +56,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/stop", post(stop))
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/bundle/install", post(install))
+        .route("/v1/bundle/uninstall", post(uninstall))
         .route("/v1/commands/:id", get(command))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(app.clone(), require_token))
@@ -201,6 +202,14 @@ async fn install(State(app): State<Arc<App>>, request: Request) -> Response {
     let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
     match BundleRequest::parse(&body) {
         Ok(parsed) => app.service.install_bundle(parsed).await.map(|c| accepted(&c)).unwrap_or_else(failure),
+        Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
+    }
+}
+
+async fn uninstall(State(app): State<Arc<App>>, request: Request) -> Response {
+    let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
+    match BundleUninstallRequest::parse(&body) {
+        Ok(parsed) => app.service.uninstall_bundle(parsed).await.map(|c| accepted(&c)).unwrap_or_else(failure),
         Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
     }
 }

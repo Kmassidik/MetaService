@@ -26,10 +26,23 @@ public struct MachineSettings: Codable, Equatable {
 
     public static let fields: Set<String> = ["profile", "labels", "notes", "ram_reserve_mb", "disk_reserve_gb", "ram_allowance_mb", "disk_allowance_gb", "allow_gpu",
                                              "vm_cpu", "vm_ram_mb", "vm_disk_gb", "vm_image", "vm_max_running", "subdomain", "public_chat", "ai_model"]
-    private static let labelPattern = #/^[a-z0-9][a-z0-9-]{0,29}$/#
-    private static let subdomainPattern = #/^[a-z0-9][a-z0-9-]{0,30}$/#
-    private static let imagePattern = #/^[a-z0-9][a-z0-9._:\/-]{0,127}$/#
-    private static let modelPattern = #/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,99}$/#
+    static let labelPattern = #/^[a-z0-9][a-z0-9-]{0,29}$/#
+    static let subdomainPattern = #/^[a-z0-9][a-z0-9-]{0,30}$/#
+    static let imagePattern = #/^[a-z0-9][a-z0-9._:\/-]{0,127}$/#
+    static let modelPattern = #/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,99}$/#
+    static let maxNotes = 300
+    static let maxLabelLength = 30
+    static let maxSubdomainLength = 31
+    static let maxImageLength = 128
+    static let maxModelLength = 100
+    static let ramReserveRange = 0...10_000_000
+    static let diskReserveRange = 0...10_000_000
+    static let ramAllowanceRange = 512...10_000_000
+    static let diskAllowanceRange = 1...10_000_000
+    static let vmCpuRange = 1...64
+    static let vmRamRange = 512...1_048_576
+    static let vmDiskRange = 1...100_000
+    static let vmMaxRunningRange = 1...1000
 
     public init(profile: String = "custom", labels: [String] = [], notes: String = "", ramReserveMb: Int? = nil, diskReserveGb: Int? = nil, ramAllowanceMb: Int? = nil,
                 diskAllowanceGb: Int? = nil, allowGpu: Bool = true, vmCpu: Int? = nil, vmRamMb: Int? = nil, vmDiskGb: Int? = nil, vmImage: String? = nil,
@@ -66,22 +79,27 @@ public struct MachineSettings: Codable, Equatable {
     /// Reads the settings out of the request's fields. Anything missing takes the default; anything odd is refused.
     public init(_ object: StrictObject) throws {
         profile = object.has("profile") ? try object.choice("profile", among: Self.profiles) : "custom"
-        labels = object.has("labels") ? try object.strings("labels", maxCount: Self.maxLabels, pattern: Self.labelPattern, maxLength: 30) : []
+        labels = object.has("labels") ? try object.strings("labels", maxCount: Self.maxLabels, pattern: Self.labelPattern, maxLength: Self.maxLabelLength) : []
         guard Set(labels).count == labels.count else { throw InputError("labels must be different from each other") }
-        notes = try object.optionalString("notes", maxLength: 300) ?? ""
-        ramReserveMb = object.has("ram_reserve_mb") ? try object.int("ram_reserve_mb", range: 0...10_000_000) : nil
-        diskReserveGb = object.has("disk_reserve_gb") ? try object.int("disk_reserve_gb", range: 0...10_000_000) : nil
-        ramAllowanceMb = object.has("ram_allowance_mb") ? try object.int("ram_allowance_mb", range: 512...10_000_000) : nil
-        diskAllowanceGb = object.has("disk_allowance_gb") ? try object.int("disk_allowance_gb", range: 1...10_000_000) : nil
+        notes = try object.optionalString("notes", maxLength: Self.maxNotes) ?? ""
+        ramReserveMb = object.has("ram_reserve_mb") ? try object.int("ram_reserve_mb", range: Self.ramReserveRange) : nil
+        diskReserveGb = object.has("disk_reserve_gb") ? try object.int("disk_reserve_gb", range: Self.diskReserveRange) : nil
+        ramAllowanceMb = object.has("ram_allowance_mb") ? try object.int("ram_allowance_mb", range: Self.ramAllowanceRange) : nil
+        diskAllowanceGb = object.has("disk_allowance_gb") ? try object.int("disk_allowance_gb", range: Self.diskAllowanceRange) : nil
         allowGpu = object.has("allow_gpu") ? try object.bool("allow_gpu") : true
-        vmCpu = object.has("vm_cpu") ? try object.int("vm_cpu", range: 1...64) : nil
-        vmRamMb = object.has("vm_ram_mb") ? try object.int("vm_ram_mb", range: 512...1_048_576) : nil
-        vmDiskGb = object.has("vm_disk_gb") ? try object.int("vm_disk_gb", range: 1...100_000) : nil
-        vmImage = object.has("vm_image") ? try object.string("vm_image", pattern: Self.imagePattern, maxLength: 128, minLength: 1) : nil
-        vmMaxRunning = object.has("vm_max_running") ? try object.int("vm_max_running", range: 1...1000) : nil
-        subdomain = object.has("subdomain") ? try object.string("subdomain", pattern: Self.subdomainPattern, maxLength: 31, minLength: 1) : nil
+        vmCpu = object.has("vm_cpu") ? try object.int("vm_cpu", range: Self.vmCpuRange) : nil
+        vmRamMb = object.has("vm_ram_mb") ? try object.int("vm_ram_mb", range: Self.vmRamRange) : nil
+        vmDiskGb = object.has("vm_disk_gb") ? try object.int("vm_disk_gb", range: Self.vmDiskRange) : nil
+        vmImage = object.has("vm_image") ? try object.string("vm_image", pattern: Self.imagePattern, maxLength: Self.maxImageLength, minLength: 1) : nil
+        vmMaxRunning = object.has("vm_max_running") ? try object.int("vm_max_running", range: Self.vmMaxRunningRange) : nil
+        subdomain = object.has("subdomain") ? try object.string("subdomain", pattern: Self.subdomainPattern, maxLength: Self.maxSubdomainLength, minLength: 1) : nil
         publicChat = object.has("public_chat") ? try object.bool("public_chat") : false
-        aiModel = object.has("ai_model") ? try object.string("ai_model", pattern: Self.modelPattern, maxLength: 100, minLength: 1) : nil
+        aiModel = object.has("ai_model") ? try object.string("ai_model", pattern: Self.modelPattern, maxLength: Self.maxModelLength, minLength: 1) : nil
+        try checkReserves()
+    }
+
+    /// What is kept free for the system must be less than the most VMs may use.
+    func checkReserves() throws {
         if let allowance = ramAllowanceMb, let reserve = ramReserveMb, reserve >= allowance { throw InputError("the memory kept free must be smaller than the most it may use") }
         if let allowance = diskAllowanceGb, let reserve = diskReserveGb, reserve >= allowance { throw InputError("the disk kept free must be smaller than the most it may use") }
     }

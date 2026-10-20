@@ -19,6 +19,7 @@ struct AgentRoutes {
         router.post("/v1/workloads/{id}/stop") { request, context in try await self.change(request, context, start: false) }
         router.delete("/v1/workloads/{id}", use: delete)
         router.post("/v1/bundle/install", use: installBundle)
+        router.post("/v1/bundle/uninstall", use: uninstallBundle)
         router.get("/v1/commands/{id}", use: command)
         router.get("/v1/screen") { _, _ in try Json.response(ScreenStatusBody(await screen.status())) }
         router.get("/v1/screen/frame") { _, _ in try await frame() }
@@ -42,6 +43,10 @@ struct AgentRoutes {
 
     private func installBundle(_ request: Request, context: AgentContext) async throws -> Response {
         try Self.accepted(try await service.installBundle(try BundleInstallRequest(body: try await Self.body(request))))
+    }
+
+    private func uninstallBundle(_ request: Request, context: AgentContext) async throws -> Response {
+        try Self.accepted(try await service.uninstallBundle(try BundleUninstallRequest(body: try await Self.body(request))))
     }
 
     private func command(_ request: Request, context: AgentContext) async throws -> Response {

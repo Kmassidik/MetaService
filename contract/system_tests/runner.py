@@ -2,9 +2,9 @@
 import sys
 import time
 
-from contract.system_tests import checks_brain, checks_bundles, checks_install, checks_workloads
+from contract.system_tests import checks_brain, checks_bundles, checks_ruvio, checks_workloads
 
-ALL_CHECKS = checks_workloads.CHECKS + checks_bundles.CHECKS + checks_brain.CHECKS + checks_install.CHECKS
+ALL_CHECKS = checks_workloads.CHECKS + checks_bundles.CHECKS + checks_brain.CHECKS + checks_ruvio.CHECKS
 
 
 def main():

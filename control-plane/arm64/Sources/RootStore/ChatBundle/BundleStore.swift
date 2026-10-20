@@ -98,6 +98,16 @@ public struct BundleStore {
         try database.execute("INSERT INTO bundle_pins (version, pinned_at, actor) VALUES (?, ?, ?)", [.text(version), .int(Int(now.timeIntervalSince1970)), .text(actor)])
     }
 
+    /// With nothing pinned and exactly one chat version built, pins that one. Returns it when it did, so the caller can write it to the audit log.
+    public func pinTheOnlyBuiltVersion(actor: String, now: Date) throws -> String? {
+        try rescan(now: now)
+        guard try pinned() == nil else { return nil }
+        let versions = Set(try database.query("SELECT version FROM bundles").map { $0.string("version") })
+        guard versions.count == 1, let only = versions.first else { return nil }
+        try pin(version: only, actor: actor, now: now)
+        return only
+    }
+
     /// Pins the version that came before. The version being left stays on file, so going forward again is one more pin.
     public func rollback(actor: String, now: Date) throws -> String {
         guard let target = try previous() else { throw BundleError.nothingToRollBackTo }

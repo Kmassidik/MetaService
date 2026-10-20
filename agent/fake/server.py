@@ -126,6 +126,9 @@ class AgentHandler(BaseHTTPRequestHandler):
     def install_bundle(self):
         self._send(202, _accepted(self.engine.install_bundle(self._body("BundleInstall"))))
 
+    def uninstall_bundle(self):
+        self._send(202, _accepted(self.engine.uninstall_bundle(self._body("BundleUninstall"))))
+
     def get_command(self, id):
         self._send(200, self.engine.command(id))
 
@@ -143,6 +146,7 @@ ROUTES = [
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/stop", AgentHandler.stop_workload),
     ("DELETE", rf"/v1/workloads/(?P<id>{ID_PATTERN})", AgentHandler.delete_workload),
     ("POST", r"/v1/bundle/install", AgentHandler.install_bundle),
+    ("POST", r"/v1/bundle/uninstall", AgentHandler.uninstall_bundle),
     ("GET", rf"/v1/commands/(?P<id>{ID_PATTERN})", AgentHandler.get_command),
 ]
 

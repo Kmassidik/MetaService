@@ -21,7 +21,7 @@ func readToken(_ path: String) throws -> String {
 func makeEngine(_ config: AgentConfig) throws -> Engine {
     guard config.engineName == "apple" else { return SimulatedEngine() }
     guard let path = ProcessContainerCLI.locate(config.containerPath) else {
-        return UnavailableEngine(problem: HostProblem(code: "container_tool_missing", message: "Apple's container tool is not installed on this Mac, so it can't create VMs yet.",
+        return UnavailableEngine(name: AppleContainerEngine.engineName, problem: HostProblem(code: "container_tool_missing", message: "Apple's container tool is not installed on this Mac, so it can't create VMs yet.",
                                                       fix: "Install it from github.com/apple/container, then stop and start MetaService again (./install.sh)."))
     }
     try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

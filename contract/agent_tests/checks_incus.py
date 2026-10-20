@@ -215,6 +215,58 @@ def check_incus_that_cannot_be_used_is_reported_as_the_one_problem():
         agent.stop()
 
 
+def check_facts_report_the_helper_and_the_incus_version():
+    agent = incus_agent()
+    try:
+        facts, health = agent.call("GET", "/v1/facts")[1], agent.call("GET", "/v1/health")[1]
+        expect(facts["engine"] == {"name": "incus", "version": "6.0.3", "ready": True}, f"engine: {facts['engine']}")
+        expect(facts["agent_version"] == health["agent_version"], f"facts say {facts['agent_version']!r}, health says {health['agent_version']!r}")
+    finally:
+        agent.stop()
+    blocked = incus_agent(FakeIncusWorld().with_firewall("no zone"))
+    try:
+        expect(blocked.call("GET", "/v1/facts")[1]["engine"]["ready"] is False, "an engine with a problem was reported as ready")
+    finally:
+        blocked.stop()
+
+
+def check_a_version_incus_cannot_give_is_null_and_hostile_output_is_cut_down_to_digits():
+    for printed, wanted in (("garbage", None), ("4.5.6'; reboot $(id)", "4.5.6")):
+        agent = incus_agent(FakeIncusWorld(FAKE_INCUS_VERSION=printed))
+        try:
+            version = agent.call("GET", "/v1/facts")[1]["engine"]["version"]
+            expect(version == wanted, f"incus printed {printed!r}; the facts say {version!r}")
+        finally:
+            agent.stop()
+
+
+@with_agent
+def check_turning_the_chat_off_in_a_workload_stops_it_and_keeps_the_data(agent):
+    source = BundleSource("machine-token-for-the-test-source-0001")
+    try:
+        workload_id = make(agent, "c-chat")["result"]["workload_id"]
+        agent.stop()
+        write_secret(os.path.join(agent.state, "agent.token"), "machine-token-for-the-test-source-0001")
+        write_secret(os.path.join(agent.state, "agent.json"), json.dumps({"root": source.url, "name": "x"}))
+        agent.start()
+        version = source.versions[0]
+        agent.call("POST", "/v1/bundle/install", {"command_id": "c-on", "version": version, "sha256": source.sha[version], "workload_id": workload_id})
+        wait_command(agent, "c-on")
+        agent.call("POST", "/v1/bundle/uninstall", {"command_id": "c-off", "workload_id": workload_id})
+        wait_command(agent, "c-off")
+        expect(workloads(agent)[0]["bundle_version"] is None, f"the workload still reports the chat: {workloads(agent)}")
+        calls = agent.world.calls()
+        expect(["config", "unset", f"ms-{workload_id}", "user.metaservice.bundle_version"] in calls, "the recorded version was not cleared")
+        scripts = [call[-1] for call in calls if call[0] == "exec" and "metaservice-chat" in call[-1]]
+        off = next((text for text in scripts if "disable --now" in text), None)
+        expect(off is not None and "chat-data" not in off and "rm -rf" not in off, f"the uninstall script is wrong or missing: {scripts[-1:]}")
+        agent.stop()
+        agent.start()
+        expect(workloads(agent)[0]["bundle_version"] is None, "the chat came back after a restart")
+    finally:
+        source.stop()
+
+
 CHECKS = [
     check_create_runs_one_fixed_launch_and_the_instance_carries_the_numbers, check_vms_need_kvm_and_gpu_modes_need_a_gpu,
     check_a_failed_launch_leaves_nothing_and_frees_the_budget, check_start_and_stop_go_through_the_tool,
@@ -222,4 +274,6 @@ CHECKS = [
     check_a_failed_or_empty_backup_stops_the_delete, check_everything_survives_an_agent_restart_and_a_workload_gets_the_bundle,
     check_the_agent_will_not_start_without_incus, check_a_bridge_the_firewall_blocks_is_reported_with_the_fix_and_clears_when_fixed,
     check_a_ready_host_reports_no_problems_with_or_without_a_firewall, check_incus_that_cannot_be_used_is_reported_as_the_one_problem,
+    check_facts_report_the_helper_and_the_incus_version, check_a_version_incus_cannot_give_is_null_and_hostile_output_is_cut_down_to_digits,
+    check_turning_the_chat_off_in_a_workload_stops_it_and_keeps_the_data,
 ]

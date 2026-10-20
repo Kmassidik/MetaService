@@ -16,6 +16,7 @@ mod service;
 mod setup;
 mod supervisor;
 mod validate;
+mod version;
 
 use config::{Config, Verb, VERSION};
 use std::net::SocketAddr;

@@ -69,6 +69,19 @@ final class SharedRulesTests: XCTestCase {
         XCTAssertEqual(try object.int("count", range: 0...5), 1)
         XCTAssertThrowsError(try object.int("count", range: 2...5))
     }
+
+    func testStrictObjectTellsAnExplicitNullFromAMissingKey() throws {
+        let object = try StrictObject(data: data(["cleared": NSNull(), "set": 3]), allowed: ["cleared", "set", "absent"])
+        XCTAssertTrue(object.isNull("cleared"))
+        XCTAssertFalse(object.isNull("set"))
+        XCTAssertFalse(object.isNull("absent"))
+        XCTAssertFalse(object.has("cleared"), "null is not a value")
+        XCTAssertEqual(object.keys, ["cleared", "set"])
+    }
+
+    func testTheContractVersionIsTheOneAgentsAndTheRootSpeak() {
+        XCTAssertEqual(ContractVersion.current, "1.3.0")
+    }
 }
 
 final class SecretBoxTests: XCTestCase {

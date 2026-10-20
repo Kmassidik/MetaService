@@ -19,6 +19,7 @@ struct BundleRoutes {
         group.post("/api/bundles/pin", use: pin)
         group.post("/api/bundles/rollback", use: rollback)
         group.post("/api/machines/{id}/bundle/install", use: install)
+        group.post("/api/machines/{id}/bundle/uninstall", use: uninstall)
         group.get("/api/chat-link", use: chatLink)
     }
 
@@ -58,9 +59,19 @@ struct BundleRoutes {
     private func install(_ request: Request, context: RootContext) async throws -> Response {
         let caller = try guards.operatorWrite(request)
         try guards.limit("bundle-install", per: context, max: WorkloadRoutes.actionsPerMinute, seconds: 60)
-        guard let machine = context.parameters.get("id"), Ids.isValid(machine) else { throw ApiFailure.notFound }
+        let machine = try context.machineId()
         let target = try InstallTarget(body: try await guards.body(request)).workload
         let command = try await services.workloads.installBundle(actor: caller.name, machine: machine, workload: target)
+        return try Json.response(["command": command], status: .accepted)
+    }
+
+    /// Turns the chat off on a machine or one of its workloads. Its chat data stays.
+    private func uninstall(_ request: Request, context: RootContext) async throws -> Response {
+        let caller = try guards.operatorWrite(request)
+        try guards.limit("bundle-install", per: context, max: WorkloadRoutes.actionsPerMinute, seconds: 60)
+        let machine = try context.machineId()
+        let target = try InstallTarget(body: try await guards.body(request)).workload
+        let command = try await services.workloads.uninstallBundle(actor: caller.name, machine: machine, workload: target)
         return try Json.response(["command": command], status: .accepted)
     }
 

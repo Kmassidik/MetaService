@@ -1,5 +1,6 @@
 """Enrollment, heartbeat, machine listing, removal and the audit trail."""
 import copy
+import json
 
 from contract.root_tests.support import Browser, enrolled_machine, expect, good_heartbeat, running
 from contract.tests.support import expect_schema
@@ -39,7 +40,7 @@ def check_enroll_refusals_look_the_same():
         agent = Browser(root)
         guesses = [{"enrollment_token": "z" * 43, "name": "dgx"}, {"enrollment_token": "z" * 16, "name": "dgx"}]
         replies = [agent.request("POST", "/v1/agents/enroll", body, origin=None) for body in guesses]
-        expect({reply.raw for reply in replies} == {replies[0].raw}, "different refusals reveal which tokens are close")
+        expect(len({(reply.status, json.dumps(reply.body, sort_keys=True)) for reply in replies}) == 1, "different refusals reveal which tokens are close")  # status and body only: the raw reply carries a Date header that changes between two seconds
 
 
 def check_bad_machine_names_are_rejected_when_inviting():

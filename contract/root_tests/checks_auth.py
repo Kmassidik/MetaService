@@ -17,12 +17,12 @@ def setup_body(root, **changes):
 def check_the_first_visit_creates_the_admin_login_and_signs_in_with_a_safe_cookie():
     with running() as root:
         browser = fresh(root)
-        expect(browser.request("GET", "/api/auth/status").body == {"configured": False, "signed_in": False, "setup_token_required": True}, "a new Root should ask for setup")
+        expect(browser.request("GET", "/api/auth/status").body == {"configured": False, "signed_in": False, "setup_token_required": True, "min_password_length": 8}, "a new Root should ask for setup")
         reply = browser.request("POST", "/api/auth/setup", setup_body(root))
         expect(reply.status == 201 and reply.body["username"] == ADMIN_USER and len(reply.body["csrf_token"]) >= 43, f"setup: {reply.status} {reply.body}")
         for flag in ("HttpOnly", "SameSite=Strict", "Path=/", "Max-Age="):
             expect(flag in reply.cookies[0], f"session cookie lacks {flag}: {reply.cookies[0]}")
-        expect(browser.request("GET", "/api/auth/status").body == {"configured": True, "signed_in": True, "setup_token_required": False}, "status after setup")
+        expect(browser.request("GET", "/api/auth/status").body == {"configured": True, "signed_in": True, "setup_token_required": False, "min_password_length": 8}, "status after setup")
         expect(browser.request("GET", "/api/session").body["username"] == ADMIN_USER, "the session does not know its user")
 
 

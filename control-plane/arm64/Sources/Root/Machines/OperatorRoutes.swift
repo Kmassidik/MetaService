@@ -31,9 +31,9 @@ struct OperatorRoutes {
 
     func getMachine(_ request: Request, context: RootContext) async throws -> Response {
         _ = try guards.operatorRead(request)
-        let id = try machineId(context)
+        let id = try context.machineId()
         do {
-            return try Json.response(try services.machines.get(id: id, now: services.clock.now))
+            return try Json.response(try services.machineDetails.get(id: id))
         } catch MachineError.notFound {
             throw ApiFailure.notFound
         }
@@ -41,7 +41,7 @@ struct OperatorRoutes {
 
     func removeMachine(_ request: Request, context: RootContext) async throws -> Response {
         let caller = try guards.operatorWrite(request)
-        let id = try machineId(context)
+        let id = try context.machineId()
         guard (try services.remoteMachines.get(id)) == nil else {
             throw ApiFailure(status: .conflict, code: "remote_machine", message: "this machine was installed over SSH: remove it with its login so MetaService is taken off that computer too, or choose to forget it only")
         }
@@ -52,7 +52,6 @@ struct OperatorRoutes {
         }
         try services.chatAccess.remove(target: id)
         try services.machineSettings.remove(machine: id)
-        services.localAgents.forget(machine: id)
         services.screens.closeAll(machine: id)
         try services.audit.record(actor: caller.name, action: "machine.remove", target: id, at: services.clock.now)
         return Response(status: .noContent)
@@ -77,11 +76,6 @@ struct OperatorRoutes {
         let limit = request.uri.queryParameters.get("limit", as: Int.self) ?? Self.defaultAuditPage
         let before = request.uri.queryParameters.get("before", as: Int.self)
         return try Json.response(AuditList(entries: try services.audit.list(limit: limit, before: before)))
-    }
-
-    private func machineId(_ context: RootContext) throws -> String {
-        guard let id = context.parameters.get("id"), Ids.isValid(id) else { throw ApiFailure.notFound }
-        return id
     }
 }
 

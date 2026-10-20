@@ -143,6 +143,21 @@ def check_root_refuses_an_env_file_others_can_read():
     raise AssertionError("the Root started with a world-readable env file")
 
 
+def check_the_removed_local_install_options_are_refused_as_unknown():
+    """--local-agent-port and --local-chat-port belonged to the old local install; the Root must not accept them any more."""
+    for option in ("--local-agent-port", "--local-chat-port"):
+        root = RunningRoot(extra_args=[option, "9300"])
+        try:
+            root.start()
+        except AssertionError:
+            code, text = root.exit_text()
+            expect(code != 0 and f"unknown or incomplete option {option}" in text, f"{option}: wrong refusal: {code} {text[:160]}")
+            continue
+        finally:
+            root.stop()
+        raise AssertionError(f"the Root started with the removed option {option}")
+
+
 def check_ui_files_are_served_with_a_strict_page_policy():
     import os, tempfile, pathlib
     ui = tempfile.mkdtemp(prefix="ms-ui-")
@@ -166,7 +181,7 @@ def check_ui_files_are_served_with_a_strict_page_policy():
             expect(reply.status == 404 and b"nope" not in reply.raw, f"{path} gave {reply.status}")
 
 
-CHECKS = [check_a_root_whose_port_is_taken_exits_with_an_error_instead_of_running_half_alive, check_ui_files_are_served_with_a_strict_page_policy, 
+CHECKS = [check_the_removed_local_install_options_are_refused_as_unknown, check_a_root_whose_port_is_taken_exits_with_an_error_instead_of_running_half_alive, check_ui_files_are_served_with_a_strict_page_policy, 
     check_health_is_public_and_minimal, check_security_headers_on_every_reply, check_unknown_paths_and_methods_are_clean_404s,
     check_operator_endpoints_refuse_a_foreign_host_name, check_agent_endpoints_need_a_token, check_no_cors_headers_ever,
     check_errors_reveal_nothing_inside, check_each_listener_serves_only_its_own_routes,

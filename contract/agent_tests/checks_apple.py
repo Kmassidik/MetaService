@@ -187,6 +187,7 @@ def check_without_the_container_program_the_agent_runs_and_says_what_is_missing(
         expect([p["code"] for p in facts["problems"]] == ["container_tool_missing"], f"problems: {facts['problems']}")
         expect("container" in facts["problems"][0]["message"] and facts["problems"][0]["fix"], f"problem text: {facts['problems'][0]}")
         expect(facts["capabilities"] == {"vm": False, "container": False, "gpu_in_vm": False, "gpu_in_container": False}, f"capabilities {facts['capabilities']}")
+        expect(facts["engine"] == {"name": "apple-container", "version": None, "ready": False}, f"the missing tool must be reported as not ready, with no version made up: {facts['engine']}")
         status, reply = agent.call("POST", "/v1/workloads", {"command_id": "c-no", **BODY})
         expect(status == 409 and reply["error"]["code"] == "missing_capability", f"a workload was accepted without the tool: {status} {reply}")
         expect(agent.call("GET", "/v1/workloads")[1] == {"workloads": []}, "workloads should be empty")
@@ -203,6 +204,50 @@ def check_a_stopped_container_service_is_reported_and_the_machine_keeps_answerin
         expect(running.call("GET", "/v1/workloads") == (200, {"workloads": []}), "workloads are empty, not an error")
 
 
+def check_facts_report_the_helper_and_the_container_tools_version():
+    with apple_agent() as agent:
+        facts, health = agent.call("GET", "/v1/facts")[1], agent.call("GET", "/v1/health")[1]
+        expect(facts["engine"] == {"name": "apple-container", "version": "1.5.0", "ready": True}, f"engine: {facts['engine']}")
+        expect(facts["agent_version"] == health["agent_version"], f"facts say {facts['agent_version']!r}, health says {health['agent_version']!r}")
+    with apple_agent(world=FakeContainerWorld(FAKE_CONTAINER_FAIL="list")) as down:
+        expect(down.call("GET", "/v1/facts")[1]["engine"]["ready"] is False, "a container service that does not answer was reported as ready")
+
+
+def check_a_version_the_tool_cannot_give_is_null_and_hostile_output_is_cut_down_to_digits():
+    for printed, wanted in (("garbage", None), ("4.5.6'; reboot $(id)", "4.5.6")):
+        with apple_agent(world=FakeContainerWorld(FAKE_CONTAINER_VERSION=printed)) as agent:
+            engine = agent.call("GET", "/v1/facts")[1]["engine"]
+            expect(engine["version"] == wanted, f"the tool printed {printed!r}; the facts say {engine['version']!r}")
+
+
+def check_turning_the_chat_off_in_a_workload_stops_it_and_keeps_the_data():
+    from contract.agent_tests.support import write_secret
+    from contract.tests.bundle_source import BundleSource
+    import json
+    source = BundleSource("machine-token-for-the-test-source-0001")
+    try:
+        with apple_agent(extra=["--chat-port", str(__import__("contract.root_tests.support", fromlist=["_free_port"])._free_port()), "--chat-bind", "127.0.0.1"]) as agent:
+            workload_id = make(agent, "c-chat")["result"]["workload_id"]
+            agent.stop()
+            write_secret(os.path.join(agent.state, "agent.token"), "machine-token-for-the-test-source-0001")
+            write_secret(os.path.join(agent.state, "agent.json"), json.dumps({"root": source.url, "name": "x"}))
+            agent.start()
+            version = source.versions[0]
+            agent.call("POST", "/v1/bundle/install", {"command_id": "c-on", "version": version, "sha256": source.sha[version], "workload_id": workload_id})
+            wait_command(agent, "c-on")
+            agent.call("POST", "/v1/bundle/uninstall", {"command_id": "c-off", "workload_id": workload_id})
+            wait_command(agent, "c-off")
+            expect(workloads(agent)[0]["bundle_version"] is None, f"the workload still reports the chat: {workloads(agent)}")
+            scripts = [call[-1] for call in agent.world.calls() if call[0] == "exec" and "metaservice-chat" in call[-1]]
+            off = next((text for text in scripts if "disable --now" in text), None)
+            expect(off is not None and "chat-data" not in off and "rm -rf" not in off, f"the uninstall script is wrong or missing: {scripts[-1:]}")
+            agent.stop()
+            agent.start()
+            expect(workloads(agent)[0]["bundle_version"] is None, "the chat came back after a restart")
+    finally:
+        source.stop()
+
+
 CHECKS = [
     check_create_runs_one_fixed_command_and_remembers_the_workload, check_the_image_is_pulled_once_and_a_bad_pull_fails_cleanly,
     check_a_failed_run_leaves_nothing_and_frees_the_budget, check_the_container_system_is_started_when_it_is_down_and_a_stuck_one_fails_cleanly,
@@ -210,4 +255,6 @@ CHECKS = [
     check_a_failed_or_empty_backup_stops_the_delete, check_deleting_something_already_gone_just_clears_the_record,
     check_everything_survives_an_agent_restart, check_a_command_running_when_the_agent_dies_is_reported_failed, check_the_budget_counts_apple_workloads,
     check_without_the_container_program_the_agent_runs_and_says_what_is_missing, check_a_stopped_container_service_is_reported_and_the_machine_keeps_answering,
+    check_facts_report_the_helper_and_the_container_tools_version, check_a_version_the_tool_cannot_give_is_null_and_hostile_output_is_cut_down_to_digits,
+    check_turning_the_chat_off_in_a_workload_stops_it_and_keeps_the_data,
 ]

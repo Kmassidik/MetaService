@@ -50,8 +50,11 @@ public struct FactsReport: Equatable {
     public let gpu: [GpuInfo]
     public let capabilities: Capabilities
     public let problems: [HostProblem]
+    /// Which helper program runs and which engine it uses. Helpers older than contract 1.3.0 do not say, so both can be nil.
+    public let agentVersion: String?
+    public let engine: EngineReport?
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine"]
     static let maxGpus = 16
     static let maxProblems = 20
     private static let codePattern = #/^[a-z0-9_]{1,64}$/#
@@ -69,6 +72,8 @@ public struct FactsReport: Equatable {
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"))
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
+        agentVersion = try ReportedVersion.optional(object, "agent_version")
+        engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil
     }
 
     private static func problem(_ item: StrictObject) throws -> HostProblem {

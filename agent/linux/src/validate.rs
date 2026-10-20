@@ -141,6 +141,23 @@ impl BundleRequest {
     }
 }
 
+/// Turning the chat off on the machine (no workload_id) or in one workload.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BundleUninstallRequest {
+    pub command_id: String,
+    pub workload_id: Option<String>,
+}
+
+impl BundleUninstallRequest {
+    pub fn parse(body: &[u8]) -> Checked<BundleUninstallRequest> {
+        let object = Object::parse(body, &["command_id", "workload_id"])?;
+        Ok(BundleUninstallRequest {
+            command_id: object.id("command_id")?,
+            workload_id: if object.has("workload_id") { Some(object.id("workload_id")?) } else { None },
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,6 +207,28 @@ mod tests {
         assert!(good(json!({})).unwrap().workload_id.is_none());
         for change in [json!({"version": "1.2"}), json!({"version": "v1.2.3"}), json!({"sha256": "short"}), json!({"sha256": "G".repeat(64)}), json!({"workload_id": "Bad Id"}), json!({"x": 1})] {
             assert!(good(change.clone()).is_err(), "{change}");
+        }
+    }
+
+    #[test]
+    fn uninstall_requests_are_strict() {
+        let good = |extra: Value| {
+            let mut body = json!({"command_id": "c"});
+            body.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            BundleUninstallRequest::parse(body.to_string().as_bytes())
+        };
+        assert!(good(json!({})).unwrap().workload_id.is_none());
+        assert_eq!(good(json!({"workload_id": "w-1"})).unwrap().workload_id.as_deref(), Some("w-1"));
+        let hostile = ["'; DROP TABLE x;--", "<script>alert(1)</script>", "$(reboot)", "`id`", "../../etc/passwd", "a b", "--privileged", "", "line\nbreak"];
+        for text in hostile {
+            assert!(good(json!({"workload_id": text})).is_err(), "workload_id {text:?}");
+            assert!(BundleUninstallRequest::parse(json!({"command_id": text}).to_string().as_bytes()).is_err(), "command_id {text:?}");
+        }
+        for change in [json!({"surprise": 1}), json!({"path": "/bin/sh"}), json!({"version": "1.2.3"}), json!({"command_id": 5}), json!({"workload_id": ["w"]})] {
+            assert!(good(change.clone()).is_err(), "{change}");
+        }
+        for raw in ["", "{", "null", "[]", "\"text\"", "{}"] {
+            assert!(BundleUninstallRequest::parse(raw.as_bytes()).is_err(), "{raw}");
         }
     }
 

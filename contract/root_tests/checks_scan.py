@@ -82,7 +82,7 @@ def check_a_scan_merges_router_nmap_and_arp():
         expect(set(found["1"]["seen_by"]) == {"router", "nmap", "arp"}, f".1 seen by {found['1']['seen_by']}")
         expect(found["50"]["seen_by"] == ["router"] and found["50"]["hostname"] == "printer", f".50: {found['50']}")
         expect(found["40"]["mac"] == "00:1A:2B:3C:4D:40", f"arp mac was not normalized: {found['40']['mac']}")
-        expect(found["40"]["hostname"] == "mini-40" and found["60"]["hostname"] is None, f"the name a computer gives itself on the network: {found['40']['hostname']!r} {found['60']['hostname']!r}")
+        expect(found["40"]["hostname"] == "mini-40" and found["60"]["hostname"] == "dgx-spark", f"a name from the network (.40) and the router's lease name (.60): {found['40']['hostname']!r} {found['60']['hostname']!r}")
         expect(found["60"]["agent_port_open"] is True and found["40"]["agent_port_open"] is False, "agent port flags are wrong")
         expect(found["90"]["mac"] is None, "an incomplete ARP entry produced a MAC")
         expect(all(not row["ip"].startswith("10.99") for row in scan["results"]), "an address outside the subnet got in")

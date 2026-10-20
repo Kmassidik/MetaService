@@ -105,6 +105,10 @@ public enum Migrations {
               UNIQUE (run_id, ip)
             );
             """) }),
+        // The old "install on this computer" is gone, and with it the list of programs the parent started itself.
+        (16, { try $0.exec("DROP TABLE IF EXISTS local_agents;") }),
+        // What engine a machine's helper makes VMs with (name, version, ready), as the helper reports it. The helper's own version goes in the agent_version column that has been there from the start.
+        (17, { try $0.exec("ALTER TABLE machines ADD COLUMN engine_json TEXT;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

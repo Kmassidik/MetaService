@@ -57,6 +57,10 @@ def take_flags(rest, with_value, bare):
 if os.environ.get("FAKE_CONTAINER_FAIL") == " ".join(args[:2]) or os.environ.get("FAKE_CONTAINER_FAIL") == args[0]:
     die("injected failure")
 
+if args == ["--version"]:
+    print(f"container CLI version {os.environ.get('FAKE_CONTAINER_VERSION', '1.5.0')} (build: release, commit: 0000000)")
+    sys.exit(0)
+
 import time
 if args[0] == "run":
     time.sleep(float(os.environ.get("FAKE_CONTAINER_RUN_DELAY", "0")))

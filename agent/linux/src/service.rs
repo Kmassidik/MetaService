@@ -2,14 +2,19 @@
 use crate::budget::SpaceBudget;
 use crate::engine::Engine;
 use crate::models::*;
-use crate::validate::{BundleRequest, CreateRequest};
+use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+/// What a turned-off chat leaves behind, named in the command result.
+const KEPT_CHAT_DATA: &str = "chat-data";
+
 pub trait BundleInstalling: Send + Sync {
     /// Puts the chat bundle on this machine or inside a workload. Blocking. The result carries the version, the port and the access key.
     fn install(&self, request: &BundleRequest) -> Result<HashMap<String, String>, String>;
+    /// Turns the chat off on this machine or in a workload. It stops; the folder with its conversations stays. Blocking.
+    fn uninstall(&self, workload_id: Option<&str>) -> Result<(), String>;
     fn installed_version(&self) -> Option<String>;
 }
 
@@ -90,10 +95,14 @@ impl Service {
     pub async fn facts(&self) -> Result<Facts, Failure> {
         let all = self.workloads().await?;
         let engine = self.engine.clone();
-        let problems = blocking(move || engine.problems()).await;
+        let for_problems = engine.clone();
+        let problems = blocking(move || for_problems.problems()).await;
+        let identity = blocking(move || engine.identity()).await;
+        let engine_info = EngineInfo { name: identity.name, version: identity.version, ready: problems.is_empty() };
         Ok(Facts {
             os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: self.specs.ram_total_mb, disk_total_gb: self.specs.disk_total_gb,
             free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities: self.engine.capabilities(), problems,
+            agent_version: self.version.clone(), engine: engine_info,
         })
     }
 
@@ -244,6 +253,39 @@ impl Service {
         self.changed();
     }
 
+    /// Turns the chat off in the background. A repeat of the same command id changes nothing.
+    pub async fn uninstall_bundle(self: &Arc<Self>, request: BundleUninstallRequest) -> Result<Command, Failure> {
+        if let Some(existing) = self.ledger.find(&request.command_id) {
+            return Ok(existing);
+        }
+        if let Some(target) = &request.workload_id {
+            let running = self.workloads().await?.iter().any(|w| &w.id == target && w.state == State::Running);
+            if !running {
+                return Err(Failure::NotFound);
+            }
+        }
+        let started = Command { command_id: request.command_id.clone(), kind: CommandType::BundleUninstall, state: CommandState::Running, workload_id: request.workload_id.clone(), result: None };
+        self.ledger.record(started.clone());
+        let this = self.clone();
+        let echo = started.clone();
+        tokio::spawn(async move { this.finish_uninstall(echo, request).await });
+        Ok(started)
+    }
+
+    async fn finish_uninstall(self: Arc<Self>, mut command: Command, request: BundleUninstallRequest) {
+        let installer = self.installer.clone();
+        let target = request.workload_id.clone();
+        match blocking(move || installer.uninstall(target.as_deref())).await {
+            Ok(()) => finish(&mut command, true, [("kept", KEPT_CHAT_DATA)]),
+            Err(error) => {
+                log_failure("bundle uninstall", command.workload_id.as_deref().unwrap_or("machine"), &error);
+                finish(&mut command, false, [("error", "the chat could not be turned off")]);
+            }
+        }
+        self.ledger.record(command);
+        self.changed();
+    }
+
     async fn require(&self, id: &str) -> Result<(), Failure> {
         if self.workloads().await?.iter().any(|w| w.id == id) { Ok(()) } else { Err(Failure::NotFound) }
     }
@@ -258,4 +300,90 @@ fn new_workload_id() -> String {
     const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     let mut random = rand::thread_rng();
     format!("w-{}", (0..8).map(|_| ALPHABET[random.gen_range(0..ALPHABET.len())] as char).collect::<String>())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{default_capabilities, SimulatedEngine};
+
+    /// An installer that only counts, so the service's own part can be looked at.
+    #[derive(Default)]
+    struct Counting {
+        uninstalled: Mutex<Vec<Option<String>>>,
+        fail: bool,
+    }
+
+    impl BundleInstalling for Counting {
+        fn install(&self, _request: &BundleRequest) -> Result<HashMap<String, String>, String> {
+            Ok(HashMap::new())
+        }
+
+        fn uninstall(&self, workload_id: Option<&str>) -> Result<(), String> {
+            if self.fail {
+                return Err("secret path /Users/x leaked".into());
+            }
+            self.uninstalled.lock().unwrap().push(workload_id.map(str::to_string));
+            Ok(())
+        }
+
+        fn installed_version(&self) -> Option<String> {
+            None
+        }
+    }
+
+    fn service(installer: Arc<Counting>) -> Arc<Service> {
+        let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: 16384, disk_total_gb: 500, gpu: Vec::new() };
+        let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
+        Arc::new(Service::new(engine, SpaceBudget::new(16384, 500), specs, "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), installer, || None))
+    }
+
+    async fn finished(service: &Arc<Service>, id: &str) -> Command {
+        for _ in 0..200 {
+            if let Some(found) = service.command(id).filter(|c| c.state != CommandState::Running) {
+                return found;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("the command did not finish");
+    }
+
+    #[tokio::test]
+    async fn the_facts_name_the_helper_and_the_engine_and_say_it_is_ready() {
+        let service = service(Arc::new(Counting::default()));
+        let facts = service.facts().await.ok().unwrap();
+        assert_eq!(facts.agent_version, "0.9.9");
+        assert_eq!(facts.agent_version, service.health().await.agent_version);
+        assert_eq!(facts.engine, EngineInfo { name: "simulated".into(), version: None, ready: true });
+        let json = serde_json::to_value(&facts).unwrap();
+        assert!(json["engine"]["version"].is_null(), "an unknown version is sent as null");
+    }
+
+    #[tokio::test]
+    async fn turning_the_chat_off_runs_on_the_installer_and_a_repeat_runs_once() {
+        let installer = Arc::new(Counting::default());
+        let service = service(installer.clone());
+        let request = BundleUninstallRequest { command_id: "u-1".into(), workload_id: None };
+        let started = service.uninstall_bundle(request.clone()).await.ok().unwrap();
+        assert_eq!(started.kind, CommandType::BundleUninstall);
+        assert_eq!(finished(&service, "u-1").await.state, CommandState::Succeeded);
+        service.uninstall_bundle(request).await.ok().unwrap();
+        assert_eq!(*installer.uninstalled.lock().unwrap(), vec![None]);
+    }
+
+    #[tokio::test]
+    async fn turning_the_chat_off_in_a_workload_that_is_not_there_is_not_found() {
+        let service = service(Arc::new(Counting::default()));
+        let result = service.uninstall_bundle(BundleUninstallRequest { command_id: "u-2".into(), workload_id: Some("w-none".into()) }).await;
+        assert!(matches!(result, Err(Failure::NotFound)));
+    }
+
+    #[tokio::test]
+    async fn a_failed_uninstall_says_nothing_about_the_inside() {
+        let service = service(Arc::new(Counting { fail: true, ..Counting::default() }));
+        service.uninstall_bundle(BundleUninstallRequest { command_id: "u-3".into(), workload_id: None }).await.ok().unwrap();
+        let done = finished(&service, "u-3").await;
+        assert_eq!(done.state, CommandState::Failed);
+        assert_eq!(done.result.unwrap()["error"], "the chat could not be turned off");
+    }
 }

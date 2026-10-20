@@ -63,15 +63,39 @@ public struct HostProblem: Encodable, Equatable {
     }
 }
 
+/// The engine as the facts report it: its name, its version when it can tell (null otherwise), and whether it works right now.
+public struct EngineInfo: Encodable, Equatable {
+    public let name: String
+    public let version: String?
+    public let ready: Bool
+
+    public init(identity: EngineIdentity, ready: Bool) {
+        name = identity.name
+        version = identity.version
+        self.ready = ready
+    }
+
+    enum CodingKeys: String, CodingKey { case name, version, ready }
+
+    public func encode(to encoder: Encoder) throws {
+        var box = encoder.container(keyedBy: CodingKeys.self)
+        try box.encode(name, forKey: .name)
+        try box.encode(version, forKey: .version)
+        try box.encode(ready, forKey: .ready)
+    }
+}
+
 public struct Facts: Encodable, Equatable {
     public let specs: MachineSpecs
     public let freeRamMb: Int
     public let freeDiskGb: Int
     public let capabilities: Capabilities
     public let problems: [HostProblem]
+    public let agentVersion: String
+    public let engine: EngineInfo
 
     enum CodingKeys: String, CodingKey {
-        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems
+        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems, agentVersion, engine
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -86,9 +110,13 @@ public struct Facts: Encodable, Equatable {
         try box.encode(specs.gpu, forKey: .gpu)
         try box.encode(capabilities, forKey: .capabilities)
         try box.encode(problems, forKey: .problems)
+        try box.encode(agentVersion, forKey: .agentVersion)
+        try box.encode(engine, forKey: .engine)
     }
 
-    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities, problems: [HostProblem] = []) {
+    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities, problems: [HostProblem] = [], agentVersion: String, engine: EngineInfo) {
+        self.agentVersion = agentVersion
+        self.engine = engine
         self.problems = problems
         self.specs = specs
         self.freeRamMb = freeRamMb
@@ -139,7 +167,7 @@ public struct Workload: Encodable, Equatable {
     }
 }
 
-public enum CommandType: String, Codable { case create, start, stop, delete, bundleInstall = "bundle_install" }
+public enum CommandType: String, Codable { case create, start, stop, delete, bundleInstall = "bundle_install", bundleUninstall = "bundle_uninstall" }
 public enum CommandState: String, Codable { case queued, running, succeeded, failed }
 
 public struct Command: Codable, Equatable {

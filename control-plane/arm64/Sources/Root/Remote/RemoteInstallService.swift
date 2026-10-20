@@ -303,6 +303,6 @@ final class RemoteInstallService: @unchecked Sendable {
 
     static func explain(_ error: Error) -> String {
         if let failure = error as? RemoteFailure { return failure.api.message }
-        return InstallService.explain(error)
+        return InstallErrors.explain(error)
     }
 }
