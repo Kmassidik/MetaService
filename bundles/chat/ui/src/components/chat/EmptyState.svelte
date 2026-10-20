@@ -1,9 +1,20 @@
-<script>
+<script lang="ts">
+  import type { Agent } from '../../lib/types.ts'
   import BotAvatar from '../BotAvatar.svelte'
-  import { DEFAULT_AVATAR_COLOR, DEFAULT_AVATAR_SHAPE } from '../../lib/constants.js'
+  import { DEFAULT_AVATAR_COLOR, DEFAULT_AVATAR_SHAPE } from '../../lib/constants.ts'
 
   // First run: a friendly face and one black pill. The bot itself offers starter ideas.
   const HERO_AVATAR_SIZE = 64
+
+  interface Props {
+    greeting?: string
+    saving?: boolean
+    createError?: string
+    blockReason?: string
+    storageLoading?: boolean
+    loadStorage: () => unknown
+    startNewBot: () => unknown
+  }
 
   let {
     greeting = 'there',
@@ -13,9 +24,9 @@
     storageLoading = false,
     loadStorage,
     startNewBot,
-  } = $props()
+  }: Props = $props()
 
-  const hero = { id: 'ruvio-welcome', avatarShape: DEFAULT_AVATAR_SHAPE, avatarColor: DEFAULT_AVATAR_COLOR }
+  const hero: Pick<Agent, 'avatarShape' | 'avatarColor'> & { id: string } = { id: 'ruvio-welcome', avatarShape: DEFAULT_AVATAR_SHAPE, avatarColor: DEFAULT_AVATAR_COLOR }
 </script>
 
 <section class="empty">

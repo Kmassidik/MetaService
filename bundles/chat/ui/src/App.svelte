@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import BootScreen from './components/BootScreen.svelte'
   import LoginScreen from './components/auth/LoginScreen.svelte'
   import OnboardingScreen from './components/auth/OnboardingScreen.svelte'
@@ -64,7 +64,7 @@
     uploadFiles,
     openFindOnShortcut,
     WorkspaceView,
-  } from './lib/chatApp.svelte.js'
+  } from './lib/chatApp.svelte.ts'
 
   // $effect must register during component init — not at module import time.
   installChatEffects()

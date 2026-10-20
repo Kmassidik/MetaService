@@ -1,9 +1,15 @@
-<script>
+<script lang="ts">
   import Card from './Card.svelte'
   import Icon from '../../Icon.svelte'
 
   // The bot changed its profile (a routine, skill or name); a compact confirmation.
-  let { notice, onOpen, onDismiss } = $props()
+  interface Props {
+    notice: string
+    onOpen: () => unknown
+    onDismiss: () => unknown
+  }
+
+  let { notice, onOpen, onDismiss }: Props = $props()
 </script>
 
 <Card label="Profile update">

@@ -1,12 +1,23 @@
-<script>
+<script lang="ts">
   /**
    * One Settings row: label (and an optional detail line) on the left, a value or a control on
    * the right. With `onclick` the whole row is a button with a chevron; `tone="danger"` reds it.
    */
+  import type { Snippet } from 'svelte'
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
-  let { label, detail = '', value = '', onclick = undefined, disabled = false, tone = '', children = undefined } = $props()
+  interface Props {
+    label: string
+    detail?: string
+    value?: string
+    onclick?: (() => unknown) | undefined
+    disabled?: boolean
+    tone?: 'danger' | ''
+    children?: Snippet | undefined
+  }
+
+  let { label, detail = '', value = '', onclick = undefined, disabled = false, tone = '', children = undefined }: Props = $props()
 </script>
 
 {#snippet body()}

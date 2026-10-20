@@ -1,8 +1,19 @@
-<script>
+<script lang="ts">
+  import type { Agent } from '../../lib/types.ts'
+  import type { AvatarSnake } from '../../lib/avatars.ts'
   import BotAvatar from '../BotAvatar.svelte'
-  import { avatarCatalog, isSameAvatar } from '../../lib/avatars.js'
+  import { avatarCatalog, isSameAvatar } from '../../lib/avatars.ts'
 
   /** Grid of Ruvi's plush snake family, one per avatar colour. */
+  interface Props {
+    agent?: Pick<Agent, 'avatarColor'> | null
+    open?: boolean
+    x?: number
+    y?: number
+    onPick?: (option: AvatarSnake) => void
+    onClose?: () => void
+  }
+
   let {
     agent = null,
     open = false,
@@ -10,7 +21,7 @@
     y = 0,
     onPick,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   // Keeps the popover on screen when opened near the right or bottom edge.
   const POPOVER_EDGE_ROOM_X = 300
@@ -19,7 +30,7 @@
 
   const position = $derived(clampToViewport(x, y))
 
-  function clampToViewport(left, top) {
+  function clampToViewport(left: number, top: number): { left: number; top: number } {
     if (typeof window === 'undefined') return { left, top }
     return {
       left: Math.max(0, Math.min(left, window.innerWidth - POPOVER_EDGE_ROOM_X)),
@@ -27,16 +38,16 @@
     }
   }
 
-  function isSelected(option) {
+  function isSelected(option: AvatarSnake): boolean {
     return isSameAvatar(agent, option)
   }
 
-  function pick(option) {
+  function pick(option: AvatarSnake): void {
     onPick?.(option)
     onClose?.()
   }
 
-  function onWindow(event) {
+  function onWindow(event: KeyboardEvent): void {
     if (event.key === 'Escape') onClose?.()
   }
 </script>
@@ -60,7 +71,7 @@
           class:selected={isSelected(option)}
           aria-label={`${option.name} snake`}
           onclick={() => pick(option)}
-        ><BotAvatar agent={{ ...agent, avatarColor: option.color, avatarShape: option.shape }} size={PREVIEW_SIZE} /></button>
+        ><BotAvatar agent={{ avatarColor: option.color }} size={PREVIEW_SIZE} /></button>
       {/each}
     </div>
   </div>

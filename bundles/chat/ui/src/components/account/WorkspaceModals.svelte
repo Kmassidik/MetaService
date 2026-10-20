@@ -1,8 +1,9 @@
-<script>
+<script lang="ts">
   /**
    * The one workspace <dialog>: picks the sheet for `chat.modal` and owns the shared sheet chrome.
    * Sheets read `chat` and `view` themselves, so App only mounts this with the view.
    */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
   import AgentFormSheet from './AgentFormSheet.svelte'
   import DeleteAgentSheet from './DeleteAgentSheet.svelte'
@@ -12,37 +13,42 @@
   import {
     chat, api, closeModal, resetAgentForm,
     connectApp, disconnectApp, checkApp, refreshApps,
-  } from '../../lib/chatApp.svelte.js'
-  import { MODALS } from '../../lib/constants.js'
+  } from '../../lib/chatApp.svelte.ts'
+  import { MODALS } from '../../lib/constants.ts'
 
-  let { view } = $props()
+  interface Props {
+    view: WorkspaceView
+  }
 
-  const FIXED_LABELS = {
+  let { view }: Props = $props()
+
+  const FIXED_LABELS: Record<string, string> = {
     [MODALS.help]: 'Help',
     [MODALS.account]: 'Settings',
     [MODALS.marketplace]: 'Connect apps',
   }
   // Draw their own full-bleed header, so the shared close row is skipped.
-  const FULL_BLEED = [MODALS.marketplace, MODALS.account]
+  const FULL_BLEED: readonly string[] = [MODALS.marketplace, MODALS.account]
 
   const modal = $derived(chat.modal)
   const closeLocked = $derived(chat.saving || chat.loggingOut || Boolean(chat.environmentAction) || chat.deletingAccount)
 
   // Screen readers need a name for every sheet; bot/group variants share one wording.
-  function dialogLabel(kind, subject) {
-    if (FIXED_LABELS[kind]) return FIXED_LABELS[kind]
+  function dialogLabel(kind: string | null, subject: string): string {
+    const fixed = kind ? FIXED_LABELS[kind] : undefined
+    if (fixed) return fixed
     const noun = subject === 'team' ? 'group chat' : 'bot'
     if (kind === MODALS.delete) return `Confirm ${noun} deletion`
     return kind === MODALS.edit ? `Edit ${noun}` : `Create ${noun}`
   }
 
-  function cancel(event) {
+  function cancel(event: Event): void {
     event.preventDefault()
     closeModal()
   }
 
   // `close` also fires when a sheet swaps in place; only a real close resets the form.
-  function closed() {
+  function closed(): void {
     if (chat.dialog?.open) return
     chat.modal = null
     resetAgentForm()
@@ -51,7 +57,7 @@
 
 <dialog
   bind:this={chat.dialog}
-  class:full-bleed={FULL_BLEED.includes(modal)}
+  class:full-bleed={FULL_BLEED.includes(modal ?? '')}
   class:settings={modal === MODALS.account}
   aria-label={dialogLabel(modal, chat.formKind)}
   oncancel={cancel}
@@ -61,7 +67,7 @@
     <MarketplaceModal
       {api} connectors={chat.mentionConnectors} apps={chat.computerApps} checkingId={chat.checkingAppId} appsError={chat.appsError}
       onClose={closeModal} onConnectApp={connectApp} onDisconnectApp={disconnectApp}
-      onCheckApp={checkApp} onRefreshApps={refreshApps} sessionKey={chat.session.csrf}
+      onCheckApp={checkApp} onRefreshApps={refreshApps} sessionKey={chat.session?.csrf ?? ''}
     />
   {:else if modal === MODALS.account && chat.session}
     <SettingsPanel {view} {closeLocked} />

@@ -1,8 +1,17 @@
-<script>
+<script lang="ts">
+  import { isRecord } from '../../lib/check.ts'
   import DeskPulse from './DeskPulse.svelte'
 
   // fullScreen: Esc is the way out of full screen there, so it keeps the desktop focused (control stays).
-  let { src = '', reconnecting = false, fullScreen = false, onEscape, onActivity } = $props()
+  interface Props {
+    src?: string
+    reconnecting?: boolean
+    fullScreen?: boolean
+    onEscape?: (() => unknown) | undefined
+    onActivity?: (() => unknown) | undefined
+  }
+
+  let { src = '', reconnecting = false, fullScreen = false, onEscape, onActivity }: Props = $props()
 
   // Contract with public/novnc/index.html: it posts { source, state } to its parent when the socket opens or drops.
   const DESKTOP_MESSAGE_SOURCE = 'ruvio-desktop'
@@ -11,43 +20,48 @@
   const DESKTOP_ACTIVE = 'active'
   const RECONNECT_DELAY_MS = 2000
 
-  let frame = $state(null)
+  let frame = $state<HTMLIFrameElement | null>(null)
   let focused = $state(false)
   let dropped = $state(false)
   let attempt = $state(0)
-  let retryTimer
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
 
   const showReconnecting = $derived(reconnecting || dropped)
 
   // Keys typed into the desktop never reach Chat, so Esc is caught inside the same-origin viewer page.
-  function listenForEscape() {
+  function listenForEscape(): void {
     if (!frame?.contentDocument) return
-    frame.contentWindow.addEventListener('keydown', escapeToChat)
+    frame.contentWindow?.addEventListener('keydown', escapeToChat)
   }
 
-  function escapeToChat(event) {
+  function escapeToChat(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return
     event.preventDefault()
-    if (fullScreen) return onEscape?.()
-    frame.blur()
-    focused = false
+    if (!fullScreen) {
+      frame?.blur()
+      focused = false
+    }
     onEscape?.()
   }
 
-  function onDesktopMessage(event) {
+  function onDesktopMessage(event: MessageEvent): void {
     if (event.origin !== location.origin || event.source !== frame?.contentWindow) return
-    if (event.data?.source !== DESKTOP_MESSAGE_SOURCE) return
-    if (event.data.state === DESKTOP_ACTIVE) return onActivity?.()
-    dropped = event.data.state === DESKTOP_DROPPED
+    const message: unknown = event.data
+    if (!isRecord(message) || message.source !== DESKTOP_MESSAGE_SOURCE) return
+    if (message.state === DESKTOP_ACTIVE) {
+      onActivity?.()
+      return
+    }
+    dropped = message.state === DESKTOP_DROPPED
     if (dropped) scheduleReconnect()
   }
 
-  function scheduleReconnect() {
+  function scheduleReconnect(): void {
     clearTimeout(retryTimer)
     retryTimer = setTimeout(() => { attempt += 1 }, RECONNECT_DELAY_MS)
   }
 
-  function focusHint() {
+  function focusHint(): string {
     if (!focused) return 'Click the desktop to control it'
     return fullScreen ? 'Esc exits full screen' : 'Esc returns to chat'
   }

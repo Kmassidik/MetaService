@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
   /**
    * A picture in the composer: a small square that shows upload progress as a ring, then the
    * picture itself (tap to view). The corner × removes it or cancels the upload.
    * Pass `file` for a ready attachment or `upload` for one still uploading (a failed upload is a text chip).
    */
+  import type { ChatFile, Upload } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import Thumbnail from './Thumbnail.svelte'
 
@@ -12,7 +13,16 @@
   const PERCENT = 100
   const REMOVE_ICON_SIZE = 12
 
-  let { file = null, upload = null, removeLabel, removeDisabled = false, onOpen, onRemove } = $props()
+  interface Props {
+    file?: ChatFile | null
+    upload?: Upload | null
+    removeLabel: string
+    removeDisabled?: boolean
+    onOpen?: () => unknown
+    onRemove: () => unknown
+  }
+
+  let { file = null, upload = null, removeLabel, removeDisabled = false, onOpen, onRemove }: Props = $props()
 
   const name = $derived(file?.name || upload?.name || '')
   const progress = $derived(upload ? Math.min(1, upload.received / (upload.size || 1)) : 1)

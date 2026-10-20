@@ -1,13 +1,21 @@
-<script>
+<script lang="ts">
   /** The side panel's Details for a group chat: its purpose, lead and members, and the way into editing it. */
+  import type { Agent } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import ProfileSection from '../profile/ProfileSection.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
   const FACE_SIZE = 32
 
-  let { team, members = [], editLocked = false, onEdit } = $props()
+  interface Props {
+    team: Agent
+    members?: Agent[]
+    editLocked?: boolean
+    onEdit: () => unknown
+  }
+
+  let { team, members = [], editLocked = false, onEdit }: Props = $props()
 </script>
 
 <div class="group-body">

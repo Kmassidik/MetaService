@@ -1,23 +1,30 @@
-<script>
+<script lang="ts">
   /**
    * A saved picture, fetched once per session through the shared cache and only when it scrolls
    * near the screen. Fills its parent: `fit="cover"` crops to a square tile, `fit="natural"` keeps
    * the picture's shape. Falls back to the file's type icon when it can't be shown.
    */
+  import type { ChatFile } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
-  import { thumbnails } from '../../lib/files/thumbnails.js'
-  import { whenVisible } from '../../lib/files/attachments.js'
-  import { fileIcon } from '../../lib/files/preview.js'
+  import { thumbnails } from '../../lib/files/thumbnails.ts'
+  import { whenVisible } from '../../lib/files/attachments.ts'
+  import { fileIcon } from '../../lib/files/preview.ts'
 
   const FALLBACK_ICON_SIZE = 20
 
-  let { file, alt = '', fit = 'cover' } = $props()
+  interface Props {
+    file: ChatFile
+    alt?: string
+    fit?: 'cover' | 'natural'
+  }
+
+  let { file, alt = '', fit = 'cover' }: Props = $props()
 
   let loaded = $state('')
   let failed = $state(false)
   const url = $derived(loaded || thumbnails.peek(file.id))
 
-  function load() {
+  function load(): void {
     thumbnails.get(file).then(found => { loaded = found }, () => { failed = true })
   }
 </script>

@@ -1,23 +1,31 @@
-<script>
+<script lang="ts">
   /**
    * Full-screen picture viewer (Grok/ChatGPT style): the picture fit to the screen, its name and
    * Download, and ← → keys, swipes or the side buttons between the pictures of one message.
    * `index` is bound so the opener decides where it starts.
    */
+  import type { Dict } from '../../lib/check.ts'
+  import type { ChatFile } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import ViewerShell from './ViewerShell.svelte'
-  import { thumbnails } from '../../lib/files/thumbnails.js'
-  import { downloadUrl } from '../../lib/files/preview.js'
-  import { clampIndex, counterLabel, keyStep, stepIndex, swipeStep } from '../../lib/files/viewerNav.js'
-  import { fileSize } from '../../lib/format.js'
+  import { thumbnails } from '../../lib/files/thumbnails.ts'
+  import { downloadUrl } from '../../lib/files/preview.ts'
+  import { clampIndex, counterLabel, keyStep, stepIndex, swipeStep } from '../../lib/files/viewerNav.ts'
+  import { fileSize } from '../../lib/format.ts'
 
   const NAV_ICON_SIZE = 22
   const FAILED = 'failed'
 
-  let { images = [], index = $bindable(0), onClose } = $props()
+  interface Props {
+    images?: ChatFile[]
+    index?: number
+    onClose: () => void
+  }
 
-  let urls = $state({})
-  let pointerStart = null
+  let { images = [], index = $bindable(0), onClose }: Props = $props()
+
+  let urls = $state<Dict<string>>({})
+  let pointerStart: { x: number; y: number } | null = null
   let swiped = false
 
   const position = $derived(clampIndex(index, images.length))
@@ -26,7 +34,7 @@
   const subtitle = $derived([several ? counterLabel(position, images.length) : '', image ? fileSize(image.size) : ''].filter(Boolean).join(' · '))
   const shown = $derived(image ? urls[image.id] || thumbnails.peek(image.id) : '')
 
-  function remember(id, value) {
+  function remember(id: string, value: string): void {
     urls = { ...urls, [id]: value }
   }
 
@@ -36,22 +44,22 @@
     thumbnails.get(file).then(url => remember(file.id, url), () => remember(file.id, FAILED))
   })
 
-  function go(delta) {
+  function go(delta: number): void {
     index = stepIndex(position, delta, images.length)
   }
 
-  function onKey(event) {
+  function onKey(event: KeyboardEvent): void {
     const delta = keyStep(event.key)
     if (!delta) return
     event.preventDefault()
     go(delta)
   }
 
-  function startSwipe(event) {
+  function startSwipe(event: PointerEvent): void {
     pointerStart = { x: event.clientX, y: event.clientY }
   }
 
-  function endSwipe(event) {
+  function endSwipe(event: PointerEvent): void {
     if (!pointerStart) return
     const delta = swipeStep(event.clientX - pointerStart.x, event.clientY - pointerStart.y)
     pointerStart = null
@@ -60,7 +68,7 @@
   }
 
   // A tap on the dark area around the picture closes, like the backdrop; the click that ends a swipe doesn't.
-  function closeOutsidePicture(event) {
+  function closeOutsidePicture(event: MouseEvent): void {
     const tappedBackdrop = event.target === event.currentTarget && !swiped
     swiped = false
     if (tappedBackdrop) onClose()

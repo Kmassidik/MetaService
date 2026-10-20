@@ -1,12 +1,21 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { RunCard } from '../../../lib/types.ts'
   import Card from './Card.svelte'
 
   // The value goes straight to the bot; the transcript never shows it.
   const MAX_SECRET_LENGTH = 4096
-  let { card, busy = false, secret = $bindable(''), onResolve } = $props()
+  interface Props {
+    card: RunCard
+    busy?: boolean
+    secret?: string
+    onResolve: (decision: string, extra?: Dict<unknown>) => unknown
+  }
+
+  let { card, busy = false, secret = $bindable(''), onResolve }: Props = $props()
   const inputId = $props.id()
 
-  function submit(event) {
+  function submit(event: Event): void {
     event.preventDefault()
     if (busy || !secret.trim()) return
     onResolve('submit')

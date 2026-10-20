@@ -1,16 +1,19 @@
-<script>
+<script lang="ts">
   /** Settings › General: who is signed in, Appearance, and Sign out. */
+  import type { SessionUser } from '../../lib/types.ts'
   import AppearancePicker from './AppearancePicker.svelte'
   import SettingsGroup from './SettingsGroup.svelte'
   import SettingsRow from './SettingsRow.svelte'
-  import { chat, logout } from '../../lib/chatApp.svelte.js'
+  import { chat, logout } from '../../lib/chatApp.svelte.ts'
   import UserAvatar from '../UserAvatar.svelte'
 
+  // Settings only opens with a session; this keeps the rows readable for the frame after sign-out.
+  const SIGNED_OUT_USER: SessionUser = { id: '', email: '', name: '', access: '' }
   const SIGN_IN_PROVIDER = 'Google'
   const APPEARANCE_NOTE = 'System follows your device’s light or dark setting. Saved on this device.'
   const PENDING_NOTE = 'Wait for your current request to finish before signing out.'
 
-  const user = $derived(chat.session.user)
+  const user = $derived(chat.session?.user ?? SIGNED_OUT_USER)
   const signOutLocked = $derived(chat.loggingOut || Boolean(chat.environmentAction) || chat.deletingAccount || Boolean(chat.pending))
 </script>
 

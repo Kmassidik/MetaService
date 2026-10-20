@@ -1,8 +1,13 @@
-<script>
-  /** The floating way out of full screen; it fades after a few idle seconds (see fullScreen.js). */
+<script lang="ts">
+  /** The floating way out of full screen; it fades after a few idle seconds (see fullScreen.ts). */
   import Icon from '../Icon.svelte'
 
-  let { visible = false, onExit } = $props()
+  interface Props {
+    visible?: boolean
+    onExit: () => unknown
+  }
+
+  let { visible = false, onExit }: Props = $props()
 
   const ICON_SIZE = 15
 </script>

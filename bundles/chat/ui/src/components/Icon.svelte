@@ -1,6 +1,13 @@
-<script>
-  let { name, size = 20, ...rest } = $props()
-  const paths = {
+<script lang="ts">
+  import type { SVGAttributes } from 'svelte/elements'
+
+  interface Props extends SVGAttributes<SVGSVGElement> {
+    name: string
+    size?: number
+  }
+
+  let { name, size = 20, ...rest }: Props = $props()
+  const paths: Record<string, string> = {
     plus: 'M12 5v14M5 12h14',
     search: 'M21 21l-4.4-4.4M19 10.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0',
     arrow: 'M12 19V5M5 12l7-7 7 7',

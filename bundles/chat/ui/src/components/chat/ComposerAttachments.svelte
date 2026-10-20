@@ -1,31 +1,40 @@
-<script>
+<script lang="ts">
   /** What the next message carries: pictures as square tiles (tap to view), other files as chips. */
+  import type { ChatFile, Upload } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import AttachmentTile from '../files/AttachmentTile.svelte'
   import ImageViewer from '../files/ImageViewer.svelte'
-  import { fileSize } from '../../lib/format.js'
-  import { isViewableImage, looksLikeImage } from '../../lib/files/preview.js'
+  import { fileSize } from '../../lib/format.ts'
+  import { isViewableImage, looksLikeImage } from '../../lib/files/preview.ts'
 
   const CHIP_ICON_SIZE = 15
   const CLOSE_ICON_SIZE = 14
   const CANCELLING = 'Cancelling'
   const CLOSED = -1
 
-  let { files = [], uploads = [], locked = false, onRemove, onCancel } = $props()
+  interface Props {
+    files?: ChatFile[]
+    uploads?: Upload[]
+    locked?: boolean
+    onRemove: (file: ChatFile) => unknown
+    onCancel: (upload: Upload) => unknown
+  }
+
+  let { files = [], uploads = [], locked = false, onRemove, onCancel }: Props = $props()
 
   let viewing = $state(CLOSED)
   const images = $derived(files.filter(isViewableImage))
   const otherFiles = $derived(files.filter(file => !isViewableImage(file)))
   // A failed picture upload drops back to a text chip so its error can be read.
-  const showsAsTile = upload => looksLikeImage(upload.name) && !upload.error
+  const showsAsTile = (upload: Upload): boolean => looksLikeImage(upload.name) && !upload.error
   const imageUploads = $derived(uploads.filter(showsAsTile))
   const otherUploads = $derived(uploads.filter(upload => !showsAsTile(upload)))
 
-  function cancelLabel(upload) {
+  function cancelLabel(upload: Upload): string {
     return upload.error ? `Remove ${upload.name}` : `Cancel upload of ${upload.name}`
   }
 
-  function versionNote(file) {
+  function versionNote(file: ChatFile): string {
     return file.version ? ` · Version ${file.version}` : ''
   }
 </script>

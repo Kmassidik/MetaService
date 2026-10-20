@@ -1,12 +1,23 @@
-<script>
+<script lang="ts">
   /**
    * The account's apps on the computer's browser, one row each, with Connect / Check / Disconnect.
    * Reusable: Connect apps shows it under "N connected"; Settings › Connected apps can mount it
    * with the same props (apps from `chat.computerApps`, handlers from lib/chat/apps.svelte.js).
    */
+  import type { AppRecord } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
-  import { isAvailable, pluginById } from '../../lib/marketplace.js'
-  import { AppState, appState, appStateLabel } from '../../lib/apps.js'
+  import { isAvailable, pluginById, type Plugin } from '../../lib/marketplace.ts'
+  import { AppState, appState, appStateLabel } from '../../lib/apps.ts'
+
+  interface Props {
+    apps?: AppRecord[]
+    checkingId?: string
+    busyId?: string
+    emptyText?: string
+    onConnect?: (plugin: Plugin) => unknown
+    onCheck?: (plugin: Plugin) => unknown
+    onDisconnect?: (plugin: Plugin) => unknown
+  }
 
   let {
     apps = [],
@@ -16,18 +27,19 @@
     onConnect,
     onCheck,
     onDisconnect,
-  } = $props()
+  }: Props = $props()
 
   // An app missing from this build’s catalog (an older page) has nothing to show, so it is skipped.
   // A Soon app still shows its last state and can be disconnected, but not connected or checked.
-  const rows = $derived(apps.map(record => {
+  const rows = $derived(apps.flatMap(record => {
     const plugin = pluginById(record.appId)
+    if (!plugin) return []
     const state = appState(record, record.appId, checkingId)
-    return { record, plugin, state, label: appStateLabel(state, record), soon: Boolean(plugin) && !isAvailable(plugin) }
-  }).filter(row => row.plugin))
+    return [{ record, plugin, state, label: appStateLabel(state, record), soon: !isAvailable(plugin) }]
+  }))
 
   const CHECK_ICON_SIZE = 12
-  const locked = id => busyId === id || checkingId === id
+  const locked = (id: string): boolean => busyId === id || checkingId === id
 </script>
 
 {#if rows.length}

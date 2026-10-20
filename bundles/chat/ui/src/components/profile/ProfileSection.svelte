@@ -1,8 +1,16 @@
-<script>
+<script lang="ts">
   // A titled group: the title sits on the gray sheet, the content in one white card.
+  import type { Snippet } from 'svelte'
   import SavedTick from './SavedTick.svelte'
 
-  let { title, note = '', saved = false, children } = $props()
+  interface Props {
+    title: string
+    note?: string
+    saved?: boolean | undefined
+    children: Snippet
+  }
+
+  let { title, note = '', saved = false, children }: Props = $props()
 </script>
 
 <section class="profile-section">

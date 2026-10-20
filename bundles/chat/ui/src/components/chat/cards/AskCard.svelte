@@ -1,30 +1,46 @@
-<script>
+<script lang="ts">
+  import type { Ask, AskOption } from '../../../lib/types.ts'
   import Card from './Card.svelte'
   import Icon from '../../Icon.svelte'
 
   // A question with choices that waits for the owner's answer.
   const MAX_CUSTOM_ANSWER = 16000
-  let { ask, locked = false, picked = [], multiSelected = [], focusIndex = -1, onToggle, onSubmit, onSkip, onKeydown } = $props()
+  /** An option may carry a longer title and a subtitle beside its id and label. */
+  type AskOptionLook = AskOption & { title?: string; subtitle?: string; description?: string }
+
+  interface Props {
+    ask: Omit<Ask, 'options'> & { options: AskOptionLook[] }
+    locked?: boolean
+    picked?: string[]
+    multiSelected?: string[]
+    focusIndex?: number
+    onToggle: (optionId: string) => unknown
+    onSubmit: (labels: string[]) => unknown
+    onSkip: () => unknown
+    onKeydown: (event: KeyboardEvent) => unknown
+  }
+
+  let { ask, locked = false, picked = [], multiSelected = [], focusIndex = -1, onToggle, onSubmit, onSkip, onKeydown }: Props = $props()
 
   let customAnswer = $state('')
   const multiple = $derived(ask.mode === 'multiple')
   const answered = $derived(locked && picked.length > 0)
   const helper = $derived(ask.helper || ask.hint || (multiple ? 'Select all that apply, then Send.' : ''))
 
-  function isSelected(option) {
+  function isSelected(option: AskOptionLook): boolean {
     return multiple ? multiSelected.includes(option.id) : picked.includes(option.label)
   }
 
-  function choose(option) {
+  function choose(option: AskOptionLook): void {
     if (multiple) onToggle(option.id)
     else onSubmit([option.label])
   }
 
-  function sendSelected() {
+  function sendSelected(): void {
     onSubmit(ask.options.filter(option => multiSelected.includes(option.id)).map(option => option.label))
   }
 
-  function submitCustom(event) {
+  function submitCustom(event: Event): void {
     event.preventDefault()
     const text = customAnswer.trim()
     if (!text || locked) return

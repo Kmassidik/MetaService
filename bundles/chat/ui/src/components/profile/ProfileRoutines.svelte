@@ -1,7 +1,14 @@
-<script>
-  let { routines = [], onAction } = $props()
+<script lang="ts">
+  import type { Routine } from '../../lib/types.ts'
 
-  function summary(routine) {
+  interface Props {
+    routines?: Routine[]
+    onAction: (id: string, action: string) => unknown
+  }
+
+  let { routines = [], onAction }: Props = $props()
+
+  function summary(routine: Routine): string {
     const trigger = routine.triggerKind || routine.scheduleKind
     const webhook = routine.hasWebhook ? ' · webhook' : ''
     return `${routine.state} · ${trigger}${webhook}`

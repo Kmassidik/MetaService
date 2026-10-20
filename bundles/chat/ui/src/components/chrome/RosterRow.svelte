@@ -1,9 +1,24 @@
-<script>
+<script lang="ts">
   /** One 58 pt sidebar row: face, name, one-line preview, unread badge and a hover ⋯. */
+  import type { Agent } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import StackedAvatars from './StackedAvatars.svelte'
-  import { isTeam } from '../../lib/chat/roster.js'
+  import { isTeam } from '../../lib/chat/roster.ts'
+
+  interface Props {
+    agent: Agent
+    faces?: Agent[]
+    preview?: string
+    unread?: string
+    busy?: boolean
+    selected?: boolean
+    onSelect?: (agent: Agent) => unknown
+    onMenu?: (agent: Agent, point: { x: number; y: number }) => void
+    onAvatar?: (agent: Agent, point: { x: number; y: number }) => void
+  }
+
+  type RowEvent<E extends Event> = E & { currentTarget: HTMLElement }
 
   let {
     agent,
@@ -15,7 +30,7 @@
     onSelect,
     onMenu,
     onAvatar,
-  } = $props()
+  }: Props = $props()
 
   const AVATAR_SIZE = 36
   const LONG_PRESS_MS = 480
@@ -24,42 +39,45 @@
   // A group's pair is ringed in the row's current fill (idle, hover or selected), set in CSS.
   const ROW_FILL = 'var(--row-fill)'
 
-  let pressTimer = null
+  let pressTimer: ReturnType<typeof setTimeout> | undefined
   let suppressClick = false
   let pressing = $state(false)
 
-  function pointFrom(event) {
+  function pointFrom(event: RowEvent<MouseEvent>): { x: number; y: number } {
     const rect = event.currentTarget.getBoundingClientRect()
     return { x: event.clientX || rect.right, y: event.clientY || rect.bottom }
   }
 
-  function openMenu(event) {
+  function openMenu(event: RowEvent<MouseEvent>): void {
     event.preventDefault()
     event.stopPropagation()
     onMenu?.(agent, pointFrom(event))
   }
 
-  function openAvatar(event) {
+  function openAvatar(event: RowEvent<MouseEvent>): void {
     event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
     onAvatar?.(agent, { x: rect.left, y: rect.bottom })
   }
 
-  function activate(event) {
-    if (!suppressClick) return onSelect?.(agent)
+  function activate(event: MouseEvent): void {
+    if (!suppressClick) {
+      onSelect?.(agent)
+      return
+    }
     suppressClick = false
     event.preventDefault()
   }
 
-  function startLongPress(event) {
-    const touch = event.touches?.[0]
+  function startLongPress(event: TouchEvent): void {
+    const touch = event.touches[0]
     if (!touch) return
     cancelLongPress()
     pressing = true
     pressTimer = setTimeout(() => firePress(touch), LONG_PRESS_MS)
   }
 
-  function firePress(touch) {
+  function firePress(touch: Touch): void {
     pressing = false
     suppressClick = true
     onMenu?.(agent, { x: touch.clientX, y: touch.clientY })
@@ -68,7 +86,7 @@
 
   function cancelLongPress() {
     clearTimeout(pressTimer)
-    pressTimer = null
+    pressTimer = undefined
     pressing = false
   }
 </script>

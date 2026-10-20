@@ -1,5 +1,25 @@
-<script>
+<script lang="ts">
   // Problems and blockers that affect sending, stacked just above the composer.
+  import type { Dict } from '../../lib/check.ts'
+
+  interface Props {
+    selectedId?: string
+    runErrors?: Dict<string>
+    runActionErrors?: Dict<string>
+    historyError?: string | undefined
+    historyReloadDisabled?: boolean
+    createError?: string
+    usageBlocked?: boolean | undefined
+    otherBotBusy?: boolean
+    takingOver?: boolean
+    computerOpen?: boolean
+    attachmentErrors?: Dict<string>
+    mentionError?: string
+    onReconnect: () => unknown
+    onReloadHistory: () => unknown
+    onOpenComputer: () => unknown
+  }
+
   let {
     selectedId = '',
     runErrors = {},
@@ -18,14 +38,14 @@
     onReconnect,
     onReloadHistory,
     onOpenComputer,
-  } = $props()
+  }: Props = $props()
 
-  function clearFor(map) {
+  function clearFor(map: Dict<string>): Dict<string> {
     return { ...map, [selectedId]: '' }
   }
 </script>
 
-{#snippet problem(text, action, run, disabled = false)}
+{#snippet problem(text: string, action: string, run: () => unknown, disabled = false)}
   <div class="notice problem" role="alert"><span>{text}</span><button type="button" {disabled} onclick={run}>{action}</button></div>
 {/snippet}
 

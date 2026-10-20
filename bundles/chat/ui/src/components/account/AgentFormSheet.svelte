@@ -1,9 +1,10 @@
-<script>
+<script lang="ts">
   /** Create or edit a group chat, or edit a bot (bots are created by conversation instead). */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
-  import { chat, applyPreset, chooseLead, closeModal, saveAgent } from '../../lib/chatApp.svelte.js'
-  import { MAX_GROUP_CHATS, MAX_GROUP_MEMBERS, MODALS, instructionPresets } from '../../lib/constants.js'
-  import { bytes, number } from '../../lib/format.js'
+  import { chat, applyPreset, chooseLead, closeModal, saveAgent } from '../../lib/chatApp.svelte.ts'
+  import { MAX_GROUP_CHATS, MAX_GROUP_MEMBERS, MODALS, instructionPresets } from '../../lib/constants.ts'
+  import { bytes, number } from '../../lib/format.ts'
 
   // Mirrors the API limits so the button disables before a doomed round trip.
   const MAX_NAME_BYTES = 120
@@ -12,7 +13,11 @@
   const MB_PER_GIB = 1024
   const BYTES_PER_GB = 1e9
 
-  let { view } = $props()
+  interface Props {
+    view: WorkspaceView
+  }
+
+  let { view }: Props = $props()
 
   const isTeam = $derived(chat.formKind === 'team')
   const isCreate = $derived(chat.modal === MODALS.create)
@@ -24,34 +29,34 @@
   const unavailableMembers = $derived(chat.formMemberIds.filter(id => !view.readyBots.some(bot => bot.id === id)))
   const submitDisabled = $derived(chat.saving || createBlocked() || Boolean(view.teamFormError) || !formValid())
 
-  function submitText(saving, creating, heading) {
+  function submitText(saving: boolean, creating: boolean, heading: string): string {
     if (!saving) return creating ? heading : 'Save changes'
     return creating ? 'Preparing workspace…' : 'Saving…'
   }
 
-  function createBlocked() {
+  function createBlocked(): boolean {
     if (!isCreate) return false
     return isTeam ? view.createTeamBlocked : view.createBlocked
   }
 
-  function formValid() {
+  function formValid(): boolean {
     const name = chat.formName.trim()
     return Boolean(name) && bytes(name) <= MAX_NAME_BYTES && bytes(chat.formDescription.trim()) <= MAX_DESCRIPTION_BYTES
   }
 
-  function memberLocked(id) {
+  function memberLocked(id: string): boolean {
     return !chat.formMemberIds.includes(id) && chat.formMemberIds.length >= MAX_GROUP_MEMBERS
   }
 
-  function memberName(id) {
+  function memberName(id: string): string {
     return view.bots.find(bot => bot.id === id)?.name || 'Selected member'
   }
 
-  function removeMember(id) {
+  function removeMember(id: string): void {
     chat.formMemberIds = chat.formMemberIds.filter(memberId => memberId !== id)
   }
 
-  function askToDelete() {
+  function askToDelete(): void {
     chat.modal = MODALS.delete
     chat.formError = ''
   }

@@ -1,26 +1,49 @@
-<script>
+<script lang="ts">
   /**
    * Extracted text (OCR) of a picture or PDF, in the viewer. Starts when it opens; Stop or closing
    * asks the host to cancel. A reserved request ID means even a Stop before the slow call starts
    * reaches the worker.
    */
   import { onDestroy } from 'svelte'
+  import type { ChatFile } from '../../lib/types.ts'
+  import { errorMessage } from '../../lib/errors.ts'
   import ViewerShell from './ViewerShell.svelte'
-  import { cancelExtraction, extractedText, readExtraction, reserveExtraction, startExtraction } from '../../lib/files/extraction.js'
+  import { cancelExtraction, extractedText, readExtraction, reserveExtraction, startExtraction } from '../../lib/files/extraction.ts'
 
   const PAGE_ROWS = 8
 
-  let { file, sessionKey, onClose } = $props()
+  /** What the host reads from a file, with the engine details the server adds. */
+  interface ExtractionDetails {
+    engine?: string
+    revision?: string | number
+    warnings?: string[]
+    pages: Array<{ text: string; page?: number; source?: string }>
+  }
 
-  let extraction = $state(null)
+  interface Job {
+    id: string
+    cancelled: boolean
+    settled: boolean
+    cancellation: Promise<void> | null
+  }
+
+  interface Props {
+    file: ChatFile
+    sessionKey: string
+    onClose: () => void
+  }
+
+  let { file, sessionKey, onClose }: Props = $props()
+
+  let extraction = $state<ExtractionDetails | null>(null)
   let busy = $state(true)
   let stopping = $state(false)
   let error = $state('')
   let status = $state('')
   let copyStatus = $state('')
-  const job = { id: '', cancelled: false, settled: false, cancellation: null }
+  const job: Job = { id: '', cancelled: false, settled: false, cancellation: null }
 
-  function requestCancel() {
+  function requestCancel(): Promise<void> {
     if (!job.id || job.settled) return Promise.resolve()
     job.cancellation ||= cancelExtraction(file.id, sessionKey, job.id).catch(failure => {
       job.cancellation = null
@@ -29,24 +52,25 @@
     return job.cancellation
   }
 
-  async function failureMessage(failure) {
-    if (job.settled) return failure.message
+  async function failureMessage(failure: unknown): Promise<string> {
+    const reason = errorMessage(failure)
+    if (job.settled) return reason
     try {
       await requestCancel()
     } catch {
-      return `${failure.message} Worker cancellation could not be confirmed; safety limits still apply.`
+      return `${reason} Worker cancellation could not be confirmed; safety limits still apply.`
     }
-    return job.id ? `${failure.message} Cancellation was requested; the worker's final state could not be confirmed.` : failure.message
+    return job.id ? `${reason} Cancellation was requested; the worker's final state could not be confirmed.` : reason
   }
 
-  async function extract() {
+  async function extract(): Promise<void> {
     const response = await startExtraction(file.id, sessionKey, job.id)
     job.settled = true
     extraction = await readExtraction(response)
     if (job.cancelled) status = 'Text extraction finished before cancellation took effect.'
   }
 
-  async function run() {
+  async function run(): Promise<void> {
     try {
       job.id = await reserveExtraction(file.id, sessionKey)
       if (!job.cancelled) return await extract()
@@ -61,7 +85,7 @@
     }
   }
 
-  async function stop() {
+  async function stop(): Promise<void> {
     job.cancelled = true
     stopping = true
     error = ''
@@ -69,11 +93,12 @@
       await requestCancel()
     } catch (failure) {
       stopping = false
-      error = `${failure.message} Extraction may still be running; try Stop again.`
+      error = `${errorMessage(failure)} Extraction may still be running; try Stop again.`
     }
   }
 
-  async function copy() {
+  async function copy(): Promise<void> {
+    if (!extraction) return
     try {
       await navigator.clipboard.writeText(extractedText(extraction))
       copyStatus = 'Copied'
@@ -82,7 +107,7 @@
     }
   }
 
-  function stopOnClose() {
+  function stopOnClose(): void {
     job.cancelled = true
     requestCancel().catch(failure => console.warn('Text extraction cancel failed', failure))
   }

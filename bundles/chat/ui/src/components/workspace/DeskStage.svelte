@@ -1,9 +1,26 @@
-<script>
+<script lang="ts">
   import RuviHero from '../RuviHero.svelte'
   import DeskStream from './DeskStream.svelte'
-  import { DeskPhase } from './deskStatus.js'
+  import { DeskPhase } from './deskStatus.ts'
 
   const STARTING_RUVI_WIDTH = 140
+
+  interface Props {
+    phase?: DeskPhase
+    startingText?: string
+    streamSrc?: string
+    reconnecting?: boolean
+    image?: string
+    takingOver?: boolean
+    locked?: boolean
+    hint?: string
+    onClickScreenshot?: ((event: MouseEvent) => unknown) | undefined
+    onOpenBrowser?: () => unknown
+    onOpenFiles?: (() => unknown) | undefined
+    onEscape?: () => unknown
+    fullScreen?: boolean
+    onActivity?: () => unknown
+  }
 
   let {
     phase = DeskPhase.HOME,
@@ -20,7 +37,7 @@
     onEscape,
     fullScreen = false,
     onActivity,
-  } = $props()
+  }: Props = $props()
 </script>
 
 <div class="desk-stage" class:is-dark={phase === DeskPhase.STREAM} aria-busy={phase === DeskPhase.STARTING}>

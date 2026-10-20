@@ -1,6 +1,13 @@
-<script>
+<script lang="ts">
   /** A native checkbox drawn as a small switch; keeps keyboard and screen-reader behaviour for free. */
-  let { checked = false, disabled = false, label = undefined, onChange } = $props()
+  interface Props {
+    checked?: boolean
+    disabled?: boolean
+    label?: string | undefined
+    onChange: (checked: boolean) => void
+  }
+
+  let { checked = false, disabled = false, label = undefined, onChange }: Props = $props()
 </script>
 
 <input type="checkbox" role="switch" aria-label={label} {checked} {disabled} onchange={event => onChange(event.currentTarget.checked)} />

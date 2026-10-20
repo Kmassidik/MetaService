@@ -1,9 +1,21 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+
   /**
    * Shared shell for sidebar menus (bot actions, new chat, account): backdrop, Esc, viewport
    * clamping and the shared menu look. On phones it becomes a bottom sheet.
    * Items use the global `.menu-item` / `.menu-divider` classes defined below.
    */
+  interface Props {
+    open?: boolean
+    x?: number | undefined
+    y?: number | undefined
+    placement?: 'down' | 'up'
+    label?: string
+    onClose?: (() => void) | undefined
+    children: Snippet
+  }
+
   let {
     open = false,
     x = 0,
@@ -12,7 +24,7 @@
     label = 'Menu',
     onClose,
     children,
-  } = $props()
+  }: Props = $props()
 
   const VIEWPORT_MARGIN = 8
 
@@ -21,14 +33,14 @@
   let viewportWidth = $state(0)
   let viewportHeight = $state(0)
 
-  function clamp(value, size, limit) {
+  function clamp(value: number, size: number, limit: number): number {
     return Math.max(VIEWPORT_MARGIN, Math.min(value, limit - size - VIEWPORT_MARGIN))
   }
 
   const left = $derived(clamp(x, panelWidth, viewportWidth))
   const top = $derived(clamp(placement === 'up' ? y - panelHeight : y, panelHeight, viewportHeight))
 
-  function onKey(event) {
+  function onKey(event: KeyboardEvent): void {
     if (open && event.key === 'Escape') onClose?.()
   }
 </script>

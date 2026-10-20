@@ -7,21 +7,18 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "lint": "eslint src",
-    "test": "vitest run",
-    "check": "npm run lint && npm run test && npm run build"
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc --noEmit",
+    "test": "bun test --isolate",
+    "check": "sh check.sh"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "eslint": "^10.11.0",
-    "eslint-plugin-svelte": "^3.23.0",
-    "globals": "^17.12.0",
+    "@types/bun": "^1.4.3",
+    "@types/papaparse": "^5.3.15",
     "svelte": "^5.19.0",
-    "svelte-check": "^4.7.6",
+    "svelte-check": "^4.7.7",
     "typescript": "^6.0.3",
-    "vite": "^6.0.7",
-    "vitest": "^4.1.11"
+    "vite": "^6.0.7"
   },
   "dependencies": {
     "dompurify": "^3.4.15",

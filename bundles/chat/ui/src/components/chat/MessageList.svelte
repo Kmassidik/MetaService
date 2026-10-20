@@ -1,8 +1,24 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../lib/check.ts'
+  import type { RunStep } from '../../lib/runSteps.ts'
+  import type { Agent, ChatMessage } from '../../lib/types.ts'
   import MessageBubble from './MessageBubble.svelte'
-  import { layoutMessages } from './messageLayout.js'
+  import { layoutMessages } from './messageLayout.ts'
 
   // Centered time dividers, same-speaker grouping, and threads under their parents.
+  interface Props {
+    messages?: ChatMessage[]
+    threadReplies?: ChatMessage[]
+    active: Agent
+    matchedMessageId?: string | undefined
+    replySteps?: Dict<RunStep[]>
+    replyParent?: string
+    replyDrafts?: Dict<string>
+    toggleReaction: (messageId: string, emoji: string) => unknown
+    sendThreadReply: (parentId: string) => unknown
+    onViewResults?: (() => unknown) | undefined
+  }
+
   let {
     messages = [],
     threadReplies = [],
@@ -15,20 +31,20 @@
     toggleReaction,
     sendThreadReply,
     onViewResults,
-  } = $props()
+  }: Props = $props()
 
   const rows = $derived(layoutMessages(messages))
   const isGroup = $derived(active.kind === 'team')
 
-  function repliesTo(id) {
+  function repliesTo(id: string): ChatMessage[] {
     return threadReplies.filter(reply => reply.parentId === id)
   }
 
-  function toggleReply(id) {
+  function toggleReply(id: string): void {
     replyParent = replyParent === id ? '' : id
   }
 
-  function setReplyDraft(id, value) {
+  function setReplyDraft(id: string, value: string): void {
     replyDrafts = { ...replyDrafts, [id]: value }
   }
 </script>

@@ -1,12 +1,19 @@
-<script>
+<script lang="ts">
   /**
    * Two overlapped bot faces for a group chat, drawn like iMessage
    * group avatars: two flat circles, the front one cut out of the back one by a thin ring.
    */
+  import type { Agent } from '../../lib/types.ts'
   import BotAvatar from '../BotAvatar.svelte'
 
   // `ring` is the surface behind the pair, so the gap between the faces reads as background.
-  let { agents = [], size = 36, ring = 'var(--sidebar)' } = $props()
+  interface Props {
+    agents?: Agent[]
+    size?: number
+    ring?: string
+  }
+
+  let { agents = [], size = 36, ring = 'var(--sidebar)' }: Props = $props()
 
   // Each face is ~68% of the slot so the pair overlaps diagonally inside the same square.
   const FACE_RATIO = 0.68

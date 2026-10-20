@@ -1,3 +1,5 @@
+<script lang="ts"></script>
+
 <span class="desk-pulse" aria-hidden="true"></span>
 
 <style>

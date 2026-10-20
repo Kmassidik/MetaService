@@ -1,11 +1,19 @@
-<script>
+<script lang="ts">
   /**
    * The sticky foot of Details: the Save button (clean / dirty / saving / saved), or, when the owner
    * tries to leave with unsaved edits, the inline "You have unsaved changes — Save / Discard".
    */
-  import { SAVE_STATE, canSave, saveLabel } from '../../lib/profileForm.js'
+  import { SAVE_STATE, canSave, saveLabel, type SaveState } from '../../lib/profileForm.ts'
 
-  let { state = SAVE_STATE.clean, locked = false, asking = false, onSaveAndLeave, onDiscard } = $props()
+  interface Props {
+    state?: SaveState
+    locked?: boolean
+    asking?: boolean
+    onSaveAndLeave: () => unknown
+    onDiscard: () => unknown
+  }
+
+  let { state = SAVE_STATE.clean, locked = false, asking = false, onSaveAndLeave, onDiscard }: Props = $props()
 </script>
 
 <div class="profile-save">

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Notifications: browser notifications on this device. Which events notify
    * ("needs input", "finished") stays per bot, in each bot's profile; there is no account-wide
@@ -9,9 +9,10 @@
   import Switch from '../Switch.svelte'
   import {
     PERMISSION, enableNotifications, muteNotifications, notificationPermission, notificationsMuted, notificationsOn,
-  } from '../../lib/notifications.js'
+    type NotificationState,
+  } from '../../lib/notifications.ts'
 
-  const PERMISSION_DETAILS = {
+  const PERMISSION_DETAILS: Record<NotificationState, string> = {
     [PERMISSION.unsupported]: 'This browser can’t show notifications.',
     [PERMISSION.denied]: 'Blocked by your browser. Allow notifications for this site in your browser’s site settings.',
     [PERMISSION.default]: 'Your browser will ask once.',
@@ -26,7 +27,7 @@
 
   const blocked = $derived(permission === PERMISSION.unsupported || permission === PERMISSION.denied)
 
-  async function toggle(on) {
+  async function toggle(on: boolean): Promise<void> {
     if (!on) {
       saveFailed = !muteNotifications()
       muted = true

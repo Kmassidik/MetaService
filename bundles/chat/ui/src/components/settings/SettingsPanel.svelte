@@ -1,10 +1,11 @@
-<script>
+<script lang="ts">
   /**
    * Settings: the section list on the left and the chosen section on the right (desktop), or one
    * screen at a time with a back arrow (phone). Lives inside the shared workspace <dialog>.
    */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
   import SettingsNav from './SettingsNav.svelte'
   import GeneralSection from './GeneralSection.svelte'
   import ComputerSection from './ComputerSection.svelte'
@@ -12,26 +13,22 @@
   import NotificationsSection from './NotificationsSection.svelte'
   import UsageSection from './UsageSection.svelte'
   import DangerSection from './DangerSection.svelte'
-  import { chat, closeModal, openComputer, openFiles } from '../../lib/chatApp.svelte.js'
-  import { SETTINGS, backToSettingsList, settingsSectionLabel, showSettingsSection } from '../../lib/settingsSections.js'
+  import { chat, closeModal, openComputer, openFiles } from '../../lib/chatApp.svelte.ts'
+  import { SETTINGS, backToSettingsList, settingsSectionLabel, showSettingsSection } from '../../lib/settingsSections.ts'
 
-  const SECTION_VIEWS = {
-    [SETTINGS.general]: GeneralSection,
-    [SETTINGS.computer]: ComputerSection,
-    [SETTINGS.apps]: ConnectedAppsSection,
-    [SETTINGS.notifications]: NotificationsSection,
-    [SETTINGS.usage]: UsageSection,
-    [SETTINGS.danger]: DangerSection,
+  interface Props {
+    view: WorkspaceView
+    closeLocked?: boolean
   }
 
-  let { view, closeLocked = false } = $props()
+  let { view, closeLocked = false }: Props = $props()
 
   const locked = $derived(chat.loggingOut || Boolean(chat.environmentAction) || chat.deletingAccount)
-  const Section = $derived(SECTION_VIEWS[chat.settings.section])
+  const section = $derived(chat.settings.section)
   const title = $derived(settingsSectionLabel(chat.settings.section))
 
   // Leaving a section abandons any half-typed delete confirmation in it.
-  function select(id) {
+  function select(id: string): void {
     chat.confirmAccountDeletion = false
     chat.accountConfirmation = ''
     chat.accountDeletionError = ''
@@ -40,14 +37,14 @@
     chat.settings = showSettingsSection(chat.settings, id)
   }
 
-  function back() {
+  function back(): void {
     chat.settings = backToSettingsList(chat.settings)
   }
 
   // Settings rows open the big computer view or the side panel's Files tab.
-  const OPENERS = { computer: openComputer, files: openFiles }
+  const OPENERS: Record<string, () => unknown> = { computer: openComputer, files: openFiles }
 
-  function openPanel(panel) {
+  function openPanel(panel: string): unknown {
     closeModal()
     return OPENERS[panel]?.()
   }
@@ -69,7 +66,19 @@
       {@render close()}
     </header>
     <section class="main-body" aria-labelledby="settings-section-title">
-      <Section {view} onSection={select} onOpen={openPanel} />
+      {#if section === SETTINGS.general}
+        <GeneralSection />
+      {:else if section === SETTINGS.computer}
+        <ComputerSection {view} onOpen={openPanel} />
+      {:else if section === SETTINGS.apps}
+        <ConnectedAppsSection />
+      {:else if section === SETTINGS.notifications}
+        <NotificationsSection />
+      {:else if section === SETTINGS.usage}
+        <UsageSection {view} />
+      {:else if section === SETTINGS.danger}
+        <DangerSection {view} onSection={select} onOpen={openPanel} />
+      {/if}
     </section>
   </div>
 </div>

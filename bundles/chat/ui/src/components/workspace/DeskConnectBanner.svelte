@@ -1,8 +1,16 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
   import DeskNotice from './DeskNotice.svelte'
 
-  let { appName = '', disabled = false, probeError = '', onFinish, onCancel } = $props()
+  interface Props {
+    appName?: string
+    disabled?: boolean
+    probeError?: string
+    onFinish: () => unknown
+    onCancel: () => unknown
+  }
+
+  let { appName = '', disabled = false, probeError = '', onFinish, onCancel }: Props = $props()
 </script>
 
 <div class="desk-connect" role="status">

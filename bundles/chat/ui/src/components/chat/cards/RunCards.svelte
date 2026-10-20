@@ -1,4 +1,6 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { Approval, Ask, AppResult, RunCard } from '../../../lib/types.ts'
   import AskCard from './AskCard.svelte'
   import TakeoverCard from './TakeoverCard.svelte'
   import ConnectCard from './ConnectCard.svelte'
@@ -9,6 +11,29 @@
   import AppResultCard from './AppResultCard.svelte'
 
   // Picks the card for whatever the current run is waiting on; an ask wins over other cards.
+  interface Props {
+    activeAsk?: Ask | null
+    answeredAsks?: Dict<string[]>
+    askMulti?: Dict<string[]>
+    askFocus?: number
+    askLocked?: boolean
+    activeCard?: RunCard | null
+    appResults?: Array<AppResult & { cardId?: string }>
+    cardSecret?: string
+    cardBusy?: string
+    takingOver?: boolean
+    agentLimitReached?: boolean
+    pendingApprovals?: Approval[]
+    approvalBusy?: boolean
+    toggleAskOption: (optionId: string) => unknown
+    submitAsk: (labels: string[]) => unknown
+    skipAsk: () => unknown
+    askKeydown: (event: KeyboardEvent) => unknown
+    resolveCard: (decision: string, extra?: Dict<unknown>) => unknown
+    onApproveApproval?: ((approval: Approval) => unknown) | null
+    onDenyApproval?: ((approval: Approval) => unknown) | null
+  }
+
   let {
     activeAsk = null,
     answeredAsks = {},
@@ -30,12 +55,12 @@
     resolveCard,
     onApproveApproval,
     onDenyApproval,
-  } = $props()
+  }: Props = $props()
 
   const busy = $derived(Boolean(cardBusy))
 </script>
 
-{#each appResults as result (result.cardId)}
+{#each appResults as result, index (result.cardId ?? index)}
   <AppResultCard {result} />
 {/each}
 {#if activeAsk}

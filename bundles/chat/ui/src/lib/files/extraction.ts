@@ -1,0 +1,63 @@
+/**
+ * Host text extraction (OCR) for an image or PDF. A request ID is reserved first, so Stop works
+ * even before the slow extract call starts. Requests use keepalive so a cancel still reaches the
+ * server when the viewer closes.
+ */
+import { arrayOf, isRecord, isString, objectOf } from '../check.ts'
+
+const NOT_FOUND = 404
+
+/** The text the host read from a file, page by page. */
+export interface Extraction {
+  pages: { text: string }[]
+}
+
+const isReservation = objectOf<{ requestId: string }>({ requestId: isString })
+const isExtractionAnswer = objectOf<{ extraction: Extraction }>({
+  extraction: objectOf<Extraction>({ pages: arrayOf(objectOf<{ text: string }>({ text: isString })) }),
+})
+
+function headers(key: string, json = false): Record<string, string> {
+  return { 'X-CSRF-Token': key, Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) }
+}
+
+function filePath(fileId: string, rest: string): string {
+  return `/api/files/${encodeURIComponent(fileId)}/extract${rest}`
+}
+
+async function errorFrom(response: Response, fallback: string): Promise<Error> {
+  const data: unknown = await response.json().catch(() => null)
+  const reason = isRecord(data) && typeof data.error === 'string' ? data.error : ''
+  return new Error(reason || `${fallback} (${response.status}).`)
+}
+
+export async function reserveExtraction(fileId: string, key: string): Promise<string> {
+  const response = await fetch(filePath(fileId, '/requests'), { method: 'POST', credentials: 'same-origin', headers: headers(key), keepalive: true })
+  if (!response.ok) throw await errorFrom(response, 'Text extraction could not start')
+  const reserved: unknown = await response.json().catch(() => null)
+  if (!isReservation(reserved)) throw new Error('The server returned an invalid extraction request.')
+  return reserved.requestId
+}
+
+/** Starts the slow extract call; once it answers, the worker is done whatever the answer says. */
+export function startExtraction(fileId: string, key: string, requestId: string): Promise<Response> {
+  return fetch(filePath(fileId, ''), { method: 'POST', credentials: 'same-origin', headers: headers(key, true), body: JSON.stringify({ requestId }) })
+}
+
+export async function readExtraction(response: Response): Promise<Extraction> {
+  if (!response.ok) throw await errorFrom(response, 'Text extraction failed')
+  const data: unknown = await response.json().catch(() => null)
+  if (!isExtractionAnswer(data)) throw new Error('The server returned an unreadable extraction result.')
+  return data.extraction
+}
+
+/** A finished or expired request (404) cannot affect a later extraction, so it counts as cancelled. */
+export async function cancelExtraction(fileId: string, key: string, requestId: string): Promise<void> {
+  const path = filePath(fileId, `/${encodeURIComponent(requestId)}/cancel`)
+  const response = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: headers(key), keepalive: true })
+  if (!response.ok && response.status !== NOT_FOUND) throw await errorFrom(response, 'Could not request extraction cancellation')
+}
+
+export function extractedText(extraction: Extraction): string {
+  return extraction.pages.map(page => page.text).join('\n\n')
+}

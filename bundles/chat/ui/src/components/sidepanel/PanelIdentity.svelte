@@ -1,28 +1,41 @@
-<script>
+<script lang="ts">
   /** The panel's top: a large face, the name, and the bot's label (its title), edited in place. */
+  import type { Agent } from '../../lib/types.ts'
   import BotAvatar from '../BotAvatar.svelte'
   import StackedAvatars from '../chrome/StackedAvatars.svelte'
   import SavedTick from '../profile/SavedTick.svelte'
-  import { PROFILE_LIMITS } from '../../lib/constants.js'
+  import { PROFILE_LIMITS } from '../../lib/constants.ts'
 
   const AVATAR_SIZE = 88
   const STACKED_FACES = 2
   const LABEL_PLACEHOLDER = 'Add a label'
 
-  let { agent, members = [], labelSaved = false, onSaveLabel } = $props()
+  interface Props {
+    agent: Agent
+    members?: Agent[]
+    labelSaved?: boolean | undefined
+    onSaveLabel?: (label: string) => unknown
+  }
+
+  type InputEvent<E extends Event> = E & { currentTarget: HTMLInputElement }
+
+  let { agent, members = [], labelSaved = false, onSaveLabel }: Props = $props()
 
   const isGroup = $derived(agent.kind === 'team')
   const faces = $derived(members.length ? members.slice(0, STACKED_FACES) : [agent])
   const groupLine = $derived(members.length === 1 ? '1 member' : `${members.length} members`)
 
-  function saveLabel(event) {
+  function saveLabel(event: InputEvent<Event>): void {
     const value = event.currentTarget.value.trim()
     if (value === (agent.title || '')) return
     onSaveLabel?.(value)
   }
 
-  function labelKey(event) {
-    if (event.key === 'Enter') return event.currentTarget.blur()
+  function labelKey(event: InputEvent<KeyboardEvent>): void {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur()
+      return
+    }
     if (event.key !== 'Escape') return
     // Escape abandons the edit; the panel's own Escape (close) must not fire too.
     event.stopPropagation()

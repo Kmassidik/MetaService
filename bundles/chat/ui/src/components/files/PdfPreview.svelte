@@ -1,31 +1,39 @@
-<script>
+<script lang="ts">
   /**
    * A PDF drawn page by page on a canvas: no links, scripts or form actions, at most 200 pages,
    * each page bounded to 12 megapixels. Errors go to `onError`; the parent shows them instead.
    */
   import { tick } from 'svelte'
-  import { PDF_MAX_PAGES, openPdf, pdfScale } from '../../lib/files/pdfPreview.js'
+  import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
+  import { errorMessage, errorName } from '../../lib/errors.ts'
+  import { PDF_MAX_PAGES, openPdf, pdfScale } from '../../lib/files/pdfPreview.ts'
 
   const MIN_CANVAS_PX = 1
   const RENDER_CANCELLED = 'RenderingCancelledException'
   const PASSWORD_MESSAGE = 'Password-protected PDFs cannot be previewed here. Download the original.'
 
-  let { data, name, onError } = $props()
+  interface Props {
+    data: Uint8Array
+    name: string
+    onError: (message: string) => void
+  }
 
-  let canvas = $state(null)
-  let pdf = $state.raw(null)
+  let { data, name, onError }: Props = $props()
+
+  let canvas = $state<HTMLCanvasElement | null>(null)
+  let pdf = $state.raw<PDFDocumentProxy | null>(null)
   let page = $state(1)
   let pages = $state(0)
   let rendering = $state(false)
-  let loadingTask = null
-  let renderTask = null
+  let loadingTask: PDFDocumentLoadingTask | null = null
+  let renderTask: RenderTask | null = null
   let closed = false
 
-  function fail(message) {
+  function fail(message: string): void {
     if (!closed) onError(message)
   }
 
-  async function open(bytes) {
+  async function open(bytes: Uint8Array): Promise<void> {
     try {
       loadingTask = await openPdf(bytes)
       if (closed) return close()
@@ -37,11 +45,11 @@
       pages = opened.numPages
       await renderPage(1)
     } catch (failure) {
-      fail(failure.message)
+      fail(errorMessage(failure))
     }
   }
 
-  async function drawPage(pdfPage) {
+  async function drawPage(pdfPage: PDFPageProxy): Promise<void> {
     const viewport = pdfPage.getViewport({ scale: pdfScale(pdfPage.getViewport({ scale: 1 })) })
     await tick()
     if (closed || !canvas) return
@@ -51,16 +59,16 @@
     await renderTask.promise
   }
 
-  async function renderPage(number) {
+  async function renderPage(number: number): Promise<void> {
     if (!pdf || rendering) return
     rendering = true
-    let pdfPage
+    let pdfPage: PDFPageProxy | undefined
     try {
       pdfPage = await pdf.getPage(number)
       await drawPage(pdfPage)
       page = number
     } catch (failure) {
-      if (failure.name !== RENDER_CANCELLED) fail(`PDF rendering failed: ${failure.message}. Download the original instead.`)
+      if (errorName(failure) !== RENDER_CANCELLED) fail(`PDF rendering failed: ${errorMessage(failure)}. Download the original instead.`)
     } finally {
       pdfPage?.cleanup()
       rendering = false
@@ -68,7 +76,7 @@
     }
   }
 
-  function close() {
+  function close(): void {
     closed = true
     renderTask?.cancel()
     loadingTask?.destroy().catch(error => console.warn('PDF preview cleanup failed', error))

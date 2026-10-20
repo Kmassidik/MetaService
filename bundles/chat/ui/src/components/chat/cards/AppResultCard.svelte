@@ -1,9 +1,14 @@
-<script>
+<script lang="ts">
+  import type { AppResult } from '../../../lib/types.ts'
   import Card from './Card.svelte'
-  import { resultLine, resultLinkLabel, resultTitle } from '../../../lib/appCards.js'
+  import { resultLine, resultLinkLabel, resultTitle } from '../../../lib/appCards.ts'
 
   // What an app tool did, as the app itself showed it (the tick, "Message sent", the saved event), not as the bot words it.
-  let { result } = $props()
+  interface Props {
+    result: AppResult & { link?: string }
+  }
+
+  let { result }: Props = $props()
 </script>
 
 <Card label={resultTitle(result)} title={resultTitle(result)}>

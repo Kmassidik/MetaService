@@ -1,11 +1,11 @@
-<script>
+<script lang="ts">
   /** Settings › General › Appearance: System / Light / Dark, applied at once and saved on this device. */
-  import { THEME_OPTIONS, chooseTheme, readTheme } from '../../lib/theme.js'
+  import { THEME_OPTIONS, chooseTheme, readTheme, type Theme } from '../../lib/theme.ts'
 
   let choice = $state(readTheme())
   let saveFailed = $state(false)
 
-  function pick(id) {
+  function pick(id: Theme): void {
     choice = id
     saveFailed = !chooseTheme(id)
   }

@@ -1,14 +1,21 @@
-<script>
+<script lang="ts">
+  import type { WelcomeIdea } from '../../../lib/types.ts'
   import Card from './Card.svelte'
 
   // The New bot welcome's answer card: tap an idea, or type something else. Either is sent as
   // the owner's first message, and the bot sets itself up from it.
   const MAX_ANSWER = 16000
-  let { choices, locked = false, onPick } = $props()
+  interface Props {
+    choices: { id: string; options: WelcomeIdea[] }
+    locked?: boolean
+    onPick: (text: string) => unknown
+  }
+
+  let { choices, locked = false, onPick }: Props = $props()
 
   let somethingElse = $state('')
 
-  function sendOwn(event) {
+  function sendOwn(event: Event): void {
     event.preventDefault()
     const text = somethingElse.trim()
     if (!text || locked) return

@@ -1,11 +1,30 @@
-<script>
+<script lang="ts">
   /**
    * The sidebar + menu: new bot or new group chat. Limits and storage problems show here as the
    * reason an item is disabled, instead of as notices in the sidebar.
    */
   import Icon from '../Icon.svelte'
   import FloatingMenu from './FloatingMenu.svelte'
-  import { GROUP_LIMIT_REASON, botLimitReason } from '../../lib/constants.js'
+  import { GROUP_LIMIT_REASON, botLimitReason } from '../../lib/constants.ts'
+
+  interface Props {
+    open?: boolean
+    x?: number
+    y?: number
+    saving?: boolean
+    storageBlockedReason?: string
+    agentLimitReached?: boolean
+    maxBots?: number
+    teamLimitReached?: boolean
+    createTeamBlocked?: boolean
+    readyBotCount?: number
+    onNewBot?: () => void
+    onNewGroup?: () => void
+    onRefreshStorage?: () => void
+    onManageStorage?: () => void
+    onOpenUsage?: () => void
+    onClose?: () => void
+  }
 
   let {
     open = false,
@@ -24,7 +43,7 @@
     onManageStorage,
     onOpenUsage,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   const MIN_GROUP_BOTS = 2
   const STORAGE_CHECKING = 'Checking storage…'
@@ -42,7 +61,7 @@
   const botReason = $derived(agentLimitReached ? botLimitReason(maxBots) : '')
   const groupReason = $derived(groupBlockedReason())
 
-  function choose(action) {
+  function choose(action: (() => void) | undefined): void {
     onClose?.()
     action?.()
   }

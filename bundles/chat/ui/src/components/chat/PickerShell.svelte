@@ -1,15 +1,24 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
   import Icon from '../Icon.svelte'
 
   // Shared floating popover above the composer for the @ and / pickers.
-  let { label, placeholder, query = $bindable(''), onClose, children } = $props()
+  interface Props {
+    label: string
+    placeholder: string
+    query?: string
+    onClose: () => void
+    children: Snippet
+  }
+
+  let { label, placeholder, query = $bindable(''), onClose, children }: Props = $props()
 
   // Typing continues in the picker's own search once it opens.
-  function focusOnMount(node) {
+  function focusOnMount(node: HTMLElement): void {
     node.focus()
   }
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key === 'Escape') onClose()
   }
 </script>

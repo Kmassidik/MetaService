@@ -1,26 +1,34 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte'
   import Icon from '../Icon.svelte'
 
+  interface Props {
+    query?: string
+    matchIndex?: number
+    matchCount?: number
+    findMessage: (direction?: number) => unknown
+    onClose: () => void
+  }
+
   // Find in the loaded conversation; opened from the sidebar search.
-  let { query = $bindable(''), matchIndex = $bindable(0), matchCount = 0, findMessage, onClose } = $props()
-  let field = $state(null)
+  let { query = $bindable(''), matchIndex = $bindable(0), matchCount = 0, findMessage, onClose }: Props = $props()
+  let field = $state<HTMLInputElement | null>(null)
   const summary = $derived(matchCount ? `${Math.min(matchIndex + 1, matchCount)} of ${matchCount}` : 'No matches')
 
   onMount(() => field?.focus())
 
-  function search(event) {
+  function search(event: Event & { currentTarget: HTMLInputElement }): void {
     query = event.currentTarget.value
     matchIndex = 0
     findMessage()
   }
 
-  function next(event) {
+  function next(event: Event): void {
     event.preventDefault()
     findMessage(1)
   }
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key === 'Escape') onClose()
   }
 </script>

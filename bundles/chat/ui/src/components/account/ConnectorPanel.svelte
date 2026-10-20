@@ -1,15 +1,31 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import type { Api } from '../../lib/api.ts'
+  import type { Dict } from '../../lib/check.ts'
+  import { parseConnectors } from '../../lib/answers/profile.ts'
+  import { errorMessage, errorName } from '../../lib/errors.ts'
+  import type { Connector } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
-  let { api, sessionKey, disabled = false } = $props()
-  let connectors = $state([])
-  let approvals = $state([])
-  let tools = $state({})
-  let selectedTools = $state({})
-  let args = $state({})
-  let checked = $state({})
-  let results = $state({})
-  let attempted = $state({})
+  import {
+    parseApprovalAnswer, parseApprovalList, parseConnectorAnswer, parseExecuteResult, parseTools,
+    type ConnectorApproval, type ConnectorTool,
+  } from './connectorAnswers.ts'
+
+  interface Props {
+    api: Api
+    sessionKey: string
+    disabled?: boolean
+  }
+
+  let { api, sessionKey, disabled = false }: Props = $props()
+  let connectors = $state<Connector[]>([])
+  let approvals = $state<ConnectorApproval[]>([])
+  let tools = $state<Dict<ConnectorTool[]>>({})
+  let selectedTools = $state<Dict<string>>({})
+  let args = $state<Dict<string>>({})
+  let checked = $state<Dict<string>>({})
+  let results = $state<Dict<string>>({})
+  let attempted = $state<Dict<boolean>>({})
   let name = $state('')
   let endpoint = $state('')
   let bearerToken = $state('')
@@ -24,15 +40,15 @@
   let showAdvanced = $state(false)
   let alive = true
   let revision = 0
-  let refreshTimer
-  let clockTimer
-  const requests = new Set()
-  const bytes = value => new TextEncoder().encode(value).length
+  let refreshTimer: ReturnType<typeof setInterval> | undefined
+  let clockTimer: ReturnType<typeof setInterval> | undefined
+  const requests = new Set<AbortController>()
+  const bytes = (value: string): number => new TextEncoder().encode(value).length
   const blocked = $derived(disabled || Boolean(busy) || loading)
   const activeConnectors = $derived(connectors.filter(item => !item.revoked))
   const pendingApprovals = $derived(approvals.filter(item => ['pending', 'approved', 'executing', 'uncertain'].includes(item.state)))
 
-  async function request(path, options = {}) {
+  async function request(path: string, options: RequestInit = {}): Promise<unknown> {
     const key = sessionKey
     const controller = new AbortController()
     requests.add(controller)
@@ -43,7 +59,7 @@
     } finally { requests.delete(controller) }
   }
 
-  async function refresh(manual = false) {
+  async function refresh(manual = false): Promise<void> {
     if (busy || loading || disabled) return
     const version = ++revision
     loading = true
@@ -51,55 +67,57 @@
     try {
       const [connectorData, approvalData] = await Promise.all([request('/api/connectors'), request('/api/connector-approvals')])
       if (!alive || version !== revision) return
-      connectors = connectorData.connectors
-      approvals = approvalData.approvals
+      connectors = parseConnectors(connectorData)
+      approvals = parseApprovalList(approvalData)
     } catch (failure) {
-      if (alive && version === revision && failure.name !== 'AbortError') error = failure.message || 'Could not refresh apps.'
+      if (alive && version === revision && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Could not refresh apps.'
     } finally { if (alive && version === revision) loading = false }
   }
 
-  async function register(event) {
+  async function register(event: Event): Promise<void> {
     event.preventDefault()
     if (blocked || registrationBlocked || !name.trim() || !endpoint.trim()) return
     error = ''; notice = ''
-    let body
+    let body = ''
     try {
       if (bytes(name.trim()) > 120 || bytes(endpoint.trim()) > 2048 || bytes(bearerToken) > 8192) throw new Error('Name, endpoint or token is too large.')
       const url = new URL(endpoint.trim())
       if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (url.port && url.port !== '443')) throw new Error('Use an HTTPS URL on port 443 with no credentials or query.')
       body = JSON.stringify({ name: name.trim(), endpoint: url.href, ...(bearerToken ? { bearerToken } : {}) })
       if (bytes(body) > 30000) throw new Error('Settings are too large.')
-    } catch (failure) { error = failure.message; return }
+    } catch (failure) { error = errorMessage(failure); return }
     busy = 'register'
     bearerToken = ''
     tokenVisible = false
     try {
       const data = await request('/api/connectors', { method: 'POST', body })
-      connectors = [...connectors.filter(item => item.id !== data.connector.id), data.connector]
+      const added = parseConnectorAnswer(data)
+      connectors = [...connectors.filter(item => item.id !== added.id), added]
       name = ''; endpoint = ''
       notice = 'Connected. You can discover tools below if needed.'
       showAdvanced = true
     } catch (failure) {
-      if (alive && failure.name !== 'AbortError') {
-        error = failure.message || 'Could not connect.'
+      if (alive && errorName(failure) !== 'AbortError') {
+        error = errorMessage(failure) || 'Could not connect.'
         registrationBlocked = /allowlist|not configured|disabled by|connectors? (?:are |is )?disabled/i.test(error)
       }
     } finally { if (alive) busy = '' }
   }
 
-  async function discover(connector) {
+  async function discover(connector: Connector): Promise<void> {
     if (blocked || connector.revoked) return
     busy = `discover:${connector.id}`; error = ''; notice = ''
     try {
       const data = await request(`/api/connectors/${encodeURIComponent(connector.id)}/discover`, { method: 'POST' })
-      tools = { ...tools, [connector.id]: data.tools }
+      const found = parseTools(data)
+      tools = { ...tools, [connector.id]: found }
       selectedTools = { ...selectedTools, [connector.id]: '' }
-      notice = `Found ${(data.tools || []).length} tools for ${connector.name}.`
-    } catch (failure) { if (alive && failure.name !== 'AbortError') error = failure.message || 'Could not discover tools.' }
+      notice = `Found ${found.length} tools for ${connector.name}.`
+    } catch (failure) { if (alive && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Could not discover tools.' }
     finally { if (alive) busy = '' }
   }
 
-  async function revoke(connector) {
+  async function revoke(connector: Connector): Promise<void> {
     if (blocked) return
     busy = `revoke:${connector.id}`; error = ''; notice = ''
     try {
@@ -108,57 +126,59 @@
       tools = { ...tools, [connector.id]: [] }
       checked = {}; revokeId = ''
       notice = `${connector.name} disconnected.`
-    } catch (failure) { if (alive && failure.name !== 'AbortError') error = failure.message || 'Could not disconnect.' }
+    } catch (failure) { if (alive && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Could not disconnect.' }
     finally { if (alive) { busy = ''; await refresh() } }
   }
 
-  async function prepare(connector) {
+  async function prepare(connector: Connector): Promise<void> {
     if (blocked || connector.revoked) return
     error = ''; notice = ''
     const tool = selectedTools[connector.id]
     const argsJSON = args[connector.id] || '{}'
     try {
       if (bytes(argsJSON) > 24000) throw new Error('Arguments are too large.')
-      const value = JSON.parse(argsJSON)
+      const value: unknown = JSON.parse(argsJSON)
       if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('Arguments must be a JSON object.')
       if (!tool || !(tools[connector.id] || []).some(item => item.name === tool)) throw new Error('Pick a tool first.')
       if (bytes(JSON.stringify({ tool, argsJSON })) > 30000) throw new Error('Arguments are too large.')
-    } catch (failure) { error = failure.message; return }
+    } catch (failure) { error = errorMessage(failure); return }
     busy = `prepare:${connector.id}`
     try {
       const data = await request(`/api/connectors/${encodeURIComponent(connector.id)}/approvals`, { method: 'POST', body: JSON.stringify({ tool, argsJSON }) })
-      approvals = [data.approval, ...approvals.filter(item => item.id !== data.approval.id)]
+      const prepared = parseApprovalAnswer(data)
+      approvals = [prepared, ...approvals.filter(item => item.id !== prepared.id)]
       notice = 'Ready for review — approve before anything runs.'
-    } catch (failure) { if (alive && failure.name !== 'AbortError') error = failure.message || 'Could not prepare approval.' }
+    } catch (failure) { if (alive && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Could not prepare approval.' }
     finally { if (alive) busy = '' }
   }
 
-  function expired(approval) { return !Number.isFinite(Date.parse(approval.expiresAt)) || Date.parse(approval.expiresAt) <= now }
-  function signature(approval) { return `${approval.actionHash}:${approval.argsJSON}:${approval.tool}:${approval.connectorId}` }
-  function connectorFor(approval) { return connectors.find(item => item.id === approval.connectorId) }
-  function executable(approval) { return !blocked && !attempted[approval.id] && approval.state === 'approved' && !expired(approval) && connectorFor(approval) && !connectorFor(approval).revoked && checked[approval.id] === signature(approval) }
+  function toolsFor(connectorId: string): ConnectorTool[] { return tools[connectorId] ?? [] }
+  function expired(approval: ConnectorApproval): boolean { return !Number.isFinite(Date.parse(approval.expiresAt)) || Date.parse(approval.expiresAt) <= now }
+  function signature(approval: ConnectorApproval): string { return `${approval.actionHash}:${approval.argsJSON}:${approval.tool}:${approval.connectorId}` }
+  function connectorFor(approval: ConnectorApproval): Connector | undefined { return connectors.find(item => item.id === approval.connectorId) }
+  function executable(approval: ConnectorApproval): boolean { return !blocked && !attempted[approval.id] && approval.state === 'approved' && !expired(approval) && Boolean(connectorFor(approval)) && !connectorFor(approval)?.revoked && checked[approval.id] === signature(approval) }
 
-  async function decide(approval, approve) {
+  async function decide(approval: ConnectorApproval, approve: boolean): Promise<void> {
     if (blocked || approval.state !== 'pending' || expired(approval) || (approve && checked[approval.id] !== signature(approval))) return
     busy = `decision:${approval.id}`; error = ''; notice = ''
     try {
       await request(`/api/connector-approvals/${encodeURIComponent(approval.id)}/decision`, { method: 'POST', body: JSON.stringify({ approve }) })
       notice = approve ? 'Approved. Execute when you’re ready.' : 'Denied.'
-    } catch (failure) { if (alive && failure.name !== 'AbortError') error = failure.message || 'Decision failed.' }
+    } catch (failure) { if (alive && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Decision failed.' }
     finally { if (alive) { busy = ''; await refresh() } }
   }
 
-  async function execute(approval) {
+  async function execute(approval: ConnectorApproval): Promise<void> {
     if (!executable(approval)) return
     busy = `execute:${approval.id}`; error = ''; notice = ''
     attempted = { ...attempted, [approval.id]: true }
     try {
       const data = await request(`/api/connector-approvals/${encodeURIComponent(approval.id)}/execute`, { method: 'POST' })
-      results = { ...results, [approval.id]: JSON.stringify(data.result, null, 2) }
+      results = { ...results, [approval.id]: JSON.stringify(parseExecuteResult(data), null, 2) }
       checked = { ...checked, [approval.id]: '' }
       notice = 'Done. Check the result if you need it.'
     } catch (failure) {
-      if (alive && failure.name !== 'AbortError') error = failure.message || 'Execution response unavailable. Verify the destination before retrying.'
+      if (alive && errorName(failure) !== 'AbortError') error = errorMessage(failure) || 'Execution response unavailable. Verify the destination before retrying.'
     } finally { if (alive) { busy = ''; await refresh() } }
   }
 
@@ -271,12 +291,12 @@
           <strong>{connector.name}</strong>
           <button class="text-button" disabled={blocked} onclick={() => discover(connector)}>{busy === `discover:${connector.id}` ? 'Discovering…' : 'Discover tools'}</button>
         </div>
-        {#if tools[connector.id]}
-          {#if !tools[connector.id].length}<p class="form-help">No tools reported.</p>
+        {#if connector.id in tools}
+          {#if !toolsFor(connector.id).length}<p class="form-help">No tools reported.</p>
           {:else}
             <label class="form-label" for={`tool-${connector.id}`}>Tool</label>
             <select id={`tool-${connector.id}`} class="form-input" value={selectedTools[connector.id] || ''} disabled={blocked} onchange={event => selectedTools = { ...selectedTools, [connector.id]: event.currentTarget.value }}><option value="">Select…</option>{#each tools[connector.id] as tool (tool.name)}<option value={tool.name}>{tool.name}</option>{/each}</select>
-            {@const tool = tools[connector.id].find(item => item.name === selectedTools[connector.id])}
+            {@const tool = toolsFor(connector.id).find(item => item.name === selectedTools[connector.id])}
             {#if tool}
               <p class="form-help">{tool.description || 'No description.'}</p>
               <label class="form-label" for={`args-${connector.id}`}>Arguments (JSON)</label>

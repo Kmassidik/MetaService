@@ -1,12 +1,17 @@
-<script>
+<script lang="ts">
   /** A message's pictures inline: one at its own shape (≤ 320 px), several as square tiles. Tap opens the viewer. */
+  import type { ChatFile } from '../../lib/types.ts'
   import Thumbnail from './Thumbnail.svelte'
   import ImageViewer from './ImageViewer.svelte'
-  import { gridColumns } from '../../lib/files/imageGrid.js'
+  import { gridColumns } from '../../lib/files/imageGrid.ts'
 
   const CLOSED = -1
 
-  let { images = [] } = $props()
+  interface Props {
+    images?: ChatFile[]
+  }
+
+  let { images = [] }: Props = $props()
 
   let viewing = $state(CLOSED)
   const columns = $derived(gridColumns(images.length))

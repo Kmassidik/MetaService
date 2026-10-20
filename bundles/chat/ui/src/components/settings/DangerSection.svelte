@@ -1,41 +1,50 @@
-<script>
+<script lang="ts">
   /** Settings › Danger zone: delete the computer or the account, each behind a typed DELETE. */
   import { tick } from 'svelte'
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
-  import { chat, deleteAccount, manageEnvironment } from '../../lib/chatApp.svelte.js'
-  import { SETTINGS } from '../../lib/settingsSections.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
+  import { chat, deleteAccount, manageEnvironment } from '../../lib/chatApp.svelte.ts'
+  import { SETTINGS } from '../../lib/settingsSections.ts'
 
   const CONFIRM_WORD = 'DELETE'
-  const FIELD_IDS = { computer: 'environment-confirmation', account: 'account-confirmation' }
-  const TOGGLE_IDS = { computer: 'computer-deletion-toggle', account: 'account-deletion-toggle' }
+  type DeletionKind = 'computer' | 'account'
 
-  let { view, onSection, onOpen } = $props()
+  const FIELD_IDS: Record<DeletionKind, string> = { computer: 'environment-confirmation', account: 'account-confirmation' }
+  const TOGGLE_IDS: Record<DeletionKind, string> = { computer: 'computer-deletion-toggle', account: 'account-deletion-toggle' }
+
+  interface Props {
+    view: WorkspaceView
+    onSection: (id: string) => void
+    onOpen: (panel: string) => unknown
+  }
+
+  let { view, onSection, onOpen }: Props = $props()
 
   const action = $derived(chat.environmentAction)
   const environment = $derived(chat.environment)
   const settling = $derived(view.environmentBusy || view.environmentTransitioning)
 
-  function resetConfirmations(kind = '') {
+  function resetConfirmations(kind: DeletionKind | '' = ''): void {
     chat.confirmEnvironmentDeletion = kind === 'computer'
     chat.confirmAccountDeletion = kind === 'account'
     chat.environmentConfirmation = ''
     chat.accountConfirmation = ''
   }
 
-  async function expand(kind) {
+  async function expand(kind: DeletionKind): Promise<void> {
     resetConfirmations(kind)
     await tick()
     document.getElementById(FIELD_IDS[kind])?.focus()
   }
 
-  async function cancel(kind) {
+  async function cancel(kind: DeletionKind): Promise<void> {
     resetConfirmations()
     await tick()
     document.getElementById(TOGGLE_IDS[kind])?.focus()
   }
 
-  function deleteComputer(event) {
+  function deleteComputer(event: Event): void {
     event.preventDefault()
     manageEnvironment('delete')
   }

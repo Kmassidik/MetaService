@@ -1,8 +1,9 @@
-<script>
+<script lang="ts">
   /**
    * The right-hand panel (P6), Grok-style: the bot's face, name and label, then Details / Files /
    * Computer. About 420 px beside the chat on desktop, full screen on phone.
    */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
   import PanelIdentity from './PanelIdentity.svelte'
   import PanelTabs from './PanelTabs.svelte'
@@ -10,24 +11,28 @@
   import ComputerPreview from './ComputerPreview.svelte'
   import ProfileDetails from '../profile/ProfileDetails.svelte'
   import FilePanel from '../workspace/FilePanel.svelte'
-  import { ICON_SIZE, MODALS } from '../../lib/constants.js'
-  import { PANEL_TABS } from '../../lib/sidePanel.js'
+  import { ICON_SIZE, MODALS } from '../../lib/constants.ts'
+  import { PANEL_TABS } from '../../lib/sidePanel.ts'
   import {
     chat, SIDE_PANEL_ID, closeSidePanel, selectPanelTab, saveTitle, saveProfile, saveAndLeave, discardAndLeave,
     patchProfileSetting, SAVED_TICK, duplicateActive, shareTemplate, routineAction, createWebhookRoutine, toggleSkill, clearMemory, openModal, openComputer,
     manageEnvironment, loadFiles, attachFile, deleteFile,
-  } from '../../lib/chatApp.svelte.js'
+  } from '../../lib/chatApp.svelte.ts'
 
   const BODY_ID = 'side-panel-body'
   const WAKE_ACTION = 'wake'
   const FILES_TITLE = 'Files'
 
-  let { view } = $props()
+  interface Props {
+    view: WorkspaceView
+  }
+
+  let { view }: Props = $props()
 
   const active = $derived(view.active)
   const isGroup = $derived(active?.kind === 'team')
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key !== 'Escape' || event.defaultPrevented) return
     event.preventDefault()
     closeSidePanel()
@@ -53,16 +58,16 @@
             files={chat.files} agents={chat.agents} loading={chat.filesLoading} error={chat.filesError}
             refresh={loadFiles} attach={attachFile} remove={deleteFile}
             selectedIds={view.selectedAttachments.map(file => file.id)} canAttach={!view.uploadLocked}
-            deleting={chat.deletingFile || (chat.pending ? 'message-pending' : '')} sessionKey={chat.session.csrf}
+            deleting={chat.deletingFile || (chat.pending ? 'message-pending' : '')} sessionKey={chat.session?.csrf ?? ''}
           />
         {:else if view.panelTab === PANEL_TABS.computer}
           <ComputerPreview
             image={view.previewImage} stream={view.previewStream} line={view.previewLine} waking={chat.environmentAction === WAKE_ACTION}
             onOpen={openComputer} onWake={() => manageEnvironment(WAKE_ACTION)}
           />
-        {:else if isGroup}
+        {:else if active && isGroup}
           <GroupDetails team={active} members={view.members} editLocked={Boolean(chat.pending)} onEdit={() => openModal(MODALS.edit)} />
-        {:else}
+        {:else if active}
           <ProfileDetails
             {active} pending={chat.pending} agentLimitReached={view.agentLimitReached}
             profileSaving={chat.profileSaving} profileError={chat.profileError} profileHighlight={chat.profileHighlight}

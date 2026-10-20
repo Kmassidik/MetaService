@@ -3,4 +3,7 @@ import App from './App.svelte'
 import './style.css'
 import './theme-dark.css'
 
-mount(App, { target: document.getElementById('app') })
+const target = document.getElementById('app')
+if (!target) throw new Error('The page has no #app element to mount the chat screen into.')
+
+mount(App, { target })

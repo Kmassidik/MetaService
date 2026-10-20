@@ -1,11 +1,22 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { RunCard } from '../../../lib/types.ts'
   import Card from './Card.svelte'
   import BotAvatar from '../../BotAvatar.svelte'
+  import { DEFAULT_AVATAR_COLOR } from '../../../lib/constants.ts'
 
   // The bot suggests creating a specialist bot.
   const AVATAR_SIZE = 36
-  let { card, busy = false, limitReached = false, onResolve } = $props()
-  const preview = $derived({ id: card.name, name: card.name, avatarShape: card.avatarShape, avatarColor: card.avatarColor })
+  interface Props {
+    // A suggestion card also carries the look of the bot it proposes.
+    card: RunCard & { avatarColor?: string }
+    busy?: boolean
+    limitReached?: boolean
+    onResolve: (decision: string, extra?: Dict<unknown>) => unknown
+  }
+
+  let { card, busy = false, limitReached = false, onResolve }: Props = $props()
+  const preview = $derived({ avatarColor: card.avatarColor ?? DEFAULT_AVATAR_COLOR })
 </script>
 
 <Card label={`Suggested bot: ${card.name}`} title={card.reason ? '' : 'A bot for this'} reason={card.reason}>

@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
   import RuviHero from '../../RuviHero.svelte'
-  import { SETUP_EXPECTED_SECONDS } from '../../../lib/constants.js'
+  import { SETUP_EXPECTED_SECONDS } from '../../../lib/constants.ts'
 
   // The status line while a sent message waits for the bot's new computer; the reply follows on its own.
   const ART_WIDTH = 40

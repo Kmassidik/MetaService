@@ -1,14 +1,25 @@
-<script>
-  /** Details / Files / Computer: plain words, the current one in a soft outlined pill. */
-  let { tabs = [], current = '', panelId = '', onSelect } = $props()
+<script lang="ts">
+  import type { PanelTab, PanelTabItem } from '../../lib/sidePanel.ts'
 
-  function move(event, index) {
-    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
-    if (!step) return
+  /** Details / Files / Computer: plain words, the current one in a soft outlined pill. */
+  interface Props {
+    tabs?: readonly PanelTabItem[]
+    current?: string
+    panelId?: string
+    onSelect: (id: PanelTab) => void
+  }
+
+  const STEPS: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 }
+
+  let { tabs = [], current = '', panelId = '', onSelect }: Props = $props()
+
+  function move(event: KeyboardEvent & { currentTarget: HTMLElement }, index: number): void {
+    const step = STEPS[event.key]
+    const next = step ? tabs[(index + step + tabs.length) % tabs.length] : undefined
+    if (!step || !next) return
     event.preventDefault()
-    const next = tabs[(index + step + tabs.length) % tabs.length]
     onSelect(next.id)
-    event.currentTarget.parentElement.querySelector(`[data-tab="${next.id}"]`)?.focus()
+    event.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus()
   }
 </script>
 

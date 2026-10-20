@@ -1,12 +1,24 @@
-<script>
+<script lang="ts">
   /** One file in the Files tab: picture or type icon, name, size and date; ⋯ for everything else. */
+  import type { ChatFile } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import Thumbnail from '../files/Thumbnail.svelte'
-  import { fileIcon, isViewableImage } from '../../lib/files/preview.js'
-  import { fileMeta } from '../../lib/files/fileList.js'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { fileIcon, isViewableImage } from '../../lib/files/preview.ts'
+  import { fileMeta } from '../../lib/files/fileList.ts'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
-  let { file, versionCount = 1, confirming = false, deleting = '', onOpen, onMenu, onDelete, onKeep } = $props()
+  interface Props {
+    file: ChatFile
+    versionCount?: number
+    confirming?: boolean
+    deleting?: string
+    onOpen: () => void
+    onMenu: (event: MouseEvent & { currentTarget: HTMLElement }) => void
+    onDelete: () => void
+    onKeep: () => void
+  }
+
+  let { file, versionCount = 1, confirming = false, deleting = '', onOpen, onMenu, onDelete, onKeep }: Props = $props()
 </script>
 
 <li class="file-row">

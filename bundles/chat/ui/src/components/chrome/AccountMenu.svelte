@@ -1,7 +1,23 @@
-<script>
+<script lang="ts">
   /** Account menu from the sidebar avatar: usage, Settings, Help, Log out. */
+  import type { Usage } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import FloatingMenu from './FloatingMenu.svelte'
+
+  interface Props {
+    open?: boolean
+    x?: number
+    y?: number
+    userName?: string
+    userEmail?: string
+    usage?: Pick<Usage, 'tokens' | 'remaining'> | null
+    loggingOut?: boolean
+    onUsage?: () => void
+    onSettings?: () => void
+    onHelp?: () => void
+    onLogout?: () => void
+    onClose?: () => void
+  }
 
   let {
     open = false,
@@ -16,12 +32,12 @@
     onHelp,
     onLogout,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   const PERCENT = 100
 
   /** Share of the allowance used so far; null when the allowance isn't known yet. */
-  function usedPercent(value) {
+  function usedPercent(value: Props['usage']): number | null {
     const used = Math.max(0, Number(value?.tokens || 0))
     const allowance = used + Math.max(0, Number(value?.remaining || 0))
     if (!allowance) return null
@@ -30,7 +46,7 @@
 
   const percent = $derived(usedPercent(usage))
 
-  function choose(action) {
+  function choose(action: (() => void) | undefined): void {
     onClose?.()
     action?.()
   }

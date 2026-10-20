@@ -1,5 +1,9 @@
-<script>
+<script lang="ts">
   /** The side panel's Details tab for one bot: its profile, avatar, notifications, routines, skills and memory. */
+  import type { Dict } from '../../lib/check.ts'
+  import type { SAVED_TICK, SavedTick } from '../../lib/chat/profile.svelte.ts'
+  import type { Agent, MemoryEntry, PendingSend, Routine, Skill } from '../../lib/types.ts'
+  import type { AvatarSnake } from '../../lib/avatars.ts'
   import Icon from '../Icon.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import ProfileSection from './ProfileSection.svelte'
@@ -7,13 +11,43 @@
   import ProfileToggle from './ProfileToggle.svelte'
   import ProfileRoutines from './ProfileRoutines.svelte'
   import ProfileSaveBar from './ProfileSaveBar.svelte'
-  import { avatarCatalog, isSameAvatar } from '../../lib/avatars.js'
-  import { isProfileDirty, saveState } from '../../lib/profileForm.js'
-  import { ICON_SIZE, MODALS, PROFILE_LIMITS } from '../../lib/constants.js'
+  import { avatarCatalog, isSameAvatar } from '../../lib/avatars.ts'
+  import { isProfileDirty, saveState } from '../../lib/profileForm.ts'
+  import { ICON_SIZE, MODALS, PROFILE_LIMITS } from '../../lib/constants.ts'
 
   const PICKER_AVATAR_SIZE = 40
   const SUMMARY_ROWS = 2
   const INSTRUCTIONS_ROWS = 6
+
+  interface Props {
+    active: Agent
+    pending?: PendingSend | null
+    agentLimitReached?: boolean
+    profileSaving?: boolean
+    profileError?: string
+    profileHighlight?: Dict<boolean>
+    profileSaved?: Dict<boolean>
+    unsavedPrompt?: boolean
+    profileName?: string
+    profileSummary?: string
+    profileInstructions?: string
+    profileRoutines?: Routine[]
+    profileSkills?: Skill[]
+    profileMemory?: MemoryEntry[]
+    webhookNotice?: string
+    onSubmit: (event: Event) => unknown
+    onSaveAndLeave: () => unknown
+    onDiscard: () => unknown
+    savedTick: typeof SAVED_TICK
+    patchSetting: (tick: SavedTick, fields: Dict<unknown>) => unknown
+    duplicateActive: () => unknown
+    shareTemplate: () => unknown
+    routineAction: (id: string, action: string) => unknown
+    createWebhookRoutine: () => unknown
+    toggleSkill: (skillId: string, enabled: boolean) => unknown
+    clearMemory: () => unknown
+    openModal: (kind: string) => unknown
+  }
 
   let {
     active,
@@ -43,14 +77,14 @@
     toggleSkill,
     clearMemory,
     openModal,
-  } = $props()
+  }: Props = $props()
 
   const editLocked = $derived(profileSaving || Boolean(pending))
   const form = $derived({ name: profileName, summary: profileSummary, instructions: profileInstructions })
   const dirty = $derived(isProfileDirty(form, active))
-  const state = $derived(saveState({ saving: profileSaving, dirty, justSaved: profileSaved[savedTick.details] }))
+  const state = $derived(saveState({ saving: profileSaving, dirty, justSaved: profileSaved[savedTick.details] ?? false }))
 
-  function isCurrentAvatar(option) {
+  function isCurrentAvatar(option: AvatarSnake): boolean {
     return isSameAvatar(active, option)
   }
 </script>
@@ -73,7 +107,7 @@
           aria-label={`${option.name} snake`}
           aria-pressed={isCurrentAvatar(option)}
           onclick={() => patchSetting(savedTick.avatar, { avatarColor: option.color, avatarShape: option.shape })}
-        ><BotAvatar agent={{ ...active, avatarColor: option.color, avatarShape: option.shape }} size={PICKER_AVATAR_SIZE} /></button>
+        ><BotAvatar agent={{ avatarColor: option.color }} size={PICKER_AVATAR_SIZE} /></button>
       {/each}
     </div>
   </ProfileSection>

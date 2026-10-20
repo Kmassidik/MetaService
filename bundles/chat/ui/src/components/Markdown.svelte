@@ -1,16 +1,21 @@
-<script>
+<script lang="ts">
   import { onDestroy } from 'svelte'
   import { Marked } from 'marked'
   import DOMPurify from 'dompurify'
   import hljs from 'highlight.js/lib/common'
   import Icon from './Icon.svelte'
 
-  let { text = '', showActions = true } = $props()
+  interface Props {
+    text?: string
+    showActions?: boolean
+  }
+
+  let { text = '', showActions = true }: Props = $props()
   let source = $state(false)
   let copyStatus = $state('')
-  const exportUrls = new Set()
+  const exportUrls = new Set<string>()
   onDestroy(() => { for (const url of exportUrls) URL.revokeObjectURL(url) })
-  const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+  const escape = (value: string): string => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
   const parser = new Marked({
     gfm: true,
     renderer: {
@@ -24,13 +29,13 @@
         return `<a href="${escape(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`
       },
       code({ text, lang }) {
-        const language = (lang || '').split(/\s/)[0]
+        const language = (lang || '').split(/\s/)[0] ?? ''
         const code = hljs.getLanguage(language) ? hljs.highlight(text, { language, ignoreIllegals: true }).value : escape(text)
         return `<pre><code class="hljs">${code}</code></pre>`
       },
     },
   })
-  const html = $derived(DOMPurify.sanitize(parser.parse(text), {
+  const html = $derived(DOMPurify.sanitize(parser.parse(text, { async: false }), {
     ALLOWED_TAGS: ['p', 'br', 'hr', 'strong', 'em', 'del', 'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code', 'span', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'start', 'align'],
     ALLOW_DATA_ATTR: false,

@@ -1,11 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Agent } from '../../lib/types.ts'
   import BotAvatar from '../BotAvatar.svelte'
 
   // Shown in a bot's chat before the first message.
   const INTRO_AVATAR_SIZE = 64
   // New bots start with setup instructions the owner never wrote; those aren't shown as a blurb.
   const SETUP_PROMPT_PREFIX = 'You are a new Ruvio bot'
-  let { active } = $props()
+  interface Props {
+    active: Agent
+  }
+
+  let { active }: Props = $props()
   const blurb = $derived(!active.description || active.description.startsWith(SETUP_PROMPT_PREFIX)
     ? `Message ${active.name} to get started.`
     : active.description)

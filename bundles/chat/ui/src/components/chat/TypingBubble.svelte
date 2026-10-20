@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // The bot is about to say something: a grey bubble with three softly pulsing dots.
   const DOTS = 3
 </script>

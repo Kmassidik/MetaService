@@ -1,6 +1,13 @@
-<script>
-  // tone: 'error' | 'info' | 'control' (you are driving the computer)
-  let { tone = 'info', children } = $props()
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+
+  interface Props {
+    // 'control' means you are driving the computer
+    tone?: 'error' | 'info' | 'control'
+    children: Snippet
+  }
+
+  let { tone = 'info', children }: Props = $props()
 </script>
 
 <div class="desk-notice is-{tone}" role={tone === 'error' ? 'alert' : 'status'}>{@render children()}</div>

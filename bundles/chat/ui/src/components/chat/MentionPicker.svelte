@@ -1,9 +1,24 @@
-<script>
+<script lang="ts">
+  import type { Agent, Connector, Routine } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import PickerShell from './PickerShell.svelte'
 
   const AVATAR_SIZE = 28
+
+  interface Props {
+    open?: boolean
+    query?: string
+    bots?: Agent[]
+    routines?: Routine[]
+    connectors?: Connector[]
+    busy?: boolean
+    pending?: boolean
+    everyone?: boolean
+    onSelect: (botId: string) => unknown
+    onClose: () => void
+  }
+
   let {
     open = false,
     query = $bindable(''),
@@ -15,7 +30,7 @@
     everyone = false,
     onSelect,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   const locked = $derived(busy || pending)
   const nothing = $derived(!bots.length && !routines.length && !connectors.length)

@@ -1,14 +1,19 @@
-<script>
+<script lang="ts">
   /** Settings › Computer › Storage: the workspace and saved-files meters, and Manage files. */
+  import type { StorageMeter } from '../../lib/types.ts'
   import SettingsGroup from './SettingsGroup.svelte'
   import SettingsRow from './SettingsRow.svelte'
-  import { chat, loadStorage } from '../../lib/chatApp.svelte.js'
-  import { NO_COMPUTER_NOTE, storageUsed, storageWarning } from './computerStatus.js'
+  import { chat, loadStorage } from '../../lib/chatApp.svelte.ts'
+  import { NO_COMPUTER_NOTE, storageUsed, storageWarning } from './computerStatus.ts'
 
   const NOT_CREATED = 'not_created'
   const ASLEEP_NOTE = 'Wake the computer to see live usage.'
 
-  let { onOpen } = $props()
+  interface Props {
+    onOpen: (panel: string) => unknown
+  }
+
+  let { onOpen }: Props = $props()
 
   const storage = $derived(chat.storage)
   const workspaceNote = $derived(storage?.computer?.state === NOT_CREATED ? NO_COMPUTER_NOTE : ASLEEP_NOTE)
@@ -23,7 +28,7 @@
   <button class="text-button" disabled={chat.storageLoading} onclick={loadStorage}>Refresh</button>
 {/snippet}
 
-{#snippet meter(label, usage, fallback)}
+{#snippet meter(label: string, usage: StorageMeter | null | undefined, fallback: string)}
   <div class="meter">
     <div class="meter-line"><span>{label}</span><span class="meter-value">{usage ? storageUsed(usage) : fallback}</span></div>
     {#if usage}<progress class="meter-bar" aria-label={`${label} storage used`} value={usage.usedBytes} max={usage.limitBytes}></progress>{/if}

@@ -1,11 +1,28 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte'
+  import type { Api } from '../../lib/api.ts'
+  import { errorMessage } from '../../lib/errors.ts'
+  import type { AppRecord, Connector } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import './plugin-sheet.css'
   import ConnectorPanel from './ConnectorPanel.svelte'
   import ConnectedAppsList from '../apps/ConnectedAppsList.svelte'
-  import { catalogPlugins, isAvailable, pluginById, pluginCategories } from '../../lib/marketplace.js'
-  import { AppState, appRecord, appState, appStateLabel, connectedAppList, offeredApps } from '../../lib/apps.js'
+  import { catalogPlugins, isAvailable, pluginById, pluginCategories, type Plugin } from '../../lib/marketplace.ts'
+  import { AppState, appRecord, appState, appStateLabel, connectedAppList, offeredApps } from '../../lib/apps.ts'
+
+  interface Props {
+    api: Api
+    connectors?: Connector[]
+    apps?: AppRecord[]
+    checkingId?: string
+    appsError?: string
+    sessionKey: string
+    onClose: () => void
+    onConnectApp?: (plugin: Plugin) => unknown
+    onDisconnectApp?: (plugin: Plugin) => unknown
+    onCheckApp?: (plugin: Plugin) => unknown
+    onRefreshApps?: () => unknown
+  }
 
   let {
     api,
@@ -19,7 +36,7 @@
     onDisconnectApp,
     onCheckApp,
     onRefreshApps,
-  } = $props()
+  }: Props = $props()
 
   let query = $state('')
   let notice = $state('')
@@ -30,15 +47,15 @@
   let infoId = $state('')
   let categoryFilter = $state('all')
 
-  const liveConnectors = $derived((connectors || []).filter(item => !item.revoked))
-  const installedCount = $derived(connectedAppList(offeredApps(apps, pluginById)).length + liveConnectors.length)
+  const liveConnectors = $derived(connectors.filter(item => !item.revoked))
+  const installedCount = $derived(connectedAppList(offeredApps(apps, id => pluginById(id) !== null)).length + liveConnectors.length)
   const shownError = $derived(error || appsError)
 
-  function cardState(plugin) {
+  function cardState(plugin: Plugin): ReturnType<typeof appState> {
     return appState(appRecord(apps, plugin.id), plugin.id, checkingId)
   }
 
-  function matches(plugin) {
+  function matches(plugin: Plugin): boolean {
     if (categoryFilter !== 'all' && plugin.category !== categoryFilter) return false
     const q = query.trim().toLowerCase()
     if (!q) return true
@@ -60,12 +77,12 @@
       .filter(sec => sec.items.length > 0 || (!q && categoryFilter !== 'all'))
   })
 
-  function toggleInfo(id) {
+  function toggleInfo(id: string): void {
     infoId = infoId === id ? '' : id
   }
 
   /** Runs one app action with the card locked; a failure shows in the sheet's error box. */
-  async function run(plugin, action, done = '') {
+  async function run(plugin: Plugin, action: () => unknown, done = ''): Promise<void> {
     error = ''
     notice = ''
     busyId = plugin.id
@@ -73,26 +90,26 @@
       await action()
       notice = done
     } catch (failure) {
-      error = failure.message || `Something went wrong with ${plugin.name}.`
+      error = errorMessage(failure) || `Something went wrong with ${plugin.name}.`
     } finally {
       busyId = ''
     }
   }
 
-  const connect = plugin => run(plugin, () => onConnectApp?.(plugin))
-  const disconnect = plugin => run(plugin, () => onDisconnectApp?.(plugin), `${plugin.name} disconnected. Sign out on your computer to remove the login too.`)
+  const connect = (plugin: Plugin): Promise<void> => run(plugin, () => onConnectApp?.(plugin))
+  const disconnect = (plugin: Plugin): Promise<void> => run(plugin, () => onDisconnectApp?.(plugin), `${plugin.name} disconnected. Sign out on your computer to remove the login too.`)
 
-  async function check(plugin) {
+  async function check(plugin: Plugin): Promise<void> {
     await run(plugin, () => onCheckApp?.(plugin))
     if (error) return
     notice = cardState(plugin) === AppState.CONNECTED ? `${plugin.name} is connected.` : `${plugin.name} isn’t signed in on your computer yet.`
   }
 
-  async function refresh() {
+  async function refresh(): Promise<void> {
     try {
       await onRefreshApps?.()
     } catch (failure) {
-      error = failure.message || 'Could not check your apps.'
+      error = errorMessage(failure) || 'Could not check your apps.'
     }
   }
 
@@ -145,7 +162,7 @@
         <ul class="plugins-grid">
           {#each section.items as plugin (plugin.id)}
             {@const soon = !isAvailable(plugin)}
-            <li class="plugin-card" class:is-soon={soon} aria-disabled={soon ? 'true' : undefined}>
+            <li class="plugin-card" class:is-soon={soon}>
               <div class="plugin-head">
                 <img class="plugin-logo" src={plugin.logo} alt="" width="24" height="24" />
                 {#if !soon}

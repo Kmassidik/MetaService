@@ -1,19 +1,26 @@
-<script>
+<script lang="ts">
   import hello from '../assets/brand/ruvi.webp'
   import waitlist from '../assets/brand/ruvi-waitlist.webp'
   import settingUp from '../assets/brand/ruvi-setting-up.webp'
 
   /** Ruvi, the Ruvio mascot, above a heading. Each pose keeps its file's pixel size for layout. */
-  const POSES = {
+  type Pose = 'hello' | 'waitlist' | 'setting-up'
+  const POSES: Record<Pose, { src: string; width: number; height: number }> = {
     hello: { src: hello, width: 563, height: 640 },
     waitlist: { src: waitlist, width: 626, height: 640 },
     'setting-up': { src: settingUp, width: 640, height: 639 },
   }
 
   // `hero` sits above a heading; `inline` is small art beside a line of text, with no spacing of its own.
-  let { pose = 'hello', width = 150, variant = 'hero' } = $props()
+  interface Props {
+    pose?: Pose
+    width?: number
+    variant?: 'hero' | 'inline'
+  }
 
-  const art = $derived(POSES[pose] || POSES.hello)
+  let { pose = 'hello', width = 150, variant = 'hero' }: Props = $props()
+
+  const art = $derived(POSES[pose])
 </script>
 
 <img class="ruvi {variant}" src={art.src} alt="" {width} height={Math.round(width * art.height / art.width)} decoding="async" />

@@ -1,10 +1,15 @@
-<script>
+<script lang="ts">
   import Icon from '../../Icon.svelte'
 
   // The quiet "Show steps" link; the list it opens is rendered by the caller.
   const CHEVRON_SIZE = 14
 
-  let { open = $bindable(false), controls = '' } = $props()
+  interface Props {
+    open?: boolean
+    controls?: string
+  }
+
+  let { open = $bindable(false), controls = '' }: Props = $props()
 </script>
 
 <button type="button" class="steps-toggle" aria-expanded={open} aria-controls={controls} onclick={() => open = !open}>

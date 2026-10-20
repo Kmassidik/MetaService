@@ -1,8 +1,19 @@
-<script>
+<script lang="ts">
+  import type { Skill } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import PickerShell from './PickerShell.svelte'
 
   const PREVIEW_LENGTH = 80
+
+  interface Props {
+    open?: boolean
+    query?: string
+    skills?: Skill[]
+    error?: string
+    onPick: (skill: Skill) => unknown
+    onClose: () => void
+  }
+
   let {
     open = false,
     query = $bindable(''),
@@ -10,7 +21,7 @@
     error = '',
     onPick,
     onClose,
-  } = $props()
+  }: Props = $props()
 </script>
 
 {#if open}

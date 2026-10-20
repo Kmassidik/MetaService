@@ -1,7 +1,18 @@
-<script>
+<script lang="ts">
   /** Bot / group actions (right-click, hover ⋯ or long-press on a sidebar row). */
+  import type { Agent } from '../../lib/types.ts'
   import FloatingMenu from './FloatingMenu.svelte'
-  import { isTeam } from '../../lib/chat/roster.js'
+  import { isTeam } from '../../lib/chat/roster.ts'
+
+  interface Props {
+    open?: boolean
+    x?: number
+    y?: number
+    agent?: Agent | null
+    agentLimitReached?: boolean
+    onAction?: (action: string, agent: Agent | null) => unknown
+    onClose?: () => void
+  }
 
   let {
     open = false,
@@ -11,12 +22,12 @@
     agentLimitReached = false,
     onAction,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   // The avatar picker replaces this menu in place, so Rail closes it itself.
   const KEEPS_MENU_OPEN = 'avatar'
 
-  function run(action) {
+  function run(action: string): void {
     onAction?.(action, agent)
     if (action !== KEEPS_MENU_OPEN) onClose?.()
   }

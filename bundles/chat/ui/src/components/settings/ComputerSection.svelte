@@ -1,16 +1,22 @@
-<script>
+<script lang="ts">
   /** Settings › Computer: status, wake or sleep, open it, and storage. */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
   import SettingsGroup from './SettingsGroup.svelte'
   import SettingsRow from './SettingsRow.svelte'
   import StorageGroup from './StorageGroup.svelte'
-  import { chat, loadEnvironment, manageEnvironment } from '../../lib/chatApp.svelte.js'
-  import { computerStatusLabel, computerStatusNote } from './computerStatus.js'
+  import { chat, loadEnvironment, manageEnvironment } from '../../lib/chatApp.svelte.ts'
+  import { computerStatusLabel, computerStatusNote } from './computerStatus.ts'
 
   const WORKING_STATES = ['running', 'provisioning']
 
-  let { view, onOpen } = $props()
+  interface Props {
+    view: WorkspaceView
+    onOpen: (panel: string) => unknown
+  }
+
+  let { view, onOpen }: Props = $props()
 
   const environment = $derived(chat.environment)
   const action = $derived(chat.environmentAction)

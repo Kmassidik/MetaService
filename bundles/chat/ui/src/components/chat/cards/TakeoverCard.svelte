@@ -1,8 +1,17 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { RunCard } from '../../../lib/types.ts'
   import Card from './Card.svelte'
 
   // The bot needs you to sign in or act on its computer.
-  let { card, busy = false, takingOver = false, onResolve } = $props()
+  interface Props {
+    card: RunCard
+    busy?: boolean
+    takingOver?: boolean
+    onResolve: (decision: string, extra?: Dict<unknown>) => unknown
+  }
+
+  let { card, busy = false, takingOver = false, onResolve }: Props = $props()
 </script>
 
 <Card title={card.title || 'Sign in on my computer'} reason={card.reason}>

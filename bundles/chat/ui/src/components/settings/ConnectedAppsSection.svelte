@@ -1,14 +1,16 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Connected apps: the account's apps on the computer's browser (the shared P3 list),
    * with Connect / Check / Disconnect, plus a row into Connect apps to add more.
    */
   import { onMount } from 'svelte'
+  import { errorMessage } from '../../lib/errors.ts'
+  import type { Plugin } from '../../lib/marketplace.ts'
   import ConnectedAppsList from '../apps/ConnectedAppsList.svelte'
   import SettingsGroup from './SettingsGroup.svelte'
   import SettingsRow from './SettingsRow.svelte'
-  import { chat, checkApp, connectApp, disconnectApp, openModal, refreshApps } from '../../lib/chatApp.svelte.js'
-  import { MODALS } from '../../lib/constants.js'
+  import { chat, checkApp, connectApp, disconnectApp, openModal, refreshApps } from '../../lib/chatApp.svelte.ts'
+  import { MODALS } from '../../lib/constants.ts'
 
   const NOTE = 'Apps sign in on your computer’s browser, and every bot can use them. Your passwords never go through chat.'
 
@@ -16,13 +18,13 @@
   let error = $state('')
 
   /** One app action with its row locked; a failure shows under the list. */
-  async function run(plugin, action) {
+  async function run(plugin: Plugin, action: (plugin: Plugin) => Promise<unknown>): Promise<void> {
     error = ''
     busyId = plugin.id
     try {
       await action(plugin)
     } catch (failure) {
-      error = failure.message || `Something went wrong with ${plugin.name}.`
+      error = errorMessage(failure) || `Something went wrong with ${plugin.name}.`
     } finally {
       busyId = ''
     }

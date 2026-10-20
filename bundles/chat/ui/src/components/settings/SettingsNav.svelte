@@ -1,10 +1,16 @@
-<script>
+<script lang="ts">
   /** The Settings section list: a left column on desktop, the first screen on a phone. */
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
-  import { SETTINGS, SETTINGS_SECTIONS } from '../../lib/settingsSections.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
+  import { SETTINGS, SETTINGS_SECTIONS } from '../../lib/settingsSections.ts'
 
-  let { current, locked = false, onSelect } = $props()
+  interface Props {
+    current: string
+    locked?: boolean
+    onSelect: (id: string) => void
+  }
+
+  let { current, locked = false, onSelect }: Props = $props()
 </script>
 
 <nav class="settings-nav" aria-label="Settings sections">

@@ -1,9 +1,14 @@
-<script>
+<script lang="ts">
   import StepsToggle from './StepsToggle.svelte'
   import StepList from './StepList.svelte'
+  import type { RunStep } from '../../../lib/runSteps.ts'
 
   // "Show steps" under a bot's reply; nothing at all when the run had no meaningful steps.
-  let { steps = [] } = $props()
+  interface Props {
+    steps?: RunStep[]
+  }
+
+  let { steps = [] }: Props = $props()
   let open = $state(false)
   const listId = $props.id()
 </script>

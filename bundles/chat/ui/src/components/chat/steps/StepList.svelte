@@ -1,8 +1,13 @@
-<script>
-  import { stepText } from '../../../lib/runSteps.js'
+<script lang="ts">
+  import { stepText, type RunStep } from '../../../lib/runSteps.ts'
 
   // What the bot did, one plain line per step, joined by a thin timeline.
-  let { steps = [], id = '' } = $props()
+  interface Props {
+    steps?: RunStep[]
+    id?: string
+  }
+
+  let { steps = [], id = '' }: Props = $props()
 </script>
 
 <ol class="steps" {id} aria-label="Steps">

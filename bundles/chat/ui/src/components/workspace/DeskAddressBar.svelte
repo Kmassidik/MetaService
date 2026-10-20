@@ -1,7 +1,13 @@
-<script>
-  let { url = $bindable(''), disabled = false, onOpen } = $props()
+<script lang="ts">
+  interface Props {
+    url?: string
+    disabled?: boolean
+    onOpen?: () => unknown
+  }
 
-  function submit(event) {
+  let { url = $bindable(''), disabled = false, onOpen }: Props = $props()
+
+  function submit(event: Event): void {
     event.preventDefault()
     onOpen?.()
   }

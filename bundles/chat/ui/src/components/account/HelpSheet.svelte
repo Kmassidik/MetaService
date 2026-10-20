@@ -1,16 +1,20 @@
-<script>
+<script lang="ts">
   /** Help: how files and messages work, their limits, and shortcuts to upload or browse files. */
   import Icon from '../Icon.svelte'
-  import { chat, closeModal, openFiles } from '../../lib/chatApp.svelte.js'
+  import { chat, closeModal, openFiles } from '../../lib/chatApp.svelte.ts'
 
-  let { uploadLocked = false } = $props()
+  interface Props {
+    uploadLocked?: boolean
+  }
 
-  function upload() {
+  let { uploadLocked = false }: Props = $props()
+
+  function upload(): void {
     closeModal()
     chat.fileChooser?.click()
   }
 
-  function browseFiles() {
+  function browseFiles(): void {
     closeModal()
     openFiles()
   }

@@ -1,4 +1,6 @@
-<script>
+<script lang="ts">
+  import type { Agent, ChatMessage } from '../../lib/types.ts'
+  import type { RunStep } from '../../lib/runSteps.ts'
   import Markdown from '../Markdown.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import MessageFiles from './MessageFiles.svelte'
@@ -6,11 +8,28 @@
   import MessageReactions from './MessageReactions.svelte'
   import MessageThread from './MessageThread.svelte'
   import ReplySteps from './steps/ReplySteps.svelte'
-  import { time } from '../../lib/format.js'
+  import { time } from '../../lib/format.ts'
 
   // One message: gray bubble for the bot, black for you.
   const GROUP_AVATAR_SIZE = 28
   const LONG_PRESS_MS = 500
+
+  interface Props {
+    message: ChatMessage
+    sender: Agent
+    showSender?: boolean
+    groupStart?: boolean
+    matched?: boolean
+    replies?: ChatMessage[]
+    steps?: RunStep[] | undefined
+    replyOpen?: boolean
+    replyDraft?: string
+    onReact: (messageId: string, emoji: string) => unknown
+    onToggleReply: () => void
+    onReplyDraft: (value: string) => void
+    onSendReply: () => unknown
+    onViewResults?: (() => unknown) | undefined
+  }
 
   let {
     message,
@@ -27,12 +46,12 @@
     onReplyDraft,
     onSendReply,
     onViewResults,
-  } = $props()
+  }: Props = $props()
 
   let picking = $state(false)
   let pressed = $state(false)
-  let pressTimer = null
-  let row = $state(null)
+  let pressTimer: ReturnType<typeof setTimeout> | undefined
+  let row = $state<HTMLElement | null>(null)
   const mine = $derived(message.role === 'user')
 
   // A long-pressed toolbar stays until the person taps somewhere else.
@@ -44,24 +63,24 @@
 
   $effect(() => () => clearTimeout(pressTimer))
 
-  function releaseOutside(event) {
-    if (row?.contains(event.target)) return
+  function releaseOutside(event: PointerEvent): void {
+    if (event.target instanceof Node && row?.contains(event.target)) return
     pressed = false
   }
 
-  function react(emoji) {
+  function react(emoji: string): void {
     picking = false
     pressed = false
     onReact(message.id, emoji)
   }
 
   // Phones have no hover, so a long press reveals the toolbar instead.
-  function startPress(event) {
+  function startPress(event: PointerEvent): void {
     if (event.pointerType !== 'touch') return
     pressTimer = setTimeout(() => { pressed = true }, LONG_PRESS_MS)
   }
 
-  function endPress() {
+  function endPress(): void {
     clearTimeout(pressTimer)
   }
 </script>

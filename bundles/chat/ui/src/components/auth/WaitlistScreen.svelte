@@ -1,7 +1,17 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
   import AuthShell from './AuthShell.svelte'
   import RuviHero from '../RuviHero.svelte'
+
+  interface Props {
+    firstName?: string
+    inviteCode?: string
+    inviteError?: string
+    inviteSaving?: boolean
+    loggingOut?: boolean
+    onSubmit: (event: Event) => unknown
+    onLogout: () => unknown
+  }
 
   let {
     firstName = '',
@@ -11,7 +21,7 @@
     loggingOut = false,
     onSubmit,
     onLogout,
-  } = $props()
+  }: Props = $props()
 </script>
 
 <AuthShell labelledby="waitlist-title">

@@ -1,10 +1,21 @@
-<script>
-  import { STATUS_TONE } from './statusLabel.js'
+<script lang="ts">
+  import { STATUS_TONE, type StatusLabel } from './statusLabel.ts'
+  import type { RunStep } from '../../../lib/runSteps.ts'
   import StepsToggle from '../steps/StepsToggle.svelte'
   import StepList from '../steps/StepList.svelte'
 
   // Sits under the last message: what the bot is doing, its steps so far, and Stop.
-  let { status, steps = [], thumbnail = '', canStop = false, stopDisabled = false, onStop, onOpenComputer } = $props()
+  interface Props {
+    status: StatusLabel
+    steps?: RunStep[]
+    thumbnail?: string
+    canStop?: boolean
+    stopDisabled?: boolean
+    onStop: () => unknown
+    onOpenComputer: () => unknown
+  }
+
+  let { status, steps = [], thumbnail = '', canStop = false, stopDisabled = false, onStop, onOpenComputer }: Props = $props()
   let stepsOpen = $state(false)
   const stepsId = $props.id()
   const working = $derived(status.tone === STATUS_TONE.working)

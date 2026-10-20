@@ -1,14 +1,22 @@
-<script>
+<script lang="ts">
+  import type { HostState } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import AuthShell from './AuthShell.svelte'
   import RuviHero from '../RuviHero.svelte'
+
+  interface Props {
+    googleConfigured?: boolean | null
+    registrationCapacity?: HostState | null
+    bootError?: string
+    onRetry: () => unknown
+  }
 
   let {
     googleConfigured = null,
     registrationCapacity = null,
     bootError = '',
     onRetry,
-  } = $props()
+  }: Props = $props()
 </script>
 
 <AuthShell labelledby="login-title">

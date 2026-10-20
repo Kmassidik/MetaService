@@ -1,27 +1,37 @@
-<script>
+<script lang="ts">
   /**
    * The Computer tab: a small view-only picture of the screen, refreshed while the tab shows.
    * Hover (always on touch) shows Open, which opens the big view; an asleep computer wakes instead.
    * On a computer with the real desktop (C21) the picture is the live stream, watch-only.
    */
+  import type { PreviewLine } from '../../lib/sidePanel.ts'
   import Icon from '../Icon.svelte'
   import RuviHero from '../RuviHero.svelte'
-  import { PREVIEW_TONE } from '../../lib/sidePanel.js'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { PREVIEW_TONE } from '../../lib/sidePanel.ts'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
   const CAPTION = 'Your computer'
   const ASLEEP_TEXT = 'Asleep'
   const EMPTY_TEXT = 'Nothing on screen yet'
   const RUVI_WIDTH = 96
 
-  let { image = '', stream = '', line, waking = false, onOpen, onWake } = $props()
+  interface Props {
+    image?: string
+    stream?: string
+    line: PreviewLine
+    waking?: boolean
+    onOpen: () => unknown
+    onWake: () => unknown
+  }
+
+  let { image = '', stream = '', line, waking = false, onOpen, onWake }: Props = $props()
 
   const asleep = $derived(line.tone === PREVIEW_TONE.asleep)
   const starting = $derived(!image && !stream && line.tone === PREVIEW_TONE.busy)
   const placeholderText = $derived(emptyScreenText())
 
   // While starting, the status line below already says what's happening.
-  function emptyScreenText() {
+  function emptyScreenText(): string {
     if (asleep) return ASLEEP_TEXT
     return starting ? '' : EMPTY_TEXT
   }

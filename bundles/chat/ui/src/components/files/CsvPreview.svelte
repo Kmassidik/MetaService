@@ -1,20 +1,26 @@
-<script>
+<script lang="ts">
   /** The first 200 rows × 50 columns of a CSV as text cells; formulas are never evaluated. */
   import SourceView from './SourceView.svelte'
-  import { CSV_MAX_COLUMNS, CSV_MAX_ROWS } from '../../lib/files/textPreview.js'
+  import type { CsvPreview as CsvContent } from '../../lib/files/textPreview.ts'
+  import { CSV_MAX_COLUMNS, CSV_MAX_ROWS } from '../../lib/files/textPreview.ts'
 
   // How far one press of a scroll button moves the table (keyboard and switch users).
   const SCROLL_STEP_PX = 240
-  const SCROLLS = [
+  const SCROLLS: ReadonlyArray<readonly [string, ScrollToOptions]> = [
     ['Scroll left', { left: -SCROLL_STEP_PX }],
     ['Scroll right', { left: SCROLL_STEP_PX }],
     ['Scroll up', { top: -SCROLL_STEP_PX }],
     ['Scroll down', { top: SCROLL_STEP_PX }],
   ]
 
-  let { content, name } = $props()
+  interface Props {
+    content: { source: string } & CsvContent
+    name: string
+  }
 
-  let viewport = $state(null)
+  let { content, name }: Props = $props()
+
+  let viewport = $state<HTMLElement | null>(null)
 </script>
 
 <p class="file-meta">

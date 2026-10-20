@@ -1,6 +1,24 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
   import DeskMenu from './DeskMenu.svelte'
+  import type { DeskMenuItem } from './deskMenu.ts'
+
+  interface Props {
+    title?: string
+    liveText?: string
+    live?: boolean
+    busy?: boolean
+    showTakeover?: boolean
+    takingOver?: boolean
+    takeoverDisabled?: boolean
+    menuItems?: DeskMenuItem[]
+    showFullScreen?: boolean
+    fullScreen?: boolean
+    onToggleFullScreen: () => unknown
+    onTakeOver: () => unknown
+    onHandBack: () => unknown
+    onClose: () => unknown
+  }
 
   let {
     title = '',
@@ -17,7 +35,7 @@
     onTakeOver,
     onHandBack,
     onClose,
-  } = $props()
+  }: Props = $props()
 
   const ICON_SIZE = 15
   const fullScreenLabel = $derived(fullScreen ? 'Exit full screen' : 'Full screen')

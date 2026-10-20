@@ -1,9 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Reaction } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
-  import { REACTIONS, reactionCount } from './reactions.js'
+  import { REACTIONS, reactionCount } from './reactions.ts'
 
   // Chips under the bubble: chosen ones always show; all three show while picking.
-  let { reactions = [], picking = false, onToggle } = $props()
+  interface Props {
+    reactions?: Reaction[]
+    picking?: boolean
+    onToggle: (emoji: string) => unknown
+  }
+
+  let { reactions = [], picking = false, onToggle }: Props = $props()
   const shown = $derived(REACTIONS.filter(item => picking || reactionCount(reactions, item.emoji)))
 </script>
 

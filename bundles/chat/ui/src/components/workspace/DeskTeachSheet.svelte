@@ -1,10 +1,18 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
 
   const NAME_MAX = 80
   const DESCRIPTION_MAX = 4000
 
-  let { name = $bindable(''), description = $bindable(''), locked = false, onTeach, onClose } = $props()
+  interface Props {
+    name?: string
+    description?: string
+    locked?: boolean
+    onTeach: () => unknown
+    onClose: () => void
+  }
+
+  let { name = $bindable(''), description = $bindable(''), locked = false, onTeach, onClose }: Props = $props()
 
   const ready = $derived(!locked && Boolean(name.trim()) && Boolean(description.trim()))
 </script>

@@ -1,8 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { RunCard } from '../../../lib/types.ts'
   import Card from './Card.svelte'
 
   // The bot needs an app connected before it can continue.
-  let { card, busy = false, onResolve } = $props()
+  interface Props {
+    card: RunCard
+    busy?: boolean
+    onResolve: (decision: string, extra?: Dict<unknown>) => unknown
+  }
+
+  let { card, busy = false, onResolve }: Props = $props()
   const service = $derived(card.service || 'app')
 </script>
 

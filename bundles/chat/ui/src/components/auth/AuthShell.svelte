@@ -1,8 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
   import Brand from '../Brand.svelte'
 
   /** Shared frame for the branded pre-workspace screens (login, onboarding, waitlist). */
-  let { labelledby, wide = false, children, footer } = $props()
+  interface Props {
+    labelledby: string
+    wide?: boolean
+    children: Snippet
+    footer?: Snippet
+  }
+
+  let { labelledby, wide = false, children, footer }: Props = $props()
 </script>
 
 <main class="auth-shell">

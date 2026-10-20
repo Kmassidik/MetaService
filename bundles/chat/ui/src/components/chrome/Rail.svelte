@@ -1,8 +1,11 @@
-<script>
+<script lang="ts">
   /**
    * Sidebar: search and + at the top, one merged list of bots and group
    * chats, then the account avatar and the Connect apps pill. Notices live in menus, not here.
    */
+  import type { Dict } from '../../lib/check.ts'
+  import type { Agent, AccountStorage, PendingSend, Session, Usage } from '../../lib/types.ts'
+  import type { AvatarSnake } from '../../lib/avatars.ts'
   import Icon from '../Icon.svelte'
   import RosterRow from './RosterRow.svelte'
   import BotContextMenu from './BotContextMenu.svelte'
@@ -10,9 +13,58 @@
   import AccountMenu from './AccountMenu.svelte'
   import AvatarPickerPopover from './AvatarPickerPopover.svelte'
   import UserAvatar from '../UserAvatar.svelte'
-  import { DRAWER_MAX_WIDTH, MODALS } from '../../lib/constants.js'
-  import { SETTINGS } from '../../lib/settingsSections.js'
-  import { buildRoster, groupFaces, hiddenRoster, isBusy, rowPreview, unreadLabel } from '../../lib/chat/roster.js'
+  import { DRAWER_MAX_WIDTH, MODALS } from '../../lib/constants.ts'
+  import { SETTINGS } from '../../lib/settingsSections.ts'
+  import { buildRoster, groupFaces, hiddenRoster, isBusy, rowPreview, unreadLabel } from '../../lib/chat/roster.ts'
+
+  interface Props {
+    mobileRail?: boolean
+    search?: string
+    showHidden?: boolean
+    selectedId?: string
+    pending?: PendingSend | null
+    bots?: Agent[]
+    teams?: Agent[]
+    readyBots?: Agent[]
+    activityAt?: Dict<string>
+    createTeamBlocked?: boolean
+    teamLimitReached?: boolean
+    agentLimitReached?: boolean
+    storageBlocked?: boolean
+    storage?: AccountStorage | null
+    storageError?: string
+    agentsError?: string
+    saving?: boolean
+    usage?: Usage | null
+    loggingOut?: boolean
+    session: Session
+    selectAgent: (id: string) => unknown
+    loadStorage: () => unknown
+    loadAgents: () => unknown
+    openModal: (kind: string, agentId?: string | null, section?: string | null) => unknown
+    openProfile: () => unknown
+    patchRoster: (fields: Dict<unknown>, agentId?: string | null) => unknown
+    duplicateAgent: (agentId?: string | null) => unknown
+    onCloseMobile: () => void
+    onToggleHidden: () => void
+    onNewBot: () => unknown
+    onLogout: () => unknown
+  }
+
+  /** Where a floating menu opens, and for which bot. */
+  interface MenuState {
+    open: boolean
+    x: number
+    y: number
+    agent: Agent | null
+  }
+
+  interface Point {
+    x: number
+    y: number
+  }
+
+  type ButtonClick = MouseEvent & { currentTarget: HTMLElement }
 
   let {
     mobileRail = false,
@@ -46,20 +98,20 @@
     onToggleHidden,
     onNewBot,
     onLogout,
-  } = $props()
+  }: Props = $props()
 
   const MENU_GAP = 6
-  const CLOSED = { open: false, x: 0, y: 0, agent: null }
+  const CLOSED: MenuState = { open: false, x: 0, y: 0, agent: null }
   // ⌘/Ctrl+N makes a New bot on desktop; the phone drawer has no keyboard shortcut.
   const NEW_BOT_KEY = 'n'
   const DESKTOP_QUERY = `(min-width: ${DRAWER_MAX_WIDTH + 1}px)`
 
-  let menu = $state(CLOSED)
-  let avatarPicker = $state(CLOSED)
-  let newMenu = $state(CLOSED)
-  let accountMenu = $state(CLOSED)
+  let menu = $state<MenuState>(CLOSED)
+  let avatarPicker = $state<MenuState>(CLOSED)
+  let newMenu = $state<MenuState>(CLOSED)
+  let accountMenu = $state<MenuState>(CLOSED)
   let searchOpen = $state(false)
-  let newButton = $state(null)
+  let newButton = $state<HTMLButtonElement | null>(null)
 
   const allAgents = $derived([...bots, ...teams])
   const roster = $derived(buildRoster(allAgents, { query: search, activityAt }))
@@ -71,40 +123,41 @@
     avatarPicker = CLOSED
   }
 
-  function below(button) {
+  function below(button: HTMLElement | null): MenuState {
+    if (!button) return CLOSED
     const rect = button.getBoundingClientRect()
     return { open: true, x: rect.left, y: rect.bottom + MENU_GAP, agent: null }
   }
 
-  function isNewBotShortcut(event) {
+  function isNewBotShortcut(event: KeyboardEvent): boolean {
     const modifier = event.metaKey || event.ctrlKey
     return modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === NEW_BOT_KEY
   }
 
   // At the bot limit the shortcut opens the + menu, which says why and links to usage.
-  function onShortcut(event) {
+  function onShortcut(event: KeyboardEvent): void {
     if (!isNewBotShortcut(event) || !window.matchMedia(DESKTOP_QUERY).matches) return
     event.preventDefault()
     if (!agentLimitReached) { onNewBot(); return }
     newMenu = below(newButton)
   }
 
-  function aboveButton(event) {
+  function aboveButton(event: ButtonClick): MenuState {
     const rect = event.currentTarget.getBoundingClientRect()
     return { open: true, x: rect.left, y: rect.top - MENU_GAP, agent: null }
   }
 
-  function openRowMenu(agent, point) {
+  function openRowMenu(agent: Agent, point: Point): void {
     avatarPicker = CLOSED
     menu = { open: true, ...point, agent }
   }
 
-  function openAvatarPicker(agent, point) {
+  function openAvatarPicker(agent: Agent, point: Point): void {
     menu = CLOSED
     avatarPicker = { open: true, ...point, agent }
   }
 
-  function openAvatarBelow(agent, point) {
+  function openAvatarBelow(agent: Agent, point: Point): void {
     openAvatarPicker(agent, { x: point.x, y: point.y + MENU_GAP })
   }
 
@@ -113,22 +166,22 @@
     if (!searchOpen) search = ''
   }
 
-  function onSearchKey(event) {
+  function onSearchKey(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return
     search = ''
     searchOpen = false
   }
 
-  function focusOnMount(node) {
+  function focusOnMount(node: HTMLElement): void {
     node.focus()
   }
 
-  async function showDetails(agent) {
+  async function showDetails(agent: Agent): Promise<void> {
     await selectAgent(agent.id)
     await openProfile()
   }
 
-  const MENU_ACTIONS = {
+  const MENU_ACTIONS: Record<string, (agent: Agent) => unknown> = {
     avatar: agent => openAvatarPicker(agent, { x: menu.x, y: menu.y }),
     pin: agent => patchRoster({ pinned: !agent.pinned }, agent.id),
     hide: agent => patchRoster({ hidden: !agent.hidden }, agent.id),
@@ -137,12 +190,12 @@
     delete: agent => openModal(MODALS.delete, agent.id),
   }
 
-  async function onMenuAction(action, agent) {
+  async function onMenuAction(action: string, agent: Agent | null): Promise<void> {
     if (!agent) return
     await MENU_ACTIONS[action]?.(agent)
   }
 
-  async function onAvatarPick(option) {
+  async function onAvatarPick(option: AvatarSnake): Promise<void> {
     const agent = avatarPicker.agent
     if (!agent) return
     await patchRoster({ avatarColor: option.color, avatarShape: option.shape }, agent.id)

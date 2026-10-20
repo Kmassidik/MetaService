@@ -1,9 +1,34 @@
-<script>
+<script lang="ts">
   /** The stack above the computer screen: connect banner, control and error notes, address bar, teach sheet. */
+  import type { Dict } from '../../lib/check.ts'
+  import type { ConnectingApp } from '../../lib/types.ts'
   import DeskConnectBanner from './DeskConnectBanner.svelte'
   import DeskNotice from './DeskNotice.svelte'
   import DeskAddressBar from './DeskAddressBar.svelte'
   import DeskTeachSheet from './DeskTeachSheet.svelte'
+
+  interface Props {
+    botName?: string
+    connectingApp?: ConnectingApp | null
+    connectProbeError?: string
+    takingOver?: boolean
+    blocked?: boolean
+    serverNote?: boolean
+    message?: string
+    error?: string
+    showAddress?: boolean
+    showTeach?: boolean
+    locked?: boolean
+    teachLocked?: boolean
+    url?: string
+    teachName?: string
+    teachDescription?: string
+    onFinishConnect: () => unknown
+    onCancelConnect: () => unknown
+    onAction?: ((action: string, fields?: Dict<unknown>) => unknown) | undefined
+    onTeach: () => unknown
+    onCloseTeach: () => void
+  }
 
   let {
     botName = '',
@@ -26,7 +51,7 @@
     onAction,
     onTeach,
     onCloseTeach,
-  } = $props()
+  }: Props = $props()
 
   // One place decides what is visible, so the divider below the stack can never disagree with it.
   const shown = $derived({
@@ -42,7 +67,7 @@
 </script>
 
 <div class="desk-notices" class:has-notices={hasNotices}>
-  {#if shown.connect}<DeskConnectBanner appName={connectingApp.name} disabled={locked} probeError={connectProbeError} onFinish={onFinishConnect} onCancel={onCancelConnect} />{/if}
+  {#if connectingApp}<DeskConnectBanner appName={connectingApp.name} disabled={locked} probeError={connectProbeError} onFinish={onFinishConnect} onCancel={onCancelConnect} />{/if}
   {#if shown.control}<DeskNotice tone="control">You’re in control. {botName} waits until you hand back.</DeskNotice>{/if}
   {#if shown.blocked}<DeskNotice tone="error">{message}</DeskNotice>{/if}
   {#if shown.server}<DeskNotice>{message}</DeskNotice>{/if}

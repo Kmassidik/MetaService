@@ -1,27 +1,39 @@
-<script>
+<script lang="ts">
   /**
    * The full-screen overlay every file view shares: dark backdrop, file name, Download and close
    * (X, Esc, or a tap on the backdrop). Moved to <body> so it covers the side panel on any screen,
    * and Esc closes only the viewer, never the panel behind it.
    * `variant="document"` puts the content on a scrolling sheet (PDF, HTML, CSV, text, details).
    */
+  import type { Snippet } from 'svelte'
   import Icon from '../Icon.svelte'
-  import { portal } from '../../lib/files/attachments.js'
+  import { portal } from '../../lib/files/attachments.ts'
 
   const CONTROL_ICON_SIZE = 20
 
-  let { title, subtitle = '', label = title, downloadHref = '', variant = 'image', onClose, actions, children } = $props()
+  interface Props {
+    title: string
+    subtitle?: string
+    label?: string
+    downloadHref?: string
+    variant?: 'image' | 'document'
+    onClose: () => void
+    actions?: Snippet
+    children: Snippet
+  }
 
-  let closeButton = $state(null)
+  let { title, subtitle = '', label = title, downloadHref = '', variant = 'image', onClose, actions, children }: Props = $props()
 
-  function closeOnEscape(event) {
+  let closeButton = $state<HTMLButtonElement | null>(null)
+
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return
     event.preventDefault()
     event.stopPropagation()
     onClose()
   }
 
-  function closeOnBackdrop(event) {
+  function closeOnBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) onClose()
   }
 
@@ -29,7 +41,9 @@
   $effect(() => {
     const previous = document.activeElement
     closeButton?.focus()
-    return () => previous?.focus?.()
+    return () => {
+      if (previous instanceof HTMLElement) previous.focus()
+    }
   })
 </script>
 

@@ -1,9 +1,13 @@
-<script>
+<script lang="ts">
   /** The brief "Saved" tick beside a control that saves on its own; announced politely. */
   import Icon from '../Icon.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
-  let { shown = false } = $props()
+  interface Props {
+    shown?: boolean | undefined
+  }
+
+  let { shown = false }: Props = $props()
 </script>
 
 <span class="saved-tick" role="status">

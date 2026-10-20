@@ -1,15 +1,20 @@
-<script>
+<script lang="ts">
   /** Settings › Usage & plan: allowance left, tokens this month, and the plan's bot and group limits. */
+  import type { WorkspaceView } from '../../lib/chat/view.svelte.ts'
   import Icon from '../Icon.svelte'
   import SettingsGroup from './SettingsGroup.svelte'
   import SettingsRow from './SettingsRow.svelte'
-  import { chat, loadUsage } from '../../lib/chatApp.svelte.js'
-  import { MAX_GROUP_CHATS, ICON_SIZE } from '../../lib/constants.js'
-  import { number } from '../../lib/format.js'
+  import { chat, loadUsage } from '../../lib/chatApp.svelte.ts'
+  import { MAX_GROUP_CHATS, ICON_SIZE } from '../../lib/constants.ts'
+  import { number } from '../../lib/format.ts'
 
   const PLAN_NAME = 'Invite beta'
 
-  let { view } = $props()
+  interface Props {
+    view: WorkspaceView
+  }
+
+  let { view }: Props = $props()
 
   const usage = $derived(chat.usage)
   const remaining = $derived(Math.max(0, Number(usage?.remaining || 0)))

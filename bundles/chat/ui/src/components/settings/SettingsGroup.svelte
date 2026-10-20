@@ -1,6 +1,15 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+
   /** One grouped card of Settings rows: an optional title above, an optional note below. */
-  let { title = '', note = '', action = undefined, children } = $props()
+  interface Props {
+    title?: string
+    note?: string
+    action?: Snippet | undefined
+    children: Snippet
+  }
+
+  let { title = '', note = '', action = undefined, children }: Props = $props()
 </script>
 
 <section class="settings-group" aria-label={title || undefined}>

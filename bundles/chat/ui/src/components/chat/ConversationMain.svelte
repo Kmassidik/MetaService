@@ -1,5 +1,13 @@
-<script>
+<script lang="ts">
   import { tick } from 'svelte'
+  import type { Dict } from '../../lib/check.ts'
+  import type { RunStep } from '../../lib/runSteps.ts'
+  import type { WaitingFollowUp } from '../../lib/sendMode.ts'
+  import type {
+    AccountStorage, Agent, AppResult, Approval, Ask, ChatFile, ChatMessage, Connector, PendingSend, Routine, Run, RunCard,
+    Skill, Upload, Usage, WelcomeIdea,
+  } from '../../lib/types.ts'
+  import type { MenuActions } from './menuActions.ts'
   import ConversationHeader from './ConversationHeader.svelte'
   import ConversationSearch from './ConversationSearch.svelte'
   import EmptyState from './EmptyState.svelte'
@@ -19,17 +27,139 @@
   import TypingBubble from './TypingBubble.svelte'
   import QueuedFollowUps from './QueuedFollowUps.svelte'
   import SetupStatus from './cards/SetupStatus.svelte'
-  import { approveFromChat } from './cards/approveFromChat.js'
-  import { statusLabel } from './cards/statusLabel.js'
-  import { MODALS } from '../../lib/constants.js'
-  import { isDraftBot } from '../../lib/chat/draftBots.js'
-  import { SEND_MODE, sendMode } from '../../lib/sendMode.js'
+  import { approveFromChat } from './cards/approveFromChat.ts'
+  import { statusLabel } from './cards/statusLabel.ts'
+  import { MODALS } from '../../lib/constants.ts'
+  import { isDraftBot } from '../../lib/chat/draftBots.ts'
+  import { SEND_MODE, sendMode } from '../../lib/sendMode.ts'
 
   // A bot still being set up opens its chat at once; only a failed one gets a whole-pane state.
   const FAILED = 'failed'
   const BOT_WORKING = 'running'
   const TOOLLESS_BOT_STATES = ['provisioning', FAILED]
-  const NO_STEPS = { live: [], byReply: {} }
+  const NO_STEPS: RunStepsView = { live: [], byReply: {} }
+
+  /** The live run's steps for the status line, and each finished run's steps by the reply it answered. */
+  interface RunStepsView {
+    live: RunStep[]
+    byReply: Dict<RunStep[]>
+  }
+
+  interface Props {
+    active?: Agent | null | undefined
+    greeting?: string
+    selectedId?: string
+    mobileRail?: boolean
+    showSearch?: boolean
+    computerOpen?: boolean
+    panelOpen?: boolean
+    panelId?: string
+    messageList?: HTMLElement | null
+    composer?: HTMLElement | null
+    fileChooser?: HTMLInputElement | null
+    messageSearch?: string
+    matchIndex?: number
+    matchingMessages?: ChatMessage[]
+    matchedMessageId?: string | undefined
+    atLatest?: boolean
+    unreadMessages?: boolean
+    loading?: Dict<boolean>
+    histories?: Dict<ChatMessage[]>
+    errors?: Dict<string>
+    messages?: ChatMessage[]
+    threadReplies?: ChatMessage[]
+    pending?: PendingSend | null
+    drafts?: Dict<string>
+    draft?: string
+    canSend?: boolean
+    welcomeChoices?: { id: string; options: WelcomeIdea[] } | null
+    typingWelcome?: boolean
+    awaitingComputer?: boolean
+    saving?: boolean
+    createError?: string
+    storageBlocked?: boolean
+    storageError?: string
+    storage?: AccountStorage | null
+    storageLoading?: boolean
+    profileNotice?: string
+    profileVisible?: boolean
+    activeAsk?: Ask | null
+    answeredAsks?: Dict<string[]>
+    askMulti?: Dict<string[]>
+    askFocus?: number
+    activeCard?: RunCard | null
+    appResults?: AppResult[]
+    cardSecret?: string
+    cardBusy?: string
+    takingOver?: boolean
+    agentLimitReached?: boolean
+    currentRun?: Run | null | undefined
+    runActive?: boolean
+    runNotices?: Dict<string>
+    pendingApprovals?: Approval[]
+    runSteps?: RunStepsView
+    followUps?: WaitingFollowUp[]
+    runErrors?: Dict<string>
+    runActionErrors?: Dict<string>
+    runBusy?: Dict<string>
+    usage?: Usage | null
+    attachmentErrors?: Dict<string>
+    mentionError?: string
+    mentionOpen?: boolean
+    mentionQuery?: string
+    mentionCandidates?: Agent[]
+    mentionRoutineCandidates?: Routine[]
+    mentionConnectorCandidates?: Connector[]
+    mentionBusy?: boolean
+    skillPickerOpen?: boolean
+    skillQuery?: string
+    skillCandidates?: Skill[]
+    selectedAttachments?: ChatFile[]
+    selectedUploads?: Upload[]
+    attachments?: Dict<ChatFile[]>
+    dictationSupported?: boolean
+    dictating?: boolean
+    reconnectRun?: number
+    replyParent?: string
+    replyDrafts?: Dict<string>
+    computerLive?: boolean
+    computerImage?: string
+    members?: Agent[]
+    decideRunApproval?: ((approval: Approval, decision: string) => unknown) | null
+    createdRoutine?: Routine | null
+    routineAction?: ((id: string, action: string) => unknown) | null
+    trackScroll: () => unknown
+    findMessage: (direction?: number) => unknown
+    scrollToLatest: () => unknown
+    loadStorage: () => unknown
+    loadHistory: (id: string) => unknown
+    openModal: (kind: string, agentId?: string | null, section?: string | null) => unknown
+    startNewBot: () => unknown
+    openProfile: () => unknown
+    openFiles: () => unknown
+    openComputer: () => unknown
+    openTeachSheet: () => unknown
+    toggleSidePanel: () => unknown
+    sendMessage: (event?: Event | null, overrideText?: string) => unknown
+    composerKey: (event: KeyboardEvent) => unknown
+    pasteImages: (event: ClipboardEvent) => unknown
+    dropFiles: (event: DragEvent) => unknown
+    uploadFiles: (files: Iterable<File>) => unknown
+    cancelUpload: (upload: Upload) => unknown
+    openMentionPicker: () => unknown
+    mentionBot: (botId: string) => unknown
+    pickSkill: (skill: Skill) => unknown
+    toggleDictation: () => unknown
+    toggleReaction: (messageId: string, emoji: string) => unknown
+    sendThreadReply: (parentId: string) => unknown
+    toggleAskOption: (optionId: string) => unknown
+    submitAsk: (labels: string[]) => unknown
+    skipAsk: () => unknown
+    askKeydown: (event: KeyboardEvent) => unknown
+    resolveCard: (decision: string, extra?: Dict<unknown>) => unknown
+    cancelRun: () => unknown
+    loadSkills: () => Promise<string>
+  }
 
   let {
     active = null, greeting = 'there', selectedId = '',
@@ -60,7 +190,7 @@
     openProfile, openFiles, openComputer, openTeachSheet, toggleSidePanel, sendMessage, composerKey, pasteImages, dropFiles, uploadFiles,
     cancelUpload, openMentionPicker, mentionBot, pickSkill, toggleDictation, toggleReaction, sendThreadReply,
     toggleAskOption, submitAsk, skipAsk, askKeydown, resolveCard, cancelRun, loadSkills,
-  } = $props()
+  }: Props = $props()
 
   let skillError = $state('')
 
@@ -68,13 +198,13 @@
   const paneView = $derived(botPaneView())
   const sendingHere = $derived(pending?.id === selectedId)
   const askLocked = $derived(Boolean(activeAsk && (answeredAsks[activeAsk.askId] || pending || usage?.blocked || runBusy[activeAsk.runId])))
-  const toolsDisabled = $derived(Boolean(pending || mentionBusy || usage?.blocked || TOOLLESS_BOT_STATES.includes(active?.status)))
+  const toolsDisabled = $derived(Boolean(pending || mentionBusy || usage?.blocked || TOOLLESS_BOT_STATES.includes(active?.status ?? '')))
   const blockReason = $derived(storageBlocked || storageError ? (storage?.creationBlockedReason || storageError) : '')
   const status = $derived(active && statusLabel({
     name: active.name, run: currentRun, runActive, sending: sendingHere,
     waitingForAnswer: Boolean(activeAsk) && !askLocked, waitingForInput: Boolean(activeCard) && !cardBusy,
     approvalPending: pendingApprovals.length > 0,
-    computerLive, notice: runNotices[currentRun?.id],
+    computerLive, notice: runNotices[currentRun?.id ?? ''],
   }))
   const showRoutineCard = $derived(Boolean(createdRoutine && routineAction && createdRoutine.agentId === selectedId && !profileVisible))
   // A draft is the instant before the server's welcome lands; it stays blank rather than flash an intro.
@@ -124,7 +254,7 @@
     openProfile()
   }
 
-  const menuActions = {
+  const menuActions: MenuActions = {
     onFiles: () => openFiles(),
     onSkills: openSkillPicker,
     onMention: openMentions,
@@ -153,17 +283,17 @@
       <EmptyState {greeting} {saving} {createError} {blockReason} {storageLoading} {loadStorage} {startNewBot} />
     {:else if paneView !== 'chat'}
       <BotStatus view={paneView} {active} error={errors[selectedId]} onManage={() => openModal(MODALS.edit)} onReload={() => loadHistory(selectedId)} />
-    {:else}
+    {:else if active}
       <div class="thread">
         <MessageList {messages} {threadReplies} {active} {matchedMessageId} replySteps={runSteps.byReply} bind:replyParent bind:replyDrafts {toggleReaction} {sendThreadReply} onViewResults={openFiles} />
-        {#if sendingHere}
+        {#if pending && sendingHere}
           <div class="pending" aria-label="Sending message"><div class="pending-bubble">{pending.text}</div><MessageFiles items={pending.attachments || []} onViewResults={openFiles} /></div>
         {/if}
         <QueuedFollowUps items={followUps} botName={active.name} />
         <RunCards
           {activeAsk} {answeredAsks} {askMulti} {askFocus} {askLocked}
           {activeCard} {appResults} bind:cardSecret {cardBusy} {takingOver} {agentLimitReached}
-          {pendingApprovals} approvalBusy={Boolean(runBusy[currentRun?.id])}
+          {pendingApprovals} approvalBusy={Boolean(runBusy[currentRun?.id ?? ''])}
           {toggleAskOption} {submitAsk} {skipAsk} {askKeydown} {resolveCard}
           onApproveApproval={decideRunApproval ? approval => approveFromChat(approval, decideRunApproval) : null}
           onDenyApproval={decideRunApproval ? approval => decideRunApproval(approval, 'deny') : null}
@@ -173,7 +303,7 @@
           <WelcomeChoices choices={welcomeChoices} locked={welcomeLocked} onPick={text => sendMessage(null, text)} />
         {/if}
         {#if showIntro}<ThreadIntro {active} />{/if}
-        {#if showRoutineCard}
+        {#if createdRoutine && routineAction && showRoutineCard}
           <RoutineCreatedCard routine={createdRoutine} onAction={routineAction} onOpen={openProfile} />
         {:else if profileNotice && !profileVisible}
           <ProfileNoticeCard notice={profileNotice} onOpen={openProfileFromNotice} onDismiss={() => profileNotice = ''} />
@@ -186,7 +316,7 @@
             steps={runSteps.live}
             thumbnail={computerLive ? computerImage : ''}
             canStop={runActive}
-            stopDisabled={Boolean(runBusy[currentRun?.id]) || currentRun?.state === 'cancelling'}
+            stopDisabled={Boolean(runBusy[currentRun?.id ?? '']) || currentRun?.state === 'cancelling'}
             onStop={cancelRun}
             onOpenComputer={openComputer}
           />
@@ -203,7 +333,7 @@
         {selectedId} {runErrors} bind:runActionErrors bind:attachmentErrors bind:mentionError
         historyError={history ? errors[selectedId] : ''}
         bind:createError
-        historyReloadDisabled={Boolean(pending) || loading[selectedId]}
+        historyReloadDisabled={Boolean(pending) || Boolean(loading[selectedId])}
         usageBlocked={usage?.blocked}
         otherBotBusy={Boolean(pending) && !sendingHere}
         {takingOver}

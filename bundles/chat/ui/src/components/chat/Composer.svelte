@@ -1,14 +1,46 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../lib/check.ts'
+  import type { ChatFile, Upload } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
+  import type { MenuActions } from './menuActions.ts'
   import ComposerPlusMenu from './ComposerPlusMenu.svelte'
   import ComposerAttachments from './ComposerAttachments.svelte'
-  import { composerTrigger, withoutTrigger } from './composerTriggers.js'
-  import { bytes } from '../../lib/format.js'
+  import { composerTrigger, withoutTrigger } from './composerTriggers.ts'
+  import { bytes } from '../../lib/format.ts'
 
   // One pill — [+] [text] [mic] [send].
   const MAX_MESSAGE_BYTES = 16000
   const BYTE_WARNING_AT = 14000
   const MAX_VISIBLE_LINES = 6
+
+  interface Props {
+    botName?: string
+    selectedId?: string
+    draft?: string
+    drafts?: Dict<string>
+    composer?: HTMLElement | null
+    fileChooser?: HTMLInputElement | null
+    attachments?: Dict<ChatFile[]>
+    selectedAttachments?: ChatFile[]
+    selectedUploads?: Upload[]
+    canSend?: boolean
+    sending?: boolean
+    locked?: boolean
+    followUp?: boolean
+    toolsDisabled?: boolean
+    dictationSupported?: boolean
+    dictating?: boolean
+    sendMessage: (event?: Event | null, overrideText?: string) => unknown
+    composerKey: (event: KeyboardEvent) => unknown
+    pasteImages: (event: ClipboardEvent) => unknown
+    dropFiles: (event: DragEvent) => unknown
+    uploadFiles: (files: Iterable<File>) => unknown
+    cancelUpload: (upload: Upload) => unknown
+    toggleDictation: () => unknown
+    onSkillTrigger: () => unknown
+    onMentionTrigger: () => unknown
+    menuActions: MenuActions
+  }
 
   let {
     botName = '',
@@ -38,20 +70,20 @@
     onSkillTrigger,
     onMentionTrigger,
     menuActions,
-  } = $props()
+  }: Props = $props()
 
   let menuOpen = $state(false)
   const placeholder = $derived(followUp ? `Message ${botName} · files later` : `Message ${botName}`)
   const sendLabel = $derived(sendLabelNow())
 
-  function sendLabelNow() {
+  function sendLabelNow(): string {
     if (sending) return 'Waiting for response'
     if (selectedUploads.length) return 'Wait for uploads before sending'
     if (followUp && selectedAttachments.length) return 'Files can be sent after it finishes'
     return 'Send message'
   }
 
-  function setDraft(value) {
+  function setDraft(value: string): void {
     drafts = { ...drafts, [selectedId]: value }
   }
 
@@ -60,13 +92,13 @@
     if (!draft && composer) composer.style.height = ''
   })
 
-  function fitHeight(field) {
+  function fitHeight(field: HTMLTextAreaElement): void {
     const lineHeight = parseFloat(getComputedStyle(field).lineHeight)
     field.style.height = 'auto'
     field.style.height = `${Math.min(field.scrollHeight, lineHeight * MAX_VISIBLE_LINES)}px`
   }
 
-  function openTriggeredPicker(field, trigger) {
+  function openTriggeredPicker(field: HTMLTextAreaElement, trigger: 'skill' | 'mention'): void {
     // Set the field too: when the draft was empty it stays empty, so Svelte wouldn't repaint it.
     field.value = withoutTrigger(field.value, field.selectionStart)
     setDraft(field.value)
@@ -74,20 +106,21 @@
     else onMentionTrigger()
   }
 
-  function handleInput(event) {
+  function handleInput(event: Event & { currentTarget: HTMLTextAreaElement }): void {
     const field = event.currentTarget
-    const trigger = composerTrigger(field.value, field.selectionStart, event.data)
+    const typed = event instanceof InputEvent ? event.data ?? '' : ''
+    const trigger = composerTrigger(field.value, field.selectionStart, typed)
     if (trigger && !toolsDisabled) openTriggeredPicker(field, trigger)
     else setDraft(field.value)
     fitHeight(field)
   }
 
-  function removeAttachment(file) {
+  function removeAttachment(file: ChatFile): void {
     attachments = { ...attachments, [selectedId]: selectedAttachments.filter(item => item.id !== file.id) }
   }
 
-  function chooseFiles(event) {
-    uploadFiles(event.currentTarget.files)
+  function chooseFiles(event: Event & { currentTarget: HTMLInputElement }): void {
+    uploadFiles(event.currentTarget.files ?? [])
     event.currentTarget.value = ''
   }
 </script>

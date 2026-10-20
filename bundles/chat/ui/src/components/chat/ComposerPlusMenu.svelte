@@ -1,7 +1,30 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
 
   // Every composer tool lives here, so the pill itself stays calm.
+  interface Props {
+    open?: boolean
+    attachDisabled?: boolean
+    toolsDisabled?: boolean
+    onAttach: () => unknown
+    onFiles: () => unknown
+    onSkills: () => unknown
+    onMention: () => unknown
+    onTeach: () => unknown
+    onFind: () => unknown
+    onConnect: () => unknown
+    onHelp: () => unknown
+  }
+
+  interface PlusItem {
+    id: string
+    icon: string
+    label: string
+    hint?: string
+    disabled: boolean
+    run: () => unknown
+  }
+
   let {
     open = $bindable(false),
     attachDisabled = false,
@@ -14,9 +37,9 @@
     onFind,
     onConnect,
     onHelp,
-  } = $props()
+  }: Props = $props()
 
-  const primaryItems = $derived([
+  const primaryItems = $derived<PlusItem[]>([
     { id: 'attach', icon: 'attach', label: 'Attach files', disabled: attachDisabled, run: onAttach },
     { id: 'files', icon: 'folder', label: 'Files & results', disabled: false, run: onFiles },
     { id: 'skills', icon: 'spark', label: 'Skills', hint: '/', disabled: toolsDisabled, run: onSkills },
@@ -24,18 +47,18 @@
     { id: 'teach', icon: 'pointer', label: 'Teach a task', disabled: false, run: onTeach },
     { id: 'connect', icon: 'plug', label: 'Connect an app', disabled: false, run: onConnect },
   ])
-  const secondaryItems = $derived([
+  const secondaryItems = $derived<PlusItem[]>([
     // The only visible way into find-in-chat on phones, which have no Cmd/Ctrl+F.
     { id: 'find', icon: 'search', label: 'Find in chat', disabled: false, run: onFind },
     { id: 'help', icon: 'info', label: 'Help & limits', disabled: false, run: onHelp },
   ])
 
-  function choose(item) {
+  function choose(item: PlusItem): void {
     open = false
     item.run()
   }
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key !== 'Escape' || !open) return
     event.stopPropagation()
     open = false
@@ -44,7 +67,7 @@
 
 <svelte:window onkeydown={closeOnEscape} />
 
-{#snippet menuItem(item)}
+{#snippet menuItem(item: PlusItem)}
   <button type="button" role="menuitem" class="plus-item" disabled={item.disabled} onclick={() => choose(item)}>
     <Icon name={item.icon} size={18} />
     <span>{item.label}</span>

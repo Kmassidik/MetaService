@@ -1,17 +1,25 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../../lib/check.ts'
+  import type { RunCard } from '../../../lib/types.ts'
   import Card from './Card.svelte'
-  import { approvalEditable, approvalLabel, approvalTitle, approvalWhere, MESSAGE_MAX_CHARS, messageToSend } from '../../../lib/appCards.js'
+  import { approvalEditable, approvalLabel, approvalTitle, approvalWhere, MESSAGE_MAX_CHARS, messageToSend } from '../../../lib/appCards.ts'
 
   // A bot wants to send one exact message, email, post or calendar change from the owner's own app:
   // Send, Edit (not for a calendar change) or Cancel. Nothing happens until the owner taps Send (the tool waits for this card).
   const EDIT_ROWS = 4
-  let { card, busy = false, onResolve } = $props()
-  let edited = $state(null)
+  interface Props {
+    card: RunCard
+    busy?: boolean
+    onResolve: (decision: string, extra?: Dict<unknown>) => unknown
+  }
+
+  let { card, busy = false, onResolve }: Props = $props()
+  let edited = $state<string | null>(null)
   const editing = $derived(edited !== null)
-  const outgoing = $derived(messageToSend(card.text, edited))
+  const outgoing = $derived(messageToSend(card.text ?? '', edited))
   const editorId = $props.id()
 
-  function send() {
+  function send(): void {
     if (busy || !outgoing.valid) return
     onResolve('send', editing ? { text: outgoing.text } : {})
   }
@@ -28,7 +36,7 @@
   {#snippet actions()}
     <button type="button" class="primary-button" disabled={busy || !outgoing.valid} onclick={send}>Send</button>
     {#if !editing && approvalEditable(card)}
-      <button type="button" class="card-quiet" disabled={busy} onclick={() => (edited = card.text)}>Edit</button>
+      <button type="button" class="card-quiet" disabled={busy} onclick={() => (edited = card.text ?? null)}>Edit</button>
     {/if}
     <button type="button" class="card-quiet" disabled={busy} onclick={() => onResolve('dismiss')}>Cancel</button>
   {/snippet}

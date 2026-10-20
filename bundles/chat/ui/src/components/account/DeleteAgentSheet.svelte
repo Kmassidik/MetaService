@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
   /** Confirm deleting a bot or group chat; warns when that stops work in progress. */
   import Icon from '../Icon.svelte'
-  import { chat, closeModal, deleteAgent } from '../../lib/chatApp.svelte.js'
+  import { chat, closeModal, deleteAgent } from '../../lib/chatApp.svelte.ts'
 
   const WORKING_STATES = ['running', 'provisioning']
 
@@ -9,7 +9,7 @@
   const noun = $derived(isTeam ? 'group chat' : 'bot')
   const target = $derived(chat.agents.find(agent => agent.id === chat.editId))
   const name = $derived(target?.name || (isTeam ? 'this group' : 'this bot'))
-  const working = $derived(Boolean(chat.pending) || WORKING_STATES.includes(target?.status))
+  const working = $derived(Boolean(chat.pending) || WORKING_STATES.includes(target?.status ?? ''))
 </script>
 
 <div class="delete-icon"><Icon name="trash" size={25} /></div>

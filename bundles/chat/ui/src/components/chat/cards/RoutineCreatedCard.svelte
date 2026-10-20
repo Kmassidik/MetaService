@@ -1,11 +1,19 @@
-<script>
+<script lang="ts">
+  import type { Routine } from '../../../lib/types.ts'
   import Card from './Card.svelte'
   import Icon from '../../Icon.svelte'
-  import { describeRoutine } from './routineSchedule.js'
+  import { describeRoutine } from './routineSchedule.ts'
 
   // A compact confirmation that a routine exists, with Pause (or Resume) and Open.
   const ACTIVE_STATE = 'active'
-  let { routine, busy = false, onAction, onOpen } = $props()
+  interface Props {
+    routine: Routine
+    busy?: boolean
+    onAction: (id: string, action: string) => unknown
+    onOpen: () => unknown
+  }
+
+  let { routine, busy = false, onAction, onOpen }: Props = $props()
 
   const active = $derived(routine.state === ACTIVE_STATE)
   const schedule = $derived(active ? describeRoutine(routine) : `Paused · ${describeRoutine(routine)}`)

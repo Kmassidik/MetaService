@@ -1,14 +1,25 @@
-<script>
+<script lang="ts">
+  import type { Agent } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import BotAvatar from '../BotAvatar.svelte'
   import StackedAvatars from '../chrome/StackedAvatars.svelte'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
   // The centered name pill, and the side panel's toggle at the top right.
   const PILL_AVATAR_SIZE = 22
   // Two overlapped faces need a larger slot to stay legible inside the 36 pt pill.
   const GROUP_PILL_AVATAR_SIZE = 28
   const STACKED_FACES = 2
+
+  interface Props {
+    active?: Agent | null | undefined
+    mobileRail?: boolean
+    members?: Agent[]
+    panelOpen?: boolean
+    panelId?: string
+    onOpenDetails: () => unknown
+    onTogglePanel: () => unknown
+  }
 
   let {
     active = null,
@@ -18,10 +29,10 @@
     panelId = '',
     onOpenDetails,
     onTogglePanel,
-  } = $props()
+  }: Props = $props()
 
   const isGroup = $derived(active?.kind === 'team')
-  const faces = $derived(members.length ? members.slice(0, STACKED_FACES) : [active].filter(Boolean))
+  const faces = $derived(members.length ? members.slice(0, STACKED_FACES) : active ? [active] : [])
 </script>
 
 <header class="header">

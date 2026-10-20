@@ -1,8 +1,13 @@
-<script>
+<script lang="ts">
   /** Static, sanitized HTML in a sandboxed frame (no scripts, styles, forms, links or network). */
   import SourceView from './SourceView.svelte'
 
-  let { content, name } = $props()
+  interface Props {
+    content: { source: string; html: string }
+    name: string
+  }
+
+  let { content, name }: Props = $props()
 </script>
 
 <p class="file-meta">Sanitized static HTML. Scripts, styles, forms, links, embeds and network resources are removed.</p>

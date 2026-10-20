@@ -1,7 +1,17 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
   import AuthShell from './AuthShell.svelte'
-  import { goalOptions, sourceOptions } from '../../lib/constants.js'
+  import { goalOptions, sourceOptions } from '../../lib/constants.ts'
+
+  interface Props {
+    goal?: string
+    goalDetail?: string
+    source?: string
+    sourceDetail?: string
+    error?: string
+    saving?: boolean
+    onSubmit: (event: Event) => unknown
+  }
 
   let {
     goal = $bindable(''),
@@ -11,7 +21,7 @@
     error = '',
     saving = false,
     onSubmit,
-  } = $props()
+  }: Props = $props()
 </script>
 
 <AuthShell labelledby="onboarding-title" wide>

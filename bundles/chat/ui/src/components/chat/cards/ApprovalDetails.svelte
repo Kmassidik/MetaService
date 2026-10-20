@@ -1,13 +1,19 @@
-<script>
-  import { MISSING_PARAMETERS, actionRows, parameterRows } from '../../../lib/approvalDetails.js'
+<script lang="ts">
+  import type { Approval } from '../../../lib/types.ts'
+  import { MISSING_PARAMETERS, actionRows, parameterRows, type DetailRow } from '../../../lib/approvalDetails.ts'
 
   // Exactly what Approve will let the bot do: the action, where, with which tool and what it sends.
-  let { approval, id = '' } = $props()
+  interface Props {
+    approval: Approval
+    id?: string
+  }
+
+  let { approval, id = '' }: Props = $props()
   const action = $derived(actionRows(approval))
   const parameters = $derived(parameterRows(approval.parametersJSON))
 </script>
 
-{#snippet rows(list)}
+{#snippet rows(list: DetailRow[])}
   {#each list as row, index (index)}
     <div class="row"><dt>{row.label}</dt><dd>{row.value}</dd></div>
   {/each}

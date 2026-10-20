@@ -1,27 +1,32 @@
-<script>
+<script lang="ts">
   import Icon from '../Icon.svelte'
+  import type { DeskMenuItem } from './deskMenu.ts'
 
-  // items: [{ id, label, icon, disabled, onSelect }]
-  let { items = [], label = 'More options' } = $props()
+  interface Props {
+    items?: DeskMenuItem[]
+    label?: string
+  }
+
+  let { items = [], label = 'More options' }: Props = $props()
 
   let open = $state(false)
-  let root = $state(null)
+  let root = $state<HTMLElement | null>(null)
 
-  function toggle() {
+  function toggle(): void {
     open = !open
   }
 
-  function choose(item) {
+  function choose(item: DeskMenuItem): void {
     open = false
     item.onSelect()
   }
 
-  function closeOnOutsideClick(event) {
-    if (!open || root?.contains(event.target)) return
+  function closeOnOutsideClick(event: MouseEvent): void {
+    if (!open || (event.target instanceof Node && root?.contains(event.target))) return
     open = false
   }
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (!open || event.key !== 'Escape') return
     // Stop here so Esc closes only the menu, not the whole computer panel.
     event.stopPropagation()

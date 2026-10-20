@@ -1,6 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
   import Switch from '../Switch.svelte'
-  let { checked = false, disabled = false, detail = '', onChange, children } = $props()
+
+  interface Props {
+    checked?: boolean
+    disabled?: boolean
+    detail?: string
+    onChange: (checked: boolean) => unknown
+    children: Snippet
+  }
+
+  let { checked = false, disabled = false, detail = '', onChange, children }: Props = $props()
 </script>
 
 <label class="profile-toggle">

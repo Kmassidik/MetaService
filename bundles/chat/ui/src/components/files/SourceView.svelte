@@ -1,6 +1,11 @@
-<script>
+<script lang="ts">
   /** View / copy the original text behind an HTML or CSV preview. */
-  let { source, name } = $props()
+  interface Props {
+    source: string
+    name: string
+  }
+
+  let { source, name }: Props = $props()
 
   const SOURCE_ROWS = 10
 

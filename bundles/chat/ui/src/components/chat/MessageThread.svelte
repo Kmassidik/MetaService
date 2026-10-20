@@ -1,8 +1,19 @@
-<script>
+<script lang="ts">
+  import type { ChatMessage } from '../../lib/types.ts'
+
   // Reply threads: a quiet "N replies" link that expands the thread under its parent.
   const MAX_REPLY_LENGTH = 4000
   const OWNER_ROLE = 'user'
-  let { replies = [], open = false, draft = '', onToggle, onDraft, onSend } = $props()
+  interface Props {
+    replies?: ChatMessage[]
+    open?: boolean
+    draft?: string
+    onToggle: () => void
+    onDraft: (value: string) => void
+    onSend: () => unknown
+  }
+
+  let { replies = [], open = false, draft = '', onToggle, onDraft, onSend }: Props = $props()
   const countLabel = $derived(replies.length === 1 ? '1 reply' : `${replies.length} replies`)
 </script>
 

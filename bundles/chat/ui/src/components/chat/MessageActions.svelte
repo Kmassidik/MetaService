@@ -1,4 +1,6 @@
-<script>
+<script lang="ts">
+  import { errorMessage } from '../../lib/errors.ts'
+  import type { ChatMessage } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
 
   // Hover toolbar beside a bubble: react, reply in thread, and copy/export.
@@ -6,11 +8,20 @@
   const EXPORT_URL_LIFETIME_MS = 1000
   const EXPORT_FILENAME = 'message.md'
 
-  let { message, picking = false, replying = false, forceVisible = false, onReact, onReply } = $props()
+  interface Props {
+    message: ChatMessage
+    picking?: boolean
+    replying?: boolean
+    forceVisible?: boolean
+    onReact: () => void
+    onReply: () => void
+  }
+
+  let { message, picking = false, replying = false, forceVisible = false, onReact, onReply }: Props = $props()
   let menuOpen = $state(false)
   let notice = $state('')
 
-  function flash(text) {
+  function flash(text: string): void {
     notice = text
     setTimeout(() => { notice = '' }, NOTICE_MS)
   }
@@ -21,7 +32,7 @@
       await navigator.clipboard.writeText(message.text || '')
       flash('Copied')
     } catch (error) {
-      flash(`Couldn’t copy: ${error.message || 'clipboard unavailable'}`)
+      flash(`Couldn’t copy: ${errorMessage(error) || 'clipboard unavailable'}`)
     }
   }
 

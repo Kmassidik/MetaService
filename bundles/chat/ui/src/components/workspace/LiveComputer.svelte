@@ -1,23 +1,56 @@
-<script>
+<script lang="ts">
   /**
    * The computer opened big (Open on the side panel's preview, Connect apps, a takeover card):
    * it covers the chat area on desktop and the whole screen on phone, with Take control / Give back.
    * Full screen puts this whole view (top bar + desktop) on the monitor, like Remmina or AnyDesk.
    * Esc there is the browser's: it leaves full screen and never reaches the remote desktop.
    */
+  import type { Dict } from '../../lib/check.ts'
+  import type { Agent, ConnectingApp, Desktop, PendingSend } from '../../lib/types.ts'
   import DeskToolbar from './DeskToolbar.svelte'
   import DeskNotices from './DeskNotices.svelte'
   import DeskStage from './DeskStage.svelte'
   import DeskKeyboard from './DeskKeyboard.svelte'
   import DeskFullScreenExit from './DeskFullScreenExit.svelte'
-  import { FullScreenMode, createFullScreen } from './fullScreen.js'
-  import { DeskPhase, canTakeOver, deskPhase, homeHint, isBlocked, isStreamMode, isStreamReconnecting, liveLabel, streamSource } from './deskStatus.js'
-  import { COMPUTER_VIEW_ID } from '../../lib/chat/computer.svelte.js'
+  import type { DeskMenuItem } from './deskMenu.ts'
+  import { FullScreenMode, createFullScreen, type FullScreenChange } from './fullScreen.ts'
+  import { DeskPhase, canTakeOver, deskPhase, homeHint, isBlocked, isStreamMode, isStreamReconnecting, liveLabel, streamSource } from './deskStatus.ts'
+  import { COMPUTER_VIEW_ID } from '../../lib/chat/computer.svelte.ts'
 
   const BROWSER_HOME = 'https://www.google.com'
   // All bots share one computer, so the view is the owner's, not a bot's.
   const TITLE = 'Your computer'
   const SETUP_TEXT = 'Setting up your computer… about 15 seconds'
+
+  interface Props {
+    open?: boolean
+    active?: Agent | null | undefined
+    pending?: PendingSend | null
+    takingOver?: boolean
+    connectingApp?: ConnectingApp | null
+    connectProbeError?: string
+    onFinishConnect: () => unknown
+    onCancelConnect: () => unknown
+    url?: string
+    text?: string
+    teachOpen?: boolean
+    teachName?: string
+    teachDescription?: string
+    busy?: boolean
+    error?: string
+    updated?: string
+    image?: string
+    message?: string
+    pageUrl?: string
+    desktop?: Desktop | null
+    settingUp?: boolean
+    onClose: () => unknown
+    onOpenFiles?: () => unknown
+    onAction?: (action: string, fields?: Dict<unknown>) => unknown
+    onClickScreenshot?: (event: MouseEvent) => unknown
+    onTeach: () => unknown
+    onFocusChat?: () => unknown
+  }
 
   let {
     open = false,
@@ -47,20 +80,20 @@
     onClickScreenshot,
     onTeach,
     onFocusChat,
-  } = $props()
+  }: Props = $props()
 
   let addressOpen = $state(false)
-  let computerBody = $state(null)
-  let panel = $state(null)
-  let fullScreenView = $state({ mode: FullScreenMode.OFF, controlsVisible: false })
-  const fullScreen = createFullScreen({ doc: document, onChange: (change) => { fullScreenView = change } })
+  let computerBody = $state<HTMLElement | null>(null)
+  let panel = $state<HTMLElement | null>(null)
+  let fullScreenView = $state<FullScreenChange>({ mode: FullScreenMode.OFF, controlsVisible: false })
+  const fullScreen = createFullScreen({ doc: document, onChange: change => { fullScreenView = change } })
 
   const locked = $derived(Boolean(busy) || Boolean(pending))
   const phase = $derived(deskPhase({ desktop, image, message, busy }))
   const streamMode = $derived(isStreamMode(desktop))
   const reconnecting = $derived(isStreamReconnecting(desktop))
   const blocked = $derived(isBlocked(message))
-  const canTeach = $derived(Boolean(active) && active.kind !== 'team' && !connectingApp)
+  const canTeach = $derived(Boolean(active) && active?.kind !== 'team' && !connectingApp)
   const hasComputer = $derived(Boolean(active) || Boolean(connectingApp))
   const showAddress = $derived(addressOpen || phase === DeskPhase.SNAPSHOT)
   const showServerNote = $derived(Boolean(message) && phase === DeskPhase.SNAPSHOT && !blocked)
@@ -71,19 +104,19 @@
   $effect(() => { if (!open) fullScreen.exit() })
   $effect(() => () => fullScreen.dispose())
 
-  function startingText() {
+  function startingText(): string {
     if (settingUp) return SETUP_TEXT
     if (connectingApp) return `Opening ${connectingApp.name}…`
     return 'Starting your computer…'
   }
 
-  function toolbarStatus() {
+  function toolbarStatus(): string {
     if (reconnecting) return 'Reconnecting'
     return liveLabel(phase, updated)
   }
 
-  function computerMenu() {
-    const items = [
+  function computerMenu(): DeskMenuItem[] {
+    const items: DeskMenuItem[] = [
       { id: 'address', label: addressOpen ? 'Hide web address' : 'Open a web address', icon: 'search', disabled: false, onSelect: () => { addressOpen = !addressOpen } },
       { id: 'files', label: 'Files', icon: 'folder', disabled: false, onSelect: openFiles },
       { id: 'refresh', label: 'Refresh status', icon: 'refresh', disabled: locked, onSelect: () => onAction?.('status') },
@@ -92,32 +125,41 @@
     return [{ id: 'teach', label: 'Teach a task', icon: 'spark', disabled: false, onSelect: () => { teachOpen = true } }, ...items]
   }
 
-  function closeOnEscape(event) {
+  function closeOnEscape(event: KeyboardEvent): void {
     if (event.key !== 'Escape' || event.defaultPrevented) return
     event.preventDefault()
-    if (isFullScreen) return fullScreen.exit()
-    onClose?.()
+    if (isFullScreen) {
+      fullScreen.exit()
+      return
+    }
+    onClose()
   }
 
   // Esc typed into the desktop: out of full screen first, back to the chat the next time.
-  function escapeFromDesktop() {
-    if (isFullScreen) return fullScreen.exit()
+  function escapeFromDesktop(): void {
+    if (isFullScreen) {
+      fullScreen.exit()
+      return
+    }
     returnFocusToChat()
   }
 
   // Files opens over Chat, outside this view, so it can't show while the view is full screen.
-  function openFiles() {
+  function openFiles(): void {
     fullScreen.exit()
     onOpenFiles?.()
   }
 
   // App wires onFocusChat to the composer; without it, keep focus inside the view rather than lose it.
-  function returnFocusToChat() {
-    if (onFocusChat) return onFocusChat()
+  function returnFocusToChat(): void {
+    if (onFocusChat) {
+      onFocusChat()
+      return
+    }
     computerBody?.focus()
   }
 
-  function openBrowserHome() {
+  function openBrowserHome(): void {
     url = BROWSER_HOME
     onAction?.('open')
   }

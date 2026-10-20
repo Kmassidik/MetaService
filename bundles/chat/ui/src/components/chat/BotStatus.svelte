@@ -1,14 +1,23 @@
-<script>
+<script lang="ts">
+  import type { Agent } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
 
   // Whole-pane states for a bot whose chat can't be shown: setup failed, loading, or a load error.
-  let { view, active, error = '', onManage, onReload } = $props()
+  interface Props {
+    view: string
+    active: Agent | null | undefined
+    error?: string | undefined
+    onManage: () => unknown
+    onReload: () => unknown
+  }
+
+  let { view, active, error = '', onManage, onReload }: Props = $props()
 </script>
 
 <section class="bot-status">
   {#if view === 'failed'}
     <Icon name="shield" size={30} /><h2>This bot could not be prepared</h2>
-    <p role="alert">{active.lastError || 'Private-computer setup failed. Delete this bot and try again.'}</p>
+    <p role="alert">{active?.lastError || 'Private-computer setup failed. Delete this bot and try again.'}</p>
     <button class="secondary-button" onclick={onManage}>Manage bot</button>
   {:else if view === 'loading'}
     <div class="spinner"></div><p>Loading your conversation…</p>

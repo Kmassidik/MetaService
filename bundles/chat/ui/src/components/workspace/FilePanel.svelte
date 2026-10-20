@@ -1,46 +1,82 @@
-<script>
+<script lang="ts">
   /**
    * The side panel's Files tab: every saved file from all bots, newest first, with one search box
    * and type chips. Tapping a picture opens the viewer; PDF, HTML and CSV open their preview; other
    * files open their details. Everything else (download, attach, extract text, delete) is in ⋯.
    */
+  import type { Dict } from '../../lib/check.ts'
+  import type { FileGroup } from '../../lib/files/fileList.ts'
+  import type { Agent, ChatFile } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
   import FileRow from './FileRow.svelte'
   import FileRowMenu from './FileRowMenu.svelte'
+  import type { FileMenuTarget } from './fileMenu.ts'
   import ImageViewer from '../files/ImageViewer.svelte'
   import DocumentPreview from '../files/DocumentPreview.svelte'
   import ExtractionView from '../files/ExtractionView.svelte'
   import FileDetails from '../files/FileDetails.svelte'
-  import { isDocumentPreview, isViewableImage } from '../../lib/files/preview.js'
-  import { filterGroups, groupVersions, presentCategories, renderedPdfOf, shownVersion } from '../../lib/files/fileList.js'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { isDocumentPreview, isViewableImage } from '../../lib/files/preview.ts'
+  import { filterGroups, groupVersions, presentCategories, renderedPdfOf, shownVersion } from '../../lib/files/fileList.ts'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
   // Wide enough that the menu opens to the left of the ⋯ button; FloatingMenu keeps it on screen.
   const MENU_WIDTH = 240
   const MENU_GAP = 4
   const CHIP_ICON_SIZE = 15
 
-  let { files = [], agents = [], loading = false, error = '', refresh, attach, remove, selectedIds = [], canAttach = false, deleting = '', sessionKey = '' } = $props()
+  interface Props {
+    files?: ChatFile[]
+    agents?: Agent[]
+    loading?: boolean
+    error?: string
+    refresh: () => unknown
+    attach: (file: ChatFile) => unknown
+    remove: (file: ChatFile) => Promise<boolean>
+    selectedIds?: string[]
+    canAttach?: boolean
+    deleting?: string
+    sessionKey?: string
+  }
+
+  /** A row of the list: the file group and the version it shows. */
+  interface FileRowData {
+    group: FileGroup
+    file: ChatFile
+  }
+
+  /** The view that covers the list, with the files it depends on (it closes when one disappears). */
+  type Overlay =
+    | { mode: 'image'; images: ChatFile[]; index: number; fileIds: string[] }
+    | { mode: 'document'; file: ChatFile; title: string; fileIds: string[] }
+    | { mode: 'extract'; file: ChatFile; fileIds: string[] }
+    | { mode: 'details'; groupId: string; fileIds: string[] }
+
+  let { files = [], agents = [], loading = false, error = '', refresh, attach, remove, selectedIds = [], canAttach = false, deleting = '', sessionKey = '' }: Props = $props()
 
   let query = $state('')
   let category = $state('')
-  let versions = $state({})
-  let overlay = $state(null)
-  let menu = $state(null)
+  let versions = $state<Dict<string>>({})
+  let overlay = $state<Overlay | null>(null)
+  let menu = $state<FileMenuTarget | null>(null)
   let confirmDelete = $state('')
 
-  const agentNames = $derived(new Map(agents.map(agent => [agent.id, agent.name])))
+  const agentNames = $derived(new Map(agents.map((agent): [string, string] => [agent.id, agent.name])))
   const groups = $derived(groupVersions(files))
   const categories = $derived(presentCategories(files))
-  const rows = $derived(filterGroups(groups, { query, category }).map(group => ({ group, file: shownVersion(group, versions[group.id]) })))
+  const rows = $derived(filterGroups(groups, { query, category }).flatMap((group): FileRowData[] => {
+    const file = shownVersion(group, versions[group.id] ?? '')
+    return file ? [{ group, file }] : []
+  }))
   const images = $derived(rows.map(row => row.file).filter(isViewableImage))
-  const detailsGroup = $derived(overlay?.mode === 'details' ? groups.find(group => group.id === overlay.groupId) : null)
+  const detailsId = $derived(overlay?.mode === 'details' ? overlay.groupId : '')
+  const detailsGroup = $derived(detailsId ? groups.find(group => group.id === detailsId) : undefined)
+  const detailsFile = $derived(detailsGroup ? shownVersion(detailsGroup, versions[detailsGroup.id] ?? '') : undefined)
 
-  function botName(id) {
-    return agentNames.get(id) || `Unavailable bot (${id || 'unknown'})`
+  function botName(id: string | undefined): string {
+    return agentNames.get(id ?? '') || `Unavailable bot (${id || 'unknown'})`
   }
 
-  function clearFilters() {
+  function clearFilters(): void {
     query = ''
     category = ''
   }
@@ -61,30 +97,35 @@
     if (overlay && !overlay.fileIds.every(id => present.has(id))) overlay = null
   })
 
-  function showImage(file) {
+  function showImage(file: ChatFile): void {
     overlay = { mode: 'image', images, index: images.indexOf(file), fileIds: images.map(image => image.id) }
   }
 
-  function showDocument(file, title = file.name, sourceIds = []) {
+  function showDocument(file: ChatFile, title = file.name, sourceIds: string[] = []): void {
     overlay = { mode: 'document', file, title, fileIds: [file.id, ...sourceIds] }
   }
 
-  function showDetails(group) {
+  function showDetails(group: FileGroup): void {
     overlay = { mode: 'details', groupId: group.id, fileIds: [] }
   }
 
-  function openRow({ group, file }) {
+  function openRow({ group, file }: FileRowData): void {
     if (isViewableImage(file)) showImage(file)
     else if (isDocumentPreview(file)) showDocument(file)
     else showDetails(group)
   }
 
-  function openMenu(event, row) {
+  function openMenu(event: MouseEvent & { currentTarget: HTMLElement }, row: FileRowData): void {
     const rect = event.currentTarget.getBoundingClientRect()
     menu = { ...row, renderedPdf: renderedPdfOf(row.file, files), x: rect.right - MENU_WIDTH, y: rect.bottom + MENU_GAP }
   }
 
-  async function deleteFile(file) {
+  function previewRendered(target: FileMenuTarget): void {
+    if (!target.renderedPdf) return
+    showDocument(target.renderedPdf, `${target.file.name} (rendered PDF)`, [target.file.id])
+  }
+
+  async function deleteFile(file: ChatFile): Promise<void> {
     if (await remove(file)) confirmDelete = ''
   }
 </script>
@@ -132,7 +173,7 @@
   onClose={() => { menu = null }}
   onAttach={target => attach(target.file)}
   onExtract={target => { overlay = { mode: 'extract', file: target.file, fileIds: [target.file.id] } }}
-  onPreviewRendered={target => showDocument(target.renderedPdf, `${target.file.name} (rendered PDF)`, [target.file.id])}
+  onPreviewRendered={previewRendered}
   onDetails={target => showDetails(target.group)}
   onDelete={target => { confirmDelete = target.file.id }}
 />
@@ -143,9 +184,9 @@
   <DocumentPreview file={overlay.file} title={overlay.title} onClose={() => { overlay = null }} />
 {:else if overlay?.mode === 'extract'}
   <ExtractionView file={overlay.file} {sessionKey} onClose={() => { overlay = null }} />
-{:else if detailsGroup}
+{:else if detailsGroup && detailsFile}
   <FileDetails
-    group={detailsGroup} file={shownVersion(detailsGroup, versions[detailsGroup.id])} {botName}
+    group={detailsGroup} file={detailsFile} {botName}
     onPickVersion={id => { versions = { ...versions, [detailsGroup.id]: id } }} onClose={() => { overlay = null }}
   />
 {/if}

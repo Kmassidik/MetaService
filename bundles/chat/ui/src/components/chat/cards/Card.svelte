@@ -1,6 +1,16 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte'
+
   // One shared card style for every in-chat request.
-  let { label = '', title = '', reason = '', children, actions } = $props()
+  interface Props {
+    label?: string | undefined
+    title?: string | undefined
+    reason?: string | undefined
+    children?: Snippet
+    actions?: Snippet
+  }
+
+  let { label = '', title = '', reason = '', children, actions }: Props = $props()
 </script>
 
 <div class="card" role="group" aria-label={label || title || 'Action needed'}>

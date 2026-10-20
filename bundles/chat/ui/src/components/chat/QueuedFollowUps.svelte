@@ -1,11 +1,16 @@
-<script>
-  import { FOLLOW_UP_STATE } from '../../lib/sendMode.js'
+<script lang="ts">
+  import { FOLLOW_UP_STATE, type WaitingFollowUp } from '../../lib/sendMode.ts'
 
   // What the owner typed while the bot worked: their bubble at once, with a small hint until the
   // bot's next turn takes it (then the chat shows it as a normal message).
-  let { items = [], botName = '' } = $props()
+  interface Props {
+    items?: WaitingFollowUp[]
+    botName?: string
+  }
 
-  function hint(item) {
+  let { items = [], botName = '' }: Props = $props()
+
+  function hint(item: WaitingFollowUp): string {
     if (item.state === FOLLOW_UP_STATE.sending) return 'Sending…'
     if (item.state === FOLLOW_UP_STATE.dropped) return 'Not sent — the task was stopped'
     return `Queued — ${botName} reads it when this task finishes`

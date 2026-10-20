@@ -1,11 +1,20 @@
-<script>
+<script lang="ts">
+  import type { Dict } from '../../lib/check.ts'
+
   // Screenshot fallback only: the live stream takes keys directly, a snapshot needs them sent one by one.
   const TEXT_MAX = 2000
   const REMOTE_KEYS = ['Enter', 'Backspace', 'Tab', 'Shift+Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 
-  let { text = $bindable(''), busy = false, locked = false, onAction } = $props()
+  interface Props {
+    text?: string
+    busy?: boolean
+    locked?: boolean
+    onAction: (action: string, fields: Dict<unknown>) => unknown
+  }
 
-  function typeText(event) {
+  let { text = $bindable(''), busy = false, locked = false, onAction }: Props = $props()
+
+  function typeText(event: Event): void {
     event.preventDefault()
     onAction('type', { text })
   }

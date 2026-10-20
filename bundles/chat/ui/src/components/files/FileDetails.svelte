@@ -1,10 +1,20 @@
-<script>
+<script lang="ts">
   /** A file's versions (pick which one the list shows) and its technical details. */
+  import type { FileGroup } from '../../lib/files/fileList.ts'
+  import type { ChatFile } from '../../lib/types.ts'
   import ViewerShell from './ViewerShell.svelte'
-  import { downloadUrl } from '../../lib/files/preview.js'
-  import { fileSize } from '../../lib/format.js'
+  import { downloadUrl } from '../../lib/files/preview.ts'
+  import { fileSize } from '../../lib/format.ts'
 
-  let { group, file, botName, onPickVersion, onClose } = $props()
+  interface Props {
+    group: FileGroup
+    file: ChatFile & { sha256?: string }
+    botName: (agentId: string | undefined) => string
+    onPickVersion: (id: string) => void
+    onClose: () => void
+  }
+
+  let { group, file, botName, onPickVersion, onClose }: Props = $props()
 
   const details = $derived([
     ['Type', file.mediaType || 'Type not detected'],
@@ -18,7 +28,7 @@
     ['Source version file', file.sourceFileId],
   ].filter(([, value]) => value))
 
-  function versionLabel(item) {
+  function versionLabel(item: ChatFile): string {
     return `Version ${item.version ?? 'original'} · ${new Date(item.createdAt).toLocaleString()}`
   }
 </script>

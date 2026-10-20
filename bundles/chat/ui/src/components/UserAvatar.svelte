@@ -1,8 +1,13 @@
-<script>
-  import { initials } from '../lib/format.js'
+<script lang="ts">
+  import { initials } from '../lib/format.ts'
 
   /** The signed-in person: their Google photo, or their initials if there is none or it fails to load. */
-  let { user, class: className = '' } = $props()
+  interface Props {
+    user: { name?: string; picture?: string }
+    class?: string
+  }
+
+  let { user, class: className = '' }: Props = $props()
 
   let failed = $state(false)
   const photo = $derived(failed ? '' : user?.picture || '')

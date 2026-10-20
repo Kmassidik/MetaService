@@ -1,10 +1,16 @@
-<script>
+<script lang="ts">
   /** A message's attachments: pictures inline (tap to view), other files as compact chips. */
+  import type { ChatFile } from '../../lib/types.ts'
   import ImageGrid from '../files/ImageGrid.svelte'
   import FileChip from '../files/FileChip.svelte'
-  import { splitAttachments } from '../../lib/files/imageGrid.js'
+  import { splitAttachments } from '../../lib/files/imageGrid.ts'
 
-  let { items = [], onViewResults } = $props()
+  interface Props {
+    items?: ChatFile[]
+    onViewResults?: (() => unknown) | undefined
+  }
+
+  let { items = [], onViewResults }: Props = $props()
 
   const parts = $derived(splitAttachments(items))
 </script>

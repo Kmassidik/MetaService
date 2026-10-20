@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import ruviUrl from '../assets/brand/ruvi.webp'
 
   /** First paint while the session and workspace load: Ruvi, a short line and a slim bar. */

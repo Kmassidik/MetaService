@@ -1,5 +1,16 @@
-<script>
-  import { bytes } from '../../lib/format.js'
+<script lang="ts">
+  import { bytes } from '../../lib/format.ts'
+
+  interface Props {
+    id: string
+    label: string
+    value?: string
+    max: number
+    rows?: number
+    placeholder?: string
+    disabled?: boolean
+    flash?: boolean | undefined
+  }
 
   let {
     id,
@@ -10,7 +21,7 @@
     placeholder = '',
     disabled = false,
     flash = false,
-  } = $props()
+  }: Props = $props()
 </script>
 
 <div class="profile-field">

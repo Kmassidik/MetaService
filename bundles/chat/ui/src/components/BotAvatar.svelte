@@ -1,11 +1,21 @@
-<script>
-  import { avatarSnake } from '../lib/avatars.js'
-  import { DEFAULT_AVATAR_COLOR } from '../lib/constants.js'
+<script lang="ts">
+  import type { HTMLAttributes } from 'svelte/elements'
+  import type { Agent } from '../lib/types.ts'
+  import { avatarSnake } from '../lib/avatars.ts'
+  import { DEFAULT_AVATAR_COLOR } from '../lib/constants.ts'
 
   /**
    * Ruvio bot avatar: one of Ruvi's plush snakes, picked by the bot's avatar colour.
    * `round` puts the snake on a disc in the page colour so stacked group faces overlap cleanly, iMessage style.
    */
+  interface Props extends HTMLAttributes<HTMLSpanElement> {
+    agent?: Pick<Agent, 'avatarColor'> | null | undefined
+    color?: string
+    size?: number
+    round?: boolean
+    class?: string
+  }
+
   let {
     agent = null,
     color = DEFAULT_AVATAR_COLOR,
@@ -13,7 +23,7 @@
     round = false,
     class: className = '',
     ...rest
-  } = $props()
+  }: Props = $props()
 
   const snake = $derived(avatarSnake(agent?.avatarColor || color))
 </script>

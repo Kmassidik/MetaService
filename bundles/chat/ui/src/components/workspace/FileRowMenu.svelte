@@ -1,18 +1,33 @@
-<script>
+<script lang="ts">
   /** A file's ⋯ menu in the Files tab: Download, Attach to chat, Extract text, rendered PDF, Details, Delete. */
+  import type { FileMenuTarget } from './fileMenu.ts'
   import Icon from '../Icon.svelte'
   import FloatingMenu from '../chrome/FloatingMenu.svelte'
-  import { canExtractText, downloadUrl, isReady } from '../../lib/files/preview.js'
-  import { ICON_SIZE } from '../../lib/constants.js'
+  import { canExtractText, downloadUrl, isReady } from '../../lib/files/preview.ts'
+  import { ICON_SIZE } from '../../lib/constants.ts'
 
-  let { menu = null, attached = false, attachDisabled = false, deleteDisabled = false, onClose, onAttach, onExtract, onPreviewRendered, onDetails, onDelete } = $props()
+  interface Props {
+    menu?: FileMenuTarget | null
+    attached?: boolean
+    attachDisabled?: boolean
+    deleteDisabled?: boolean
+    onClose: () => void
+    onAttach: (target: FileMenuTarget) => unknown
+    onExtract: (target: FileMenuTarget) => unknown
+    onPreviewRendered: (target: FileMenuTarget) => unknown
+    onDetails: (target: FileMenuTarget) => unknown
+    onDelete: (target: FileMenuTarget) => unknown
+  }
+
+  let { menu = null, attached = false, attachDisabled = false, deleteDisabled = false, onClose, onAttach, onExtract, onPreviewRendered, onDetails, onDelete }: Props = $props()
 
   const file = $derived(menu?.file)
   const rendered = $derived(menu?.renderedPdf)
 
   // Close first so the action's own view (viewer, confirm) is what has focus next.
-  function run(action) {
+  function run(action: (target: FileMenuTarget) => unknown): void {
     const target = menu
+    if (!target) return
     onClose()
     action(target)
   }

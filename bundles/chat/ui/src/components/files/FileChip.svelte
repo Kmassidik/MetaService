@@ -1,13 +1,19 @@
-<script>
+<script lang="ts">
   /** A non-picture attachment in a message: type icon, name (opens Files), size and Download. */
+  import type { ChatFile } from '../../lib/types.ts'
   import Icon from '../Icon.svelte'
-  import { downloadUrl, fileIcon, isDeleted, isReady } from '../../lib/files/preview.js'
-  import { fileSize } from '../../lib/format.js'
+  import { downloadUrl, fileIcon, isDeleted, isReady } from '../../lib/files/preview.ts'
+  import { fileSize } from '../../lib/format.ts'
 
   const TYPE_ICON_SIZE = 18
   const ACTION_ICON_SIZE = 17
 
-  let { file, onViewResults } = $props()
+  interface Props {
+    file: ChatFile
+    onViewResults?: (() => unknown) | undefined
+  }
+
+  let { file, onViewResults }: Props = $props()
 
   const meta = $derived(isDeleted(file) ? 'This file has been deleted.' : [fileSize(file.size), file.version ? `Version ${file.version}` : ''].filter(Boolean).join(' · '))
 </script>
