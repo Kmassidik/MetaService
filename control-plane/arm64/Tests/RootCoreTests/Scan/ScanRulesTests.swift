@@ -129,6 +129,11 @@ final class ScanRulesTests: XCTestCase {
         XCTAssertTrue(ScanMerge.merge(router: [], nmap: [], arp: arp, subnet: subnet).isEmpty)
     }
 
+    func testTheGatewayIsReadFromTheRouteOutput() {
+        XCTAssertEqual(DefaultGateway.parse("   route to: default\n    gateway: 192.168.0.1\n  interface: en0\n"), "192.168.0.1")
+        for junk in ["", "gateway: link#12", "gateway: 999.1.1.1", "interface: en0"] { XCTAssertNil(DefaultGateway.parse(junk), junk) }
+    }
+
     func testMergeIgnoresAddressesOutsideTheSubnet() {
         let found = ScanMerge.merge(router: [RouterEntry(ip: "10.0.0.5", mac: nil, hostname: nil)], nmap: [NmapHost(ip: "8.8.8.8", mac: nil, vendor: nil, hostname: nil)], arp: [:], subnet: subnet)
         XCTAssertTrue(found.isEmpty)

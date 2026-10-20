@@ -20,7 +20,7 @@ struct ScanRoutes {
 
     func setup(_ request: Request, context: RootContext) async throws -> Response {
         _ = try guards.operatorRead(request)
-        return try Json.response(services.scanService.setup())
+        return try Json.response(await services.scanService.setup())
     }
 
     func start(_ request: Request, context: RootContext) async throws -> Response {

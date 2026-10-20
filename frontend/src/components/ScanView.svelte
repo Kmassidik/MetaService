@@ -29,6 +29,8 @@
       .filter((note) => note.problem),
   )
 
+  const isGateway = (ip: string) => !!setup?.gateway && setup.gateway === ip
+
   async function load() {
     try {
       setup = await scanSetup()
@@ -120,14 +122,15 @@
       {#each scan.results as row (row.id)}
         <div class="row" role="row">
           <span class="pick">
-            <input type="checkbox" checked={!!picked[row.id]} disabled={!!row.machine} onchange={() => toggle(row)} aria-label="Pick {row.ip}" />
+            <input type="checkbox" checked={!!picked[row.id]} disabled={!!row.machine || isGateway(row.ip)} onchange={() => toggle(row)} aria-label="Pick {row.ip}" />
           </span>
           <span class="mono" data-label="Address">{row.ip}</span>
           <span data-label="Name">{row.hostname ?? '–'}{#if row.vendor}<span class="muted vendor">· {row.vendor}</span>{/if}</span>
           <span class="mono" data-label="MAC address">{row.mac ?? '–'}</span>
           <span class="tags" data-label="Seen by">{#each row.seen_by as source (source)}<span class="tag">{sourceName(source)}</span>{/each}</span>
           <span data-label="Status">
-            {#if row.machine}Enrolled as <strong>{row.machine}</strong>
+            {#if isGateway(row.ip)}<span class="muted">Router (gateway), not a computer to add</span>
+            {:else if row.machine}Enrolled as <strong>{row.machine}</strong>
             {:else if row.agent_port_open}<span class="ok">Agent answering</span>
             {:else}<span class="muted">Unknown device</span> <button class="btn line sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Connect {row.ip}">Connect</button>{/if}
           </span>

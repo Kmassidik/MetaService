@@ -212,6 +212,8 @@ export interface ScanSetup {
   subnet?: string | null
   router_configured: boolean
   nmap_available: boolean
+  /** The router's address when it is on the scanned network; it is not a machine to add. */
+  gateway?: string | null
 }
 
 /** A one-time token for a machine added from a scan. */
