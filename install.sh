@@ -39,6 +39,7 @@ show_help() {
   echo "  ./install.sh --check      only the two checks; nothing is built or started"
   echo "  ./install.sh install --skip-container   install without Apple's container tool (no VMs on this Mac)"
   echo "  ./install.sh run          start in this terminal (stops when you close it)"
+  echo "  ./install.sh remote check|plan|up|status|down   reach the panel from outside through its own Cloudflare tunnel (see the README)"
   echo "  ./install.sh --agent-bind 192.168.100.40   any other --option goes to the parent, with install"
 }
 
@@ -107,6 +108,7 @@ case "$1" in
   status|logs|stop) sh "$service" "$1" ;;
   uninstall) shift; sh scripts/uninstall.sh "$@"; exit $? ;;
   run) shift; run_checks || exit 1; exec scripts/start-parent.sh "$@" ;;
+  remote) shift; run_checks || exit 1; exec python3 scripts/remote_access --env "$env_file" "$@" ;;
   --*) install_now "$@"; exit $? ;;
   "")
     if [ -t 0 ]; then choose; else menu; echo "Run ./install.sh install to install, or ./install.sh help for the commands."; fi ;;

@@ -6,12 +6,16 @@ does not cost a build. It never prints a value, only the name of the setting. A 
 Usage: check_env.py [path-to-.env]    Exit 0 when the file is fine, 1 when something must be fixed.
 """
 import os
+import re
 import stat
 import sys
+from urllib.parse import urlparse
 
 MIN_TOKEN_LENGTH = 16
 PORTS = ("ROOT_PORT", "ROOT_AGENT_PORT", "AGENT_PORT")
 AI_SETTINGS = ("AI_BASE_URL", "AI_API_KEY", "AI_DEFAULT_MODEL")
+CLOUDFLARE_SETTINGS = ("CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID")
+CLOUDFLARE_ID = re.compile(r"^[0-9a-f]{32}$")
 
 
 def read_env(text):
@@ -47,6 +51,30 @@ def problems_in(values, mode):
     if given and len(given) != len(AI_SETTINGS):
         missing = [name for name in AI_SETTINGS if name not in values]
         found.append(f"The AI settings are half filled: {', '.join(missing)} is missing. Set all three, or none of them.")
+    return found + remote_access_problems(values)
+
+
+def public_name(url):
+    """The host of an https address with no port, path or login, or None when it is anything else."""
+    parts = urlparse(url)
+    plain = parts.scheme == "https" and parts.hostname and not parts.port and parts.path in ("", "/") and not parts.query and not parts.username
+    return parts.hostname if plain else None
+
+
+def remote_access_problems(values):
+    """The settings for reaching the panel from outside: all three Cloudflare settings or none, real ids, an https name, and no borrowed tunnel."""
+    found = []
+    if "CLOUDFLARE_TUNNEL_ID" in values:
+        found.append("CLOUDFLARE_TUNNEL_ID is not used here: MetaService makes a tunnel of its own, and another project's tunnel id must never be copied in. Remove that line.")
+    given = [name for name in CLOUDFLARE_SETTINGS if name in values]
+    if not given:
+        return found
+    missing = [name for name in CLOUDFLARE_SETTINGS if name not in values]
+    if missing:
+        return found + [f"The Cloudflare settings are half filled: {', '.join(missing)} is missing. Set all three, or none of them."]
+    found += [f"{name} must be the 32-character id from the Cloudflare dashboard." for name in ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID") if not CLOUDFLARE_ID.match(values[name])]
+    if not public_name(values.get("PUBLIC_BASE_URL", "")):
+        found.append("PUBLIC_BASE_URL must be https://<name> with no port and no path (for example https://meta.example.com) when the Cloudflare settings are given.")
     return found
 
 

@@ -45,6 +45,7 @@ echo "This removes what MetaService made on this computer:"
 [ -n "$found_data" ] && row "your data" "$found_data (the machines, the admin login and the keys)" "$found_data"
 [ -n "$caches" ] && row "Python caches" "" "$caches"
 [ "$keep_data" = yes ] && echo "  (your data stays: --keep-data)"
+[ -f "$root/control-plane/arm64/state/remote-access.json" ] && echo "It also removes remote access: the Cloudflare tunnel, DNS record and connector job that \`remote up\` made."
 echo "It also stops MetaService."
 echo "It keeps: the source code and git, Apple's container tool, and $([ "$remove_env" = yes ] && echo "nothing else of yours" || echo "your .env settings")."
 echo
@@ -61,6 +62,17 @@ if [ "$yes" = no ]; then
   fi
 fi
 
+# Remote access first: its record lives in the state folder, which is about to go. Without this a connector would keep running and a DNS record would stay.
+remote_state="$root/control-plane/arm64/state/remote-access.json"
+if [ -f "$remote_state" ]; then
+  echo "Removing remote access (the tunnel, its DNS record and its connector)..."
+  python3 "$here/scripts/remote_access" down --env "$root/control-plane/arm64/.env" --state-dir "$root/control-plane/arm64/state" || {
+    echo "Remote access could not be fully removed. Stopping its connector here; remove the tunnel and the DNS record by hand in the Cloudflare dashboard:"
+    python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print("  tunnel:", r.get("tunnel_name"), " host:", r.get("host"))' "$remote_state"
+    for domain in "gui/$(id -u)" "user/$(id -u)"; do "${METASERVICE_LAUNCHCTL:-launchctl}" bootout "$domain/io.metaservice.cloudflared" 2>/dev/null; done
+    rm -f "${METASERVICE_AGENTS_DIR:-$HOME/Library/LaunchAgents}/io.metaservice.cloudflared.plist"
+  }
+fi
 echo "Stopping MetaService..."
 sh "$service" stop >/dev/null
 for path in $remove_list; do rm -rf "${root:?}/$path"; done

@@ -95,6 +95,42 @@ class RemovalTest(UninstallBase):
         self.assertTrue(exists(self.root, "control-plane/arm64/state/file.bin"))
 
 
+class RemoteAccessTest(UninstallBase):
+    """What was made for reaching the panel from outside must be taken away first: its record lives in the state folder that goes."""
+
+    def setUp(self):
+        super().setUp()
+        self.agents = tempfile.mkdtemp(prefix="ms-agents-")
+        self.addCleanup(shutil.rmtree, self.agents, True)
+        self.env = {**self.env, "METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": self.agents}
+        self.plist = os.path.join(self.agents, "io.metaservice.cloudflared.plist")
+        with open(self.plist, "w") as file:
+            file.write("<plist/>")
+        record = os.path.join(self.root, "control-plane/arm64/state/remote-access.json")
+        with open(record, "w") as file:
+            file.write('{"host": "meta.example.com", "tunnel_name": "metaservice", "tunnel_id": "x", "dns_record_id": "y"}')
+
+    def test_it_says_it_will_remove_remote_access_and_tries_to_before_the_state_goes(self):
+        done = self.uninstall("--yes")
+        self.assertIn("It also removes remote access", done.stdout)
+        self.assertIn("Removing remote access", done.stdout)
+
+    def test_when_the_tunnel_cannot_be_removed_it_still_stops_the_connector_and_names_what_to_clean_by_hand(self):
+        done = self.uninstall("--yes")
+        self.assertIn("could not be fully removed", done.stdout)
+        self.assertIn("tunnel: metaservice", done.stdout)
+        self.assertIn("host: meta.example.com", done.stdout)
+        self.assertFalse(os.path.exists(self.plist), "the connector job file must go")
+        self.assertFalse(exists(self.root, "control-plane/arm64/state"))
+        self.assertEqual(done.returncode, 0)
+
+    def test_nothing_about_remote_access_is_said_when_none_was_made(self):
+        os.remove(os.path.join(self.root, "control-plane/arm64/state/remote-access.json"))
+        done = self.uninstall("--yes")
+        self.assertNotIn("remote access", done.stdout.lower())
+        self.assertTrue(os.path.exists(self.plist), "a job file this tool did not record is not touched")
+
+
 class SafetyTest(UninstallBase):
     def test_without_a_keyboard_and_without_yes_nothing_is_removed(self):
         done = self.uninstall()

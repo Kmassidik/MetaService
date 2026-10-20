@@ -37,6 +37,18 @@ Stop it from the menu (choice 6) or with `./install.sh stop`. You sign in to the
 Choose **7 Uninstall** in the menu, or run `./install.sh uninstall`. It stops MetaService and shows what it will remove, with sizes: the builds, the packages, the run files and your data (machines, admin login, keys). It asks you to type `yes` first.
 It keeps the source code, git, Apple's `container` tool and, unless you say so, your `.env`. `./install.sh uninstall --keep-data` keeps your data too, and `--env` also removes `.env`.
 
+## Reach the panel from outside
+
+The panel normally answers only on the Mac it runs on. To open it from anywhere, MetaService can make its own Cloudflare Tunnel, with a name such as `meta.example.com`. The tunnel and its connector belong to MetaService alone: another project's tunnel is never read or changed. The panel's own admin login is the gate, so use a long password (12 characters or more is required once it is public).
+
+1. In `control-plane/arm64/.env` set `PUBLIC_BASE_URL` (an https name with no port or path), and `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`. The token needs Zone DNS: Edit and Account Cloudflare Tunnel: Edit. Do not set `CLOUDFLARE_TUNNEL_ID`.
+2. Start MetaService, then run `./install.sh remote plan`. It changes nothing and says what is ready and what is missing.
+3. Try a throwaway name first: `./install.sh remote up --host meta-test.example.com --tunnel-name metaservice-test`, check it, then `./install.sh remote down`.
+4. Run `./install.sh remote up`. It makes the tunnel, one route to the panel, one proxied DNS record, an owner-only token file and a launchd job for the connector, and says when the name answers.
+5. `./install.sh remote status` shows whether it is connected. `./install.sh remote down` removes exactly what `up` made. Uninstall does this first.
+
+Once `PUBLIC_BASE_URL` is set the panel answers only under that name. The API token is read from `.env` only and is never printed.
+
 ## What works today
 
 - The parent with its panel: Overview, Machines, per-machine Deployments, Token ledger, Health and Settings.

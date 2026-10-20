@@ -10,7 +10,8 @@ INSTALL = os.path.join(ROOT, "install.sh")
 
 def isolated(folder, env_path):
     """The settings every run here gets, so no test reads or changes the real parent or the real parent's files. METASERVICE_ROOT points the uninstaller at an empty folder, which it refuses."""
-    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder)}
+    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder),
+            "METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": os.path.join(folder, "agents")}
 
 
 def with_env_file(env_text, mode=0o600):
@@ -126,6 +127,21 @@ class NamedCommandTest(unittest.TestCase):
         done = install("", "uninstall", "--yes")
         self.assertEqual(done.returncode, 1)
         self.assertIn("is not a MetaService folder", done.stdout)
+
+    def test_remote_is_in_the_help_and_runs_the_tool_on_the_chosen_env(self):
+        self.assertIn("./install.sh remote", install("", "help").stdout)
+        done = install("", "remote", "plan")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("CLOUDFLARE_API_TOKEN", done.stderr)
+
+    def test_remote_with_an_unknown_command_is_refused_by_the_tool(self):
+        done = install("", "remote", "banana")
+        self.assertEqual(done.returncode, 2)
+        self.assertIn("invalid choice", done.stderr)
+
+    def test_remote_never_prints_what_is_in_the_env(self):
+        done = install("CLOUDFLARE_API_TOKEN=SECRETVALUE\n", "remote", "check")
+        self.assertNotIn("SECRETVALUE", done.stdout + done.stderr)
 
     def test_an_unknown_word_is_refused_with_the_help(self):
         done = install("", "banana")
