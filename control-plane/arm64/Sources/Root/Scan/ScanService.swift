@@ -22,6 +22,10 @@ final class ScanService: @unchecked Sendable {
     private static let sweepSeconds: TimeInterval = 120
     private static let probeSeconds: TimeInterval = 60
     private static let probeBatch = 100
+    private static let nameSeconds: TimeInterval = 6
+    private static let nameBatch = 20
+    private static let mdnsGroup = "224.0.0.251"
+    private static let mdnsPort = "5353"
     private static let nmapSearch = ["/opt/homebrew/bin/nmap", "/usr/local/bin/nmap", "/usr/bin/nmap", "/run/current-system/sw/bin/nmap"]
 
     init(config: RootConfig, clock: Clock, store: ScanStore, audit: AuditStore) {
@@ -73,7 +77,7 @@ final class ScanService: @unchecked Sendable {
         let hosts = swept.map { host in NmapHost(ip: host.ip, mac: host.mac, vendor: host.vendor, hostname: host.hostname, agentPortOpen: withAgent.contains(host.ip)) }
             + live.subtracting(swept.map(\.ip)).filter(withAgent.contains).map { NmapHost(ip: $0, mac: nil, vendor: nil, hostname: nil, agentPortOpen: true) }
         let arp = await readArp(&sources)
-        let found = ScanMerge.merge(router: fromRouter, nmap: hosts, arp: arp, subnet: subnet)
+        let found = await addNames(to: ScanMerge.merge(router: fromRouter, nmap: hosts, arp: arp, subnet: subnet))
         await record(runId: runId, actor: actor, found: found, sources: sources)
     }
 
@@ -126,6 +130,31 @@ final class ScanService: @unchecked Sendable {
         }
         sources["agent_probe"] = sources["agent_probe"] ?? "ok"
         return open
+    }
+
+    /// The names computers give themselves on the network, for the devices no other source named. One that does not answer (a router, a Windows PC) stays unnamed.
+    private func addNames(to found: [ScanFinding]) async -> [ScanFinding] {
+        guard FileManager.default.isExecutableFile(atPath: config.digPath) else { return found }
+        var names: [String: String] = [:]
+        for batch in found.filter({ $0.hostname == nil }).map(\.ip).chunked(Self.nameBatch) {
+            let answers = await withTaskGroup(of: (String, String?).self, returning: [(String, String?)].self) { group in
+                for ip in batch { group.addTask { (ip, await self.mdnsName(of: ip)) } }
+                return await group.reduce(into: []) { $0.append($1) }
+            }
+            for case (let ip, let name?) in answers { names[ip] = name }
+        }
+        return found.map { item in
+            var named = item
+            named.hostname = item.hostname ?? names[item.ip]
+            return named
+        }
+    }
+
+    /// Asks the local network who has this address. The address is IPv4 text from the scan, so it can never look like an option.
+    private func mdnsName(of ip: String) async -> String? {
+        let arguments = ["-x", ip, "@" + Self.mdnsGroup, "-p", Self.mdnsPort, "+short", "+time=2", "+tries=1"]
+        guard let data = try? await CommandRunner.run(config.digPath, arguments, timeout: Self.nameSeconds) else { return nil }
+        return MdnsName.parse(String(decoding: data, as: UTF8.self))
     }
 
     private func readArp(_ sources: inout [String: String]) async -> [String: String] {

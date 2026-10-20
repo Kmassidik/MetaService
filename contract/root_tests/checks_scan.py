@@ -28,7 +28,7 @@ def scan_root(router_password=PASSWORD, with_router=True, nmap="fake", nmap_env=
     server = None
     if with_router:
         server = make_router(ip, prefix) if router_kind == "rest" else fake_router_api.make_router(ip, prefix, old_login=router_kind == "api-old")
-    lines = [f"SCAN_SUBNET={prefix}.0/24", f"ARP_PATH={FAKES / 'fake_arp.py'}"]
+    lines = [f"SCAN_SUBNET={prefix}.0/24", f"ARP_PATH={FAKES / 'fake_arp.py'}", f"DIG_PATH={FAKES / 'fake_dig.py'}"]
     lines.append(f"NMAP_PATH={FAKES / 'fake_nmap.py'}" if nmap == "fake" else "NMAP_PATH=/nonexistent/nmap")
     if with_router:
         scheme = "http" if router_kind == "rest" else "api"
@@ -82,6 +82,7 @@ def check_a_scan_merges_router_nmap_and_arp():
         expect(set(found["1"]["seen_by"]) == {"router", "nmap", "arp"}, f".1 seen by {found['1']['seen_by']}")
         expect(found["50"]["seen_by"] == ["router"] and found["50"]["hostname"] == "printer", f".50: {found['50']}")
         expect(found["40"]["mac"] == "00:1A:2B:3C:4D:40", f"arp mac was not normalized: {found['40']['mac']}")
+        expect(found["40"]["hostname"] == "mini-40" and found["60"]["hostname"] is None, f"the name a computer gives itself on the network: {found['40']['hostname']!r} {found['60']['hostname']!r}")
         expect(found["60"]["agent_port_open"] is True and found["40"]["agent_port_open"] is False, "agent port flags are wrong")
         expect(found["90"]["mac"] is None, "an incomplete ARP entry produced a MAC")
         expect(all(not row["ip"].startswith("10.99") for row in scan["results"]), "an address outside the subnet got in")

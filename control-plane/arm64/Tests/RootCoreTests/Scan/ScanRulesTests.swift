@@ -154,4 +154,12 @@ final class ScanRulesTests: XCTestCase {
         let blank = ScanMerge.merge(router: [RouterEntry(ip: "192.168.100.6", mac: nil, hostname: "   ")], nmap: [], arp: [:], subnet: subnet)
         XCTAssertNil(blank[0].hostname)
     }
+
+    func testTheNameAComputerGivesItselfIsReadFromTheMdnsAnswer() {
+        XCTAssertEqual(MdnsName.parse("dalangs-Mac-Studio.local.\n"), "dalangs-Mac-Studio")
+        XCTAssertEqual(MdnsName.parse("; <<>> DiG 9.10.6 <<>> -x 192.168.0.1\nspark-20ec.local.\n"), "spark-20ec")
+        for junk in ["", "\n", "router.example.com.", "evil <b>.local.", "a b.local.", "-lead.local.", "Kurnias\\032Mac.local.", String(repeating: "x", count: 70) + ".local."] {
+            XCTAssertNil(MdnsName.parse(junk), junk)
+        }
+    }
 }

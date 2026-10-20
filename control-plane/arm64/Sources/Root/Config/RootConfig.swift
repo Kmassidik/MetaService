@@ -22,6 +22,7 @@ struct RootConfig {
     var nmapPath: String?
     var arpPath = "/usr/sbin/arp"
     var routePath = "/sbin/route"
+    var digPath = "/usr/bin/dig"
     var agentPort = 9101
     var routerURL: String?
     var routerUser: String?
@@ -192,6 +193,7 @@ enum ConfigLoader {
         config.nmapPath = env["NMAP_PATH"]
         config.arpPath = env["ARP_PATH"] ?? config.arpPath
         config.routePath = env["ROUTE_PATH"] ?? config.routePath
+        config.digPath = env["DIG_PATH"] ?? config.digPath
         if let text = env["AGENT_PORT"] {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad AGENT_PORT") }
             config.agentPort = port
