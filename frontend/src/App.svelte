@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, workloadAction } from './lib/api.ts'
-  import { machineFromRoute, pageFor } from './lib/routes.ts'
+  import { machineFromRoute, machinesView, pageFor } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
@@ -224,7 +224,7 @@
 {:else}
   <div class="announce">MetaService · control panel</div>
   <div class="shell">
-    <Sidebar active={page} {route} {username} onSignOut={leave} onAdd={() => (adding = true)} onConnect={() => startConnect()} />
+    <Sidebar active={page} {route} {username} onSignOut={leave} onAdd={() => (adding = true)} />
     <main class="main">
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>
@@ -232,7 +232,7 @@
       {#if page === 'machines' && detailId}
         <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} {now} pinned={bundles?.pinned} {banner} showScan={route === '/machines/find'} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onConnect={startConnect} />
+        <Machines {machines} {remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onConnect={startConnect} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}

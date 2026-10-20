@@ -306,7 +306,7 @@ async function brainScenario() {
 async function scanScenario() {
   await go('#/machines/find')
   await page.waitForFunction(() => document.body.innerText.includes('Looks at'))
-  await click('Scan now')
+  // Opening the page scans by itself: nothing is kept from an earlier scan, and there is no button to press first.
   await page.waitForFunction(() => document.body.innerText.includes('Unknown device'), { timeout: 20000 })
   const shown = await text()
   check('a scan lists the devices with where they were seen', ['.1', '.40', '.60', '.90'].every((end) => shown.includes(`${localPrefix()}${end}`)) && shown.includes('nmap'))

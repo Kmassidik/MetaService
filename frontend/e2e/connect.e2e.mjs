@@ -104,7 +104,7 @@ try {
   await page.type('input[name=password]', ADMIN.password)
   await click('Sign in')
   await page.waitForFunction(() => document.body.innerText.includes('No machines yet'), { timeout: 10000 })
-  await page.goto(`${root.base}/#/machines`)
+  await page.goto(`${root.base}/#/machines/connect`)
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Connect a computer')), { timeout: 10000 })
 
   await click('Connect a computer')

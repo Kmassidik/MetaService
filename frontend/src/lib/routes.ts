@@ -5,6 +5,7 @@ const PAGES: Record<string, Page> = {
   '/': 'overview',
   '/machines': 'machines',
   '/machines/find': 'machines',
+  '/machines/connect': 'machines',
   '/machines/details': 'machines',
   '/usage': 'usage',
   '/health': 'health',
@@ -31,5 +32,11 @@ export function machineFromRoute(route: string): string | null {
   const id = query.get('id') ?? ''
   return path === '/machines/details' && MACHINE_ID.test(id) ? id : null
 }
+
+export type MachinesView = 'list' | 'find' | 'connect'
+const MACHINES_VIEWS: Record<string, MachinesView> = { '/machines/find': 'find', '/machines/connect': 'connect' }
+
+/** Which screen the Machines page shows: the list, Find machines, or the connected computers. */
+export const machinesView = (route: string): MachinesView => MACHINES_VIEWS[split(route).path] ?? 'list'
 
 export const pageFor = (route: string): Page => PAGES[split(route).path] ?? 'overview'

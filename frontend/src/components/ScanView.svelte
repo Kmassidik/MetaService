@@ -31,15 +31,18 @@
 
   const isGateway = (ip: string) => !!setup?.gateway && setup.gateway === ip
 
+  /** Opening the page looks at the network right away: nothing is kept from an earlier scan. */
   async function load() {
     try {
       setup = await scanSetup()
-      scan = await latestScan()
-      if (running) poll()
     } catch (error) {
       failure = error instanceof ApiError ? error.message : 'Something went wrong.'
+      return
     }
+    if (setup.subnet) await begin()
   }
+
+  const showFailure = (error: unknown) => (failure = error instanceof ApiError ? error.message : 'Something went wrong.')
 
   function poll() {
     clearTimeout(timer)
@@ -56,13 +59,18 @@
   async function begin() {
     failure = ''
     picked = {}
+    scan = { id: '', state: 'running', results: [], sources: {} }
     try {
       await startScan()
-      scan = { id: scan?.id ?? '', state: 'running', results: [], sources: {} }
-      poll()
     } catch (error) {
-      failure = error instanceof ApiError ? error.message : 'Something went wrong.'
+      // A scan another tab started is still the one to follow.
+      if (!(error instanceof ApiError && error.code === 'scan_running')) {
+        scan = null
+        showFailure(error)
+        return
+      }
     }
+    poll()
   }
 
   function toggle(row: Device) {
@@ -78,9 +86,9 @@
       const reply = await addFromScan(scan.id, chosen.map((row) => ({ result_id: row.id, name: names[row.id] })))
       invites = reply.invites
       picked = {}
-      await load()
+      scan = await latestScan()
     } catch (error) {
-      failure = error instanceof ApiError ? error.message : 'Something went wrong.'
+      showFailure(error)
     } finally {
       adding = false
     }
@@ -101,7 +109,7 @@
         {:else}Looking for the network…{/if}
       </p>
     </div>
-    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan now'}</button>
+    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan again'}</button>
   </div>
 
   {#if setup && !setup.nmap_available}
@@ -116,6 +124,8 @@
     <p class="note bad">The scan could not use any source. Check the notes above.</p>
   {:else if scan && scan.state === 'done' && scan.results.length === 0}
     <p class="muted">The scan found nothing on this network.</p>
+  {:else if running}
+    <p class="muted">Looking at the network…</p>
   {:else if scan?.results?.length}
     <div class="table" role="table" aria-label="Devices found">
       <div class="head" role="row"><span></span><span>Address</span><span>Name</span><span>MAC address</span><span>Seen by</span><span>Status</span></div>
