@@ -27,7 +27,7 @@ class FakeBrew:
         self.env = {**os.environ, "METASERVICE_NMAP_PATHS": self.nmap, "METASERVICE_BREW": self.brew}
 
     def run(self, *arguments, env=None):
-        done = subprocess.run(["sh", SCRIPT, *arguments], capture_output=True, text=True, env=env or self.env, stdin=subprocess.DEVNULL, timeout=60)
+        done = subprocess.run(["/bin/sh", SCRIPT, *arguments], capture_output=True, text=True, env=env or self.env, stdin=subprocess.DEVNULL, timeout=60)
         return done.returncode, done.stdout + done.stderr
 
     def calls(self):
@@ -77,7 +77,7 @@ class InstallNmapTest(unittest.TestCase):
 
     def test_without_homebrew_it_warns_and_goes_on(self):
         fake = FakeBrew(self)
-        env = {**fake.env, "METASERVICE_BREW": os.path.join(fake.folder, "no-brew-here"), "PATH": fake.folder}
+        env = {**fake.env, "METASERVICE_BREW": os.path.join(fake.folder, "no-brew-here"), "PATH": "/usr/bin:/bin"}
         code, out = fake.run(env=env)
         self.assertEqual(code, 0)
         self.assertIn("Homebrew is not here", out)
