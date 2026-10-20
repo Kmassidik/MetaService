@@ -47,7 +47,7 @@ echo "This removes what MetaService made on this computer:"
 [ "$keep_data" = yes ] && echo "  (your data stays: --keep-data)"
 [ -f "$root/control-plane/arm64/state/remote-access.json" ] && echo "It also removes remote access: the Cloudflare tunnel, DNS record and connector job that \`remote up\` made."
 echo "It also stops MetaService."
-echo "It keeps: the source code and git, Apple's container tool, and $([ "$remove_env" = yes ] && echo "nothing else of yours" || echo "your .env settings")."
+echo "It keeps: the source code and git, Apple's container tool, nmap, and $([ "$remove_env" = yes ] && echo "nothing else of yours" || echo "your .env settings")."
 echo
 
 if [ "$yes" = no ]; then

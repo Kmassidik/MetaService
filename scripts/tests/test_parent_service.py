@@ -30,6 +30,8 @@ class ServiceCase(unittest.TestCase):
         self.write_program(f'#!/bin/sh\necho "fake parent says hello"\nexec {sys.executable} -m http.server {self.port} --bind 127.0.0.1 --directory {self.served}\n')
         self.env = {**os.environ, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"), "METASERVICE_PARENT_COMMAND": self.program, "METASERVICE_SKIP_BUILD": "1",
                     "METASERVICE_PANEL_URL": f"http://127.0.0.1:{self.port}", "METASERVICE_PROCESS_PATTERN": self.token, "METASERVICE_WAIT_SECONDS": "20",
+                    # No test may install nmap: it is "missing" and Homebrew is "not here" unless a test says otherwise.
+                    "METASERVICE_NMAP_PATHS": os.path.join(self.folder, "no-nmap-here"), "METASERVICE_BREW": os.path.join(self.folder, "no-brew-here"),
                     }
         self.addCleanup(self.cleanup)
 

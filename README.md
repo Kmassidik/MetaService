@@ -30,6 +30,8 @@ You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) 
    checks that it is the file we expect and that Apple signed it, then installs it. Your Mac asks for your password once, in the terminal. Then it starts Apple's container service.
    To go without VMs, run `./install.sh install --skip-container`.
 
+   The install also checks for nmap, which "Find machines" uses to sweep the network. If it is missing, the install adds only nmap with Homebrew (no password, and no `brew update`, so nothing else changes). nmap is optional: if Homebrew is not there or fails, the install says so and goes on, and `--skip-nmap` goes without it.
+
 Stop it from the menu (choice 6) or with `./install.sh stop`. You sign in to the panel in your browser (the admin login from step 2); there is no sign-in in the terminal.
 
 ## Uninstall

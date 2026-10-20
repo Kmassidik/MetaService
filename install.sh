@@ -38,6 +38,7 @@ show_help() {
   echo "  ./install.sh uninstall    remove the builds, packages and data (it asks first; --yes, --keep-data and --env change that)"
   echo "  ./install.sh --check      only the two checks; nothing is built or started"
   echo "  ./install.sh install --skip-container   install without Apple's container tool (no VMs on this Mac)"
+  echo "  ./install.sh install --skip-nmap         install without nmap (Find machines sees fewer computers)"
   echo "  ./install.sh run          start in this terminal (stops when you close it)"
   echo "  ./install.sh remote check|plan|up|status|down   reach the panel from outside through its own Cloudflare tunnel (see the README)"
   echo "  ./install.sh --agent-bind 192.168.100.40   any other --option goes to the parent, with install"
@@ -58,10 +59,15 @@ run_checks() {
 
 install_now() {
   skip_container=no
+  skip_nmap=no
   count=$#
   while [ "$count" -gt 0 ]; do
     option="$1"; shift; count=$((count - 1))
-    if [ "$option" = --skip-container ]; then skip_container=yes; else set -- "$@" "$option"; fi
+    case "$option" in
+      --skip-container) skip_container=yes ;;
+      --skip-nmap) skip_nmap=yes ;;
+      *) set -- "$@" "$option" ;;
+    esac
   done
   run_checks || return 1
   if [ "$1" = "--check" ]; then
@@ -74,6 +80,8 @@ install_now() {
   else
     sh scripts/install-container.sh || { echo "      You can go on without VMs: ./install.sh install --skip-container"; return 1; }
   fi
+  echo "      nmap (it finds computers on the network)"
+  if [ "$skip_nmap" = yes ]; then sh scripts/install-nmap.sh --no-install; else sh scripts/install-nmap.sh; fi
   echo "[4/4] Building and starting MetaService in the background (the first time takes a few minutes)"
   sh "$service" start "$@" || return 1
   echo "      You can close this terminal. Stop it with ./install.sh stop"

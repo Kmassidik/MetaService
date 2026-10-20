@@ -69,7 +69,7 @@ class RemovalTest(UninstallBase):
         done = self.uninstall("--yes")
         for word in ("builds", "packages", "your data", "Python caches", " KB "):
             self.assertIn(word, done.stdout)
-        self.assertIn("It keeps: the source code and git, Apple's container tool, and your .env settings.", done.stdout)
+        self.assertIn("It keeps: the source code and git, Apple's container tool, nmap, and your .env settings.", done.stdout)
 
     def test_keep_data_leaves_the_state_folder(self):
         self.uninstall("--yes", "--keep-data")

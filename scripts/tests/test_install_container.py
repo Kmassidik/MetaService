@@ -182,6 +182,15 @@ class InstallStepTest(ServiceCase):
         self.assertIn("installer -pkg", " ".join(self.mac.calls()))
         self.assertTrue(self.listening())
 
+    def test_the_nmap_step_follows_the_container_step_and_can_be_skipped(self):
+        code, out = self.install("install")
+        self.assertEqual(code, 0, out)
+        self.assertLess(out.index("[3/4] Apple's container tool"), out.index("nmap (it finds computers"))
+        self.assertLess(out.index("nmap (it finds computers"), out.index("[4/4] Building and starting"))
+        skipped_code, skipped = self.install("install", "--skip-nmap")
+        self.assertEqual(skipped_code, 0, skipped)
+        self.assertIn("you chose to go without it", skipped)
+
     def test_skip_container_goes_without_it_and_says_what_that_costs(self):
         code, out = self.install("install", "--skip-container")
         self.assertEqual(code, 0, out)
