@@ -232,7 +232,7 @@
       {#if page === 'machines' && detailId}
         <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} {remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onConnect={startConnect} />
+        <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={() => (adding = true)} onConnect={startConnect} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}
@@ -246,7 +246,7 @@
     </main>
   </div>
   <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
-  <AddMachine open={adding} onClose={() => (adding = false)} onInstalled={refresh} />
+  <AddMachine open={adding} onClose={() => (adding = false)} onInstalled={refresh} onConnect={startConnect} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   <NewWorkload open={creating} {machines} only={creatingOn} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />

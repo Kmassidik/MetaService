@@ -49,15 +49,6 @@ export function usedPercent(free: number | null | undefined, total: number | nul
 
 export const STATE_LABELS: Record<string, string> = { online: 'Online', busy: 'Busy', offline: 'Offline' }
 
-export function summarize(machines: Machine[]) {
-  const workloads = machines.reduce((sum, machine) => sum + machine.workloads.length, 0)
-  return {
-    machines: machines.length,
-    online: machines.filter((machine) => machine.state !== 'offline').length,
-    workloads,
-  }
-}
-
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/
 export function nameProblem(name: string): string | null {
   if (!name) return 'Give the machine a name.'

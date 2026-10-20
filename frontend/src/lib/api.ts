@@ -1,5 +1,5 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScreenStatus, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -135,7 +135,6 @@ export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/a
 export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
 export const remoteRemove = (machine: string, body: Record<string, unknown>) => call<null>('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
 
-export const screenStatus = (machine: string) => call<ScreenStatus>('GET', `/api/machines/${encodeURIComponent(machine)}/screen`)
 export const openScreen = (machine: string) => call<ScreenSession>('POST', `/api/machines/${encodeURIComponent(machine)}/screen`)
 export const takeScreenControl = (ticket: string) => call<ScreenSession>('POST', `/api/screen/${encodeURIComponent(ticket)}/control`, { confirm: true })
 export const sendScreenInput = (ticket: string, events: ScreenInput[]) => call<null>('POST', `/api/screen/${encodeURIComponent(ticket)}/input`, { events })

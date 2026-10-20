@@ -109,10 +109,11 @@ try {
   await page.type('input[name=password]', ADMIN.password)
   await click('Sign in')
   await page.waitForFunction(() => document.body.innerText.includes('No machines yet'), { timeout: 10000 })
-  await page.goto(`${root.base}/#/machines/connect`)
-  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Connect a computer')), { timeout: 10000 })
-
-  await click('Connect a computer')
+  // Another computer is added from the sidebar: Add a machine, pick "Another address", Continue.
+  await click('＋ Add a machine')
+  await page.waitForSelector('dialog[open] #machine-computer')
+  await page.select('dialog[open] #machine-computer', 'another')
+  await click('Continue')
   await page.waitForSelector('dialog[open] #connect-host')
   check('the Connect dialog opens on step 1 and says it only looks', /Connect a computer/.test(await dialog()) && /nothing is installed or changed/i.test(await dialog()))
   check('Look at it is disabled until an address is typed', await page.evaluate(() => [...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'Look at it').disabled))

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.ts'
-import { command, installForm, machine, workload } from './testing.ts'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, nameProblem, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.ts'
+import { command, installForm } from './testing.ts'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
 const ago = (ms: number) => new Date(now - ms).toISOString()
@@ -42,12 +42,6 @@ test('usedPercent', () => {
   assert.equal(usedPercent(150, 100), 0)
   assert.equal(usedPercent(null, 100), null)
   assert.equal(usedPercent(10, 0), null)
-})
-
-test('summarize', () => {
-  const machines = [machine({ state: 'online', workloads: [workload(), workload()] }), machine({ state: 'busy' }), machine({ state: 'offline', workloads: [workload()] })]
-  assert.deepEqual(summarize(machines), { machines: 3, online: 2, workloads: 3 })
-  assert.deepEqual(summarize([]), { machines: 0, online: 0, workloads: 0 })
 })
 
 test('nameProblem matches the Root rule', () => {

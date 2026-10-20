@@ -1,24 +1,27 @@
 <script lang="ts">
-  // Add machine: install MetaService on a computer so it can create VMs. Today that is this computer; another computer by IP comes next.
+  // Add machine: pick the computer. This computer is installed here; any other one (found on the network, or by its address) goes on to the SSH steps of Connect a computer.
   import Dialog from './Dialog.svelte'
   import InstallSteps from './InstallSteps.svelte'
   import Requirements from './Requirements.svelte'
-  import { ApiError, installDefaults, installProgress, latestScan, startInstall } from '../lib/api.ts'
+  import { ApiError, installDefaults, installProgress, latestScan, scanSetup, startInstall } from '../lib/api.ts'
   import { PROFILES, formatGb, formatMb, installBody, installPreview, nameProblem, profileLabel } from '../lib/format.ts'
   import type { Device, InstallDefaults, InstallForm, InstallJob } from '../lib/types.ts'
 
-  let { open, onClose, onInstalled }: { open: boolean; onClose: () => void; onInstalled: () => void } = $props()
+  let { open, onClose, onInstalled, onConnect }: { open: boolean; onClose: () => void; onInstalled: () => void; onConnect: (host?: string) => void } = $props()
   let defaults = $state<InstallDefaults | null>(null)
   let form = $state<InstallForm>(emptyForm())
   let busy = $state(false)
   let failure = $state('')
   let job = $state<InstallJob | null>(null)
   let found = $state<Device[]>([])
-  let chosen = $state('this')
+  const THIS = 'this'
+  const ANOTHER = 'another'
+  let chosen = $state(THIS)
   let timer: ReturnType<typeof setInterval> | null = null
   const problem = $derived(form.name ? nameProblem(form.name) : null)
   const canInstall = $derived(defaults?.agent_ready === true && !problem && Boolean(form.name) && !busy)
   const preview = $derived(installPreview(form))
+  const isThis = $derived(chosen === THIS)
 
   function emptyForm(): InstallForm {
     return { name: '', profile: 'custom', labels: '', notes: '', chat: false, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', allowGpu: true,
@@ -34,9 +37,13 @@
     job = null
     failure = ''
     busy = false
+    chosen = THIS
     try {
       defaults = await installDefaults()
-      found = ((await latestScan().catch(() => null))?.results ?? []).filter((device) => !device.machine).slice(0, 8)
+      const [scan, setup] = await Promise.all([latestScan().catch(() => null), scanSetup().catch(() => null)])
+      // A computer that is already added, the router and this computer are not computers to add.
+      const skip = new Set([setup?.gateway, ...(setup?.own_addresses ?? [])])
+      found = (scan?.results ?? []).filter((device) => !device.machine && !skip.has(device.ip))
       form = { ...emptyForm(), name: defaults.name, profile: defaults.profile, chat: defaults.chat_available, ramReserveMb: defaults.ram_reserve_mb, diskReserveGb: defaults.disk_reserve_gb,
         vmCpu: defaults.vm_cpu, vmRamMb: defaults.vm_ram_mb, vmDiskGb: defaults.vm_disk_gb }
     } catch (error) {
@@ -46,6 +53,11 @@
 
   async function submit(event: SubmitEvent) {
     event.preventDefault()
+    if (!isThis) {
+      onClose()
+      onConnect(chosen === ANOTHER ? '' : chosen)
+      return
+    }
     if (!canInstall) return
     busy = true
     failure = ''
@@ -93,13 +105,18 @@
       <label for="machine-computer">Available computers</label>
       <select id="machine-computer" class="computer" bind:value={chosen}>
         {#if defaults?.computer}
-          <option value="this">{defaults.computer.name} · this computer · {profileLabel(defaults.profile)} · {defaults.computer.cpu_cores} cores · {formatMb(defaults.computer.ram_mb)} memory · {formatGb(defaults.computer.disk_gb)} disk</option>
-        {:else}<option value="this">Looking at this computer…</option>{/if}
+          <option value={THIS}>{defaults.computer.name} · this computer · {profileLabel(defaults.profile)} · {defaults.computer.cpu_cores} cores · {formatMb(defaults.computer.ram_mb)} memory · {formatGb(defaults.computer.disk_gb)} disk</option>
+        {:else}<option value={THIS}>Looking at this computer…</option>{/if}
         {#each found as device (device.id)}
-          <option value={device.id} disabled>{device.hostname ?? device.ip} · {device.ip} · found on your network · SSH install coming next</option>
+          <option value={device.ip}>{device.hostname ?? device.ip} · {device.ip} · found on your network</option>
         {/each}
+        <option value={ANOTHER}>Another address…</option>
       </select>
-      <p class="hint muted">Other computers on your network show here after you run "Find machines".</p>
+      <p class="hint muted">Computers found by "Find machines" show here. Pick "Another address" to type one.</p>
+
+      {#if !isThis}
+        <p class="muted">Next you log in to that computer and MetaService checks it. Nothing is installed until you say so.</p>
+      {:else}
 
       {#if defaults?.requirements}<Requirements items={defaults.requirements} />{/if}
 
@@ -171,10 +188,11 @@
         <ul>{#each preview as line}<li>{line}</li>{/each}</ul>
       </div>
       {#if defaults && !defaults.agent_ready}<p class="bad" role="alert">The MetaService program for this computer is not built yet. Run ./install.sh, which builds it.</p>{/if}
+      {/if}
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
       <div class="row">
         <button class="btn line" type="button" onclick={onClose}>Cancel</button>
-        <button class="btn green" type="submit" disabled={!canInstall}>{busy ? 'Starting…' : 'Install'}</button>
+        <button class="btn green" type="submit" disabled={isThis && !canInstall}>{!isThis ? 'Continue' : busy ? 'Starting…' : 'Install'}</button>
       </div>
     </form>
   {/if}

@@ -219,15 +219,6 @@ export interface ScanSetup {
   own_addresses?: string[]
 }
 
-/** A one-time token for a machine added from a scan. */
-export interface Invite {
-  name: string
-  ip?: string | null
-  enrollment_token: string
-  expires_at?: string
-  command?: string
-}
-
 export interface BrainStatus {
   configured: boolean
   model?: string
@@ -323,14 +314,6 @@ export interface RemoteMachineInfo {
   has_key: boolean
   /** Absent when the machine has no tunnel (it only reports in). */
   tunnel?: { state: 'connecting' | 'connected' | 'disconnected'; since: string; local_port: number | null; failures: number }
-}
-
-/** What a machine's screen can do right now. */
-export interface ScreenStatus {
-  access: 'off' | 'needs_permission' | 'ready'
-  width: number
-  height: number
-  message: string | null
 }
 
 /** An open screen: the ticket belongs to the operator who opened it. */
