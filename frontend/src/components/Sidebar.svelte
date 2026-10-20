@@ -6,7 +6,10 @@
     icon: string
   }
 
-  let { active = 'overview', username, onSignOut }: { active?: string; username: string; onSignOut: () => void } = $props()
+  let { active = 'overview', route = '/', username, onSignOut, onAdd, onConnect }: { active?: string; route?: string; username: string; onSignOut: () => void; onAdd: () => void; onConnect: () => void } = $props()
+  const FIND = '/machines/find'
+  // "Machines" itself is the open item except on its Find machines child, which has its own mark.
+  const isOn = (page: NavPage) => (page.id === 'machines' ? active === 'machines' && route !== FIND : active === page.id)
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [
     { id: 'overview', label: 'Overview', href: '#/', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
@@ -27,9 +30,16 @@
       <div>
         <h3>{title}</h3>
         {#each pages as page (page.id)}
-          <a class:on={active === page.id} href={page.href} aria-current={active === page.id ? 'page' : undefined}>
+          <a class:on={isOn(page)} href={page.href} aria-current={isOn(page) ? 'page' : undefined}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={page.icon} /></svg>{page.label}
           </a>
+          {#if page.id === 'machines'}
+            <div class="sub">
+              <a class:on={route === FIND} href="#{FIND}" aria-current={route === FIND ? 'page' : undefined}>Find machines</a>
+              <button type="button" onclick={() => onConnect()}>Connect a computer</button>
+              <button type="button" onclick={() => onAdd()}>＋ Add a machine</button>
+            </div>
+          {/if}
         {/each}
       </div>
     {/each}

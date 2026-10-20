@@ -224,7 +224,7 @@
 {:else}
   <div class="announce">MetaService · control panel</div>
   <div class="shell">
-    <Sidebar active={page} {username} onSignOut={leave} />
+    <Sidebar active={page} {route} {username} onSignOut={leave} onAdd={() => (adding = true)} onConnect={() => startConnect()} />
     <main class="main">
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>
