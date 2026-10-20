@@ -52,3 +52,8 @@ test('parseExecuteResult returns any result and allows none', () => {
   expect(parseExecuteResult({ result: { ok: true } })).toEqual({ ok: true })
   expect(parseExecuteResult({})).toBeUndefined()
 })
+
+test('parseApprovalList reads the approval exactly as the service builds it (it also sends createdAt)', () => {
+  const sent = { ...approval, createdAt: '2026-10-01T00:00:00Z' }
+  expect(parseApprovalList({ approvals: [sent] })).toEqual([sent])
+})

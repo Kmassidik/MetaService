@@ -51,6 +51,7 @@ export interface HostState {
   writesAllowed: boolean
 }
 
+/** A quota meter: the saved files, or the workspace disk inside the computer. */
 export interface StorageMeter {
   usedBytes: number
   limitBytes: number
@@ -58,10 +59,22 @@ export interface StorageMeter {
   state?: string
 }
 
+/** The computer's system disk: it reports its size, not a quota. */
+export interface SystemDisk {
+  totalBytes: number
+  availableBytes: number
+  state: string
+}
+
+/**
+ * The computer's disks. The meters are null while it has none (not created) or are missing when
+ * its storage could not be read (`reason` says why).
+ */
 export interface StorageComputer {
   state: string
-  system: StorageMeter | null
-  workspace: StorageMeter | null
+  reason?: string
+  system?: SystemDisk | null
+  workspace?: StorageMeter | null
 }
 
 /** The create gate; the full answer also holds the meters (Settings › Computer). */
@@ -150,7 +163,7 @@ export interface ChatFile {
   artifactId?: string
   sourceFileId?: string
   previewFileId?: string
-  sha?: string
+  sha256?: string
   agentId?: string
   received?: number
 }
@@ -269,6 +282,7 @@ export interface RunEvent {
   kind: string
   createdAt: string
   runId?: string
+  /** Only when the server sent an object; any other payload (null, text, a list) is dropped. */
   payload?: EventPayload
 }
 
@@ -277,11 +291,12 @@ export interface Approval {
   runId: string
   state: string
   parametersSHA256: string
-  tool?: string
-  action?: string
-  destination?: string
+  tool: string
+  action: string
+  destination: string
+  expiresAt: string
+  /** Only for research and connector proposals, which the owner reviews in full. */
   parametersJSON?: string
-  expiresAt?: string
 }
 
 export interface AskOption {
@@ -334,17 +349,25 @@ export interface AppResult {
 
 // ---- Profile -----------------------------------------------------------------------------
 
+/** When a schedule routine runs; which fields exist depends on its `scheduleKind`. A webhook routine has none. */
+export interface ScheduleFields {
+  time?: string
+  weekday?: number
+  hours?: number
+}
+
 export interface Routine {
   id: string
   title: string
-  agentId?: string
-  state?: string
-  createdAt?: string
-  triggerKind?: string
-  scheduleKind?: string
-  schedule?: string
-  hasWebhook?: boolean
-  taskText?: string
+  agentId: string
+  state: string
+  createdAt: string
+  triggerKind: string
+  scheduleKind: string
+  schedule: ScheduleFields
+  hasWebhook: boolean
+  taskText: string
+  /** Only in the answer that creates a webhook routine, once. */
   webhookToken?: string
 }
 

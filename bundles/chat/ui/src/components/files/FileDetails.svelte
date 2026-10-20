@@ -8,7 +8,7 @@
 
   interface Props {
     group: FileGroup
-    file: ChatFile & { sha256?: string }
+    file: ChatFile
     botName: (agentId: string | undefined) => string
     onPickVersion: (id: string) => void
     onClose: () => void

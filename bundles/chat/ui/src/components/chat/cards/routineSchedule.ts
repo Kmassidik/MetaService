@@ -1,15 +1,12 @@
-/** The `schedule` of a routine, as the server sends it (which fields exist depends on `scheduleKind`). */
-export interface ScheduleFields {
-  time?: string
-  weekday?: number
-  hours?: number
-}
+import type { ScheduleFields } from '../../../lib/types.ts'
 
-/** The part of a routine the sentence reads. The server sends `schedule` as an object; a plain string has no fields. */
+export type { ScheduleFields }
+
+/** The part of a routine the sentence reads. */
 export interface RoutineLike {
   triggerKind?: string | undefined
   scheduleKind?: string | undefined
-  schedule?: ScheduleFields | string | undefined
+  schedule?: ScheduleFields | undefined
 }
 
 // Routine card copy: one plain sentence for a routine's trigger ("Runs every weekday at 8:00").
@@ -37,7 +34,7 @@ const DESCRIBE_KIND: Record<string, (schedule: ScheduleFields) => string> = {
 }
 
 function scheduleFields(schedule: RoutineLike['schedule']): ScheduleFields {
-  return typeof schedule === 'object' ? schedule : {}
+  return schedule ?? {}
 }
 
 export function describeRoutine(routine: RoutineLike | null | undefined): string {

@@ -4,7 +4,7 @@ import {
 } from '../check.ts'
 import type {
   AccountStorage, ComputerInfo, Environment, FullStorage, HostState, Onboarding, PlanLimits, Session, SessionUser, StorageComputer,
-  StorageMeter, Usage, UsageTotals,
+  StorageMeter, SystemDisk, Usage, UsageTotals,
 } from '../types.ts'
 
 const isPlanLimits = objectOf<PlanLimits>({
@@ -31,9 +31,11 @@ const isStorageMeter = objectWithOptional<StorageMeter>(
   { availableBytes: isNumber, state: isString },
 )
 
-const isStorageComputer = objectOf<StorageComputer>({
-  state: isString, system: nullable(isStorageMeter), workspace: nullable(isStorageMeter),
-})
+const isSystemDisk = objectOf<SystemDisk>({ totalBytes: isNumber, availableBytes: isNumber, state: isString })
+const isStorageComputer = objectWithOptional<StorageComputer>(
+  { state: isString },
+  { reason: isString, system: nullable(isSystemDisk), workspace: nullable(isStorageMeter) },
+)
 
 const isStorageGate = objectWithOptional<AccountStorage>(
   { canCreateAgent: isBoolean, host: isHostState, limits: isPlanLimits },

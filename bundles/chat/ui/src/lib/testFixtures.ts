@@ -42,7 +42,10 @@ export function file(over: Partial<ChatFile> = {}): ChatFile {
 }
 
 export function approval(over: Partial<Approval> = {}): Approval {
-  return { id: 'ap1', runId: 'r1', state: 'pending', parametersSHA256: 'abc', ...over }
+  return {
+    id: 'ap1', runId: 'r1', state: 'pending', parametersSHA256: 'abc', tool: 'send', action: 'send', destination: 'x',
+    expiresAt: '2030-01-01T00:00:00.000Z', ...over,
+  }
 }
 
 export function skill(over: Partial<Skill> = {}): Skill {
@@ -50,7 +53,11 @@ export function skill(over: Partial<Skill> = {}): Skill {
 }
 
 export function routine(over: Partial<Routine> = {}): Routine {
-  return { id: 'rt1', title: 'Morning brief', ...over }
+  return {
+    id: 'rt1', title: 'Morning brief', agentId: 'a1', state: 'active', createdAt: '2026-10-01T00:00:00.000Z',
+    triggerKind: 'schedule', scheduleKind: 'daily', schedule: { time: '09:00' }, hasWebhook: false, taskText: 'Summarise the news',
+    ...over,
+  }
 }
 
 export function appRecord(over: Partial<AppRecord> = {}): AppRecord {

@@ -8,17 +8,9 @@
   import type { ChatFile } from '../../lib/types.ts'
   import { errorMessage } from '../../lib/errors.ts'
   import ViewerShell from './ViewerShell.svelte'
-  import { cancelExtraction, extractedText, readExtraction, reserveExtraction, startExtraction } from '../../lib/files/extraction.ts'
+  import { type Extraction, cancelExtraction, extractedText, readExtraction, reserveExtraction, startExtraction } from '../../lib/files/extraction.ts'
 
   const PAGE_ROWS = 8
-
-  /** What the host reads from a file, with the engine details the server adds. */
-  interface ExtractionDetails {
-    engine?: string
-    revision?: string | number
-    warnings?: string[]
-    pages: Array<{ text: string; page?: number; source?: string }>
-  }
 
   interface Job {
     id: string
@@ -35,7 +27,7 @@
 
   let { file, sessionKey, onClose }: Props = $props()
 
-  let extraction = $state<ExtractionDetails | null>(null)
+  let extraction = $state<Extraction | null>(null)
   let busy = $state(true)
   let stopping = $state(false)
   let error = $state('')
@@ -128,7 +120,7 @@
   {#if extraction}
     <section aria-label={`Extracted text of ${file.name}`}>
       <p class="file-meta">{extraction.engine} · Revision {extraction.revision}. OCR may contain errors; verify against the original.</p>
-      {#each extraction.warnings || [] as warning (warning)}<p class="file-meta" role="status">{warning}</p>{/each}
+      {#each extraction.warnings as warning (warning)}<p class="file-meta" role="status">{warning}</p>{/each}
       <div class="file-actions">
         <button type="button" class="secondary-button" onclick={copy}>Copy all text</button>
         <span class="file-meta" role="status">{copyStatus}</span>

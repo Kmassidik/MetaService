@@ -1,6 +1,6 @@
 /** Checks for the answers about tasks (runs), their public events and approvals. */
 import {
-  anything, arrayOf, dictOf, isBoolean, isNumber, isString, objectOf, objectWithOptional, parseAnswer,
+  anything, arrayOf, isBoolean, isNumber, isRecord, isString, objectOf, objectWithOptional, parseAnswer,
 } from '../check.ts'
 import type { Approval, Ask, AskOption, EventPayload, Run, RunCard, RunEvent } from '../types.ts'
 
@@ -12,16 +12,27 @@ export const isRun = objectWithOptional<Run>(
   { model: isString, error: isString, attachmentIds: arrayOf(isString) },
 )
 
-const isPayload = dictOf(anything)
+/** An event as the server sends it: its payload is any JSON the run wrote (null, text, a list), not always an object. */
+interface WireEvent extends Omit<RunEvent, 'payload'> {
+  payload?: unknown
+}
 
-const isRunEvent = objectWithOptional<RunEvent>(
+const isWireEvent = objectWithOptional<WireEvent>(
   { sequence: isNumber, kind: isString, createdAt: isString },
-  { runId: isString, payload: isPayload },
+  { runId: isString, payload: anything },
 )
 
+/** The event with its payload kept only when it is an object. */
+function eventOf({ payload, ...event }: WireEvent): RunEvent {
+  return isRecord(payload) ? { ...event, payload } : event
+}
+
 const isApproval = objectWithOptional<Approval>(
-  { id: isString, runId: isString, state: isString, parametersSHA256: isString },
-  { tool: isString, action: isString, destination: isString, parametersJSON: isString, expiresAt: isString },
+  {
+    id: isString, runId: isString, state: isString, parametersSHA256: isString, tool: isString, action: isString,
+    destination: isString, expiresAt: isString,
+  },
+  { parametersJSON: isString },
 )
 
 interface RunList {
@@ -30,6 +41,11 @@ interface RunList {
 
 interface EventPage {
   events: RunEvent[]
+  run: Run
+}
+
+interface WireEventPage {
+  events: WireEvent[]
   run: Run
 }
 
@@ -42,12 +58,15 @@ interface RunAnswer {
 }
 
 const isRunList = objectOf<RunList>({ runs: arrayOf(isRun) })
-const isEventPage = objectOf<EventPage>({ events: arrayOf(isRunEvent), run: isRun })
+const isEventPage = objectOf<WireEventPage>({ events: arrayOf(isWireEvent), run: isRun })
 const isApprovalList = objectOf<ApprovalList>({ approvals: arrayOf(isApproval) })
 const isRunAnswer = objectWithOptional<RunAnswer>({}, { run: isRun })
 
 export const parseRuns = (answer: unknown): Run[] => parseAnswer(isRunList, answer, 'task list').runs
-export const parseEventPage = (answer: unknown): EventPage => parseAnswer(isEventPage, answer, 'task events')
+export function parseEventPage(answer: unknown): EventPage {
+  const { events, run } = parseAnswer(isEventPage, answer, 'task events')
+  return { events: events.map(eventOf), run }
+}
 export const parseApprovals = (answer: unknown): Approval[] => parseAnswer(isApprovalList, answer, 'approval list').approvals
 export const parseRunAnswer = (answer: unknown): RunAnswer => parseAnswer(isRunAnswer, answer, 'task')
 

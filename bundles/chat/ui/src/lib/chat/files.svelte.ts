@@ -1,7 +1,7 @@
 import { untrack } from 'svelte'
 import { MiB } from '../constants.ts'
 import { PANEL_TABS } from '../sidePanel.ts'
-import { parseFile, parseFiles, parseReceived } from '../answers/files.ts'
+import { deletedFile, parseFile, parseFiles, parseReceived } from '../answers/files.ts'
 import { fail } from '../format.ts'
 import type { ChatFile, Upload } from '../types.ts'
 import { api } from './client.svelte.ts'
@@ -80,11 +80,6 @@ export function uploadFiles(input: Iterable<File>): void {
 
 export function patchUpload(token: string, values: Partial<Upload>): void {
   chat.uploads = chat.uploads.map(upload => upload.token === token ? { ...upload, ...values } : upload)
-}
-
-/** What a message shows in place of a file the owner deleted. */
-function deletedFile(id: string): ChatFile {
-  return { id, state: 'deleted', name: 'File no longer available', size: 0, mediaType: '', createdAt: '' }
 }
 
 // The finished file joins the next message; its picture comes from the local bytes, not a download.

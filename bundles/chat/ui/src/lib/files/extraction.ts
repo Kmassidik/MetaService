@@ -3,19 +3,31 @@
  * even before the slow extract call starts. Requests use keepalive so a cancel still reaches the
  * server when the viewer closes.
  */
-import { arrayOf, isRecord, isString, objectOf } from '../check.ts'
+import { arrayOf, isNumber, isRecord, isString, objectOf } from '../check.ts'
 
 const NOT_FOUND = 404
 
-/** The text the host read from a file, page by page. */
+/** One page the host read: the text, its number, and where the text came from (the picture or the PDF itself). */
+export interface ExtractedPage {
+  page: number
+  text: string
+  source: string
+}
+
+/** What the host read from a file, with the engine that read it and what it could not do. */
 export interface Extraction {
-  pages: { text: string }[]
+  engine: string
+  revision: number
+  warnings: string[]
+  pages: ExtractedPage[]
 }
 
 const isReservation = objectOf<{ requestId: string }>({ requestId: isString })
-const isExtractionAnswer = objectOf<{ extraction: Extraction }>({
-  extraction: objectOf<Extraction>({ pages: arrayOf(objectOf<{ text: string }>({ text: isString })) }),
+const isExtractedPage = objectOf<ExtractedPage>({ page: isNumber, text: isString, source: isString })
+const isExtraction = objectOf<Extraction>({
+  engine: isString, revision: isNumber, warnings: arrayOf(isString), pages: arrayOf(isExtractedPage),
 })
+const isExtractionAnswer = objectOf<{ extraction: Extraction }>({ extraction: isExtraction })
 
 function headers(key: string, json = false): Record<string, string> {
   return { 'X-CSRF-Token': key, Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) }

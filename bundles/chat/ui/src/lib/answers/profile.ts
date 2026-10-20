@@ -1,15 +1,17 @@
 /** Checks for the answers about a bot's profile: routines, skills, memory, and the connected apps. */
 import {
-  arrayOf, isBoolean, isString, objectOf, objectWithOptional, parseAnswer,
+  arrayOf, isBoolean, isNumber, isString, objectOf, objectWithOptional, parseAnswer,
 } from '../check.ts'
-import type { AppRecord, Connector, MemoryEntry, Routine, Skill } from '../types.ts'
+import type { AppRecord, Connector, MemoryEntry, Routine, ScheduleFields, Skill } from '../types.ts'
+
+const isSchedule = objectWithOptional<ScheduleFields>({}, { time: isString, weekday: isNumber, hours: isNumber })
 
 export const isRoutine = objectWithOptional<Routine>(
-  { id: isString, title: isString },
   {
-    agentId: isString, state: isString, createdAt: isString, triggerKind: isString, scheduleKind: isString,
-    schedule: isString, hasWebhook: isBoolean, taskText: isString, webhookToken: isString,
+    id: isString, title: isString, agentId: isString, state: isString, createdAt: isString, triggerKind: isString,
+    scheduleKind: isString, schedule: isSchedule, hasWebhook: isBoolean, taskText: isString,
   },
+  { webhookToken: isString },
 )
 
 const isSkill = objectWithOptional<Skill>(
