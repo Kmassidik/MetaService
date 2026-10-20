@@ -189,6 +189,7 @@ def check_a_password_is_used_once_and_never_kept_shown_or_logged():
     with remote() as (root, operator, server):
         reply = operator.write("POST", "/api/remote/verify", target(server, user=getpass.getuser(), password=secret, fingerprint=server.fingerprint()))
         expect(reply.status == 422 and reply.body["error"]["code"] == "remote_login_refused", f"password refused by a key-only server: {reply.status} {reply.raw[:160]!r}")
+        expect("only accepts keys" in reply.body["error"]["message"], f"a key-only server should be named as such: {reply.body['error']['message']!r}")
         expect(secret not in reply.raw.decode(), "the password came back in the answer")
         expect(secret not in operator.request("GET", "/api/audit").raw.decode(), "the password is in the audit log")
         askpass = pathlib.Path(root.dir, "ssh", "askpass.sh")

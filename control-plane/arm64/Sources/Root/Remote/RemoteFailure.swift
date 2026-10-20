@@ -4,7 +4,7 @@ import RootCore
 
 /// Why Connect stopped, in words the operator can act on. None of these texts ever holds a password.
 enum RemoteFailure: Error {
-    case notAllowed, unreachable, noHostKey, hostKeyChanged, fingerprintMismatch, loginRefused, noAnswer, timedOut, noSsh, tooManyTries
+    case notAllowed, unreachable, noHostKey, hostKeyChanged, fingerprintMismatch, loginRefused, passwordNotAccepted, keyNotAccepted, noAnswer, timedOut, noSsh, tooManyTries
     case closed
     case parentUnreachable, machineExists, installRunning, notRemote, badOptions(String)
 
@@ -16,6 +16,8 @@ enum RemoteFailure: Error {
         case .hostKeyChanged: return ApiFailure(status: .conflict, code: "remote_host_key_changed", message: "that computer's SSH host key is not the one we trusted before. Nothing was changed; check that it is the right computer")
         case .fingerprintMismatch: return ApiFailure(status: .conflict, code: "remote_fingerprint_mismatch", message: "the host key is not the one you confirmed. Start again from the first step")
         case .loginRefused: return ApiFailure(status: .unprocessableContent, code: "remote_login_refused", message: "the login was refused: check the user name and the password")
+        case .passwordNotAccepted: return ApiFailure(status: .unprocessableContent, code: "remote_login_refused", message: "the login was refused: that computer only accepts keys over SSH, not passwords, so no password can work. Use a key instead")
+        case .keyNotAccepted: return ApiFailure(status: .unprocessableContent, code: "remote_login_refused", message: "the login was refused: that computer does not have MetaService's key yet. Add the key to ~/.ssh/authorized_keys of that user, then try again")
         case .noAnswer: return ApiFailure(status: .badGateway, code: "remote_no_answer", message: "logged in, but the computer did not answer the check the way a Mac or a Linux computer does")
         case .timedOut: return ApiFailure(status: .gatewayTimeout, code: "remote_timeout", message: "the computer did not answer in time")
         case .noSsh: return ApiFailure(status: .internalServerError, code: "remote_no_ssh", message: "the ssh program is missing on the control plane computer")
@@ -30,13 +32,20 @@ enum RemoteFailure: Error {
     }
 
     /// What ssh said (its exit status and error text, never a password) turned into the reason.
-    static func fromSsh(_ errors: String, status: Int32 = 255) -> RemoteFailure {
+    /// `auth` is how the login was tried: a refusal that lists only keys means something different for a password than for a key.
+    static func fromSsh(_ errors: String, status: Int32 = 255, auth: SshAuth? = nil) -> RemoteFailure {
         switch SshErrors.classify(status: status, errors: errors) {
-        case .loginRefused: return .loginRefused
+        case .loginRefused: return refusal(errors, auth)
         case .hostKeyChanged: return .hostKeyChanged
         case .unreachable: return .unreachable
         case .closed: return .closed
         case .other: return .noAnswer
         }
+    }
+
+    private static func refusal(_ errors: String, _ auth: SshAuth?) -> RemoteFailure {
+        guard SshErrors.offersOnlyKeys(errors), let auth else { return .loginRefused }
+        if case .password = auth { return .passwordNotAccepted }
+        return .keyNotAccepted
     }
 }

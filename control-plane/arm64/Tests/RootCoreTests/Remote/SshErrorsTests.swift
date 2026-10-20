@@ -9,6 +9,15 @@ final class SshErrorsTests: XCTestCase {
         XCTAssertEqual(kind("Permission denied, please try again."), .loginRefused)
     }
 
+    func testAServerThatListsOnlyKeysTakesNoPasswords() {
+        XCTAssertTrue(SshErrors.offersOnlyKeys("lucacadalora@192.168.0.10: Permission denied (publickey)."))
+        XCTAssertTrue(SshErrors.offersOnlyKeys("Permission denied (publickey,gssapi-with-mic)."))
+        XCTAssertFalse(SshErrors.offersOnlyKeys("Permission denied (publickey,password)."))
+        XCTAssertFalse(SshErrors.offersOnlyKeys("Permission denied (publickey,keyboard-interactive)."))
+        XCTAssertFalse(SshErrors.offersOnlyKeys("Permission denied, please try again."))
+        XCTAssertFalse(SshErrors.offersOnlyKeys(""))
+    }
+
     func testAChangedHostKeyIsRecognised() {
         XCTAssertEqual(kind("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"), .hostKeyChanged)
         XCTAssertEqual(kind("Host key verification failed."), .hostKeyChanged)

@@ -86,7 +86,7 @@ final class RemoteService: @unchecked Sendable {
         let result = try await ssh.run(RemoteProbe.script, on: target, with: credentials, timeout: loginSeconds)
         guard result.status == 0 else {
             RemoteLog.say("ssh to \(target.user)@\(target.host):\(target.port) ended with status \(result.status): \(result.errors)")
-            throw RemoteFailure.fromSsh(result.errors, status: result.status)
+            throw RemoteFailure.fromSsh(result.errors, status: result.status, auth: credentials.auth)
         }
         guard let facts = RemoteProbe.parse(result.output) else {
             RemoteLog.say("\(target.host) answered the check with text that is not facts: \(result.output.prefix(200))")
