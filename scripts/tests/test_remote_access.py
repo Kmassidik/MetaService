@@ -163,6 +163,10 @@ class PartsTest(unittest.TestCase):
         self.assertIn(cf_connector.LABEL, text)
         self.assertNotIn(TUNNEL_TOKEN, text)
 
+    def test_the_connector_uses_tcp_so_a_router_that_drops_udp_cannot_stall_it(self):
+        text = cf_connector.plist_text("/opt/homebrew/bin/cloudflared", "/x/state/cloudflared.token", "/x/state/cloudflared.log")
+        self.assertIn("<string>--protocol</string><string>http2</string>", text)
+
     def test_a_missing_cloudflared_is_a_clear_error(self):
         with self.assertRaises(cf_connector.ConnectorError) as raised:
             cf_connector.find_binary(which=lambda name: None, exists=lambda path: False)

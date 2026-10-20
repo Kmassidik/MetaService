@@ -22,8 +22,12 @@ def find_binary(which=shutil.which, exists=os.path.exists) -> str:
     return found
 
 
+# TCP (http2) rather than the default QUIC: an office router that drops UDP stalls QUIC for minutes, TCP reconnects at once.
+TRANSPORT = ("--protocol", "http2")
+
+
 def plist_text(binary: str, token_file: str, log_file: str) -> str:
-    arguments = "".join(f"<string>{escape(part)}</string>" for part in (binary, "tunnel", "--no-autoupdate", "run", "--token-file", token_file))
+    arguments = "".join(f"<string>{escape(part)}</string>" for part in (binary, "tunnel", "--no-autoupdate", *TRANSPORT, "run", "--token-file", token_file))
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
             f'<plist version="1.0"><dict><key>Label</key><string>{LABEL}</string>'
             f"<key>ProgramArguments</key><array>{arguments}</array>"
