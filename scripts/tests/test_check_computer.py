@@ -45,5 +45,40 @@ class CheckComputerTest(unittest.TestCase):
         self.assertEqual(levels("FreeBSD", "amd64"), ["stop"])
 
 
+
+ROUTE = "   route to: default\n    gateway: 192.168.0.1\n  interface: en0\n"
+
+
+def ifconfig(address, mask):
+    return f"en0: flags=8863<UP>\n\tinet {address} netmask {mask} broadcast 192.168.0.255\n\tstatus: active\n"
+
+
+class NetworkCheckTest(unittest.TestCase):
+    def test_a_home_or_office_network_is_named_with_the_address_and_interface(self):
+        level, line = check_computer.describe_network(ROUTE, ifconfig("192.168.0.40", "0xffffff00"))
+        self.assertEqual(level, "ok")
+        self.assertIn("192.168.0.0/24", line)
+        self.assertIn("192.168.0.40 on en0", line)
+
+    def test_a_public_address_warns_and_points_at_scan_subnet(self):
+        level, line = check_computer.describe_network(ROUTE, ifconfig("202.72.223.27", "0xfffffff0"))
+        self.assertEqual(level, "warn")
+        self.assertIn("public", line)
+        self.assertIn("SCAN_SUBNET", line)
+
+    def test_a_network_wider_than_a_slash_22_warns_because_the_scan_would_refuse_it(self):
+        level, line = check_computer.describe_network(ROUTE, ifconfig("10.1.2.3", "0xffff0000"))
+        self.assertEqual(level, "warn")
+        self.assertIn("10.1.0.0/16", line)
+        self.assertIn("too big", line)
+
+    def test_a_slash_22_is_the_widest_that_still_passes(self):
+        self.assertEqual(check_computer.describe_network(ROUTE, ifconfig("10.1.2.3", "0xfffffc00"))[0], "ok")
+
+    def test_no_route_or_no_address_warns_and_never_fails_the_install(self):
+        self.assertEqual(check_computer.describe_network("", "")[0], "warn")
+        self.assertEqual(check_computer.describe_network(ROUTE, "en0: flags=8863<UP>\n")[0], "warn")
+
+
 if __name__ == "__main__":
     unittest.main()

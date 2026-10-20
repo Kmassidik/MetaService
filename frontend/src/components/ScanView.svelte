@@ -20,7 +20,7 @@
   const running = $derived(scan?.state === 'running')
   const chosen = $derived((scan?.results ?? []).filter((row) => picked[row.id]))
   const problems = $derived(chosen.map((row) => nameProblem(names[row.id] ?? '')).filter(Boolean))
-  // "Not set up" and "not installed" are already explained above the table, so they are not repeated here.
+  // "Router not set up" is normal (the router is optional) and "nmap not installed" is explained above the table, so neither is repeated here.
   const EXPLAINED = new Set(['not_configured', 'missing'])
   const sourceNotes = $derived(
     Object.entries(scan?.sources ?? {})
@@ -95,16 +95,13 @@
     <div>
       <h2>Find machines</h2>
       <p class="muted">
-        {#if setup?.subnet}Looks at <span class="mono">{setup.subnet}</span> only, through the router and nmap. Nothing is added until you choose it.
+        {#if setup?.subnet}Looks at <span class="mono">{setup.subnet}</span> only, with nmap and the ARP table. Nothing is added until you choose it.
         {:else}Looking for the network…{/if}
       </p>
     </div>
     <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : 'Scan now'}</button>
   </div>
 
-  {#if setup && !setup.router_configured}
-    <p class="note">The router is not set up, so MAC addresses and names may be missing. Add ROUTER_URL, ROUTER_USER and ROUTER_PASSWORD to the Root's env file.</p>
-  {/if}
   {#if setup && !setup.nmap_available}
     <p class="note">nmap was not found on the Root machine, so only the router's list is used.</p>
   {/if}
