@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { ApiError, addFromScan, latestScan, scanSetup, startScan } from '../lib/api.ts'
-  import { sourceName, sourceProblem, suggestName, nameProblem } from '../lib/format.ts'
+  import { sourceName, sourceProblem, suggestName } from '../lib/format.ts'
   import Dialog from './Dialog.svelte'
   import TokenList from './TokenList.svelte'
   import type { Device, Invite, Scan, ScanSetup } from '../lib/types.ts'
@@ -12,14 +12,10 @@
   let setup = $state<ScanSetup | null>(null)
   let scan = $state<Scan | null>(null)
   let failure = $state('')
-  let picked = $state<Record<string, boolean>>({})
-  let names = $state<Record<string, string>>({})
-  let adding = $state(false)
+  let installing = $state('')
   let invites = $state<Invite[] | null>(null)
   let timer: ReturnType<typeof setTimeout> | undefined
   const running = $derived(scan?.state === 'running')
-  const chosen = $derived((scan?.results ?? []).filter((row) => picked[row.id]))
-  const problems = $derived(chosen.map((row) => nameProblem(names[row.id] ?? '')).filter(Boolean))
   // "Router not set up" is normal (the router is optional) and "nmap not installed" is explained above the table, so neither is repeated here.
   const EXPLAINED = new Set(['not_configured', 'missing'])
   const sourceNotes = $derived(
@@ -60,7 +56,6 @@
 
   async function begin() {
     failure = ''
-    picked = {}
     scan = { id: '', state: 'running', results: [], sources: {} }
     try {
       await startScan()
@@ -75,24 +70,18 @@
     poll()
   }
 
-  function toggle(row: Device) {
-    picked[row.id] = !picked[row.id]
-    if (picked[row.id] && !names[row.id]) names[row.id] = suggestName(row.hostname, row.ip)
-  }
-
-  async function addChosen() {
+  /** For a computer that cannot be logged into over SSH: one install token, named after the computer itself. */
+  async function installByHand(row: Device) {
     if (!scan) return
-    adding = true
+    installing = row.id
     failure = ''
     try {
-      const reply = await addFromScan(scan.id, chosen.map((row) => ({ result_id: row.id, name: names[row.id] })))
+      const reply = await addFromScan(scan.id, [{ result_id: row.id, name: suggestName(row.hostname, row.ip) }])
       invites = reply.invites
-      picked = {}
-      scan = await latestScan()
     } catch (error) {
       showFailure(error)
     } finally {
-      adding = false
+      installing = ''
     }
   }
 
@@ -130,44 +119,32 @@
     <p class="muted">Looking at the network…</p>
   {:else if scan?.results?.length}
     <div class="table" role="table" aria-label="Devices found">
-      <div class="head" role="row"><span></span><span>Address</span><span>Name</span><span>MAC address</span><span>Seen by</span><span>Status</span></div>
+      <div class="head" role="row"><span>Address</span><span>Name</span><span>MAC address</span><span>Seen by</span><span>Status</span></div>
       {#each scan.results as row (row.id)}
         <div class="row" role="row">
-          <span class="pick">
-            <input type="checkbox" checked={!!picked[row.id]} disabled={!!row.machine || notAComputerToAdd(row.ip)} onchange={() => toggle(row)} aria-label="Pick {row.ip}" />
-          </span>
           <span class="mono" data-label="Address">{row.ip}</span>
           <span data-label="Name">{row.hostname ?? '–'}{#if row.vendor}<span class="muted vendor">· {row.vendor}</span>{/if}</span>
           <span class="mono" data-label="MAC address">{row.mac ?? '–'}</span>
           <span class="tags" data-label="Seen by">{#each row.seen_by as source (source)}<span class="tag">{sourceName(source)}</span>{/each}</span>
-          <span data-label="Status">
-            {#if isGateway(row.ip)}<span class="muted">Router (gateway), not a computer to add</span>
-            {:else if isSelf(row.ip)}<span class="muted">This computer (running MetaService), not a computer to add</span>
-            {:else if row.machine}Enrolled as <strong>{row.machine}</strong>
-            {:else if row.agent_port_open}<span class="ok">Agent answering</span>
-            {:else}<span class="muted">Unknown device</span> <button class="btn line sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Connect {row.ip}">Connect</button>{/if}
+          <span class="status" data-label="Status">
+            {#if isGateway(row.ip)}<span class="badge">Router</span>
+            {:else if isSelf(row.ip)}<span class="badge">This computer</span>
+            {:else if row.machine}<span class="badge ok">Added</span> <strong>{row.machine}</strong>
+            {:else if row.agent_port_open}<span class="badge ok">Agent running</span>
+            {:else}
+              <button class="btn green sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Add {row.ip}">Add</button>
+              <button class="link" type="button" disabled={installing === row.id} onclick={() => installByHand(row)} aria-label="Install {row.ip} by hand">{installing === row.id ? 'Making the code…' : 'Install by hand'}</button>
+            {/if}
           </span>
-          {#if picked[row.id]}
-            <label class="name">Machine name
-              <input bind:value={names[row.id]} autocomplete="off" spellcheck="false" maxlength="63" aria-label="Machine name for {row.ip}" />
-            </label>
-          {/if}
         </div>
       {/each}
     </div>
-    <div class="actions">
-      <span class="muted">{chosen.length} picked</span>
-      <button class="btn green" type="button" disabled={adding || chosen.length === 0 || problems.length > 0} onclick={addChosen}>
-        {adding ? 'Creating…' : 'Create enrollment tokens'}
-      </button>
-    </div>
-    {#if problems.length}<p class="note bad">{problems[0]}</p>{/if}
   {/if}
 </section>
 
-<Dialog open={invites !== null} title="Enrollment tokens" onClose={() => (invites = null)}>
+<Dialog open={invites !== null} title="Install code" onClose={() => (invites = null)}>
   {#if invites}
-    <p>Each token works once, only from the address that was scanned, and is not shown again. Use it when you install the Agent on that machine.</p>
+    <p>This code works once, only from the address that was scanned, and is not shown again. Use it when you install the Agent on that computer.</p>
     <TokenList {invites} />
     <div class="done"><button class="btn green" type="button" onclick={() => (invites = null)}>Done</button></div>
   {/if}
@@ -180,23 +157,21 @@
   .note { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
   .note.bad { background: var(--danger-bg); color: var(--danger); }
   .table { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-  .head, .row { display: grid; grid-template-columns: 40px 140px minmax(160px, 1.4fr) 170px minmax(150px, 1fr) minmax(160px, 1fr); gap: 12px; align-items: center; padding: 10px 16px; }
+  .head, .row { display: grid; grid-template-columns: 140px minmax(140px, 1fr) 170px minmax(130px, 0.9fr) minmax(240px, 1.3fr); gap: 12px; align-items: center; padding: 10px 16px; }
   .head { background: var(--surface-2); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   .row { border-top: 1px solid var(--line); }
-  .pick input { width: 18px; height: 18px; }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
   .tag { padding: 0 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; font-weight: 600; }
   .vendor { margin-left: 6px; }
-  .ok { color: var(--ok); font-weight: 600; }
-  .name { grid-column: 2 / -1; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-  .name input { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); max-width: 360px; }
-  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
+  .status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .badge { padding: 2px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600; }
+  .badge.ok { color: var(--ok); }
+  .link { background: none; border: 0; padding: 0; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
+  .link:disabled { cursor: default; opacity: 0.6; }
   .done { display: flex; justify-content: flex-end; }
   @media (max-width: 900px) {
     .head { display: none; }
-    .row { grid-template-columns: 32px 1fr; padding: 14px; gap: 6px 10px; }
-    .row > span:not(.pick) { grid-column: 2; }
+    .row { grid-template-columns: 1fr; padding: 14px; gap: 6px; }
     .row > span[data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .name { grid-column: 2; }
   }
 </style>
