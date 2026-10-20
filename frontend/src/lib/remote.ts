@@ -24,7 +24,7 @@ export function whereProblem(form: ConnectForm): string | null {
 /** What is missing before the login can start, or null. */
 export function loginProblem(form: ConnectForm): string | null {
   if (!USER.test(form.user)) return 'Type the user name you log in with on that computer.'
-  if (!form.useKey && form.password === '') return 'Type the password, or choose to use the parent\'s key.'
+  if (!form.useKey && form.password === '') return 'Type the password, or use MetaService\'s key instead.'
   if (form.password.length > LONGEST_PASSWORD) return `The password is too long (at most ${LONGEST_PASSWORD} characters).`
   return null
 }

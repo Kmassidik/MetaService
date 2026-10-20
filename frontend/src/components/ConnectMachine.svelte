@@ -57,8 +57,10 @@
 
   async function chooseKey(useKey: boolean) {
     form.useKey = useKey
+    failure = ''
+    copied = false
     if (!useKey || publicKey) return
-    try { publicKey = await parentKey() } catch { failure = 'Could not read the parent\'s key.' }
+    try { publicKey = await parentKey() } catch { failure = 'Could not read MetaService\'s key.' }
   }
 
   const login = (event: SubmitEvent) => {
@@ -73,6 +75,18 @@
         form.password = ''
       }
     })
+  }
+
+  const refused = $derived(/refused/i.test(failure))
+  let copied = $state(false)
+
+  async function copyKey() {
+    try {
+      await navigator.clipboard.writeText(publicKey)
+      copied = true
+    } catch {
+      failure = 'Could not copy. Select the key and copy it by hand.'
+    }
   }
 
   const again = () => { step = 'where'; probe = null; result = null; failure = '' }
@@ -99,27 +113,42 @@
     </form>
   {:else if step === 'confirm' && probe}
     <form onsubmit={login} novalidate>
-      <p>Is this the computer you mean? Compare this fingerprint with the one on that computer (<span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span>).</p>
-      <p class="print mono" aria-label="Host key fingerprint">{groupedFingerprint(probe.fingerprint)}</p>
-      <p class="muted">{probe.host} · {probe.address} · {probe.key_type}{probe.trusted ? ' · trusted before' : ''}</p>
+      <div class="found">
+        <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
+        <div>
+          <strong>Found a computer at {probe.address}</strong>
+          <p class="muted">{probe.host !== probe.address ? `${probe.host} · ` : ''}{probe.trusted ? 'You have connected to it before.' : 'This is the first time MetaService sees it.'}</p>
+        </div>
+      </div>
+      <details class="why">
+        <summary>Is it the right computer? (optional check)</summary>
+        <p class="muted">Every computer has an ID code of its own, like a fingerprint. If you want to be sure this is yours and not another computer pretending, run this on it and compare:</p>
+        <code class="key mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code>
+        <p class="print mono" aria-label="ID code of the computer (host key fingerprint)">{groupedFingerprint(probe.fingerprint)}</p>
+      </details>
 
-      <label for="connect-user">User on that computer</label>
+      <h3 class="sub">Log in to it</h3>
+      <p class="muted">{form.useKey ? 'MetaService only looks at the computer; nothing is installed yet.' : 'Use the name and password you use to sign in on that computer. MetaService only looks; the password is used once and not kept.'}</p>
+      <label for="connect-user">User name</label>
       <input id="connect-user" bind:value={form.user} autocomplete="off" autocapitalize="off" spellcheck="false" />
-      <fieldset class="how">
-        <legend>How to log in</legend>
-        <label class="check"><input type="radio" name="how" checked={!form.useKey} onchange={() => chooseKey(false)} /> Password (used once, never kept)</label>
-        <label class="check"><input type="radio" name="how" checked={form.useKey} onchange={() => chooseKey(true)} /> The parent's key (add it to that computer first)</label>
-      </fieldset>
       {#if form.useKey}
-        <p class="muted">Put this line in <span class="mono">~/.ssh/authorized_keys</span> of that user:</p>
-        <code class="key mono" aria-label="The parent's public key">{publicKey || '…'}</code>
+        <p class="muted keyhelp">Instead of a password, give that computer MetaService's key. On that computer, add this line to the file <span class="mono">~/.ssh/authorized_keys</span> of that user:</p>
+        <code class="key mono" aria-label="MetaService's public key">{publicKey || '…'}</code>
+        <div class="keyactions">
+          <button class="btn line sm" type="button" onclick={copyKey} disabled={!publicKey}>{copied ? 'Copied' : 'Copy the key'}</button>
+          <button class="link" type="button" onclick={() => chooseKey(false)}>Use a password instead</button>
+        </div>
       {:else}
         <SecretField label="Password" name="password" bind:value={form.password} />
+        <button class="link" type="button" onclick={() => chooseKey(true)}>No password for it? Use a key instead</button>
       {/if}
-      {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
+      {#if failure}
+        <p class="bad" role="alert">{failure}</p>
+        {#if refused && !form.useKey}<p class="muted">Some computers do not accept passwords over the network. Then a key works: <button class="link" type="button" onclick={() => chooseKey(true)}>use a key instead</button>.</p>{/if}
+      {/if}
       <div class="row">
         <button class="btn line" type="button" onclick={again}>Back</button>
-        <button class="btn green" type="submit" disabled={busy || loginWrong !== null}>{busy ? 'Logging in…' : 'Yes, log in and check'}</button>
+        <button class="btn green" type="submit" disabled={busy || loginWrong !== null}>{busy ? 'Logging in…' : 'Log in and check'}</button>
       </div>
     </form>
   {:else if step === 'result' && result}
@@ -149,10 +178,14 @@
   label { display: block; margin-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--m50); }
   input:not([type='radio']) { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--gray); background: var(--white); font-family: var(--mono); font-size: 14px; }
   input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
-  fieldset.how { border: 0; border-top: 1px solid var(--gray); margin: 16px 0 0; padding: 0; }
-  legend { padding: 0 8px 0 0; margin-top: -9px; background: var(--white); font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--m40); }
-  .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 14px; color: var(--black); margin-top: 10px; }
-  .check input { width: auto; margin: 0; }
+  .found { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--gray); background: var(--gray2); }
+  .found p { margin: 2px 0 0; font-size: 13px; }
+  .ico { flex: none; color: var(--green); }
+  .why { margin-top: 12px; font-size: 13px; }
+  .why summary { cursor: pointer; color: var(--m50); }
+  .keyactions { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  .link { background: none; border: 0; padding: 0; margin-top: 10px; color: var(--m50); font-size: 13px; text-decoration: underline; cursor: pointer; }
+  .keyactions .link { margin-top: 0; }
   .print { padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 15px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
   .key { display: block; padding: 10px; border: 1px solid var(--gray); background: var(--bg); overflow-wrap: anywhere; user-select: all; font-size: 12px; }
   .sub { margin: 16px 0 6px; font-size: 13px; }
