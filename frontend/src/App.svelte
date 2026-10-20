@@ -25,6 +25,7 @@
   let phase = $state<'loading' | 'signedOut' | 'ready' | 'error'>('loading')
   let username = $state('')
   let configured = $state(true)
+  let minPasswordLength = $state(8)
   let machines = $state<Machine[]>([])
   let now = $state(Date.now())
   let route = $state(location.hash.replace(/^#/, '') || '/')
@@ -62,7 +63,9 @@
         await refresh()
         return
       }
-      configured = (await authStatus()).configured
+      const status = await authStatus()
+      configured = status.configured
+      minPasswordLength = status.min_password_length ?? 8
       phase = 'signedOut'
     } catch (error) {
       banner = error instanceof ApiError && error.status === 0 ? 'Cannot reach the Root.' : 'Something went wrong.'
@@ -217,7 +220,7 @@
     <button class="btn line" type="button" onclick={start}>Try again</button>
   </main>
 {:else if phase === 'signedOut'}
-  <Login {configured} onDone={start} />
+  <Login {configured} minLength={minPasswordLength} onDone={start} />
 {:else}
   <div class="announce">MetaService · control panel</div>
   <div class="shell">

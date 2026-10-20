@@ -7,6 +7,9 @@ public enum PasswordHash {
     public static let iterations = 120_000
     public static let saltBytes = 16
     public static let minLength = 8
+    /// A panel reachable from the internet has only its password in the way, so it asks for more.
+    public static let minLengthPublic = 12
+    public static func minimumLength(publicSite: Bool) -> Int { publicSite ? minLengthPublic : minLength }
     public static let maxLength = 200
 
     public static func derive(password: String, salt: Data, iterations: Int) -> Data {

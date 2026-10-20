@@ -2,9 +2,9 @@
 import sys
 import time
 
-from contract.root_tests import checks_abuse, checks_agents, checks_auth, checks_brain, checks_public, checks_remote, checks_remote_install, checks_scan, checks_screen
+from contract.root_tests import checks_abuse, checks_agents, checks_auth, checks_brain, checks_public, checks_public_site, checks_remote, checks_remote_install, checks_scan, checks_screen
 
-ALL_CHECKS = checks_public.CHECKS + checks_auth.CHECKS + checks_agents.CHECKS + checks_abuse.CHECKS + checks_brain.CHECKS + checks_scan.CHECKS + checks_remote.CHECKS + checks_remote_install.CHECKS + checks_screen.CHECKS
+ALL_CHECKS = checks_public.CHECKS + checks_public_site.CHECKS + checks_auth.CHECKS + checks_agents.CHECKS + checks_abuse.CHECKS + checks_brain.CHECKS + checks_scan.CHECKS + checks_remote.CHECKS + checks_remote_install.CHECKS + checks_screen.CHECKS
 
 
 def main():

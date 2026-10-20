@@ -3,7 +3,7 @@
   import { ApiError, login, setupAdmin } from '../lib/api.ts'
   import SecretField from './SecretField.svelte'
 
-  let { configured, onDone }: { configured: boolean; onDone: () => void | Promise<void> } = $props()
+  let { configured, minLength = 8, onDone }: { configured: boolean; minLength?: number; onDone: () => void | Promise<void> } = $props()
   let username = $state('')
   let password = $state('')
   let confirm = $state('')
@@ -11,16 +11,15 @@
   let busy = $state(false)
   let failure = $state('')
 
-  const MIN_LENGTH = 8
   /** Live hints, as in the MAAS panel: length first, then whether the two passwords match. */
   const hint = $derived.by(() => {
     if (configured || (!password && !confirm)) return { text: '', tone: '' }
-    if (password.length < MIN_LENGTH) return { text: `Use at least ${MIN_LENGTH} characters (${password.length}/${MIN_LENGTH}).`, tone: 'no' }
+    if (password.length < minLength) return { text: `Use at least ${minLength} characters (${password.length}/${minLength}).`, tone: 'no' }
     if (confirm && password !== confirm) return { text: "Passwords don't match yet.", tone: 'no' }
     if (password === confirm) return { text: 'Passwords match.', tone: 'ok' }
     return { text: '', tone: '' }
   })
-  const ready = $derived(configured ? Boolean(username && password) : Boolean(username && setupToken && password.length >= MIN_LENGTH && password === confirm))
+  const ready = $derived(configured ? Boolean(username && password) : Boolean(username && setupToken && password.length >= minLength && password === confirm))
 
   async function submit(event: SubmitEvent) {
     event.preventDefault()
@@ -73,7 +72,7 @@
       <span class="flabel">{configured ? 'Sign in to manage your machines, VMs and chats.' : 'First run: claim this panel with the operator setup token.'}</span>
       {#if failure}<div class="err" role="alert">{failure}</div>{/if}
       <label class="field"><span>Username</span><input name="username" autocomplete="username" required bind:value={username} /></label>
-      <SecretField label="Password" name="password" autocomplete={configured ? 'current-password' : 'new-password'} placeholder={configured ? '' : 'at least 8 characters'} bind:value={password} />
+      <SecretField label="Password" name="password" autocomplete={configured ? 'current-password' : 'new-password'} placeholder={configured ? '' : `at least ${minLength} characters`} bind:value={password} />
       {#if !configured}
         <SecretField label="Confirm password" name="confirm" autocomplete="new-password" bind:value={confirm} />
         <SecretField label="Setup token" name="setup_token" placeholder="provided by the operator" bind:value={setupToken} />

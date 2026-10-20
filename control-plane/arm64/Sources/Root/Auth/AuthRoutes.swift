@@ -28,7 +28,7 @@ struct AuthRoutes {
     func status(_ request: Request, context: RootContext) async throws -> Response {
         try guards.requireHost(request)
         let signedIn = (try? guards.operatorRead(request)) != nil
-        return try Json.response(Status(configured: services.admin.isConfigured, signedIn: signedIn, setupTokenRequired: services.setupGate.isOpen))
+        return try Json.response(Status(configured: services.admin.isConfigured, signedIn: signedIn, setupTokenRequired: services.setupGate.isOpen, minPasswordLength: minimumPasswordLength))
     }
 
     func setup(_ request: Request, context: RootContext) async throws -> Response {
@@ -37,7 +37,7 @@ struct AuthRoutes {
         try guards.limit("setup", per: context, max: Self.setupPerMinute, seconds: 60)
         let lockKey = "setup-token:\(context.remoteIP)"
         guard !services.throttle.isFull(lockKey, limit: Self.attemptsBeforeLockout) else { throw ApiFailure.tooMany }
-        let body = try Credentials(body: try await guards.body(request), needsConfirm: true)
+        let body = try Credentials(body: try await guards.body(request), needsConfirm: true, minimumPassword: minimumPasswordLength)
         guard !services.admin.isConfigured else { throw ApiFailure(status: .conflict, code: "already_set_up", message: "the admin login already exists") }
         guard services.setupGate.accepts(body.setupToken ?? "") else {
             _ = services.throttle.allow(lockKey, limit: Self.attemptsBeforeLockout, seconds: Self.lockoutSeconds)
@@ -57,7 +57,7 @@ struct AuthRoutes {
         try requireOrigin(request)
         let lockKey = "login:\(context.remoteIP)"
         guard !services.throttle.isFull(lockKey, limit: Self.attemptsBeforeLockout) else { throw ApiFailure.tooMany }
-        let body = try Credentials(body: try await guards.body(request), needsConfirm: false)
+        let body = try Credentials(body: try await guards.body(request), needsConfirm: false, minimumPassword: minimumPasswordLength)
         guard try verified(body) else {
             _ = services.throttle.allow(lockKey, limit: Self.attemptsBeforeLockout, seconds: Self.lockoutSeconds)
             try services.audit.record(actor: "unknown", action: "auth.login_denied", detail: ["from": context.remoteIP], at: services.clock.now)
@@ -105,10 +105,14 @@ struct AuthRoutes {
         Cookies.set(name: services.config.sessionCookieName, value: value, maxAge: maxAge, secure: services.config.cookiesAreSecure, sameSite: "Strict")
     }
 
+    /// 8 characters on a private machine, 12 once the panel is public (https).
+    private var minimumPasswordLength: Int { PasswordHash.minimumLength(publicSite: services.config.cookiesAreSecure) }
+
     private struct Status: Encodable {
         let configured: Bool
         let signedIn: Bool
         let setupTokenRequired: Bool
+        let minPasswordLength: Int
     }
 
     private struct Reply: Encodable {
@@ -121,11 +125,11 @@ struct AuthRoutes {
         let password: String
         let setupToken: String?
 
-        init(body: Data, needsConfirm: Bool) throws {
+        init(body: Data, needsConfirm: Bool, minimumPassword: Int) throws {
             let object = try StrictObject(data: body, allowed: needsConfirm ? ["username", "password", "confirm", "setup_token"] : ["username", "password"])
             setupToken = needsConfirm ? try object.string("setup_token", maxLength: 200, minLength: 1) : nil
             username = try object.string("username", pattern: AuthRoutes.usernamePattern, maxLength: 32, minLength: 3)
-            password = try object.string("password", maxLength: PasswordHash.maxLength, minLength: needsConfirm ? PasswordHash.minLength : 1)
+            password = try object.string("password", maxLength: PasswordHash.maxLength, minLength: needsConfirm ? minimumPassword : 1)
             if needsConfirm {
                 let again = try object.string("confirm", maxLength: PasswordHash.maxLength)
                 guard again == password else { throw InputError("the two passwords are different") }

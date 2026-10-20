@@ -198,6 +198,8 @@ export interface RefusalNumbers {
 
 export interface AuthStatus {
   configured: boolean
+  /** The shortest admin password the server accepts: 8, or 12 when the panel is public (https). */
+  min_password_length?: number
 }
 
 export interface Session {
