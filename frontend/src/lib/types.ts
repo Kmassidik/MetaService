@@ -142,22 +142,6 @@ export interface ComputerInfo {
   disk_gb: number
 }
 
-/** What the Add machine form is filled with before anything is typed. */
-export interface InstallDefaults {
-  name: string
-  ram_reserve_mb: number
-  disk_reserve_gb: number
-  agent_ready: boolean
-  chat_available: boolean
-  profile: string
-  computer: ComputerInfo
-  ai_model?: string
-  vm_cpu: number
-  vm_ram_mb: number
-  vm_disk_gb: number
-  requirements: Requirement[]
-}
-
 export type StepState = 'pending' | 'running' | 'done' | 'failed'
 
 export interface InstallStep {
@@ -229,28 +213,6 @@ export interface BrainStatus {
 
 /** A number typed into a form: a number, the text of one, or empty. */
 export type FormNumber = number | string | null | undefined
-
-/** The Add machine form's fields. */
-export interface InstallForm {
-  name: string
-  profile: string
-  labels: string
-  notes: string
-  chat: boolean
-  ramReserveMb: FormNumber
-  diskReserveGb: FormNumber
-  ramAllowanceMb: FormNumber
-  diskAllowanceGb: FormNumber
-  allowGpu: boolean
-  vmCpu: FormNumber
-  vmRamMb: FormNumber
-  vmDiskGb: FormNumber
-  vmImage: string
-  vmMaxRunning: FormNumber
-  subdomain: string
-  publicChat: boolean
-  aiModel: string
-}
 
 /** The New VM form's fields. */
 export interface WorkloadForm {

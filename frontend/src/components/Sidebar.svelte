@@ -6,7 +6,7 @@
     icon: string
   }
 
-  let { active = 'overview', route = '/', username, onSignOut, onAdd }: { active?: string; route?: string; username: string; onSignOut: () => void; onAdd: () => void } = $props()
+  let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
   const FIND = '/machines/find'
   // "Machines" itself is the open item except on Find machines, which has its own mark.
   const isOn = (page: NavPage) => (page.id === 'machines' ? active === 'machines' && route !== FIND : active === page.id)
@@ -36,7 +36,6 @@
           {#if page.id === 'machines'}
             <div class="sub">
               <a class:on={route === FIND} href="#{FIND}" aria-current={route === FIND ? 'page' : undefined}>Find machines</a>
-              <button type="button" onclick={() => onAdd()}>＋ Add a machine</button>
             </div>
           {/if}
         {/each}

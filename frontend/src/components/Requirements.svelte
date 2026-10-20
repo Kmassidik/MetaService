@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The ✓ ! ✗ list of what a computer has, shown before anything is installed (this computer in Add machine, another one in Connect).
+  // The ✓ ! ✗ list of what a computer has, shown before anything is installed (shown by Add a machine).
   import type { Requirement } from '../lib/types.ts'
 
   let { items, label = 'What this computer has' }: { items: Requirement[]; label?: string } = $props()

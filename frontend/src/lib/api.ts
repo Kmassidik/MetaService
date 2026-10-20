@@ -1,5 +1,5 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -93,9 +93,6 @@ export async function login(username: string, password: string): Promise<string>
 export const signOut = () => call<null>('POST', '/api/auth/logout')
 
 export const listMachines = async () => (await call<{ machines: Machine[] }>('GET', '/api/machines')).machines
-export const installDefaults = () => call<InstallDefaults>('GET', '/api/installs/defaults')
-export const startInstall = (body: Record<string, unknown>) => call<{ id: string }>('POST', '/api/installs', body)
-export const installProgress = (id: string) => call<InstallJob>('GET', `/api/installs/${encodeURIComponent(id)}`)
 export const removeMachine = (id: string) => call<null>('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 
 export const scanSetup = () => call<ScanSetup>('GET', '/api/scan/setup')

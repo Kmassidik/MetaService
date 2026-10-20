@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Connect another computer on this network: its address, then its host key to confirm, then a login that only reads what it is. Nothing is installed here.
+  // Add another computer on this network: its address, then its host key to confirm, then a login that only reads what it is. Nothing is installed here.
   import { untrack } from 'svelte'
   import AddRemote from './AddRemote.svelte'
   import Dialog from './Dialog.svelte'
@@ -100,7 +100,7 @@
   const again = () => { step = 'where'; probe = null; result = null; failure = '' }
 </script>
 
-<Dialog {open} title="Connect a computer" {onClose}>
+<Dialog {open} title="Add a machine" {onClose}>
   <ol class="steps" aria-label="Steps">
     {#each STEPS as [id, label], index (id)}<li class:on={step === id} aria-current={step === id ? 'step' : undefined}><b>{index + 1}</b> {label}</li>{/each}
   </ol>
