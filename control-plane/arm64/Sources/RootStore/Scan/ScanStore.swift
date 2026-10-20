@@ -55,65 +55,68 @@ public enum ScanError: Error, Equatable {
     case notFound
 }
 
-/// Scan runs and what each one found. Only the latest runs are kept.
-public struct ScanStore {
-    private let database: Database
-    public static let keepRuns = 20
+/// The latest scan, kept in memory only. A scan is a look at the network right now, so nothing about it is written to the database: opening
+/// Find machines always runs a fresh one, and a new run replaces the old. The database is read only to mark devices that are already machines.
+public final class ScanStore: @unchecked Sendable {
+    private struct Run {
+        let id: Int
+        let subnet: String
+        let startedAt: Date
+        var state = "running"
+        var sources: [String: String] = [:]
+        var finishedAt: Date?
+        var findings: [ScanFinding] = []
+    }
+
     public static let staleAfter: TimeInterval = 15 * 60
+
+    private let database: Database
+    private let lock = NSLock()
+    private var current: Run?
+    private var lastId = 0
 
     public init(_ database: Database) { self.database = database }
 
     /// Begins a run, or refuses if one is already going. A run that never finished (a crash) stops counting after a while.
-    public func start(actor: String, subnet: String, now: Date) throws -> Int {
-        try database.transaction {
-            let seconds = Int(now.timeIntervalSince1970)
-            try database.execute("UPDATE scan_runs SET state = 'failed', finished_at = ? WHERE state = 'running' AND started_at < ?",
-                                 [.int(seconds), .int(seconds - Int(Self.staleAfter))])
-            guard try database.query("SELECT 1 AS found FROM scan_runs WHERE state = 'running'").isEmpty else { throw ScanError.alreadyRunning }
-            try database.execute("INSERT INTO scan_runs (actor, subnet, state, started_at) VALUES (?, ?, 'running', ?)", [.text(actor), .text(subnet), .int(seconds)])
-            let id = try database.query("SELECT last_insert_rowid() AS id").first?.int("id") ?? 0
-            try database.execute("DELETE FROM scan_runs WHERE id <= ?", [.int(id - Self.keepRuns)])
-            return id
+    public func start(subnet: String, now: Date) throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if let run = current, run.state == "running", now.timeIntervalSince(run.startedAt) < Self.staleAfter { throw ScanError.alreadyRunning }
+        lastId += 1
+        current = Run(id: lastId, subnet: subnet, startedAt: now)
+        return lastId
+    }
+
+    public func finish(runId: Int, findings: [ScanFinding], sources: [String: String], now: Date) {
+        update(runId) { run in
+            run.state = "done"
+            run.findings = findings
+            run.sources = sources
+            run.finishedAt = now
         }
     }
 
-    public func finish(runId: Int, findings: [ScanFinding], sources: [String: String], now: Date) throws {
-        try database.transaction {
-            for item in findings {
-                try database.execute("""
-                    INSERT OR IGNORE INTO scan_results (run_id, ip, mac, hostname, vendor, seen_by, agent_port_open) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, [.int(runId), .text(item.ip), item.mac.map(SQLValue.text) ?? .null, item.hostname.map(SQLValue.text) ?? .null,
-                          item.vendor.map(SQLValue.text) ?? .null, .text(item.seenBy.map(\.rawValue).joined(separator: ",")), .int(item.agentPortOpen ? 1 : 0)])
-            }
-            let json = String(data: try JSONEncoder().encode(sources), encoding: .utf8) ?? "{}"
-            try database.execute("UPDATE scan_runs SET state = 'done', sources_json = ?, finished_at = ? WHERE id = ?",
-                                 [.text(json), .int(Int(now.timeIntervalSince1970)), .int(runId)])
+    public func fail(runId: Int, sources: [String: String], now: Date) {
+        update(runId) { run in
+            run.state = "failed"
+            run.sources = sources
+            run.finishedAt = now
         }
-    }
-
-    public func fail(runId: Int, sources: [String: String], now: Date) throws {
-        let json = String(data: try JSONEncoder().encode(sources), encoding: .utf8) ?? "{}"
-        try database.execute("UPDATE scan_runs SET state = 'failed', sources_json = ?, finished_at = ? WHERE id = ?",
-                             [.text(json), .int(Int(now.timeIntervalSince1970)), .int(runId)])
     }
 
     public func latest() throws -> ScanRunSummary? {
-        guard let id = try database.query("SELECT id FROM scan_runs ORDER BY id DESC LIMIT 1").first?.int("id") else { return nil }
-        return try get(id: id)
+        lock.lock()
+        let run = current
+        lock.unlock()
+        return try run.map(summary)
     }
 
     public func get(id: Int) throws -> ScanRunSummary {
-        guard let run = try database.query("SELECT id, state, subnet, sources_json, started_at, finished_at FROM scan_runs WHERE id = ?", [.int(id)]).first else {
-            throw ScanError.notFound
-        }
-        let rows = try database.query("""
-            SELECT r.id, r.ip, r.mac, r.hostname, r.vendor, r.seen_by, r.agent_port_open, m.name AS machine
-            FROM scan_results r LEFT JOIN machines m ON m.ip = r.ip WHERE r.run_id = ? ORDER BY r.id
-            """, [.int(id)]).map(Self.resultRow)
-        return ScanRunSummary(id: run.int("id"), state: run.string("state"), subnet: run.string("subnet"),
-                              sources: (try? JSONDecoder().decode([String: String].self, from: Data(run.string("sources_json").utf8))) ?? [:],
-                              startedAt: Dates.iso(run.int("started_at")), finishedAt: run.optionalInt("finished_at").map(Dates.iso),
-                              results: rows.sorted { (Subnet.address($0.ip) ?? 0) < (Subnet.address($1.ip) ?? 0) })
+        lock.lock()
+        let run = current
+        lock.unlock()
+        guard let run, run.id == id else { throw ScanError.notFound }
+        return try summary(run)
     }
 
     /// One result of one run, for the add step.
@@ -122,9 +125,26 @@ public struct ScanStore {
         return row
     }
 
-    private static func resultRow(_ row: Row) -> ScanResultRow {
-        ScanResultRow(id: row.int("id"), ip: row.string("ip"), mac: row.optionalString("mac"), hostname: row.optionalString("hostname"),
-                      vendor: row.optionalString("vendor"), seenBy: row.string("seen_by").split(separator: ",").map(String.init),
-                      agentPortOpen: row.int("agent_port_open") == 1, machine: row.optionalString("machine"))
+    /// A run that a newer run has replaced is ignored: its late answer must not overwrite the new one.
+    private func update(_ runId: Int, _ change: (inout Run) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var run = current, run.id == runId else { return }
+        change(&run)
+        current = run
+    }
+
+    private func summary(_ run: Run) throws -> ScanRunSummary {
+        let sorted = run.findings.sorted { (Subnet.address($0.ip) ?? 0) < (Subnet.address($1.ip) ?? 0) }
+        let rows = try sorted.enumerated().map { index, item in
+            ScanResultRow(id: index + 1, ip: item.ip, mac: item.mac, hostname: item.hostname, vendor: item.vendor, seenBy: item.seenBy.map(\.rawValue),
+                          agentPortOpen: item.agentPortOpen, machine: try machineName(at: item.ip))
+        }
+        return ScanRunSummary(id: run.id, state: run.state, subnet: run.subnet, sources: run.sources, startedAt: Dates.iso(Int(run.startedAt.timeIntervalSince1970)),
+                              finishedAt: run.finishedAt.map { Dates.iso(Int($0.timeIntervalSince1970)) }, results: rows)
+    }
+
+    private func machineName(at ip: String) throws -> String? {
+        try database.query("SELECT name FROM machines WHERE ip = ? LIMIT 1", [.text(ip)]).first?.optionalString("name")
     }
 }

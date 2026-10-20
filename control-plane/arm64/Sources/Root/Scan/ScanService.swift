@@ -47,7 +47,7 @@ final class ScanService: @unchecked Sendable {
         guard let subnet else { throw ApiFailure(status: .serviceUnavailable, code: "no_subnet", message: "no private network found; set SCAN_SUBNET in the Root's env file") }
         let runId: Int
         do {
-            runId = try store.start(actor: actor, subnet: subnet.description, now: clock.now)
+            runId = try store.start(subnet: subnet.description, now: clock.now)
         } catch ScanError.alreadyRunning {
             throw ApiFailure(status: .conflict, code: "scan_running", message: "a scan is already running")
         }
@@ -73,11 +73,11 @@ final class ScanService: @unchecked Sendable {
     private func record(runId: Int, actor: String, found: [ScanFinding], sources: [String: String]) async {
         let anySource = sources.values.contains("ok")
         let now = clock.now
+        if anySource { store.finish(runId: runId, findings: found, sources: sources, now: now) } else { store.fail(runId: runId, sources: sources, now: now) }
         do {
-            if anySource { try store.finish(runId: runId, findings: found, sources: sources, now: now) } else { try store.fail(runId: runId, sources: sources, now: now) }
             try audit.record(actor: actor, action: "scan.run", target: String(runId), detail: sources.merging(["found": String(found.count)]) { $1 }, at: now)
         } catch {
-            FileHandle.standardError.write(Data("scan \(runId): could not save results\n".utf8))
+            FileHandle.standardError.write(Data("scan \(runId): could not write the audit entry\n".utf8))
         }
     }
 

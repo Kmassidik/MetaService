@@ -91,6 +91,8 @@ public enum Migrations {
               created_at INTEGER NOT NULL
             );
             """) }),
+        // A scan is a look at the network right now and is no longer stored (see ScanStore).
+        (14, { try $0.exec("DROP TABLE IF EXISTS scan_results; DROP TABLE IF EXISTS scan_runs;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
