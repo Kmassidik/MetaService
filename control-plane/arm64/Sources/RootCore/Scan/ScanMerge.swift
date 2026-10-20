@@ -10,10 +10,17 @@ public enum ScanMerge {
         for host in nmap where subnet.contains(host.ip) {
             add(&byIp, ip: host.ip, mac: host.mac, hostname: host.hostname, vendor: host.vendor, source: .nmap, agentPort: host.agentPortOpen)
         }
-        for (ip, mac) in arp where subnet.contains(ip) && byIp[ip] != nil {
+        // A machine that drops nmap's probes (a firewall, no web port) still answered the ARP request the probe caused, so the ARP table finds it too.
+        for (ip, mac) in arp where subnet.isHost(ip) && (byIp[ip] != nil || isNeighbour(mac)) {
             add(&byIp, ip: ip, mac: mac, hostname: nil, vendor: nil, source: .arp, agentPort: false)
         }
         return dropMovedDuplicates(Array(byIp.values)).sorted { (Subnet.address($0.ip) ?? 0) < (Subnet.address($1.ip) ?? 0) }
+    }
+
+    /// A real device's MAC: not multicast (the lowest bit of the first byte), which is never a machine on this network.
+    private static func isNeighbour(_ mac: String) -> Bool {
+        guard let first = mac.split(separator: ":").first, let byte = UInt8(first, radix: 16) else { return false }
+        return byte & 1 == 0
     }
 
     private static func add(_ found: inout [String: ScanFinding], ip: String, mac: String?, hostname: String?, vendor: String?, source: ScanSource, agentPort: Bool) {

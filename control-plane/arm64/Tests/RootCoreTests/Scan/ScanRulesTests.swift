@@ -108,13 +108,25 @@ final class ScanRulesTests: XCTestCase {
         let router = [RouterEntry(ip: "192.168.100.40", mac: "AA:BB:CC:00:00:40", hostname: "macbook"), RouterEntry(ip: "192.168.100.50", mac: "AA:BB:CC:00:00:50", hostname: nil)]
         let nmap = [NmapHost(ip: "192.168.100.40", mac: nil, vendor: nil, hostname: "ignored.lan"), NmapHost(ip: "192.168.100.60", mac: nil, vendor: nil, hostname: nil, agentPortOpen: true)]
         let found = ScanMerge.merge(router: router, nmap: nmap, arp: ["192.168.100.60": "AA:BB:CC:00:00:60", "192.168.100.99": "AA:BB:CC:00:00:99"], subnet: subnet)
-        XCTAssertEqual(found.map(\.ip), ["192.168.100.40", "192.168.100.50", "192.168.100.60"])
+        XCTAssertEqual(found.map(\.ip), ["192.168.100.40", "192.168.100.50", "192.168.100.60", "192.168.100.99"])
         XCTAssertEqual(found[0].hostname, "macbook")
         XCTAssertEqual(found[0].seenBy, [.router, .nmap])
         XCTAssertEqual(found[1].seenBy, [.router])
         XCTAssertEqual(found[2].mac, "AA:BB:CC:00:00:60")
         XCTAssertTrue(found[2].agentPortOpen)
         XCTAssertEqual(found[2].seenBy, [.nmap, .arp])
+    }
+
+    func testMergeFindsAMachineOnlyTheArpTableSawBecauseItDropsNmapsProbes() {
+        let found = ScanMerge.merge(router: [], nmap: [], arp: ["192.168.100.30": "4C:BB:47:2B:20:EC"], subnet: subnet)
+        XCTAssertEqual(found.map(\.ip), ["192.168.100.30"])
+        XCTAssertEqual(found[0].mac, "4C:BB:47:2B:20:EC")
+        XCTAssertEqual(found[0].seenBy, [.arp])
+    }
+
+    func testMergeSkipsArpEntriesThatAreNotMachines() {
+        let arp = ["192.168.100.0": "AA:BB:CC:00:00:01", "192.168.100.255": "AA:BB:CC:00:00:02", "192.168.100.20": "01:00:5E:00:00:FB", "10.1.1.1": "AA:BB:CC:00:00:03", "192.168.100.21": "FF:FF:FF:FF:FF:FF"]
+        XCTAssertTrue(ScanMerge.merge(router: [], nmap: [], arp: arp, subnet: subnet).isEmpty)
     }
 
     func testMergeIgnoresAddressesOutsideTheSubnet() {

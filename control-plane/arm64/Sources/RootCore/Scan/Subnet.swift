@@ -24,6 +24,12 @@ public struct Subnet: Equatable, CustomStringConvertible {
         return value & Subnet.mask(prefix) == network
     }
 
+    /// A machine can have this address: inside the network, and neither the network address nor the broadcast address.
+    public func isHost(_ ip: String) -> Bool {
+        guard contains(ip), let value = Subnet.address(ip) else { return false }
+        return value != network && value != network | ~Subnet.mask(prefix)
+    }
+
     /// Only private (RFC 1918) networks may be scanned.
     public var isPrivate: Bool {
         let first = network >> 24, second = (network >> 16) & 0xFF
