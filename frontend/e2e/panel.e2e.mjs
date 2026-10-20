@@ -309,18 +309,12 @@ async function scanScenario() {
   // A scan runs only when asked for; the first time there is nothing to show yet.
   await page.waitForFunction(() => document.body.innerText.includes('Nothing scanned yet'))
   await click('Scan now')
-  await page.waitForFunction(() => document.body.innerText.includes('Install by hand'), { timeout: 20000 })
+  await page.waitForFunction(() => document.body.innerText.includes('Agent running'), { timeout: 20000 })
   const shown = await text()
   check('a scan lists the devices with where they were seen', ['.1', '.40', '.60', '.90'].every((end) => shown.includes(`${localPrefix()}${end}`)) && shown.includes('nmap'))
   check('a device answering on the Agent port is marked', shown.includes('Agent running'))
   check('rows have no checkbox and no machine name to fill in', !(await page.$('input[type=checkbox]')) && !(await page.$('input[aria-label^="Machine name for"]')))
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'scan-results.png') })
-  await page.evaluate(() => document.querySelector('button[aria-label$=".40 by hand"]').click())
-  await page.waitForSelector('dialog[open] code')
-  const scanToken = await page.$eval('dialog[open] code', (code) => code.textContent.trim())
-  check('adding a found device gives a one-time token', scanToken.length >= 43)
-  await click('Done')
-  await page.waitForFunction(() => !document.querySelector('dialog[open]'))
   await go('#/machines')
 }
 

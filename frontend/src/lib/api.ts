@@ -1,5 +1,5 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Invite, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScreenStatus, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallDefaults, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScreenStatus, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -101,7 +101,6 @@ export const removeMachine = (id: string) => call<null>('DELETE', `/api/machines
 export const scanSetup = () => call<ScanSetup>('GET', '/api/scan/setup')
 export const startScan = () => call<unknown>('POST', '/api/scans')
 export const latestScan = async () => (await call<{ scan: Scan | null }>('GET', '/api/scans/latest')).scan
-export const addFromScan = (runId: string, items: { result_id: string; name: string }[]) => call<{ invites: Invite[] }>('POST', `/api/scans/${runId}/add`, { items })
 
 export const createWorkload = (body: Record<string, unknown>) => call<unknown>('POST', '/api/workloads', body)
 export const listCommands = async () => (await call<{ commands: Command[] }>('GET', '/api/commands?limit=15')).commands

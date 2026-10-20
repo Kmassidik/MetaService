@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, addFromScan, latestScan, scanSetup, startScan } from '../lib/api.ts'
-  import { relativeTime, sourceName, sourceProblem, suggestName } from '../lib/format.ts'
-  import Dialog from './Dialog.svelte'
-  import TokenList from './TokenList.svelte'
-  import type { Device, Invite, Scan, ScanSetup } from '../lib/types.ts'
+  import { ApiError, latestScan, scanSetup, startScan } from '../lib/api.ts'
+  import { relativeTime, sourceName, sourceProblem } from '../lib/format.ts'
+  import type { Scan, ScanSetup } from '../lib/types.ts'
 
   const POLL_MS = 1500
 
@@ -12,8 +10,6 @@
   let setup = $state<ScanSetup | null>(null)
   let scan = $state<Scan | null>(null)
   let failure = $state('')
-  let installing = $state('')
-  let invites = $state<Invite[] | null>(null)
   let timer: ReturnType<typeof setTimeout> | undefined
   const running = $derived(scan?.state === 'running')
   // "Router not set up" is normal (the router is optional) and "nmap not installed" is explained above the table, so neither is repeated here.
@@ -76,21 +72,6 @@
     poll()
   }
 
-  /** For a computer that cannot be logged into over SSH: one install token, named after the computer itself. */
-  async function installByHand(row: Device) {
-    if (!scan) return
-    installing = row.id
-    failure = ''
-    try {
-      const reply = await addFromScan(scan.id, [{ result_id: row.id, name: suggestName(row.hostname, row.ip) }])
-      invites = reply.invites
-    } catch (error) {
-      showFailure(error)
-    } finally {
-      installing = ''
-    }
-  }
-
   onMount(() => {
     load()
     return () => clearTimeout(timer)
@@ -142,7 +123,6 @@
             {:else if row.agent_port_open}<span class="badge ok">Agent running</span>
             {:else}
               <button class="btn green sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Add {row.ip}">Add</button>
-              <button class="link" type="button" disabled={installing === row.id} onclick={() => installByHand(row)} aria-label="Install {row.ip} by hand">{installing === row.id ? 'Making the code…' : 'Install by hand'}</button>
             {/if}
           </span>
         </div>
@@ -150,14 +130,6 @@
     </div>
   {/if}
 </section>
-
-<Dialog open={invites !== null} title="Install code" onClose={() => (invites = null)}>
-  {#if invites}
-    <p>This code works once, only from the address that was scanned, and is not shown again. Use it when you install the Agent on that computer.</p>
-    <TokenList {invites} />
-    <div class="done"><button class="btn green" type="button" onclick={() => (invites = null)}>Done</button></div>
-  {/if}
-</Dialog>
 
 <style>
   .scan { display: grid; gap: 16px; }
@@ -175,9 +147,6 @@
   .status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .badge { padding: 2px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600; }
   .badge.ok { color: var(--ok); }
-  .link { background: none; border: 0; padding: 0; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
-  .link:disabled { cursor: default; opacity: 0.6; }
-  .done { display: flex; justify-content: flex-end; }
   @media (max-width: 900px) {
     .head { display: none; }
     .row { grid-template-columns: 1fr; padding: 14px; gap: 6px; }

@@ -87,13 +87,6 @@ export function sourceProblem(value: string | null | undefined): string | null {
   return (value && SOURCE_PROBLEMS[value]) || 'did not run'
 }
 
-/** A machine name from a device's host name, following the same rule as the Root. Falls back to the last part of the address. */
-export function suggestName(hostname: string | null | undefined, ip: string | null | undefined): string {
-  const cleaned = (hostname ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63).replace(/-+$/, '')
-  if (cleaned && NAME_PATTERN.test(cleaned)) return cleaned
-  return `device-${(ip ?? '').split('.').pop() || 'new'}`
-}
-
 type LimitedField = 'cpu' | 'ramGb' | 'diskGb'
 const KIND_LIMITS: Record<LimitedField, [number, number]> = { cpu: [1, 64], ramGb: [0.5, 1024], diskGb: [1, 100000] }
 

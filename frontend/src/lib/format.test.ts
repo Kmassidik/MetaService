@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, suggestName, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.ts'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, summarize, nameProblem, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag, parseLabels, installBody, installPreview } from './format.ts'
 import { command, installForm, machine, workload } from './testing.ts'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
@@ -55,18 +55,6 @@ test('nameProblem matches the Root rule', () => {
   assert.equal(nameProblem('0abc'), null)
   for (const bad of ['', 'Upper', 'has space', '-lead', 'semi;colon', '../x', 'a'.repeat(64), "x'; DROP TABLE machines;--", '<script>']) {
     assert.notEqual(nameProblem(bad), null, bad)
-  }
-})
-
-test('suggestName always gives a name the Root accepts', () => {
-  assert.equal(suggestName('Kurnias-MacBook-Pro.local', '192.168.100.40'), 'kurnias-macbook-pro-local')
-  assert.equal(suggestName(null, '192.168.100.60'), 'device-60')
-  assert.equal(suggestName('', '192.168.100.61'), 'device-61')
-  assert.equal(suggestName('<script>alert(1)</script>', '192.168.100.62'), 'script-alert-1-script')
-  assert.equal(suggestName('---', '192.168.100.63'), 'device-63')
-  assert.equal(suggestName('x'.repeat(100), '192.168.100.64').length, 63)
-  for (const hostname of ['Ünïcode', 'a b c', "x'; DROP TABLE machines;--", '../../etc', '-lead', 'UPPER']) {
-    assert.equal(nameProblem(suggestName(hostname, '192.168.100.9')), null, hostname)
   }
 })
 
