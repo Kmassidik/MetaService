@@ -157,7 +157,7 @@ def check_ui_files_are_served_with_a_strict_page_policy():
         for needle in ("script-src 'self'", "style-src 'self'", "frame-ancestors 'none'", "base-uri 'none'"):
             expect(needle in policy, f"page policy lacks {needle}")
         expect("unsafe-inline" not in policy and "unsafe-eval" not in policy, "page policy allows unsafe code")
-        expect(page.header("Cache-Control") == "no-cache", "index may be cached too long")
+        expect(page.header("Cache-Control") == "no-cache, no-transform", "index may be cached too long, or a proxy may rewrite it")
         asset = Browser(root).request("GET", "/assets/app-abc.js")
         expect(asset.status == 200 and "immutable" in (asset.header("Cache-Control") or ""), "hashed asset is not cached long")
         expect(asset.header("Content-Type", ) .startswith("text/javascript"), "wrong script type")

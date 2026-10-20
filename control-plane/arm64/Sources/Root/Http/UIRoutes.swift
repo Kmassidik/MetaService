@@ -10,6 +10,8 @@ struct UIRoutes {
     static let pagePolicy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
         + "font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     static let assetCache = "public, max-age=31536000, immutable"
+    /// "no-transform" tells Cloudflare not to rewrite the page: it would add its analytics script, which the page's own policy (script-src 'self') blocks.
+    static let pageCache = "no-cache, no-transform"
 
     init(directory: String) {
         self.directory = URL(fileURLWithPath: directory).resolvingSymlinksInPath()
@@ -28,7 +30,7 @@ struct UIRoutes {
         guard url.path.hasPrefix(directory.path + "/"), let data = FileManager.default.contents(atPath: url.path) else { throw ApiFailure.notFound }
         var headers = HTTPFields()
         headers[.contentType] = type
-        headers[.cacheControl] = StaticPath.isHashedAsset(file) ? Self.assetCache : "no-cache"
+        headers[.cacheControl] = StaticPath.isHashedAsset(file) ? Self.assetCache : Self.pageCache
         headers[SecurityHeadersMiddleware.csp] = Self.pagePolicy
         return Response(status: .ok, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
     }
