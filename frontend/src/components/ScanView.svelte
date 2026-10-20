@@ -23,7 +23,6 @@
 
   const isGateway = (ip: string) => !!setup?.gateway && setup.gateway === ip
   const isSelf = (ip: string) => !!setup?.own_addresses?.includes(ip)
-  const notAComputerToAdd = (ip: string) => isGateway(ip) || isSelf(ip)
 
   /** Opening the page shows the last scan at once (it is kept), and follows one that is still running. A new scan only starts when asked for. */
   async function load() {

@@ -1,5 +1,5 @@
 // Pure helpers for showing machine data. No DOM, no network, so they are easy to test.
-import type { Command, Machine, WorkloadForm } from './types.ts'
+import type { Command, WorkloadForm } from './types.ts'
 
 const SECOND = 1000
 const MINUTE = 60 * SECOND

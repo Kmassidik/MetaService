@@ -56,6 +56,27 @@ export interface Workload {
   bundle_version?: string | null
 }
 
+/** The program a machine uses to make VMs, as the helper reports it. `version` is null when the engine could not tell. */
+export interface Engine {
+  name: string
+  version: string | null
+  ready: boolean
+}
+
+/**
+ * Ruvio (the chat) on one machine. `unavailable`: nothing is pinned on the parent and nothing is installed, so it cannot be turned on
+ * (turning it on answers 409 `no_chat_built` when no chat is built, `no_bundle_pinned` when several are built and none is pinned).
+ * `off`: not installed. `on`: the pinned version runs. `outdated`: another version than the pinned one runs.
+ * `installing` and `removing`: a command is going.
+ */
+export type RuvioState = 'unavailable' | 'off' | 'on' | 'outdated' | 'installing' | 'removing'
+
+export interface Ruvio {
+  installed: string | null
+  pinned: string | null
+  state: RuvioState
+}
+
 export interface Machine {
   id: string
   name: string
@@ -75,6 +96,38 @@ export interface Machine {
   problems?: Problem[]
   settings?: Partial<MachineSettings>
   workloads: Workload[]
+  /** The helper's version; null until the helper reports it. */
+  agent_version?: string | null
+  /** Null until the helper reports it. */
+  engine?: Engine | null
+  /** Only in GET /api/machines/{id}. The helper's folder on the machine; null when the parent did not install it over SSH. */
+  box?: string | null
+  /** Only in GET /api/machines/{id}. The helper's port on the machine; null when the parent did not install it over SSH. */
+  agent_port?: number | null
+  /** Only in GET /api/machines/{id}. Null until the machine has reported once. */
+  ruvio?: Ruvio | null
+}
+
+/**
+ * The body of PATCH /api/machines/{id}/settings. Send only what changes. A listed field set to null is cleared
+ * (the ones that can be cleared); a field not listed here is refused with a 400. The answer is the machine, as GET gives it.
+ */
+export interface MachineSettingsPatch {
+  name?: string
+  labels?: string[]
+  notes?: string
+  allow_gpu?: boolean
+  ram_reserve_mb?: number | null
+  disk_reserve_gb?: number | null
+  ram_allowance_mb?: number | null
+  disk_allowance_gb?: number | null
+  vm_max_running?: number | null
+  vm_cpu?: number | null
+  vm_ram_mb?: number | null
+  vm_disk_gb?: number | null
+  vm_image?: string | null
+  subdomain?: string | null
+  ai_model?: string | null
 }
 
 export interface CommandResult {

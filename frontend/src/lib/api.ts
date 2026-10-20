@@ -1,14 +1,12 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
+import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScreenInput, ScreenSession, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
-type Method = 'GET' | 'POST' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
-/** The error object the Root sends with a refusal. */
-interface ErrorBody {
-  error?: { code?: string; message?: string; resource?: string; needed?: number; free?: number }
-}
 
 export class ApiError extends Error {
   status: number
@@ -22,8 +20,8 @@ export class ApiError extends Error {
   }
 }
 
-/** One call to the Root. The caller says what the answer looks like (T); an answer with no body (204) is null, so those calls are typed `null`. */
-async function call<T>(method: Method, path: string, body?: unknown, retried = false): Promise<T> {
+/** One request to the Root. Returns the unchecked JSON body (null when there is none). */
+async function send(method: Method, path: string, body?: unknown, retried = false): Promise<unknown> {
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken ?? ''
@@ -32,33 +30,45 @@ async function call<T>(method: Method, path: string, body?: unknown, retried = f
     response = await fetch(path, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       credentials: 'same-origin',
       cache: 'no-store',
     })
   } catch {
     throw new ApiError(0, 'unreachable', 'Cannot reach the Root.')
   }
-  if (response.status === 204) return null as T
+  if (response.status === 204) return null
   const data: unknown = await response.json().catch(() => null)
   // The Root makes a new CSRF token each time it starts, so a panel left open across a restart asks for the new one and tries once more.
   if (response.status === 403 && method !== 'GET' && !retried && !path.startsWith('/api/auth/')) {
     await getSession()
-    return call<T>(method, path, body, true)
+    return send(method, path, body, true)
   }
   if (!response.ok) {
-    const detail = (data as ErrorBody | null)?.error
+    const detail = parseErrorDetail(data)
     throw withNumbers(new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'Request failed.'), detail)
   }
+  return data
+}
+
+/** A call whose answer has no body (204). */
+async function callNoBody(method: Method, path: string, body?: unknown): Promise<null> {
+  await send(method, path, body)
+  return null
+}
+
+/** One call to the Root. The caller says what the answer looks like (T); the shape is trusted until a checking parser replaces this cast. */
+async function call<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  const data = await send(method, path, body)
   return data as T
 }
 
 const UNITS: Record<string, string> = { ram_mb: 'MB RAM', disk_gb: 'GB disk' }
 
-function withNumbers(error: ApiError, detail: ErrorBody['error']): ApiError {
+function withNumbers(error: ApiError, detail: ErrorDetail | undefined): ApiError {
   const unit = detail?.resource ? UNITS[detail.resource] : undefined
-  if (detail && unit && Number.isInteger(detail.needed) && Number.isInteger(detail.free)) {
-    error.numbers = { needed: detail.needed as number, free: detail.free as number, unit }
+  if (detail && unit && detail.needed !== undefined && detail.free !== undefined) {
+    error.numbers = { needed: detail.needed, free: detail.free, unit }
   }
   return error
 }
@@ -90,10 +100,15 @@ export async function login(username: string, password: string): Promise<string>
   return reply.username
 }
 
-export const signOut = () => call<null>('POST', '/api/auth/logout')
+export const signOut = () => callNoBody('POST', '/api/auth/logout')
 
 export const listMachines = async () => (await call<{ machines: Machine[] }>('GET', '/api/machines')).machines
-export const removeMachine = (id: string) => call<null>('DELETE', `/api/machines/${encodeURIComponent(id)}`)
+
+/** What only one machine's own answer carries: helper version, engine, helper folder and port, and where Ruvio stands. */
+export const machineExtras = async (id: string): Promise<MachineExtras> => parseMachineExtras(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}`))
+/** Changes the settings of a machine after it was added. Send only what changes; the parent refuses anything else with its reason. */
+export const updateMachineSettings = (id: string, patch: MachineSettingsPatch) => call<unknown>('PATCH', `/api/machines/${encodeURIComponent(id)}/settings`, patch)
+export const removeMachine = (id: string) => callNoBody('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 
 export const scanSetup = () => call<ScanSetup>('GET', '/api/scan/setup')
 export const startScan = () => call<unknown>('POST', '/api/scans')
@@ -117,6 +132,9 @@ export const pinBundle = (version: string) => call<unknown>('POST', '/api/bundle
 export const rollbackBundle = () => call<unknown>('POST', '/api/bundles/rollback')
 export const installBundle = (machine: string, workload?: string) =>
   call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/bundle/install`, workload ? { workload } : {})
+/** Ruvio off: the chat stops and its data stays, so turning it on again brings the same data back. */
+export const uninstallBundle = (machine: string, workload?: string) =>
+  call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/bundle/uninstall`, workload ? { workload } : {})
 export const chatLink = async (machine: string, workload?: string) =>
   (await call<{ url: string }>('GET', `/api/chat-link?machine=${encodeURIComponent(machine)}${workload ? `&workload=${encodeURIComponent(workload)}` : ''}`)).url
 
@@ -130,12 +148,12 @@ export const remotePlan = (body: Record<string, unknown>) => call<PlanPreview>('
 export const remoteInstall = (body: Record<string, unknown>) => call<{ id: string }>('POST', '/api/remote/installs', body)
 export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/api/remote/installs/${encodeURIComponent(id)}`)
 export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
-export const remoteRemove = (machine: string, body: Record<string, unknown>) => call<null>('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
+export const remoteRemove = (machine: string, body: Record<string, unknown>) => callNoBody('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
 
 export const openScreen = (machine: string) => call<ScreenSession>('POST', `/api/machines/${encodeURIComponent(machine)}/screen`)
 export const takeScreenControl = (ticket: string) => call<ScreenSession>('POST', `/api/screen/${encodeURIComponent(ticket)}/control`, { confirm: true })
-export const sendScreenInput = (ticket: string, events: ScreenInput[]) => call<null>('POST', `/api/screen/${encodeURIComponent(ticket)}/input`, { events })
-export const closeScreen = (ticket: string) => call<null>('DELETE', `/api/screen/${encodeURIComponent(ticket)}`)
+export const sendScreenInput = (ticket: string, events: ScreenInput[]) => callNoBody('POST', `/api/screen/${encodeURIComponent(ticket)}/input`, { events })
+export const closeScreen = (ticket: string) => callNoBody('DELETE', `/api/screen/${encodeURIComponent(ticket)}`)
 
 /** One picture of the screen as an image bitmap, or the reason there is none (the session ended, the machine did not answer). */
 export async function screenPicture(ticket: string): Promise<ImageBitmap> {
@@ -146,7 +164,7 @@ export async function screenPicture(ticket: string): Promise<ImageBitmap> {
     throw new ApiError(0, 'unreachable', 'Cannot reach the Root.')
   }
   if (!response.ok) {
-    const detail = ((await response.json().catch(() => null)) as ErrorBody | null)?.error
+    const detail = parseErrorDetail(await response.json().catch(() => null))
     throw new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'No picture.')
   }
   return createImageBitmap(await response.blob())

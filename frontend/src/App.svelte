@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, workloadAction } from './lib/api.ts'
-  import { machineFromRoute, machinesView, pageFor } from './lib/routes.ts'
+  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, uninstallBundle, workloadAction } from './lib/api.ts'
+  import { newestVersion } from './lib/environment.ts'
+  import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
   import Machines from './pages/Machines.svelte'
   import MachineDetail from './pages/MachineDetail.svelte'
+  import VmDetail from './pages/VmDetail.svelte'
   import TokenLedger from './pages/TokenLedger.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
@@ -30,6 +32,7 @@
   let route = $state(location.hash.replace(/^#/, '') || '/')
   const page = $derived(pageFor(route))
   const detailId = $derived(machineFromRoute(route))
+  const vmId = $derived(vmFromRoute(route))
   /** The machine a new VM is being created on, when the dialog was opened from that machine's own page. */
   let creatingOnId = $state<string | null>(null)
   const creatingOn = $derived(machines.find((machine) => machine.id === creatingOnId) ?? null)
@@ -144,6 +147,18 @@
   const pin = (version: string) => tryAction(() => pinBundle(version))
   const rollback = () => tryAction(() => rollbackBundle())
   const install = (machine: Machine, workload: Workload | null) => tryAction(() => installBundle(machine.id, workload?.id))
+  const newestHelper = $derived(newestVersion(machines.map((machine) => machine.agent_version)))
+
+  /** Ruvio on or off for a machine. Answers the parent's refusal text (for example "no chat is built on the parent"), or null when it went through. */
+  async function setRuvio(machine: Machine, on: boolean): Promise<string | null> {
+    try {
+      await (on ? installBundle(machine.id) : uninstallBundle(machine.id))
+      await refresh()
+      return null
+    } catch (error) {
+      return error instanceof ApiError ? error.message : 'Something went wrong.'
+    }
+  }
 
   async function openChat(machine: Machine, workload: Workload | null) {
     try {
@@ -159,7 +174,9 @@
     deleteFailure = ''
     try {
       await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
+      const gone = deleting.machine.id
       deleting = null
+      if (vmId) location.hash = machineHref(gone)
       await refresh()
     } catch (error) {
       deleteFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
@@ -232,8 +249,10 @@
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
-      {#if page === 'machines' && detailId}
-        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+      {#if page === 'machines' && detailId && vmId}
+        <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+      {:else if page === 'machines' && detailId}
+        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
       {:else if page === 'usage'}

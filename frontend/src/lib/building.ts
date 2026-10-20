@@ -57,13 +57,14 @@ export interface Segment {
 // Preferred floor widths, tried in order: the first that divides the windows evenly wins,
 // so a 36 GB Mac (36 windows) gets six complete floors of 6 instead of a half-built top.
 const FLOOR_WIDTHS = [WINDOWS_PER_FLOOR, 6, 9, 10, 7, 12, 5, 4];
-const WINDOW_SIZES_MIB = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+const LARGEST_WINDOW_MIB = 65536;
+const WINDOW_SIZES_MIB = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, LARGEST_WINDOW_MIB];
 const HOME = new Set(['running', 'unhealthy', 'flapping', 'provisioning', 'starting', 'restarting']);
 const DEFAULT_RESERVE_MIB = 8192; // what MetaService keeps for the system when nothing else is set
 
 /** MiB drawn by one window: the smallest size that keeps the building at ≤ maxWindows. */
 export function windowSizeMiB(totalMiB: number, maxWindows = 64): number {
-  return WINDOW_SIZES_MIB.find(size => Math.floor(totalMiB / size) <= maxWindows) ?? WINDOW_SIZES_MIB[WINDOW_SIZES_MIB.length - 1];
+  return WINDOW_SIZES_MIB.find(size => Math.floor(totalMiB / size) <= maxWindows) ?? LARGEST_WINDOW_MIB;
 }
 
 /** Host memory in MiB; a decimal GB figure is accepted too. */
@@ -90,7 +91,7 @@ export function splitPercents(parts: number[]): number[] {
     .sort((a, b) => b[0] - a[0] || a[1] - b[1]);
   for (const [, index] of order) {
     if (missing <= 0) break;
-    result[index]++;
+    result[index] = (result[index] ?? 0) + 1;
     missing--;
   }
   return result;
@@ -128,8 +129,8 @@ export function buildingModel(servers: BuildingServer[] | null = [], host: Build
     const floor = Math.floor(position / perFloor);
     const column = position % perFloor;
     const over = position >= capacity;
-    if (cell.kind === 'tenant') {
-      const tenant = tenants[cell.tenant];
+    const tenant = cell.kind === 'tenant' ? tenants[cell.tenant] : undefined;
+    if (tenant) {
       tenant.apt ??= `${floor + 1}${String.fromCharCode(65 + column)}`;
       tenant.over ||= over;
     }
@@ -137,7 +138,7 @@ export function buildingModel(servers: BuildingServer[] | null = [], host: Build
     const owner = cell.kind === 'tenant' ? cell.tenant : undefined;
     const last = segments.at(-1);
     if (last && last.kind === cell.kind && last.tenant === owner && last.over === over) last.span++;
-    else segments.push({ kind: cell.kind, tenant: owner, over, span: 1, column });
+    else segments.push({ kind: cell.kind, ...(owner === undefined ? {} : { tenant: owner }), over, span: 1, column });
   });
 
   const home = tenants.filter(tenant => tenant.home);

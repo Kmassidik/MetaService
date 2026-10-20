@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
-const FORBIDDEN = [
+const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
   [/\{@html/, 'raw HTML rendering ({@html})'],
   [/\.innerHTML\s*=/, 'innerHTML assignment'],
   [/\.outerHTML\s*=/, 'outerHTML assignment'],
@@ -17,7 +17,7 @@ const FORBIDDEN = [
 ]
 const EXTENSIONS = new Set(['.svelte', '.js', '.ts', '.html'])
 
-function* files(dir) {
+function* files(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) yield* files(path)
@@ -25,7 +25,7 @@ function* files(dir) {
   }
 }
 
-const problems = []
+const problems: string[] = []
 for (const root of ['src', 'index.html']) {
   const list = statSync(root).isDirectory() ? [...files(root)] : [root]
   for (const path of list) {

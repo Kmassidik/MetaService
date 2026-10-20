@@ -1,8 +1,8 @@
 <script lang="ts">
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
-  /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. */
-  let { servers = [], host = null }: { servers?: BuildingServer[]; host?: BuildingHost | null } = $props();
+  /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
+  let { servers = [], host = null, vmLink }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -71,7 +71,8 @@
             {#each floor.segments as segment}
               {#if segment.kind === 'tenant'}
                 {@const tenant = tenantOf(segment)}
-                <div class="bv-seg bv-apt {tenant.cls}" class:bv-over={segment.over} style:grid-column="span {segment.span}" role="img" title={describe(tenant)} aria-label={describe(tenant)}>
+                <div class="bv-seg bv-apt {tenant.cls}" class:bv-over={segment.over} style:grid-column="span {segment.span}" role="group" title={describe(tenant)} aria-label={describe(tenant)}>
+                  <a class="bv-hit" href={vmLink(tenant.id)} aria-label="Open {tenant.name}"></a>
                   <span class="bv-panes" aria-hidden="true">{#each range(segment.span) as _}<i></i>{/each}</span>
                   {#if firstOf(segment, floor.number)}
                     <span class="bv-label">
@@ -142,7 +143,7 @@
           <li class:away={!tenant.home}>
             <span class="bv-badge {tenant.cls}">{tenant.apt || '—'}</span>
             <div>
-              <b class="bv-name">{tenant.name}</b>
+              <a class="bv-name" href={vmLink(tenant.id)}><b>{tenant.name}</b></a>
               <span class="tag {tenant.cls}">{tenant.home ? statusText(tenant) : 'stopped'}</span>
               <small>{gb(tenant.memMiB)} · {formatPct(tenant.share)} of memory · {tenant.cpu} vCPU · {tenant.diskGB} GB disk</small>
               <small class="bv-live">{tenant.home ? tenant.status : 'keeps its disk · uses no memory while stopped'}</small>
@@ -227,7 +228,9 @@
   .bv-tenants li{display:flex;gap:10px;align-items:flex-start;padding-bottom:10px;border-bottom:1px solid var(--gray)}
   .bv-tenants li:last-child{border-bottom:0;padding-bottom:0}
   .bv-tenants li.away{opacity:.72}
-  .bv-name{font-size:13px;margin-right:6px}
+  .bv-hit{position:absolute;inset:0;z-index:1}
+  .bv-name{font-size:13px;margin-right:6px;color:inherit;text-decoration:none}
+  .bv-name:hover b{text-decoration:underline}
   .bv-tenants small{display:block;margin-top:3px;font-family:var(--mono);font-size:10.5px;color:var(--m60)}
   .bv-tenants .bv-live{color:var(--m50)}
   .bv-badge{flex-shrink:0;min-width:34px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;border:1px solid var(--black);padding:3px 4px;background:var(--green)}

@@ -1,6 +1,5 @@
-// Run with `npm test` (node:test, no dependencies).
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from 'bun:test'
+// Run with `bun test`.
 import { windowSizeMiB, hostMemoryMiB, buildingModel, formatPct, splitPercents, type BuildingServer } from './building.ts';
 
 const GIB = 1024;
@@ -10,16 +9,16 @@ const server = (id: string, status: string, memGiB: number, extra: Partial<Build
   cpu: 2, mem_gb: memGiB, mem_mb: memGiB * GIB, disk_gb: 40, ...extra });
 
 test('window size keeps the building at 64 windows or fewer', () => {
-  assert.equal(windowSizeMiB(64 * GIB), 1024);
-  assert.equal(windowSizeMiB(96 * GIB), 2048);
-  assert.equal(windowSizeMiB(16 * GIB), 256);
-  assert.equal(windowSizeMiB(512 * GIB), 8192);
+  expect(windowSizeMiB(64 * GIB)).toBe(1024);
+  expect(windowSizeMiB(96 * GIB)).toBe(2048);
+  expect(windowSizeMiB(16 * GIB)).toBe(256);
+  expect(windowSizeMiB(512 * GIB)).toBe(8192);
 });
 
 test('host memory prefers exact MiB and falls back to the decimal GB field', () => {
-  assert.equal(hostMemoryMiB({ ram_total_mb: 65536, ram_total_gb: 68 }), 65536);
-  assert.equal(hostMemoryMiB({ ram_total_gb: 68 }), Math.floor(68e9 / 1048576));
-  assert.equal(hostMemoryMiB(null), 0);
+  expect(hostMemoryMiB({ ram_total_mb: 65536, ram_total_gb: 68 })).toBe(65536);
+  expect(hostMemoryMiB({ ram_total_gb: 68 })).toBe(Math.floor(68e9 / 1048576));
+  expect(hostMemoryMiB(null)).toBe(0);
 });
 
 test('reserve fills the lobby, tenants at home rent the next windows, the rest is for rent', () => {
@@ -28,40 +27,40 @@ test('reserve fills the lobby, tenants at home rent the next windows, the rest i
     server('vps-1', 'running', 8, { cpu: 4 }),
     server('sari', 'stopped', 2),
   ], host64);
-  assert.equal(model.windowMiB, 1024);
-  assert.equal(model.capacity, 64);
-  assert.equal(model.floors.length, 8);
+  expect(model.windowMiB).toBe(1024);
+  expect(model.capacity).toBe(64);
+  expect(model.floors.length).toBe(8);
   const kinds = model.floors.flat().flatMap(segment => Array(segment.span).fill(segment.kind));
-  assert.deepEqual(kinds.filter(kind => kind === 'reserve').length, 8);
-  assert.deepEqual(kinds.filter(kind => kind === 'tenant').length, 10);
-  assert.deepEqual(kinds.filter(kind => kind === 'vacant').length, 46);
+  expect(kinds.filter(kind => kind === 'reserve').length).toEqual(8);
+  expect(kinds.filter(kind => kind === 'tenant').length).toEqual(10);
+  expect(kinds.filter(kind => kind === 'vacant').length).toEqual(46);
   const [budi, vps1, sari] = model.tenants;
-  assert.equal(budi.apt, '2A');
-  assert.equal(vps1.apt, '2C');
-  assert.equal(sari.home, false);
-  assert.equal(sari.apt, null);
+  expect(budi?.apt).toBe('2A');
+  expect(vps1?.apt).toBe('2C');
+  expect(sari?.home).toBe(false);
+  expect(sari?.apt).toBe(null);
 });
 
 test('floor width divides the windows so every floor is complete', () => {
   const m4max = buildingModel([], { ram_total_mb: 36 * GIB, ram_reserve_mb: 8 * GIB });
-  assert.equal(m4max.capacity, 36);
-  assert.equal(m4max.perFloor, 6);
-  assert.equal(m4max.floors.length, 6);
-  assert.ok(m4max.floors.every(floor => floor.reduce((sum, segment) => sum + segment.span, 0) === 6));
-  assert.equal(buildingModel([], host64).perFloor, 8);
+  expect(m4max.capacity).toBe(36);
+  expect(m4max.perFloor).toBe(6);
+  expect(m4max.floors.length).toBe(6);
+  expect(m4max.floors.every(floor => floor.reduce((sum, segment) => sum + segment.span, 0) === 6)).toBeTruthy();
+  expect(buildingModel([], host64).perFloor).toBe(8);
 });
 
 test('apartment numbers follow the floor width', () => {
   const model = buildingModel([server('budi', 'running', 2)], { ram_total_mb: 36 * GIB, ram_reserve_mb: 8 * GIB });
-  assert.equal(model.tenants[0].apt, '2C');
+  expect(model.tenants[0]?.apt).toBe('2C');
 });
 
 test('segments merge adjacent windows of the same apartment on each floor', () => {
   const model = buildingModel([server('budi', 'running', 2), server('vps-1', 'running', 8)], host64);
-  assert.deepEqual(model.floors[1].map(({ kind, span, tenant }) => [kind, span, tenant ?? null]), [
+  expect(model.floors[1]?.map(({ kind, span, tenant }) => [kind, span, tenant ?? null])).toEqual([
     ['tenant', 2, 0], ['tenant', 6, 1],
   ]);
-  assert.deepEqual(model.floors[2].map(({ kind, span, tenant }) => [kind, span, tenant ?? null]), [
+  expect(model.floors[2]?.map(({ kind, span, tenant }) => [kind, span, tenant ?? null])).toEqual([
     ['tenant', 2, 1], ['vacant', 6, null],
   ]);
 });
@@ -72,16 +71,16 @@ test('totals report rented, reserved and vacant memory plus promised cores', () 
     server('vps-1', 'provisioning', 8, { cpu: 4 }),
     server('sari', 'stopped', 2),
   ], host64);
-  assert.equal(model.totals.rentedMiB, 10 * GIB);
-  assert.equal(model.totals.reserveMiB, 8 * GIB);
-  assert.equal(model.totals.vacantMiB, 46 * GIB);
-  assert.equal(model.totals.overMiB, 0);
-  assert.equal(model.totals.cpuPromised, 6);
-  assert.equal(model.totals.cpuTotal, 24);
-  assert.equal(model.totals.home, 2);
-  assert.equal(model.totals.away, 1);
-  assert.equal(model.totals.diskAllocGB, 120);
-  assert.equal(model.totals.diskTotalGB, 1000);
+  expect(model.totals.rentedMiB).toBe(10 * GIB);
+  expect(model.totals.reserveMiB).toBe(8 * GIB);
+  expect(model.totals.vacantMiB).toBe(46 * GIB);
+  expect(model.totals.overMiB).toBe(0);
+  expect(model.totals.cpuPromised).toBe(6);
+  expect(model.totals.cpuTotal).toBe(24);
+  expect(model.totals.home).toBe(2);
+  expect(model.totals.away).toBe(1);
+  expect(model.totals.diskAllocGB).toBe(120);
+  expect(model.totals.diskTotalGB).toBe(1000);
 });
 
 test('tenants beyond capacity are marked over and nothing is left for rent', () => {
@@ -89,31 +88,31 @@ test('tenants beyond capacity are marked over and nothing is left for rent', () 
   const model = buildingModel([
     server('a', 'running', 4), server('b', 'running', 4), server('c', 'running', 4),
   ], host16);
-  assert.equal(model.windowMiB, 256);
-  assert.equal(model.totals.overMiB, 4 * GIB);
-  assert.equal(model.totals.vacantMiB, 0);
-  assert.equal(model.tenants[0].over, false);
-  assert.equal(model.tenants[2].over, true);
+  expect(model.windowMiB).toBe(256);
+  expect(model.totals.overMiB).toBe(4 * GIB);
+  expect(model.totals.vacantMiB).toBe(0);
+  expect(model.tenants[0]?.over).toBe(false);
+  expect(model.tenants[2]?.over).toBe(true);
   const segments = model.floors.flat();
-  assert.equal(segments.filter(segment => segment.kind === 'vacant').length, 0);
-  assert.ok(segments.some(segment => segment.over));
+  expect(segments.filter(segment => segment.kind === 'vacant').length).toBe(0);
+  expect(segments.some(segment => segment.over)).toBeTruthy();
 });
 
 test('unknown host memory yields an empty building instead of throwing', () => {
   const model = buildingModel([server('a', 'running', 2)], null);
-  assert.equal(model.totalMiB, 0);
-  assert.deepEqual(model.floors, []);
-  assert.equal(model.tenants.length, 1);
+  expect(model.totalMiB).toBe(0);
+  expect(model.floors).toEqual([]);
+  expect(model.tenants.length).toBe(1);
 });
 
 test('percent labels show <1% for tiny shares', () => {
-  assert.equal(formatPct(0), '0%');
-  assert.equal(formatPct(0.004), '<1%');
-  assert.equal(formatPct(0.156), '16%');
+  expect(formatPct(0)).toBe('0%');
+  expect(formatPct(0.004)).toBe('<1%');
+  expect(formatPct(0.156)).toBe('16%');
 });
 
 test('split percentages round to a whole 100', () => {
-  assert.deepEqual(splitPercents([10, 8, 46]), [16, 12, 72]);
-  assert.deepEqual(splitPercents([1, 1, 1]), [34, 33, 33]);
-  assert.deepEqual(splitPercents([0, 0, 0]), [0, 0, 0]);
+  expect(splitPercents([10, 8, 46])).toEqual([16, 12, 72]);
+  expect(splitPercents([1, 1, 1])).toEqual([34, 33, 33]);
+  expect(splitPercents([0, 0, 0])).toEqual([0, 0, 0]);
 });

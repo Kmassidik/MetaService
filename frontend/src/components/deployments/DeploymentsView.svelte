@@ -10,6 +10,7 @@
   import Building from '../Building.svelte'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
+  import { vmHref } from '../../lib/routes.ts'
   import type { BuildingServer } from '../../lib/building.ts'
   import type { Machine, Workload } from '../../lib/types.ts'
 
@@ -62,7 +63,7 @@
 </div>
 
 {#if view === 'building'}
-  <Building {servers} {host} />
+  <Building {servers} {host} vmLink={(vmId) => vmHref(machine.id, vmId)} />
 {:else if servers.length === 0}
   <div class="empty" role="status">No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
 {:else if view === 'cards'}
@@ -71,7 +72,7 @@
       {@const workload = workloadOf(server)}
       <div class="card">
         <div class="ch">
-          <div class="row1"><span class="nm">{server.display}</span><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span></div>
+          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span></div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
         </div>
@@ -93,7 +94,7 @@
         {#each servers as server (server.id)}
           {@const workload = workloadOf(server)}
           <tr>
-            <td class="c-name">{server.display}</td>
+            <td class="c-name"><a href={vmHref(machine.id, server.id)}>{server.display}</a></td>
             <td class="mono muted">{server.id}</td>
             <td><span class="tag {server.cls}">{server.status}</span></td>
             <td class="mono">{bundleFlag(workload.bundle_version, pinned).text}</td>

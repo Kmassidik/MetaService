@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'bun:test'
 import { hostFor, vmServers } from './deployments.ts'
 import { machine as aMachine, workload } from './testing.ts'
 
@@ -11,13 +10,13 @@ const machine = aMachine({
 
 test('VMs become servers the building, cards and table share', () => {
   const servers = vmServers(machine)
-  assert.deepEqual(servers.map((server) => [server.display, server.status, server.cls, server.mem_mb]), [['build-box', 'running', 'run', 4096], ['old', 'stopped', '', 2048], ['new', 'creating', 'prog', 1024]])
-  assert.deepEqual(vmServers(aMachine()), [])
+  expect(servers.map((server) => [server.display, server.status, server.cls, server.mem_mb])).toEqual([['build-box', 'running', 'run', 4096], ['old', 'stopped', '', 2048], ['new', 'creating', 'prog', 1024]])
+  expect(vmServers(aMachine())).toEqual([])
 })
 
 test('the machine is the host: its memory, cores, disk and what its VMs take of the disk', () => {
-  assert.deepEqual(hostFor(machine), { chip: 'mac-mini', apple: true, ram_total_mb: 16384, ram_reserve_mb: 4096, cpu_total: 10, disk_total_gb: 494, disk_free_gb: 263, disk_alloc_gb: 70 })
+  expect(hostFor(machine)).toEqual({ chip: 'mac-mini', apple: true, ram_total_mb: 16384, ram_reserve_mb: 4096, cpu_total: 10, disk_total_gb: 494, disk_free_gb: 263, disk_alloc_gb: 70 })
   const linux = hostFor(aMachine({ name: 'dgx', os: 'linux', arch: 'x86_64' }))
-  assert.equal(linux.apple, false)
-  assert.deepEqual([linux.ram_total_mb, linux.disk_alloc_gb, linux.ram_reserve_mb], [0, 0, undefined])
+  expect(linux.apple).toBe(false)
+  expect([linux.ram_total_mb, linux.disk_alloc_gb, linux.ram_reserve_mb]).toEqual([0, 0, undefined])
 })

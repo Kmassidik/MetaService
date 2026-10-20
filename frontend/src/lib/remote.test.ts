@@ -1,132 +1,131 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'bun:test'
 import { keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
 
 test('a good address and port have no problem, a bad one says what to type', () => {
-  assert.equal(whereProblem(form()), null)
-  assert.equal(whereProblem(form({ host: 'office-mini.local' })), null)
-  for (const host of ['', ' ', 'a b', '-oProxyCommand=x', 'a;b', 'a/b']) assert.match(whereProblem(form({ host })) ?? '', /address/, host)
-  for (const port of ['', '0', '65536', 'ssh', '22.5']) assert.match(whereProblem(form({ port })) ?? '', /port/, port)
+  expect(whereProblem(form())).toBe(null)
+  expect(whereProblem(form({ host: 'office-mini.local' }))).toBe(null)
+  for (const host of ['', ' ', 'a b', '-oProxyCommand=x', 'a;b', 'a/b']) expect(whereProblem(form({ host })) ?? '').toMatch(/address/)
+  for (const port of ['', '0', '65536', 'ssh', '22.5']) expect(whereProblem(form({ port })) ?? '').toMatch(/port/)
 })
 
 test('the login needs a user and either a password or the key', () => {
-  assert.equal(loginProblem(form()), null)
-  assert.equal(loginProblem(form({ password: '', useKey: true })), null)
-  assert.match(loginProblem(form({ user: '' })) ?? '', /user name/)
-  assert.match(loginProblem(form({ user: '-oProxyCommand=x' })) ?? '', /user name/)
-  assert.match(loginProblem(form({ password: '' })) ?? '', /password/)
-  assert.match(loginProblem(form({ password: 'x'.repeat(257) })) ?? '', /too long/)
+  expect(loginProblem(form())).toBe(null)
+  expect(loginProblem(form({ password: '', useKey: true }))).toBe(null)
+  expect(loginProblem(form({ user: '' })) ?? '').toMatch(/user name/)
+  expect(loginProblem(form({ user: '-oProxyCommand=x' })) ?? '').toMatch(/user name/)
+  expect(loginProblem(form({ password: '' })) ?? '').toMatch(/password/)
+  expect(loginProblem(form({ password: 'x'.repeat(257) })) ?? '').toMatch(/too long/)
 })
 
 test('the port defaults to 22 and must be a whole number in range', () => {
-  assert.equal(portOf(emptyConnectForm()), 22)
-  assert.equal(portOf(form({ port: '2222' })), 2222)
-  assert.equal(portOf(form({ port: 'abc' })), null)
-  assert.deepEqual(probeBody(form({ host: ' 10.0.0.5 ', port: '2222' })), { host: '10.0.0.5', port: 2222 })
+  expect(portOf(emptyConnectForm())).toBe(22)
+  expect(portOf(form({ port: '2222' }))).toBe(2222)
+  expect(portOf(form({ port: 'abc' }))).toBe(null)
+  expect(probeBody(form({ host: ' 10.0.0.5 ', port: '2222' }))).toEqual({ host: '10.0.0.5', port: 2222 })
 })
 
 test('a password login sends the password and not the key flag', () => {
-  assert.deepEqual(verifyBody(form(), 'SHA256:abc'), { host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', password: 'secret' })
+  expect(verifyBody(form(), 'SHA256:abc')).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', password: 'secret' })
 })
 
 test('a key login sends the key flag and never a password, even if one was typed before', () => {
   const body = verifyBody(form({ useKey: true, password: 'left over' }), 'SHA256:abc')
-  assert.deepEqual(body, { host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', use_key: true })
-  assert.equal(JSON.stringify(body).includes('left over'), false)
+  expect(body).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', use_key: true })
+  expect(JSON.stringify(body).includes('left over')).toBe(false)
 })
 
 test('the fingerprint is shown in groups of eight and keeps its kind', () => {
-  assert.equal(groupedFingerprint('SHA256:viJuXwpW2hjHvK0w4RKrDuXNL+7r2KuOlPC3VkPukWY'), 'SHA256:viJuXwpW 2hjHvK0w 4RKrDuXN L+7r2KuO lPC3VkPu kWY')
-  assert.equal(groupedFingerprint('nonsense'), 'nonsense:')
+  expect(groupedFingerprint('SHA256:viJuXwpW2hjHvK0w4RKrDuXNL+7r2KuOlPC3VkPukWY')).toBe('SHA256:viJuXwpW 2hjHvK0w 4RKrDuXN L+7r2KuO lPC3VkPu kWY')
+  expect(groupedFingerprint('nonsense')).toBe('nonsense:')
 })
 
 test('each isolation level is explained in plain words', () => {
-  assert.match(isolationText('folder'), /No admin rights/)
-  assert.match(isolationText('dedicated_user'), /admin rights \(sudo\)/)
-  assert.equal(isolationText('other'), 'other')
+  expect(isolationText('folder')).toMatch(/No admin rights/)
+  expect(isolationText('dedicated_user')).toMatch(/admin rights \(sudo\)/)
+  expect(isolationText('other')).toBe('other')
 })
 
 const result = (os = 'Darwin') => ({ host: 'x', fingerprint: 'SHA256:abc', facts: { os, arch: 'arm64', version: 'v', chip: 'c', user: 'kurnia', home: '/Users/kurnia', cpu_cores: 8, ram_mb: 16384, disk_free_gb: 100 },
   requirements: [], can_add: true, isolation: ['folder'], system: 's' }) as VerifyResult
 
 test('a machine name is suggested from the address or the host name', () => {
-  assert.equal(suggestMachineName('Office-Mini.local'), 'office-mini')
-  assert.equal(suggestMachineName('192.168.100.50'), '192-168-100-50')
-  assert.equal(suggestMachineName('---'), 'new-machine')
-  assert.equal(suggestMachineName('a'.repeat(100)).length, 63)
-  assert.equal(nameWrong('office-mini'), null)
-  assert.match(nameWrong('Office Mini') ?? '', /lowercase/)
-  assert.deepEqual(defaultAddChoices('office-mini.local'), { name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
+  expect(suggestMachineName('Office-Mini.local')).toBe('office-mini')
+  expect(suggestMachineName('192.168.100.50')).toBe('192-168-100-50')
+  expect(suggestMachineName('---')).toBe('new-machine')
+  expect(suggestMachineName('a'.repeat(100)).length).toBe(63)
+  expect(nameWrong('office-mini')).toBe(null)
+  expect(nameWrong('Office Mini') ?? '').toMatch(/lowercase/)
+  expect(defaultAddChoices('office-mini.local')).toEqual({ name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
 })
 
 test('the plan request carries the home folder and the system that Connect read, and no login', () => {
   const body = planBody(form(), result(), { name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
-  assert.deepEqual(body, { host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true })
-  assert.equal(JSON.stringify(body).includes('secret'), false)
-  assert.equal(planBody(form(), result('Linux'), { ...defaultAddChoices('x'), installKey: false }).os, 'Linux')
-  assert.equal(planBody(form(), result('FreeBSD'), { ...defaultAddChoices('x'), installKey: false }).os, 'Linux', 'only the two systems the control panel knows are sent')
+  expect(body).toEqual({ host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true })
+  expect(JSON.stringify(body).includes('secret')).toBe(false)
+  expect(planBody(form(), result('Linux'), { ...defaultAddChoices('x'), installKey: false }).os).toBe('Linux')
+  expect(planBody(form(), result('FreeBSD'), { ...defaultAddChoices('x'), installKey: false }).os).toBe('Linux')
 })
 
 test('the install request is the login of Connect plus the choices', () => {
-  assert.deepEqual(addBody(form(), 'SHA256:abc', { ...defaultAddChoices('office-mini'), installKey: false }), { host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', password: 'secret', name: 'office-mini', install_key: false })
+  expect(addBody(form(), 'SHA256:abc', { ...defaultAddChoices('office-mini'), installKey: false })).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', password: 'secret', name: 'office-mini', install_key: false })
   const withKey = addBody(form({ useKey: true, password: 'left over' }), 'SHA256:abc', defaultAddChoices('office-mini'))
-  assert.equal(withKey.use_key, true)
-  assert.equal(JSON.stringify(withKey).includes('left over'), false)
+  expect(withKey.use_key).toBe(true)
+  expect(JSON.stringify(withKey).includes('left over')).toBe(false)
 })
 
 test('removing logs in again, or only forgets', () => {
-  assert.deepEqual(removeBody(form(), false), { password: 'secret' })
-  assert.deepEqual(removeBody(form({ useKey: true }), false), { use_key: true })
-  assert.deepEqual(removeBody(form(), true), { forget_only: true })
+  expect(removeBody(form(), false)).toEqual({ password: 'secret' })
+  expect(removeBody(form({ useKey: true }), false)).toEqual({ use_key: true })
+  expect(removeBody(form(), true)).toEqual({ forget_only: true })
 })
 
 test('advanced choices are sent only when typed, and are checked like the control panel checks them', () => {
   const typed = { ...defaultAddChoices('office-mini'), box: '/opt/ms/box', sshDir: '/opt/ms/.ssh', agentPort: '9111' }
-  assert.equal(advancedProblem(typed), null)
-  assert.deepEqual(planBody(form(), result(), typed), { host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true, box: '/opt/ms/box', ssh_dir: '/opt/ms/.ssh', agent_port: 9111 })
-  assert.equal(advancedProblem(defaultAddChoices('x')), null, 'empty means the defaults')
+  expect(advancedProblem(typed)).toBe(null)
+  expect(planBody(form(), result(), typed)).toEqual({ host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true, box: '/opt/ms/box', ssh_dir: '/opt/ms/.ssh', agent_port: 9111 })
+  expect(advancedProblem(defaultAddChoices('x'))).toBe(null)
   for (const bad of [{ box: 'relative' }, { box: '/a b' }, { box: '/a/../b' }, { sshDir: '~/.ssh' }, { agentPort: '80' }, { agentPort: '65001' }, { agentPort: 'nine' }]) {
-    assert.notEqual(advancedProblem({ ...defaultAddChoices('x'), ...bad }), null, JSON.stringify(bad))
+    expect(advancedProblem({ ...defaultAddChoices('x'), ...bad })).not.toBe(null)
   }
-  assert.equal('box' in planBody(form(), result(), defaultAddChoices('x')), false)
+  expect('box' in planBody(form(), result(), defaultAddChoices('x'))).toBe(false)
 })
 
-const info = (tunnel?: RemoteMachineInfo['tunnel']): RemoteMachineInfo => ({ machine: 'm', host: 'h', ssh_port: 22, ssh_user: 'u', level: 'folder', box: '/b', agent_port: 9101, engine: 'apple', has_key: true, tunnel })
+const info = (tunnel?: RemoteMachineInfo['tunnel']): RemoteMachineInfo => ({ machine: 'm', host: 'h', ssh_port: 22, ssh_user: 'u', level: 'folder', box: '/b', agent_port: 9101, engine: 'apple', has_key: true, ...(tunnel === undefined ? {} : { tunnel }) })
 
 test('the connection of a machine installed over SSH is said in one plain line', () => {
   const now = Date.parse('2026-10-12T12:00:00Z')
   const since = '2026-10-12T11:55:00Z'
-  assert.equal(connectionText(info({ state: 'connected', since, local_port: 50000, failures: 0 }), now), 'SSH tunnel · connected 5m ago')
-  assert.equal(connectionText(info({ state: 'connecting', since, local_port: null, failures: 0 }), now), 'SSH tunnel · connecting…')
-  assert.equal(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 1 }), now), 'SSH tunnel · down since 5m ago, trying again')
-  assert.equal(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 3 }), now), 'SSH tunnel · down since 5m ago, trying again (3 tries)')
-  assert.match(connectionText(info(undefined), now), /No tunnel/)
+  expect(connectionText(info({ state: 'connected', since, local_port: 50000, failures: 0 }), now)).toBe('SSH tunnel · connected 5m ago')
+  expect(connectionText(info({ state: 'connecting', since, local_port: null, failures: 0 }), now)).toBe('SSH tunnel · connecting…')
+  expect(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 1 }), now)).toBe('SSH tunnel · down since 5m ago, trying again')
+  expect(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 3 }), now)).toBe('SSH tunnel · down since 5m ago, trying again (3 tries)')
+  expect(connectionText(info(undefined), now)).toMatch(/No tunnel/)
 })
 
 test('the screen choice is sent only when it is ticked', () => {
   const plain = planBody(form(), result(), defaultAddChoices('office-mini'))
-  assert.equal('allow_screen' in plain, false)
+  expect('allow_screen' in plain).toBe(false)
   const ticked = planBody(form(), result(), { ...defaultAddChoices('office-mini'), allowScreen: true })
-  assert.equal(ticked.allow_screen, true)
+  expect(ticked.allow_screen).toBe(true)
 })
 
 test('a password box is offered unless the computer said it takes only keys', () => {
-  assert.equal(passwordAccepted(undefined), true)
-  assert.equal(passwordAccepted(null), true)
-  assert.equal(passwordAccepted([]), true)
-  assert.equal(passwordAccepted(['publickey', 'password']), true)
-  assert.equal(passwordAccepted(['publickey', 'keyboard-interactive']), true)
-  assert.equal(passwordAccepted(['publickey']), false)
+  expect(passwordAccepted(undefined)).toBe(true)
+  expect(passwordAccepted(null)).toBe(true)
+  expect(passwordAccepted([])).toBe(true)
+  expect(passwordAccepted(['publickey', 'password'])).toBe(true)
+  expect(passwordAccepted(['publickey', 'keyboard-interactive'])).toBe(true)
+  expect(passwordAccepted(['publickey'])).toBe(false)
 })
 
 test('the key command adds the key once and refuses anything that is not a plain key', () => {
   const key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwjwIYPmV4ChyokDCF+LCmk3pi0LkdCycg7KQ4h1+u/ metaservice-parent'
   const command = keyCommand(`${key}\n`) ?? ''
-  assert.match(command, /^mkdir -p ~\/\.ssh && chmod 700 ~\/\.ssh && \(grep -qxF '/)
-  assert.match(command, /chmod 600 ~\/\.ssh\/authorized_keys/)
-  assert.equal(command.split(key).length - 1, 2, 'the key is in the check and in the append')
-  for (const bad of ['', "ssh-ed25519 AAAA'; rm -rf ~; '", 'ssh-rsa AAAA x', 'ssh-ed25519 AAAA x\nssh-ed25519 BBBB y', "ssh-ed25519 AAAA $(id)"]) assert.equal(keyCommand(bad), null, bad)
+  expect(command).toMatch(/^mkdir -p ~\/\.ssh && chmod 700 ~\/\.ssh && \(grep -qxF '/)
+  expect(command).toMatch(/chmod 600 ~\/\.ssh\/authorized_keys/)
+  expect(command.split(key).length - 1).toBe(2)
+  for (const bad of ['', "ssh-ed25519 AAAA'; rm -rf ~; '", 'ssh-rsa AAAA x', 'ssh-ed25519 AAAA x\nssh-ed25519 BBBB y', "ssh-ed25519 AAAA $(id)"]) expect(keyCommand(bad)).toBe(null)
 })

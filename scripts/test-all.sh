@@ -31,12 +31,14 @@ steady nix develop --command python3 -m unittest discover -s bundles/chat/tests
 echo "== root and agents together"
 steady nix develop --command python3 -m contract.system_tests.runner
 echo "== panel (UI)"
-nix develop --command bash -c 'cd frontend && npm run check --silent && npm test --silent >/dev/null 2>&1 && npm run build --silent' || { echo "FAILED: panel checks, unit tests or build"; exit 1; }
-steady nix develop --command bash -c 'cd frontend && node e2e/panel.e2e.mjs'
+nix develop --command bash -c 'cd frontend && bun run check >/dev/null && bun test >/dev/null 2>&1 && bun run build >/dev/null' || { echo "FAILED: panel checks, unit tests or build"; exit 1; }
+steady nix develop --command bash -c 'cd frontend && bun e2e/panel.e2e.ts'
+echo "== machine page (UI, stand-in parent)"
+steady nix develop --command bash -c 'cd frontend && bun e2e/machine-page.e2e.ts'
 echo "== connect another computer (UI, real SSH server on loopback)"
-steady nix develop --command bash -c 'cd frontend && node e2e/connect.e2e.mjs'
+steady nix develop --command bash -c 'cd frontend && bun e2e/connect.e2e.ts'
 echo "== chat screen (source, its tests, and that the built files match it)"
 steady nix develop --command sh bundles/chat/ui/check.sh
 echo "== chat page (UI)"
-steady nix develop --command bash -c 'cd frontend && node e2e/chat.e2e.mjs'
+steady nix develop --command bash -c 'cd frontend && bun e2e/chat.e2e.ts'
 echo "all tests passed"

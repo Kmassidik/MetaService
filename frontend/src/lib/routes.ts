@@ -18,7 +18,7 @@ const PAGES: Record<string, Page> = {
 
 const MACHINE_ID = /^[a-z0-9][a-z0-9-]{0,62}$/
 const split = (route: string) => {
-  const [path, query = ''] = route.split('?')
+  const [path = '', query = ''] = route.split('?')
   return { path, query: new URLSearchParams(query) }
 }
 
@@ -30,6 +30,18 @@ export function machineFromRoute(route: string): string | null {
   const { path, query } = split(route)
   const id = query.get('id') ?? ''
   return path === '/machines/details' && MACHINE_ID.test(id) ? id : null
+}
+
+const WORKLOAD_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+
+/** The address of one VM's page: its machine's address plus the VM. */
+export const vmHref = (machine: string, workload: string) => `${machineHref(machine)}&vm=${encodeURIComponent(workload)}`
+
+/** The VM a detail address (/machines/details?id=<machine>&vm=<vm>) is about, or null when the address names no valid VM. */
+export function vmFromRoute(route: string): string | null {
+  if (machineFromRoute(route) === null) return null
+  const vm = split(route).query.get('vm') ?? ''
+  return WORKLOAD_ID.test(vm) ? vm : null
 }
 
 export type MachinesView = 'list' | 'find'

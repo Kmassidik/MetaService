@@ -24,7 +24,7 @@ export function hostFor(machine: Machine): BuildingHost {
     chip: machine.name,
     apple: machine.os === 'macos' && machine.arch === 'arm64',
     ram_total_mb: machine.ram_total_mb ?? 0,
-    ram_reserve_mb: machine.settings?.ram_reserve_mb ?? undefined,
+    ...(machine.settings?.ram_reserve_mb == null ? {} : { ram_reserve_mb: machine.settings.ram_reserve_mb }),
     cpu_total: machine.cpu_cores ?? 0,
     disk_total_gb: machine.disk_total_gb ?? 0,
     disk_free_gb: machine.free_disk_gb ?? null,
