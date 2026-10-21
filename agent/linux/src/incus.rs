@@ -88,6 +88,18 @@ impl IncusEngine {
         self
     }
 
+    fn exec_within(&self, id: &str, arguments: &[String], environment: &[(String, String)], limit: Duration) -> Result<String, EngineError> {
+        self.require(id)?;
+        let mut call = args(&["exec", &name_of(id)]);
+        for (key, value) in environment {
+            call.push("--env".into());
+            call.push(format!("{key}={value}"));
+        }
+        call.push("--".into());
+        call.extend(arguments.iter().cloned());
+        self.runner.run(&call, limit)
+    }
+
     fn find(&self, id: &str) -> Result<Option<Workload>, EngineError> {
         Ok(self.list()?.into_iter().find(|w| w.id == id))
     }
@@ -234,15 +246,11 @@ impl Engine for IncusEngine {
     }
 
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError> {
-        self.require(id)?;
-        let mut call = args(&["exec", &name_of(id)]);
-        for (key, value) in environment {
-            call.push("--env".into());
-            call.push(format!("{key}={value}"));
-        }
-        call.push("--".into());
-        call.extend(arguments.iter().cloned());
-        self.runner.run(&call, SLOW)
+        self.exec_within(id, arguments, environment, SLOW)
+    }
+
+    fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
+        self.exec_within(id, arguments, &[], QUICK)
     }
 }
 
@@ -372,6 +380,34 @@ mod tests {
         assert!(!gpu_engine(&[], true).capabilities().gpu_in_container, "card but no toolkit");
         assert!(!gpu_engine(&[("nvidia-ctk", 1)], true).capabilities().gpu_in_container, "a toolkit that fails");
         assert!(!gpu_engine(&[("nvidia-ctk", 0)], false).capabilities().gpu_in_container, "toolkit but no card");
+    }
+
+    /// A fake `incus` program: it lists one container, logs every `exec` it gets, and answers nvidia-smi only when told to.
+    fn fake_incus(with_smi: bool) -> (IncusEngine, PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = std::env::temp_dir().join(format!("ms-fake-incus-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let (log, program) = (folder.join("calls.log"), folder.join("incus"));
+        let list = r#"[{"name":"ms-w-1","status":"Running","config":{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"container","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1","user.metaservice.gpu_mode":"container"},"state":null}]"#;
+        let smi = if with_smi { "echo 'NVIDIA GeForce RTX 5090, 580.178.04, 32607 MiB'" } else { "exit 127" };
+        let script = format!("#!/bin/sh\necho \"$@\" >> '{}'\ncase \"$1\" in\n  list) echo '{list}' ;;\n  exec) case \"$4\" in nvidia-smi) {smi} ;; ls) printf 'nvidia0\\nnull\\n' ;; *) exit 1 ;; esac ;;\nesac\n", log.display());
+        std::fs::write(&program, script).unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let runner = Arc::new(ProcessRunner { path: program.display().to_string() });
+        let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+        (IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1), log)
+    }
+
+    #[test]
+    fn the_gpu_check_runs_fixed_incus_exec_calls_and_falls_back_to_the_device_files() {
+        for (with_smi, how) in [(true, "nvidia-smi"), (false, "device nodes")] {
+            let (engine, log) = fake_incus(with_smi);
+            let found = crate::gpu_check::look(&|call| engine.quick_exec("w-1", &call.iter().map(|part| part.to_string()).collect::<Vec<_>>()));
+            assert_eq!((found.gpu_visible, found.how), (true, how));
+            let calls = std::fs::read_to_string(log).unwrap();
+            assert!(calls.contains("exec ms-w-1 -- nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader"), "{calls}");
+            assert_eq!(calls.contains("exec ms-w-1 -- ls /dev"), !with_smi, "{calls}");
+        }
     }
 
     #[test]

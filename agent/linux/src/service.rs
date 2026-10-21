@@ -2,6 +2,7 @@
 use crate::budget::SpaceBudget;
 use crate::engine::Engine;
 use crate::gpu;
+use crate::gpu_check::{self, GpuCheck};
 use crate::models::*;
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
@@ -129,6 +130,21 @@ impl Service {
     async fn capabilities(&self) -> Capabilities {
         let engine = self.engine.clone();
         blocking(move || engine.capabilities()).await
+    }
+
+    /// Looks inside a running container for the GPU. A VM, or a container that was not given the GPU, is answered without running anything inside it.
+    pub async fn gpu_check(&self, id: &str) -> Result<GpuCheck, Failure> {
+        let found = self.workloads().await?.into_iter().find(|w| w.id == id).ok_or(Failure::NotFound)?;
+        if found.kind != Kind::Container || found.gpu_mode != GpuMode::Container {
+            return Ok(gpu_check::not_given());
+        }
+        if found.state != State::Running {
+            return Err(Failure::Refused(Refusal { code: "not_running", message: "start it first: the GPU can only be checked inside a running container".into(), resource: "state", needed: 1, free: 0 }));
+        }
+        let engine = self.engine.clone();
+        let target = id.to_string();
+        let look = move || gpu_check::look(&|call| engine.quick_exec(&target, &call.iter().map(|part| part.to_string()).collect::<Vec<_>>()));
+        Ok(blocking(look).await)
     }
 
     pub fn command(&self, id: &str) -> Option<Command> {
@@ -415,6 +431,42 @@ mod tests {
         let refused = gpu_service(false).create(gpu_container_request("g-1")).await.err().expect("refused");
         let Failure::Refused(refusal) = refused else { panic!("expected a refusal") };
         assert_eq!(refusal.message, crate::gpu::NO_TOOLKIT_MESSAGE);
+    }
+
+    async fn made(service: &Arc<Service>, request: CreateRequest) -> String {
+        let id = request.command_id.clone();
+        let started = service.create(request).await.ok().unwrap();
+        finished(service, &id).await;
+        started.workload_id.unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_gpu_check_answers_without_looking_inside_a_vm_or_a_container_without_the_gpu() {
+        let service = gpu_service(true);
+        let plain = CreateRequest { gpu_mode: GpuMode::None, ..gpu_container_request("p-1") };
+        let vm = CreateRequest { kind: Kind::Vm, gpu_mode: GpuMode::None, ..gpu_container_request("p-2") };
+        for request in [plain, vm] {
+            let id = made(&service, request).await;
+            assert_eq!(service.gpu_check(&id).await.ok().unwrap(), crate::gpu_check::not_given());
+        }
+    }
+
+    #[tokio::test]
+    async fn the_gpu_check_looks_inside_a_running_gpu_container_and_says_what_it_found() {
+        let service = gpu_service(true);
+        let id = made(&service, gpu_container_request("c-1")).await;
+        let answer = service.gpu_check(&id).await.ok().unwrap();
+        assert_eq!((answer.gpu_visible, answer.how), (false, "none"), "the simulated container prints nothing");
+    }
+
+    #[tokio::test]
+    async fn the_gpu_check_needs_a_running_container_that_exists() {
+        let service = gpu_service(true);
+        let id = made(&service, gpu_container_request("c-2")).await;
+        service.set_running("stop-1", &id, false).await.ok().unwrap();
+        let Err(Failure::Refused(refusal)) = service.gpu_check(&id).await else { panic!("expected a refusal") };
+        assert_eq!(refusal.code, "not_running");
+        assert!(matches!(service.gpu_check("w-none").await, Err(Failure::NotFound)));
     }
 
     #[tokio::test]

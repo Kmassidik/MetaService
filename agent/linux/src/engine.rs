@@ -24,6 +24,10 @@ pub trait Engine: Send + Sync {
     fn push(&self, id: &str, host_path: &str, container_path: &str) -> Result<(), EngineError>;
     /// Runs one program inside the workload and returns what it printed. Values go in through `environment`, never into the arguments.
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError>;
+    /// Like `exec` with no environment, for a quick look inside that must not hang: the engine gives it a short time limit.
+    fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
+        self.exec(id, arguments, &[])
+    }
 }
 
 /// An engine that only pretends, for testing the Agent on a machine without Incus.

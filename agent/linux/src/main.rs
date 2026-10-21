@@ -7,6 +7,7 @@ mod enroll;
 mod facts;
 mod files;
 mod gpu;
+mod gpu_check;
 mod heartbeat;
 mod http;
 mod incus;

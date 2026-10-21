@@ -57,6 +57,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads", get(list).post(create))
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
+        .route("/v1/workloads/:id/gpu-check", post(gpu_check))
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
@@ -201,6 +202,14 @@ async fn change(app: Arc<App>, id: String, headers: HeaderMap, running: bool) ->
         Ok(command) => app.service.set_running(&command, &id, running).await.map(|c| accepted(&c)).unwrap_or_else(failure),
         Err(reply) => reply,
     }
+}
+
+/// A read-only look inside the workload for the GPU. The id is the only input, and it is checked; no body is read.
+async fn gpu_check(State(app): State<Arc<App>>, Path(id): Path<String>) -> Response {
+    if !is_id(&id) {
+        return failure(Failure::NotFound);
+    }
+    app.service.gpu_check(&id).await.map(ok).unwrap_or_else(failure)
 }
 
 async fn remove(State(app): State<Arc<App>>, Path(id): Path<String>, headers: HeaderMap) -> Response {
