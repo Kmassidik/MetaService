@@ -153,7 +153,8 @@ def check_a_pretend_linux_computer_without_our_program_cannot_be_added():
         expect(reply.body["facts"]["os"] == "Linux" and reply.body["system"].startswith("Ubuntu 24.04.1 LTS"), f"system: {reply.body['system']}")
         expect(table["agent"]["ok"] is False and "linux-x86_64" in table["agent"]["detail"], f"agent row: {table['agent']}")
         expect(reply.body["can_add"] is False, "no program for linux-x86_64 on this parent, so it cannot be added")
-        expect(table["vm_support"]["ok"] is True and table["vm_tool"]["ok"] is False and table["vm_tool"]["optional"] is True, "kvm yes, Incus missing but optional")
+        expect(table["vm_support"]["ok"] is True and table["vm_tool"]["ok"] is False and "incus" in table["vm_tool"]["fix"], "kvm yes, Incus missing: a cross that says how to install it")
+        expect(all("optional" not in row for row in table.values()) and all(("fix" in row) == (not row["ok"]) for row in table.values()), "only a failed row has a fix, and there is no maybe")
         expect(reply.body["isolation"] == ["folder"], f"no sudo means only the folder box: {reply.body['isolation']}")
 
 

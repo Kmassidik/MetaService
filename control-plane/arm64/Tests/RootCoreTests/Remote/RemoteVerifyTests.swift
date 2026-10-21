@@ -27,12 +27,45 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertEqual(result.isolation, ["folder"], "no sudo, so only the folder box")
     }
 
-    func testAMissingVmToolOrPythonOrLowMemoryDoesNotBlock() {
+    func testEveryMissingRequirementIsACrossThatBlocksAndSaysWhatToDo() {
         let poor = "os=Linux\narch=aarch64\nuser=u\nram_mb=2048\nkvm=no\ndisk_free_gb=5\nsudo=none\nport_9101=free\n"
         let result = RemoteVerify.run(facts: facts(poor), fingerprint: "SHA256:abc", agentBuilds: ["linux-arm64"], parentURL: "http://x:9102")
-        XCTAssertTrue(result.canAdd)
-        for id in ["memory", "disk", "vm_support", "vm_tool", "python", "admin"] { XCTAssertFalse(row(result, id).ok, id); XCTAssertTrue(row(result, id).optional, id) }
-        XCTAssertTrue(row(result, "vm_tool").detail.contains("Install the VM tool too"))
+        XCTAssertFalse(result.canAdd)
+        for id in ["memory", "disk", "vm_support", "vm_tool", "python"] {
+            XCTAssertFalse(row(result, id).ok, id)
+            XCTAssertFalse((row(result, id).fix ?? "").isEmpty, "\(id) must say what to do")
+        }
+        XCTAssertTrue(row(result, "admin").ok, "no sudo is not a failure: the engine goes in a folder")
+        XCTAssertNil(row(result, "admin").fix)
+    }
+
+    func testAPassingRowHasNothingToFix() {
+        let result = RemoteVerify.run(facts: facts(mac), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://x:9102")
+        XCTAssertTrue(result.requirements.allSatisfy { $0.fix == nil })
+    }
+
+    func testALinuxComputerWithoutKvmIsToldToTurnVirtualizationOnInTheBios() {
+        let noKvm = linux.replacingOccurrences(of: "kvm=yes", with: "kvm=no")
+        let result = RemoteVerify.run(facts: facts(noKvm), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
+        XCTAssertFalse(result.canAdd)
+        XCTAssertFalse(row(result, "vm_support").ok)
+        XCTAssertTrue(row(result, "vm_support").fix!.contains("BIOS"))
+        XCTAssertTrue(row(result, "vm_support").fix!.contains("/dev/kvm"))
+    }
+
+    func testALinuxComputerWithoutIncusIsToldHowToInstallItAndNothingMentionsATickBox() {
+        let noIncus = linux.replacingOccurrences(of: "tool=incus\n", with: "tool=python3\n")
+        let result = RemoteVerify.run(facts: facts(noIncus), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
+        XCTAssertFalse(result.canAdd)
+        XCTAssertFalse(row(result, "vm_tool").ok)
+        XCTAssertTrue(row(result, "vm_tool").fix!.contains("incus"))
+        XCTAssertFalse(row(result, "vm_tool").detail.contains("tick"))
+    }
+
+    func testAReadyLinuxComputerCanBeAdded() {
+        let ready = linux.replacingOccurrences(of: "tool=incus\n", with: "tool=incus\ntool=python3\n")
+        let result = RemoteVerify.run(facts: facts(ready), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
+        XCTAssertTrue(result.canAdd, "\(result.requirements.filter { !$0.ok })")
     }
 
     func testOurOwnProgramOnThePortDoesNotBlockAndIsSaidToBeReplaced() {
@@ -46,7 +79,7 @@ final class RemoteVerifyTests: XCTestCase {
         let busy = RemoteVerify.run(facts: facts(mac.replacingOccurrences(of: "port_9101=free", with: "port_9101=busy")), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://192.168.100.40:9102")
         XCTAssertFalse(busy.canAdd)
         XCTAssertFalse(row(busy, "port").ok)
-        XCTAssertFalse(row(busy, "port").optional)
+        XCTAssertTrue(row(busy, "port").fix!.contains("9101"))
         let unknown = RemoteVerify.run(facts: facts(mac.replacingOccurrences(of: "port_9101=free\n", with: "")), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://192.168.100.40:9102")
         XCTAssertTrue(unknown.canAdd, "a port that could not be checked does not block")
     }

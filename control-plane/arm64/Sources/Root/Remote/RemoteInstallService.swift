@@ -139,7 +139,7 @@ final class RemoteInstallService: @unchecked Sendable {
         let reversePort = parts.ssh.reversePort(for: address)
         let builds = AgentBuilds.available(config: parts.config)
         let verification = RemoteService.result(target.host, key.fingerprint, facts, parentURL: url, builds: Set(builds.keys))
-        guard verification.canAdd else { throw InstallFailure("the computer no longer passes the check: " + (verification.requirements.first { !$0.optional && !$0.ok }?.detail ?? "see Connect")) }
+        guard verification.canAdd else { throw InstallFailure("the computer no longer passes the check: " + (verification.requirements.first { !$0.ok }?.detail ?? "see Connect")) }
         guard let path = builds[facts.agentBuild], let content = FileManager.default.contents(atPath: path) else { throw InstallFailure("there is no MetaService program for \(facts.agentBuild)") }
         let plan = try Self.makePlan(request.choices, home: facts.home, isMac: facts.isMac, rootURL: url, reversePort: reversePort, config: parts.config, binarySize: content.count)
         let before = try await preflight(plan.options, target, credentials)

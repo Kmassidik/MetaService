@@ -182,8 +182,9 @@ export interface Requirement {
   id: string
   label: string
   ok: boolean
-  optional: boolean
   detail: string
+  /** What to do about it; only present when ok is false. */
+  fix?: string
 }
 
 export interface ComputerInfo {

@@ -4,7 +4,7 @@
 import { appendFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir, userInfo } from 'node:os'
 import { dirname, join } from 'node:path'
-import puppeteer from 'puppeteer-core'
+import puppeteer, { type HTTPRequest } from 'puppeteer-core'
 import { ADMIN, createAdmin } from './support/admin.ts'
 import { check, finish } from './support/check.ts'
 import { readRecord, textField } from './support/json.ts'
@@ -14,6 +14,7 @@ import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
 import { startSshd } from './support/sshd.ts'
 import { openMachine, openTab } from './machine/steps.ts'
+import type { Requirement } from '../src/lib/types.ts'
 
 const SETUP_TOKEN = 'e2e-setup-token-0123456789abcdef'
 const KEY_LINE = 'dialog[open] [aria-label="Command that lets MetaService in"]'
@@ -118,11 +119,46 @@ async function stepThree(b: Browse): Promise<void> {
     rows.length === ALL_CHECKS && rows.some((row) => /^✓ MetaService program/.test(row)) && rows.some((row) => /^✓ Apple's container tool/.test(row)) && rows.some((row) => /^✓ The parent can be reached/.test(row)), rows.join(' | '))
   check('step 3 says where MetaService would go, in plain words', /In a folder of that user/.test(result))
   check('Add machine is on, because everything that must pass passed', !(await b.isDisabled('Add machine')))
+  check('no row says "maybe": every row is a tick or a cross', rows.every((row) => /^[✓✗] /.test(row)))
   await b.shot('connect-result.png')
   await b.click('Check another')
   await b.page.waitForSelector('dialog[open] #connect-host')
   check('Check another goes back to step 1', /Look at it/.test(await b.dialogText()))
+  await failingResult(b)
   await reachResult(b)
+}
+
+const MISSING_KVM = { id: 'vm_support', label: 'Can run VMs', ok: false, detail: 'There is no /dev/kvm, so VMs cannot run.', fix: 'Turn virtualization on in that computer\'s BIOS, then check that ls /dev/kvm shows the file.' }
+const MISSING_INCUS = { id: 'vm_tool', label: 'Incus (makes the VMs)', ok: false, detail: 'Not installed.', fix: 'Install Incus on that computer: sudo apt install incus' }
+
+/** A computer that misses two things: both are crosses with a "To fix" line, and Add machine stays off. The answer is made up here, because the test server is always a ready Mac. */
+async function failingResult(b: Browse): Promise<void> {
+  await b.page.setRequestInterception(true)
+  const answer = async (request: HTTPRequest): Promise<void> => {
+    if (!request.url().endsWith('/api/remote/verify')) return void (await request.continue())
+    const passing = (id: string, label: string): Requirement => ({ id, label, ok: true, detail: 'Found.' })
+    const requirements = [passing('login', 'Login'), passing('system', 'System'), MISSING_KVM, MISSING_INCUS, passing('python', 'Python (runs the chat)')]
+    const facts = { os: 'Linux', arch: 'x86_64', version: 'Ubuntu 24.04', chip: 'AMD Ryzen 9 5950X', user: 'luca', home: '/home/luca', cpu_cores: 32, ram_mb: 64000, disk_free_gb: 79 }
+    const body = { host: '127.0.0.1', fingerprint: sshd.fingerprint, facts, requirements, can_add: false, isolation: ['folder'], system: 'Ubuntu 24.04 · AMD Ryzen 9 5950X · x86_64' }
+    await request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+  }
+  b.page.on('request', answer)
+  await b.type('#connect-host', '127.0.0.1')
+  await b.type('#connect-port', String(sshd.port))
+  await b.click('Look at it')
+  await waitForDialog(b, /Found a computer at/)
+  await b.type('#connect-user', userInfo().username)
+  await b.click('Log in and check')
+  await waitForDialog(b, /cannot be added yet/)
+  const rows = await b.page.$$eval('dialog[open] .checks li', (items) => items.map((item) => item instanceof HTMLElement ? item.innerText.replace(/\s+/g, ' ').trim() : ''))
+  check('a missing requirement is a cross and says "To fix" with what to do', rows.some((row) => /^✗ Can run VMs.*To fix: Turn virtualization on/.test(row)) && rows.some((row) => /^✗ Incus.*To fix: Install Incus/.test(row)), rows.join(' | '))
+  check('only crosses have a fix line and nothing is marked with "!"', rows.filter((row) => row.includes('To fix')).length === 2 && !rows.some((row) => row.startsWith('!')))
+  check('Add machine stays off until every cross is fixed', await b.isDisabled('Add machine'))
+  await b.shot('connect-result-crosses.png')
+  b.page.off('request', answer)
+  await b.page.setRequestInterception(false)
+  await b.click('Check another')
+  await b.page.waitForSelector('dialog[open] #connect-host')
 }
 
 /** The path to step 3 again, from step 1. */
