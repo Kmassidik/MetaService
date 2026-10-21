@@ -60,7 +60,7 @@ impl Drop for Tree {
 #[test]
 fn first_answer_is_measuring_with_nulls_not_zeros() {
     let tree = Tree::new();
-    let stats = tree.sampler().take(Instant::now(), 0).unwrap();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert!(stats.measuring);
     assert!(stats.cpu.total_percent.is_none() && stats.cpu.cores_percent.is_none());
     assert!(stats.network.received_bytes_per_second.is_none() && stats.network.sent_bytes_per_second.is_none());
@@ -74,11 +74,11 @@ fn second_answer_has_percentages_and_rates() {
     let tree = Tree::new();
     let sampler = tree.sampler();
     let start = Instant::now();
-    sampler.take(start, 0).unwrap();
+    sampler.take(start, 0, true).unwrap();
     tree.cpu(200, 1700, 150, 1850);
     tree.net(3000, 1500);
     tree.process(10, "busy <img src=x onerror=alert(1)>", 1200, 100, 2048);
-    let stats = sampler.take(start + Duration::from_secs(2), 1_782_000_000).unwrap();
+    let stats = sampler.take(start + Duration::from_secs(2), 1_782_000_000, true).unwrap();
     assert!(!stats.measuring);
     assert_eq!(stats.taken_at, "2026-06-21T00:00:00Z");
     assert_eq!(stats.cpu.total_percent, Some(11.1));
@@ -93,8 +93,8 @@ fn an_old_previous_sample_means_measuring_again() {
     let tree = Tree::new();
     let sampler = tree.sampler();
     let start = Instant::now();
-    sampler.take(start, 0).unwrap();
-    assert!(sampler.take(start + MAX_SAMPLE_AGE + Duration::from_secs(1), 0).unwrap().measuring);
+    sampler.take(start, 0, true).unwrap();
+    assert!(sampler.take(start + MAX_SAMPLE_AGE + Duration::from_secs(1), 0, true).unwrap().measuring);
 }
 
 #[test]
@@ -102,9 +102,9 @@ fn a_network_counter_that_went_backwards_is_null() {
     let tree = Tree::new();
     let sampler = tree.sampler();
     let start = Instant::now();
-    sampler.take(start, 0).unwrap();
+    sampler.take(start, 0, true).unwrap();
     tree.net(10, 9999);
-    let stats = sampler.take(start + Duration::from_secs(1), 0).unwrap();
+    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
     assert!(stats.network.received_bytes_per_second.is_none());
     assert!(stats.network.sent_bytes_per_second.is_some());
 }
@@ -114,8 +114,8 @@ fn the_command_line_and_environment_never_appear_anywhere() {
     let tree = Tree::new();
     let sampler = tree.sampler();
     let start = Instant::now();
-    sampler.take(start, 0).unwrap();
-    let stats = sampler.take(start + Duration::from_secs(1), 0).unwrap();
+    sampler.take(start, 0, true).unwrap();
+    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
     let json = serde_json::to_string(&stats).unwrap();
     assert!(!json.contains(SECRET) && !json.contains("--password") && !json.contains("/usr/bin/tool"));
 }
@@ -123,18 +123,18 @@ fn the_command_line_and_environment_never_appear_anywhere() {
 #[test]
 fn hostile_names_are_data_and_users_come_from_passwd() {
     let tree = Tree::new();
-    let stats = tree.sampler().take(Instant::now(), 0).unwrap();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.processes[0].name, "busy <img src=x onerror=alert(1)>");
     assert_eq!(stats.processes[0].user, "100", "no passwd entry: the number as text");
     tree.process(11, "worker", 5, 1000, 10);
-    let stats = tree.sampler().take(Instant::now(), 0).unwrap();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert!(stats.processes.iter().any(|p| p.user == "kurnia"));
 }
 
 #[test]
 fn only_real_disks_and_the_json_has_no_gpu_key() {
     let tree = Tree::new();
-    let stats = tree.sampler().take(Instant::now(), 0).unwrap();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.disks.len(), 1);
     assert_eq!((stats.disks[0].used_bytes, stats.disks[0].free_bytes), (6_000, 4_000));
     let json: serde_json::Value = serde_json::to_value(&stats).unwrap();
@@ -146,5 +146,44 @@ fn only_real_disks_and_the_json_has_no_gpu_key() {
 fn a_missing_stat_file_is_an_error_not_a_zero() {
     let tree = Tree::new();
     std::fs::remove_file(tree.0.join("proc/stat")).unwrap();
-    assert!(tree.sampler().take(Instant::now(), 0).is_err());
+    assert!(tree.sampler().take(Instant::now(), 0, true).is_err());
+}
+
+#[test]
+fn without_the_program_list_the_answer_has_none_and_the_machine_numbers_are_ready() {
+    let tree = Tree::new();
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, false).unwrap();
+    tree.cpu(200, 1700, 150, 1850);
+    let stats = sampler.take(start + Duration::from_secs(2), 0, false).unwrap();
+    assert!(stats.processes.is_empty());
+    assert!(!stats.measuring);
+    assert_eq!(stats.cpu.total_percent, Some(11.1));
+}
+
+#[test]
+fn programs_after_an_answer_without_them_have_no_cpu_yet_not_a_false_zero() {
+    let tree = Tree::new();
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, false).unwrap();
+    tree.cpu(200, 1700, 150, 1850);
+    tree.process(10, "busy", 1200, 100, 2048);
+    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    assert!(!stats.measuring, "the machine numbers are ready");
+    assert_eq!(stats.processes.len(), 1);
+    assert_eq!(stats.processes[0].cpu_percent, None);
+}
+
+#[test]
+fn the_next_answer_with_programs_has_their_cpu() {
+    let tree = Tree::new();
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, false).unwrap();
+    sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    tree.process(10, "busy", 1200, 100, 2048);
+    let stats = sampler.take(start + Duration::from_secs(4), 0, true).unwrap();
+    assert_eq!(stats.processes[0].cpu_percent, Some(100.0));
 }

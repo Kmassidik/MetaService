@@ -1,10 +1,10 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::service::{Failure, Service};
-use crate::stats::Monitor;
+use crate::stats::{wants_processes, Monitor};
 use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Path, Request, State};
+use axum::extract::{ConnectInfo, Path, RawQuery, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -163,8 +163,13 @@ async fn facts(State(app): State<Arc<App>>) -> Response {
 }
 
 /// The machine's real state now. Reading files and running `nvidia-smi` blocks, so it runs off the async threads.
-async fn stats(State(app): State<Arc<App>>) -> Response {
-    match tokio::task::spawn_blocking(move || app.stats.read()).await {
+/// `?processes=0` skips the program list (and the walk through /proc that makes it); `1` or nothing keeps it; anything else is a 400.
+async fn stats(State(app): State<Arc<App>>, RawQuery(query): RawQuery) -> Response {
+    let with_processes = match wants_processes(query.as_deref()) {
+        Ok(wanted) => wanted,
+        Err(message) => return error(StatusCode::BAD_REQUEST, "invalid_input", message),
+    };
+    match tokio::task::spawn_blocking(move || app.stats.read(with_processes)).await {
         Ok(Ok(reading)) => ok(reading),
         Ok(Err(cause)) => {
             eprintln!("stats failed: {cause}");

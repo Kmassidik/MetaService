@@ -2,10 +2,11 @@
 use super::clock::iso8601;
 use super::cpu::{self, CpuTimes};
 use super::disks::{self, SizeOf};
-use super::model::{Cpu, Network, Stats, MAX_CORES};
+use super::model::{Cpu, Network, Process, Stats, MAX_CORES};
 use super::network::{self, Counters};
-use super::processes::{self, Earlier};
+use super::processes::{self, Earlier, Seen};
 use super::memory;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -25,7 +26,8 @@ struct Sample {
     at: Instant,
     cpu: CpuTimes,
     network: Counters,
-    processes: Earlier,
+    /// None when this sample did not scan the programs: the next one has nothing to compare them with.
+    processes: Option<Earlier>,
 }
 
 pub struct Sampler {
@@ -43,12 +45,12 @@ impl Sampler {
         std::fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))
     }
 
-    /// `now` times the gap between samples; `unix_seconds` is the wall clock written into the answer.
-    pub fn take(&self, now: Instant, unix_seconds: u64) -> Result<Stats, String> {
+    /// `now` times the gap between samples; `unix_seconds` is the wall clock written into the answer. `with_processes` false: /proc/<pid> is not walked and the list is empty.
+    pub fn take(&self, now: Instant, unix_seconds: u64, with_processes: bool) -> Result<Stats, String> {
         let cpu_times = cpu::parse_times(&self.read("proc/stat")?).ok_or("proc/stat has no cpu line")?;
         let memory = memory::parse(&self.read("proc/meminfo")?).ok_or("proc/meminfo has no MemTotal")?;
         let counters = network::parse(&self.read("proc/net/dev")?);
-        let seen = processes::scan(&self.environment.root.join("proc"));
+        let seen = with_processes.then(|| processes::scan(&self.environment.root.join("proc")));
         let mut slot = self.previous.lock().map_err(|_| "the sampler lock is broken".to_string())?;
         let before = slot.as_ref().filter(|b| comparable(b, now, &cpu_times));
         let seconds = before.map(|b| now.duration_since(b.at).as_secs_f64());
@@ -72,10 +74,19 @@ impl Sampler {
                 sent_bytes_per_second: before.zip(seconds).and_then(|(b, s)| network::rate(b.network.sent, counters.sent, s)),
             },
             gpus: None,
-            processes: processes::top(seen.clone(), before.map(|b| &b.processes), seconds.unwrap_or(1.0), self.environment.ticks_per_second as f64, &users),
+            processes: self.listed(seen.as_deref(), before, seconds, &users),
         };
-        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, processes: processes::ticks_of(&seen) });
+        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, processes: seen.as_deref().map(processes::ticks_of) });
         Ok(stats)
+    }
+}
+
+impl Sampler {
+    /// The top programs, empty when they were not scanned. Their CPU is unknown (null) when there is no earlier list of programs to compare with.
+    fn listed(&self, seen: Option<&[Seen]>, before: Option<&Sample>, seconds: Option<f64>, users: &HashMap<u32, String>) -> Vec<Process> {
+        let Some(seen) = seen else { return Vec::new() };
+        let earlier = before.and_then(|b| b.processes.as_ref());
+        processes::top(seen.to_vec(), earlier, seconds.unwrap_or(1.0), self.environment.ticks_per_second as f64, users)
     }
 }
 
