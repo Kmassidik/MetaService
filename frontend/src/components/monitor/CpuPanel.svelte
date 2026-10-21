@@ -18,8 +18,8 @@
   <p class="sub nums">
     {#if cores.length}
       <button class="btn line sm" type="button" aria-expanded={showCores} aria-controls="core-grid" onclick={() => (showCores = !showCores)}>{cpu.core_count} cores {showCores ? '▴' : '▾'}</button>
-    {:else}{cpu.core_count} cores{/if}
-    · load {formatLoad(cpu.load.one)} {formatLoad(cpu.load.five)} {formatLoad(cpu.load.fifteen)}
+    {:else}<span>{cpu.core_count} cores</span>{/if}
+    <span class="load">load {formatLoad(cpu.load.one)} {formatLoad(cpu.load.five)} {formatLoad(cpu.load.fifteen)}</span>
   </p>
   <p class="hint">{LOAD_HINT}</p>
   {#if cores.length && showCores}
@@ -36,7 +36,8 @@
   .block { display: grid; gap: 8px; align-content: start; min-width: 0; }
   h3 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m50); }
   .big { font-family: var(--mono); font-size: 24px; font-weight: 700; }
-  .sub { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--m60); }
+  .sub { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-family: var(--mono); font-size: 11px; color: var(--m60); }
+  .load { white-space: nowrap; }
   .hint { margin: 0; font-size: 12px; color: var(--m50); }
   .cores { display: grid; gap: 3px; }
   .core { display: flex; align-items: flex-end; height: 34px; background: var(--gray2); border: 1px solid var(--gray); }

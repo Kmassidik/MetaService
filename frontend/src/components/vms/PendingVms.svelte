@@ -39,7 +39,7 @@
   .pending { list-style: none; margin: 0; padding: 16px 28px 0; display: grid; gap: 10px; }
   .pending > li { border: 1px solid var(--warn); border-left-width: 4px; background: var(--warnbg); padding: 12px 14px; display: grid; gap: 8px; }
   .pending > li.failed { border-color: #e0b4b4; border-left-color: #c0392b; background: #fff5f4; }
-  .pending.compact { padding-top: 8px; gap: 6px; }
+  .pending.compact { padding-top: 8px; padding-bottom: 8px; gap: 6px; }
   .compact > li { padding: 6px 12px; gap: 4px; }
   .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .name { overflow-wrap: anywhere; }
