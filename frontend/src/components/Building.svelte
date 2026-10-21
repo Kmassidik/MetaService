@@ -1,8 +1,9 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.' }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string } = $props();
+  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.', actions }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]> } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -147,6 +148,7 @@
               <span class="tag {tenant.cls}">{tenant.home ? statusText(tenant) : 'stopped'}</span>
               <small>{gb(tenant.memMiB)} · {formatPct(tenant.share)} of memory · {tenant.cpu} vCPU · {tenant.diskGB} GB disk</small>
               <small class="bv-live">{tenant.home ? tenant.status : 'keeps its disk · uses no memory while stopped'}</small>
+              {#if actions}<span class="bv-act">{@render actions(tenant.id)}</span>{/if}
             </div>
           </li>
         {/each}
@@ -228,6 +230,7 @@
   .bv-tenants li{display:flex;gap:10px;align-items:flex-start;padding-bottom:10px;border-bottom:1px solid var(--gray)}
   .bv-tenants li:last-child{border-bottom:0;padding-bottom:0}
   .bv-tenants li.away{opacity:.72}
+  .bv-act{display:block;margin-top:6px}
   .bv-hit{position:absolute;inset:0;z-index:1}
   .bv-name{font-size:13px;margin-right:6px;color:inherit;text-decoration:none}
   .bv-name:hover b{text-decoration:underline}

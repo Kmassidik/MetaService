@@ -21,6 +21,8 @@
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import ChatLink from './components/ChatLink.svelte'
+  import Terminal from './components/Terminal.svelte'
+  import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
   import { dismissedOrders, sessionOrders } from './lib/pendingStore.svelte.ts'
   import { mergeOrders, pendingVms } from './lib/pendingVms.ts'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
@@ -61,6 +63,7 @@
   let removeBusy = $state(false)
   let removeFailure = $state('')
   const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
+  const openConsoleTarget = $derived(consoleTarget())
   const making = $derived(pending.some((entry) => entry.stage !== 'failed'))
 
   $effect(() => {
@@ -230,7 +233,10 @@
   }
 
   onMount(() => {
-    const onRoute = () => (route = location.hash.replace(/^#/, '') || '/')
+    const onRoute = () => {
+      route = location.hash.replace(/^#/, '') || '/'
+      closeConsole()
+    }
     addEventListener('hashchange', onRoute)
     start()
     const refreshTimer = setInterval(() => !document.hidden && refresh(), LIST_POLL_MS)
@@ -287,6 +293,7 @@
   </div>
   <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
+  {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} />{/if}
   <NewWorkload open={creating} {machines} only={creatingOn} onClose={() => (creating = false)} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   {#if removingRemote}

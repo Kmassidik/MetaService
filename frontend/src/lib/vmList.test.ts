@@ -14,7 +14,7 @@ test('every VM of every machine is one row, sorted by machine name then VM name'
 
 test('a row carries what the table shows, and its machine\'s state', () => {
   const row = vmRows(fleet)[0]
-  expect(row).toMatchObject({ machineId: 'alpha-box', machineState: 'offline', id: 'w-9', kind: 'vm', state: 'running', cpu: 4, ramMb: 8192, diskGb: 100 })
+  expect(row).toMatchObject({ machineId: 'alpha-box', machineState: 'offline', machineOs: 'macos', id: 'w-9', kind: 'vm', state: 'running', cpu: 4, ramMb: 8192, diskGb: 100 })
 })
 
 test('sorting ignores upper and lower case and does not change the machines it was given', () => {

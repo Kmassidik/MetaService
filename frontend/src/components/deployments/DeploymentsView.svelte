@@ -8,6 +8,7 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
+  import TerminalButton from '../vms/TerminalButton.svelte'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
@@ -47,6 +48,11 @@
   }
 </script>
 
+{#snippet actions(vmId: string)}
+  {@const workload = machine.workloads.find((entry) => entry.id === vmId)}
+  {#if workload}<TerminalButton {machine} {workload} />{/if}
+{/snippet}
+
 <div class="bar-row">
   <span class="runs">{running}/{servers.length} running</span>
   <div class="segmented" role="group" aria-label="View">
@@ -56,7 +62,7 @@
 </div>
 
 {#if view === 'building'}
-  <Building {servers} {host} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} />
+  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} />
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
 {:else if servers.length === 0}
@@ -72,6 +78,7 @@
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
         </div>
         <div class="acts">
+          <TerminalButton {machine} {workload} />
           {#if server.status === 'stopped'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
           {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>
             <button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
@@ -97,6 +104,7 @@
             <td class="mono nums">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
             <td class="mono muted">{workload.address ?? '—'}</td>
             <td class="row-act">
+              <TerminalButton {machine} {workload} />
               {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
               {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
               {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}

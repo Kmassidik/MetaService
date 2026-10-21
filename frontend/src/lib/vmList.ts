@@ -6,6 +6,7 @@ export interface VmRow {
   machineId: string
   machineName: string
   machineState: MachineState
+  machineOs: string
   id: string
   name: string
   kind: WorkloadKind
@@ -31,6 +32,7 @@ export function vmRows(machines: Machine[]): VmRow[] {
       machineId: machine.id,
       machineName: machine.name,
       machineState: machine.state,
+      machineOs: machine.os,
       id: workload.id,
       name: workload.name,
       kind: workload.kind,
