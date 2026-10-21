@@ -136,8 +136,15 @@ public struct Workload: Encodable, Equatable {
     public let gpuMode: GpuMode
     public var address: String?
     public var bundleVersion: String?
+    /// Only while the VM is stopped and stopped by itself. Left out of the JSON otherwise.
+    public var stoppedReason: StoppedReason?
+    /// How the VM came up, when the helper knows. Left out of the JSON otherwise.
+    public var initMode: InitMode?
 
-    public init(id: String, name: String, kind: WorkloadKind, state: WorkloadState, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: GpuMode, address: String? = nil, bundleVersion: String? = nil) {
+    public init(id: String, name: String, kind: WorkloadKind, state: WorkloadState, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: GpuMode, address: String? = nil, bundleVersion: String? = nil,
+                stoppedReason: StoppedReason? = nil, initMode: InitMode? = nil) {
+        self.stoppedReason = stoppedReason
+        self.initMode = initMode
         self.id = id
         self.name = name
         self.kind = kind
@@ -150,7 +157,7 @@ public struct Workload: Encodable, Equatable {
         self.bundleVersion = bundleVersion
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion }
+    enum CodingKeys: String, CodingKey { case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode }
 
     public func encode(to encoder: Encoder) throws {
         var box = encoder.container(keyedBy: CodingKeys.self)
@@ -164,6 +171,8 @@ public struct Workload: Encodable, Equatable {
         try box.encode(gpuMode, forKey: .gpuMode)
         try box.encode(address, forKey: .address)
         try box.encode(bundleVersion, forKey: .bundleVersion)
+        try box.encodeIfPresent(stoppedReason, forKey: .stoppedReason)
+        try box.encodeIfPresent(initMode, forKey: .initMode)
     }
 }
 

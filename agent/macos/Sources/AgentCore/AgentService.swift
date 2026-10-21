@@ -117,6 +117,9 @@ public actor AgentService {
             _ = try await engine.create(id: id, request: request)
             done.state = .succeeded
             done.result = ["workload_id": id]
+        } catch EngineError.notReady(let why) {
+            done.state = .failed
+            done.result = ["error": why]
         } catch {
             done.state = .failed
             done.result = ["error": "the machine could not create the workload"]

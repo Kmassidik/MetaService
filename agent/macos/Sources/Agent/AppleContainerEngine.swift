@@ -11,18 +11,27 @@ actor AppleContainerEngine: Engine {
     private let backupDirectory: String
     private let defaultImage: String
     private let waitSeconds: Int
+    private let starter: VmStarter
+    private let reader: StoppedReasonReader
     private nonisolated let service = ServiceFlag()
     private var knownVersion: String?
     private var warnedStates: Set<String> = []
+    /// VMs that are being made right now: they are "provisioning" until they have answered, even though the tool already lists them as running.
+    private var starting: Set<String> = []
+    /// Why each VM that stopped by itself stopped, looked up once per stop.
+    private var reasons: [String: StoppedReason] = [:]
     private static let quick: TimeInterval = 30
     private static let slow: TimeInterval = 900
 
-    init(cli: ContainerCLI, records: RecordStore, backupDirectory: String, defaultImage: String = AppleContainer.defaultImage, waitSeconds: Int = 90) {
+    init(cli: ContainerCLI, records: RecordStore, backupDirectory: String, defaultImage: String = AppleContainer.defaultImage, waitSeconds: Int = 90,
+         readySeconds: Int = AppleContainer.readySeconds, settleSeconds: Int = AppleContainer.settleSeconds) {
         self.cli = cli
         self.records = records
         self.backupDirectory = backupDirectory
         self.defaultImage = defaultImage
         self.waitSeconds = waitSeconds
+        starter = VmStarter(cli: cli, readySeconds: readySeconds, settleSeconds: settleSeconds)
+        reader = StoppedReasonReader(cli: cli)
     }
 
     // MARK: reading
@@ -45,12 +54,26 @@ actor AppleContainerEngine: Engine {
 
     func list() async throws -> [Workload] {
         let found = Dictionary(uniqueKeysWithValues: await liveContainers().map { ($0.name, $0) })
-        return records.all().map { id, record in
+        var listed: [Workload] = []
+        for (id, record) in records.all() {
             let live = found[AppleContainer.name(for: id)]
-            return Workload(id: id, name: record.name, kind: WorkloadKind(rawValue: record.kind) ?? .vm, state: live.map { ContainerStates.workloadState($0.state) } ?? .failed,
-                            cpu: record.cpu, ramMb: record.ramMb, diskGb: record.diskGb, gpuMode: GpuMode(rawValue: record.gpuMode) ?? .none,
-                            address: live?.ipv4, bundleVersion: record.bundleVersion)
+            let state = starting.contains(id) ? WorkloadState.provisioning : live.map { ContainerStates.workloadState($0.state) } ?? .failed
+            listed.append(Workload(id: id, name: record.name, kind: WorkloadKind(rawValue: record.kind) ?? .vm, state: state,
+                                   cpu: record.cpu, ramMb: record.ramMb, diskGb: record.diskGb, gpuMode: GpuMode(rawValue: record.gpuMode) ?? .none,
+                                   address: live?.ipv4, bundleVersion: record.bundleVersion, stoppedReason: await stoppedReason(id, record, state, live: live),
+                                   initMode: record.initMode.flatMap(InitMode.init(rawValue:))))
         }
+        return listed
+    }
+
+    /// Why a VM that stopped by itself stopped. A VM the helper was told to stop, or one that is not stopped, has no reason.
+    private func stoppedReason(_ id: String, _ record: WorkloadRecord, _ state: WorkloadState, live: ContainerInfo?) async -> StoppedReason? {
+        guard live != nil, state == .stopped else {
+            reasons[id] = nil
+            return nil
+        }
+        if StoppedReasonPolicy.needsCapture(state: state, stopRequested: record.stopRequested, alreadyKnown: reasons[id] != nil) { reasons[id] = await reader.read(id) }
+        return reasons[id]
     }
 
     /// The containers the tool shows, or none when it cannot answer (and the problem is remembered for `problems`).
@@ -88,13 +111,18 @@ actor AppleContainerEngine: Engine {
         try await ensureSystemRunning()
         let image = request.image ?? defaultImage
         try await ensureImage(image)
-        try records.set(id, WorkloadRecord(name: request.name, kind: request.kind.rawValue, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb,
-                                           gpuMode: request.gpuMode.rawValue, image: image))
+        let record = WorkloadRecord(name: request.name, kind: request.kind.rawValue, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb,
+                                    gpuMode: request.gpuMode.rawValue, image: image, stopRequested: false)
+        try records.set(id, record)
+        starting.insert(id)
+        defer { starting.remove(id) }
         do {
-            _ = try await cli.run(AppleContainer.run(id: id, request: request, image: image), timeout: Self.slow)
-            let info = try await waitUntil(id, "running")
+            let started = try await starter.start(id: id, request: request, image: image)
+            var known = record
+            known.initMode = started.mode.rawValue
+            try records.set(id, known)
             return Workload(id: id, name: request.name, kind: request.kind, state: .running, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb,
-                            gpuMode: request.gpuMode, address: info.ipv4)
+                            gpuMode: request.gpuMode, address: started.address, initMode: started.mode)
         } catch {
             _ = try? await cli.run(AppleContainer.delete(id), timeout: Self.quick)
             try? records.remove(id)
@@ -103,7 +131,10 @@ actor AppleContainerEngine: Engine {
     }
 
     func setRunning(id: String, running: Bool) async throws {
-        guard records.all()[id] != nil else { throw EngineError.notFound }
+        guard var record = records.all()[id] else { throw EngineError.notFound }
+        record.stopRequested = !running
+        try records.set(id, record)
+        reasons[id] = nil
         _ = try await cli.run(running ? AppleContainer.start(id) : AppleContainer.stop(id), timeout: Self.slow)
         _ = try await waitUntil(id, running ? "running" : "stopped")
     }
@@ -126,6 +157,7 @@ actor AppleContainerEngine: Engine {
         guard records.all()[id] != nil else { throw EngineError.notFound }
         if try await find(id) != nil { _ = try await cli.run(AppleContainer.delete(id), timeout: Self.quick) }
         guard try await find(id) == nil else { throw EngineError.failed("the machine is still there after delete") }
+        reasons[id] = nil
         try records.remove(id)
     }
 

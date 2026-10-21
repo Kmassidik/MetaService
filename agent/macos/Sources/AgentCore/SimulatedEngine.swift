@@ -4,6 +4,7 @@ import Foundation
 public actor SimulatedEngine: Engine {
     public nonisolated let capabilities: Capabilities
     private var store: [String: Workload] = [:]
+    private var createFailure: EngineError?
     /// What was pushed and run, in order, so tests can look.
     public private(set) var pushed: [[String]] = []
     public private(set) var executed: [[String]] = []
@@ -20,14 +21,26 @@ public actor SimulatedEngine: Engine {
         Array(store.values)
     }
 
+    /// Makes every later create fail with this error, as a machine whose VMs do not start would.
+    public func failCreates(_ error: EngineError?) { createFailure = error }
+
+    /// Makes a VM stop on its own, as if its first process had quit, with the reason a real machine would have found.
+    public func stopByItself(id: String, reason: StoppedReason?) throws {
+        try change(id) { $0.state = .stopped; $0.stoppedReason = reason }
+    }
+
     public func create(id: String, request: CreateWorkloadRequest) async throws -> Workload {
+        if let createFailure { throw createFailure }
         let made = Workload(id: id, name: request.name, kind: request.kind, state: .running, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb, gpuMode: request.gpuMode)
         store[id] = made
         return made
     }
 
     public func setRunning(id: String, running: Bool) async throws {
-        try change(id) { $0.state = running ? .running : .stopped }
+        try change(id) {
+            $0.state = running ? .running : .stopped
+            $0.stoppedReason = nil
+        }
     }
 
     public func backup(id: String) async throws -> String {
