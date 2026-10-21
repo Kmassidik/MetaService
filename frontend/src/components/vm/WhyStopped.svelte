@@ -2,18 +2,22 @@
   // "Why it stopped": the exit code and the last lines the VM printed, as plain text in a code box with a Copy button, or one sentence when the machine did not say why.
   // The log lines come from inside the VM, so they are only ever shown as text. `compact` folds it into a small "Why it stopped" line for table rows.
   import CopyButton from '../connect/CopyButton.svelte'
-  import { exitCodeText, stopNoteText, type StopNote } from '../../lib/stoppedReason.ts'
+  import { exitCodeText, stopNoteText, type StopNote, type StoppedReason } from '../../lib/stoppedReason.ts'
 
   let { note, compact = false }: { note: StopNote; compact?: boolean } = $props()
-  const copyText = $derived(note.kind === 'reason' ? `${exitCodeText(note.reason.exit_code)}\n${note.reason.log_tail}`.trim() : '')
+  const copyText = (reason: StoppedReason) => `${exitCodeText(reason.exit_code)}\n${reason.log_tail}`.trim()
 </script>
+
+{#snippet lines(reason: StoppedReason)}
+  {#if reason.log_tail}
+    <div class="codebox"><code aria-label="The last lines the VM printed">{reason.log_tail}</code><CopyButton text={copyText(reason)} describe="why it stopped" /></div>
+  {/if}
+{/snippet}
 
 {#snippet body()}
   {#if note.kind === 'reason'}
     <p class="said">{exitCodeText(note.reason.exit_code)}</p>
-    {#if note.reason.log_tail}
-      <div class="codebox"><code aria-label="The last lines the VM printed">{note.reason.log_tail}</code><CopyButton text={copyText} describe="why it stopped" /></div>
-    {/if}
+    {@render lines(note.reason)}
   {:else}
     <p class="said">{stopNoteText(note)}</p>
   {/if}

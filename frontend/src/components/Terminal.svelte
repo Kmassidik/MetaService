@@ -5,7 +5,7 @@
   import { Terminal } from '@xterm/xterm'
   import { FitAddon } from '@xterm/addon-fit'
   import '@xterm/xterm/css/xterm.css'
-  import WhyStopped from './vm/WhyStopped.svelte'
+  import TerminalNotice from './TerminalNotice.svelte'
   import { ApiError, openTerminal } from '../lib/api.ts'
   import { isDead, isLive, nextState, resizeMessage, roundBox, shouldRefit, SOCKET_OPEN, statusText, statusTone, terminalSocketUrl } from '../lib/terminal.ts'
   import type { Box, TerminalEvent, TerminalState } from '../lib/terminal.ts'
@@ -45,6 +45,8 @@
   /** How the terminal ended, for the message in the window; null while it works. */
   let ending: Ending | null = $state(null)
   let openedAt = 0
+  /** True once the person pressed a key: a shell that ends soon after is then the person typing exit, not a VM that died. */
+  let typed = false
   let starting = $state(false)
   const term = new Terminal(TERMINAL_OPTIONS)
   const fit = new FitAddon()
@@ -121,7 +123,7 @@
     ws.onclose = (event) => {
       if (disposed) return
       reason = event.reason
-      ending = { kind: 'closed', reason: event.reason, openMs: openedAt === 0 ? 0 : Date.now() - openedAt }
+      ending = { kind: 'closed', reason: event.reason, openMs: openedAt === 0 ? 0 : Date.now() - openedAt, typed }
       openedAt = 0
       happened('close')
       onchanged()
@@ -142,6 +144,7 @@
     asking = true
     reason = ''
     ending = null
+    typed = false
     happened('connect')
     let ticket: string
     try {
@@ -180,6 +183,7 @@
     term.loadAddon(fit)
     term.open(host)
     term.onResize(sendResize)
+    term.onKey(() => (typed = true))
     const encoder = new TextEncoder()
     // Registered once, so a Reconnect never sends a keystroke twice.
     term.onData((typed) => {
@@ -208,16 +212,7 @@
       <button class="tbtn" type="button" onclick={onclose} aria-label="Close terminal">✕ Close</button>
     </div>
     <div class="term" class:away={notice !== null} bind:this={host}></div>
-    {#if notice}
-      <div class="notice" role="status">
-        <p class="ntext">{notice.text}</p>
-        {#if notice.why && note}<WhyStopped {note} />{/if}
-        <div class="nact">
-          {#if notice.canStart}<button class="btn green sm" type="button" disabled={starting} onclick={start}>{starting ? 'Starting…' : 'Start the VM'}</button>{/if}
-          <button class="btn line sm" type="button" onclick={onclose}>Close</button>
-        </div>
-      </div>
-    {/if}
+    {#if notice}<TerminalNotice {notice} {note} {starting} onstart={start} {onclose} />{/if}
   </div>
 </div>
 
@@ -234,10 +229,6 @@
   .tbtn:hover { border-color: var(--green); color: var(--green); }
   .term { flex: 1; min-height: 0; padding: 8px 10px; overflow: hidden; }
   .term.away { display: none; }
-  /* The message sits on a plain panel in the middle of the window, in the panel's usual light colours. */
-  .notice { margin: auto; width: min(560px, calc(100% - 32px)); padding: 20px 22px; display: grid; gap: 14px; background: var(--white); color: var(--black); border: 1px solid var(--gray); }
-  .ntext { margin: 0; font-size: 15px; }
-  .nact { display: flex; gap: 8px; flex-wrap: wrap; }
   .term :global(.xterm) { height: 100%; }
   .term :global(.xterm-viewport) { overflow-y: auto; }
 </style>

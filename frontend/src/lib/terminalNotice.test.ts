@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test'
 import { QUICK_END_MS, terminalNotice, type Ending } from './terminalNotice.ts'
 
 const refused = (code: string): Ending => ({ kind: 'refused', code })
-const closed = (reason: string, openMs: number): Ending => ({ kind: 'closed', reason, openMs })
+const closed = (reason: string, openMs: number, typed = false): Ending => ({ kind: 'closed', reason, openMs, typed })
 const STOPPED_TEXT = 'This VM has stopped, so there is nothing to connect to.'
 const RIGHT_AFTER_TEXT = 'The VM stopped right after it started.'
 
@@ -35,6 +35,11 @@ test('a refusal the panel does not know keeps the status line', () => {
 test('a shell that ends within five seconds of opening means the VM stopped right after it started', () => {
   expect(terminalNotice(closed('the shell ended', 2000), 'stopped')).toEqual({ text: RIGHT_AFTER_TEXT, why: true, canStart: true })
   expect(terminalNotice(closed('the shell ended', QUICK_END_MS - 1), 'running')).toEqual({ text: RIGHT_AFTER_TEXT, why: true, canStart: false })
+})
+
+test('a shell that ends soon after the person typed into it is the person leaving: typing exit is not a VM that died', () => {
+  expect(terminalNotice(closed('the shell ended', 1000, true), 'running')).toBeNull()
+  expect(terminalNotice(closed('the VM stopped', 1000, true), 'stopped')).toEqual({ text: 'This VM has stopped.', why: true, canStart: true })
 })
 
 test('a shell that ends later is the person leaving, and the status line says so', () => {

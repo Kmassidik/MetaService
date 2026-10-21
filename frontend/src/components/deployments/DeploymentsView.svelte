@@ -135,6 +135,6 @@
 <style>
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
-  .plain { display: block; font-size: 11px; color: var(--m60); }
+  .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }
   .runs { margin-right: auto; font-family: var(--mono); font-size: 12px; color: var(--m50); }
 </style>

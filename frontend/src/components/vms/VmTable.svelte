@@ -46,7 +46,7 @@
   tbody tr:hover { background: var(--gray2); }
   tr.offline { opacity: 0.7; }
   .name, .machine { overflow-wrap: anywhere; }
-  .state { display: grid; justify-items: start; gap: 2px; }
+  .state { display: grid; justify-items: start; gap: 2px; max-width: 280px; }
   .plain { font-size: 11px; color: var(--m60); }
   /* The whole row is the link to the VM; the machine link sits above it. */
   .open::after { content: ''; position: absolute; inset: 0; }

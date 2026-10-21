@@ -2,11 +2,11 @@
 // The window itself is components/Terminal.svelte; the reason a VM stopped comes from lib/stoppedReason.ts.
 import { STOPPED_STATE } from './vm.ts'
 
-/** A shell that ends within this long of opening means the VM itself stopped right after it started. */
+/** A shell that ends within this long of opening, and that nobody typed into, means the VM itself stopped right after it started. */
 export const QUICK_END_MS = 5000
 
-/** How the terminal ended: the parent refused to open it (with its error code), or the socket closed (with the parent's reason and how long it had been open). */
-export type Ending = { kind: 'refused'; code: string } | { kind: 'closed'; reason: string; openMs: number }
+/** How the terminal ended: the parent refused to open it (with its error code), or the socket closed (with the parent's reason, how long it had been open, and whether the person typed). */
+export type Ending = { kind: 'refused'; code: string } | { kind: 'closed'; reason: string; openMs: number; typed: boolean }
 
 export interface Notice {
   text: string
@@ -45,16 +45,17 @@ function refusedNotice(code: string, vmState: string | null): Notice | null {
   return plain('This VM is not running right now, so there is nothing to connect to.')
 }
 
-function closedNotice(reason: string, openMs: number, vmState: string | null): Notice | null {
+function closedNotice(reason: string, openMs: number, typed: boolean, vmState: string | null): Notice | null {
   if (reason === VM_DELETED) return plain('This VM was deleted.')
   if (reason === MACHINE_OFFLINE) return plain('The machine went offline, so the terminal was closed.')
   const vmIsDown = reason === VM_STOPPED || vmState === STOPPED_STATE
-  if (openMs < QUICK_END_MS && (vmIsDown || reason === SHELL_ENDED)) return stopped('The VM stopped right after it started.', vmState)
+  const quick = openMs < QUICK_END_MS && !typed
+  if (quick && (vmIsDown || reason === SHELL_ENDED)) return stopped('The VM stopped right after it started.', vmState)
   return vmIsDown ? stopped('This VM has stopped.', vmState) : null
 }
 
 /** The message to show in the window instead of the bare status line, or null when the status line says it well enough. `vmState` is null when the VM is not in the list. */
 export function terminalNotice(ending: Ending | null, vmState: string | null): Notice | null {
   if (!ending) return null
-  return ending.kind === 'refused' ? refusedNotice(ending.code, vmState) : closedNotice(ending.reason, ending.openMs, vmState)
+  return ending.kind === 'refused' ? refusedNotice(ending.code, vmState) : closedNotice(ending.reason, ending.openMs, ending.typed, vmState)
 }

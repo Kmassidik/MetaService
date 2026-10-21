@@ -46,7 +46,8 @@
   .on { color: var(--m60); font-size: 13px; }
   .on a { text-decoration: underline; }
   .tag.bad { color: #c0392b; border-color: #c0392b; }
-  .reason { margin: 0; color: #98281f; overflow-wrap: anywhere; }
+  /* A reason from a machine can hold the last lines a VM printed: keep its line breaks, wrap it, and let a very long one scroll inside the card. */
+  .reason { margin: 0; color: #98281f; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 18em; overflow-y: auto; }
   .note { margin: 0; font-size: 13px; }
   .steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
   .steps li { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; font-family: var(--mono); font-size: 11px; color: var(--m50); padding-top: 6px; border-top: 3px solid var(--gray); }
