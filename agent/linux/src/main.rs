@@ -14,6 +14,7 @@ mod models;
 mod preflight;
 mod service;
 mod setup;
+mod stats;
 mod supervisor;
 mod validate;
 mod version;

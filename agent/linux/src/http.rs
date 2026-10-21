@@ -1,6 +1,7 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::service::{Failure, Service};
+use crate::stats::Monitor;
 use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
 use axum::extract::{ConnectInfo, Path, Request, State};
@@ -24,12 +25,13 @@ pub struct App {
     pub service: Arc<Service>,
     pub token: String,
     pub bad_token_limit: u32,
+    stats: Monitor,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32) -> Arc<App> {
-        Arc::new(App { service, token, bad_token_limit, bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
     }
 
     fn locked_out(&self, ip: IpAddr) -> bool {
@@ -51,6 +53,7 @@ pub fn router(app: Arc<App>) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/facts", get(facts))
+        .route("/v1/stats", get(stats))
         .route("/v1/workloads", get(list).post(create))
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
@@ -156,6 +159,18 @@ async fn health(State(app): State<Arc<App>>) -> Response {
 
 async fn facts(State(app): State<Arc<App>>) -> Response {
     app.service.facts().await.map(ok).unwrap_or_else(failure)
+}
+
+/// The machine's real state now. Reading files and running `nvidia-smi` blocks, so it runs off the async threads.
+async fn stats(State(app): State<Arc<App>>) -> Response {
+    match tokio::task::spawn_blocking(move || app.stats.read()).await {
+        Ok(Ok(reading)) => ok(reading),
+        Ok(Err(cause)) => {
+            eprintln!("stats failed: {cause}");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error")
+        }
+        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
+    }
 }
 
 async fn list(State(app): State<Arc<App>>) -> Response {
