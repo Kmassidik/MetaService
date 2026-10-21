@@ -57,7 +57,7 @@ async function itsActivity(b: Browse): Promise<void> {
   await machineHeading(b, 'agent-mac')
   await openTab(b, 'Activity')
   await b.until(() => /Create\s+build-box[\s\S]*succeeded/.test(document.body.innerText), { timeout: ROW_WAIT_MS })
-  check('its Activity tab shows what happened on this machine only', !/dgx-spark/.test(await b.text()))
+  check('its Activity tab shows what happened on this machine only (the sidebar lists every machine, so only the page itself is read)', !/dgx-spark/.test(await b.run(() => document.querySelector<HTMLElement>('main.main')?.innerText ?? '')))
 }
 
 async function theThreeViews(b: Browse): Promise<void> {

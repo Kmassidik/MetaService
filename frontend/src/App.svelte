@@ -244,7 +244,7 @@
 {:else}
   <div class="announce">MetaService · control panel</div>
   <div class="shell">
-    <Sidebar active={page} {route} {username} onSignOut={leave} />
+    <Sidebar active={page} {route} {machines} {username} onSignOut={leave} />
     <main class="main">
       {#if !loaded}
         <div class="phead"><h1>Loading…</h1></div>

@@ -53,6 +53,7 @@ async function signInOnThePage(b: Browse): Promise<void> {
 
 /** The one way in: Find machines, Scan now, then Add on a row. The dialog opens with that row's address filled in. */
 async function startFromFindMachines(b: Browse): Promise<void> {
+  await b.openMachinesMenu()
   await b.page.click('aside.side a[href="#/machines/find"]')
   await b.until(() => document.body.innerText.includes('Looks at'), { timeout: SHORT_WAIT_MS })
   await b.click('Scan now')
@@ -207,6 +208,7 @@ async function installAndFollow(b: Browse, box: string): Promise<void> {
   check('the box exists and the one key line was added', existsSync(join(box, 'manifest.json')) && existsSync(join(box, 'bin', 'metaservice-agent')) && keyLines.length === 1)
   check('the one-time token and the install marker are gone', !existsSync(join(box, 'state', 'enroll.token')) && !existsSync(join(box, '.partial')))
   await b.click('Done')
+  await b.openMachinesMenu()
   await b.page.click('aside.side a[href="#/machines"]')
   await b.until((name) => new RegExp(`${name}[\\s\\S]{0,500}(online|busy)`, 'i').test(document.body.innerText), { timeout: ONLINE_WAIT_MS }, NAME)
   check('the new machine shows in Machines and is online', true)

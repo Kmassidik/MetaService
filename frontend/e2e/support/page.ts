@@ -67,12 +67,19 @@ export function browse(page: Page) {
     await wait(HASH_SETTLE_MS)
   }
 
+  /** Opens the Machines dropdown in the sidebar when it is closed (it opens by itself on a machines page). */
+  async function openMachinesMenu(): Promise<void> {
+    const expanded = await run(() => document.querySelector('aside.side nav button[aria-controls="machines-menu"]')?.getAttribute('aria-expanded') === 'true')
+    if (!expanded) await page.click('aside.side nav button[aria-controls="machines-menu"]')
+    await page.waitForSelector('#machines-menu')
+  }
+
   /** Saves a picture when a screenshots folder was asked for (SHOTS_DIR). */
   async function shot(name: `${string}.png`, fullPage = false): Promise<void> {
     if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/${name}`, fullPage })
   }
 
-  return { page, run, until, text, dialogText, click, isDisabled, type, go, shot }
+  return { page, run, until, text, dialogText, click, isDisabled, type, go, openMachinesMenu, shot }
 }
 
 export type Browse = ReturnType<typeof browse>

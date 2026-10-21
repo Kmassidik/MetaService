@@ -6,10 +6,15 @@
     icon: string
   }
 
-  let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
-  const FIND = '/machines/find'
-  // "Machines" itself is the open item except on Find machines, which has its own mark.
-  const isOn = (page: NavPage) => (page.id === 'machines' ? active === 'machines' && route !== FIND : active === page.id)
+  import { machinesMenu } from '../lib/sidebar.ts'
+  import type { Machine } from '../lib/types.ts'
+
+  let { active = 'overview', route = '/', machines = [], username, onSignOut }: { active?: string; route?: string; machines?: Machine[]; username: string; onSignOut: () => void } = $props()
+  // Machines is a dropdown: it opens by itself when a machines page is shown, and the person can close or open it.
+  let open = $state(false)
+  $effect(() => { if (active === 'machines') open = true })
+  const isOn = (page: NavPage) => active === page.id
+  const menu = $derived(machinesMenu(route, machines))
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [
     { id: 'overview', label: 'Overview', href: '#/', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
@@ -30,13 +35,22 @@
       <div>
         <h3>{title}</h3>
         {#each pages as page (page.id)}
-          <a class:on={isOn(page)} href={page.href} aria-current={isOn(page) ? 'page' : undefined}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={page.icon} /></svg>{page.label}
-          </a>
           {#if page.id === 'machines'}
-            <div class="sub">
-              <a class:on={route === FIND} href="#{FIND}" aria-current={route === FIND ? 'page' : undefined}>Find machines</a>
-            </div>
+            <button class="group" class:here={isOn(page)} type="button" aria-expanded={open} aria-controls="machines-menu" onclick={() => (open = !open)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={page.icon} /></svg>{page.label}
+              <svg class="chev" class:turned={open} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {#if open}
+              <div class="sub" id="machines-menu">
+                {#each menu as item (item.key)}
+                  <a class:on={item.on} href={item.href} aria-current={item.on ? 'page' : undefined}>{item.label}</a>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <a class:on={isOn(page)} href={page.href} aria-current={isOn(page) ? 'page' : undefined}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={page.icon} /></svg>{page.label}
+            </a>
           {/if}
         {/each}
       </div>

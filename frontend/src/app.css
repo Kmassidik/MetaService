@@ -61,7 +61,12 @@ button{font-family:inherit;cursor:pointer}
 .side nav .sub a,.side nav .sub button{padding:7px 10px 7px 14px;font-family:var(--mono);font-size:12px;color:var(--m60,var(--m70));text-align:left;background:none;border:0;border-left:3px solid transparent;margin-left:-1px;cursor:pointer;display:block;width:100%}
 .side nav .sub a:hover,.side nav .sub button:hover{color:var(--black);background:var(--gray2)}
 .side nav .sub a.on{color:var(--black);background:var(--gray2);border-left-color:var(--green);font-weight:700}
-.side nav a svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:square}
+.side nav .group{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;font-family:var(--mono);font-size:13px;color:var(--m70);cursor:pointer;background:none;border:0;border-left:3px solid transparent;text-align:left}
+.side nav .group:hover{color:var(--black);background:var(--gray2)}
+.side nav .group.here{color:var(--black);font-weight:700}
+.side nav .group .chev{margin-left:auto;width:18px;height:18px;transition:transform .15s}
+.side nav .group .chev.turned{transform:rotate(180deg)}
+.side nav .group svg,.side nav a svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:square}
 .side .usr{padding:16px 22px;border-top:1px solid var(--gray);font-family:var(--mono);font-size:12px}
 .side .usr .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .side .usr .on{color:var(--run);font-weight:700}

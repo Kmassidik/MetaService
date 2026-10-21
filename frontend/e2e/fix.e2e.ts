@@ -60,6 +60,7 @@ async function reachTheCheck(b: Browse, first: boolean): Promise<void> {
     await b.page.type('input[name=password]', ADMIN.password)
     await b.click('Sign in')
     await b.until(() => document.body.innerText.includes('No machines yet'), { timeout: SHORT_WAIT_MS })
+    await b.openMachinesMenu()
     await b.page.click('aside.side a[href="#/machines/find"]')
     await b.until(() => document.body.innerText.includes('Looks at'), { timeout: SHORT_WAIT_MS })
     await b.click('Scan now')
