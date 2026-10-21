@@ -17,6 +17,8 @@
   interface Props {
     machine: Machine
     pinned: string | null | undefined
+    /** How many VMs of this machine are being made right now: the empty message must not show while one is. */
+    making: number
     onCreate: () => void
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
     onDelete: (machine: Machine, workload: Workload) => void
@@ -24,7 +26,9 @@
     onOpenChat: (machine: Machine, workload: Workload | null) => void
   }
 
-  let { machine, pinned, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
+  let { machine, pinned, making, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
+  const MAKING_TEXT = 'The first VM is being made. It will be listed here when the machine reports it.'
+  const NONE_TEXT = 'No VMs on this machine yet.'
   const VIEWS: [ViewId, string][] = [['building', 'Building'], ['table', 'Table'], ['cards', 'Cards']]
   let view = $state(lastView)
   const servers = $derived(vmServers(machine))
@@ -52,7 +56,9 @@
 </div>
 
 {#if view === 'building'}
-  <Building {servers} {host} vmLink={(vmId) => vmHref(machine.id, vmId)} />
+  <Building {servers} {host} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} />
+{:else if servers.length === 0 && making > 0}
+  <p class="muted waiting" role="status">{MAKING_TEXT}</p>
 {:else if servers.length === 0}
   <div class="empty" role="status">No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
 {:else if view === 'cards'}
@@ -106,5 +112,6 @@
 
 <style>
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
+  .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
   .runs { margin-right: auto; font-family: var(--mono); font-size: 12px; color: var(--m50); }
 </style>

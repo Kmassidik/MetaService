@@ -7,6 +7,8 @@
   import Monitor from '../components/monitor/Monitor.svelte'
   import { canRunText, gpuText } from '../lib/environment.ts'
   import { archName, formatGb, formatMb, osName, relativeTime } from '../lib/format.ts'
+  import PendingVms from '../components/vms/PendingVms.svelte'
+  import { pendingFor, type PendingVm } from '../lib/pendingVms.ts'
   import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
 
   type Tab = 'overview' | 'environment' | 'deployments' | 'activity'
@@ -15,6 +17,8 @@
     machine: Machine | undefined
     remote: RemoteMachineInfo | null
     commands: Command[]
+    /** VMs being made, on any machine; this page shows the ones for its own machine. */
+    pending: PendingVm[]
     now: number
     pinned: string | null | undefined
     /** The highest helper version any machine reports, to mark an old one. */
@@ -33,10 +37,11 @@
     onChanged: () => void
   }
 
-  let { machine, remote, commands, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
+  let { machine, remote, commands, pending, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
   const TABS: [Tab, string][] = [['overview', 'Overview'], ['environment', 'Environment'], ['deployments', 'Deployments'], ['activity', 'Activity']]
   let tab: Tab = $state('overview')
   const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
+  const making = $derived(machine ? pendingFor(pending, machine.id) : [])
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
   const facts = $derived(machine ? [
     ['ID', machine.id], ['Status', null], ['Address', machine.ip ?? 'unknown'],
@@ -61,11 +66,13 @@
     </div>
   </div>
 
+  <PendingVms pending={making} showMachine={false} />
+
   {#key machine.id}<Monitor {machine} {now} />{/key}
 
   <div class="tabs" role="tablist">
     {#each TABS as [id, label] (id)}
-      <button type="button" role="tab" class:on={tab === id} aria-selected={tab === id} onclick={() => (tab = id)}>{label}{#if id === 'deployments'}{' '}({machine.workloads.length}){/if}</button>
+      <button type="button" role="tab" class:on={tab === id} aria-selected={tab === id} onclick={() => (tab = id)}>{label}{#if id === 'deployments'}{' '}({machine.workloads.length + making.length}){/if}</button>
     {/each}
   </div>
 
@@ -87,7 +94,7 @@
         <EnvironmentTab {machine} {remote} {now} {newestHelper} {chatsBuilt} {onRuvio} {onOpenChat} {onChanged} />
       {/key}
     {:else if tab === 'deployments'}
-      <DeploymentsView {machine} {pinned} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
+      <DeploymentsView {machine} {pinned} making={making.length} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
     {:else}
       <Activity commands={activity} {now} />
     {/if}

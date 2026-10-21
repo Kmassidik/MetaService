@@ -5,6 +5,7 @@
   import { ApiError, createWorkload, refusalText } from '../lib/api.ts'
   import { blankForm, kindAfterPick, kindChoices, machineChoice, machineDefaults, type NewVmForm } from '../lib/createVm.ts'
   import { workloadBody, workloadProblem } from '../lib/format.ts'
+  import { trackCreateAnswer } from '../lib/pendingStore.svelte.ts'
   import type { Machine } from '../lib/types.ts'
 
   /** `only` is set when the dialog was opened from one machine's own page: the VM goes there and nowhere else. */
@@ -39,7 +40,7 @@
     busy = true
     failure = ''
     try {
-      await createWorkload(workloadBody(form))
+      trackCreateAnswer(await createWorkload(workloadBody(form)))
       onCreated()
       onClose()
     } catch (error) {

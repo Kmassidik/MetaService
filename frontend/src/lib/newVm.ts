@@ -20,6 +20,8 @@ export interface NewVmDeps {
   pause: (ms: number) => Promise<void>
   /** True once the person left the page: the waiting stops. */
   stopped: () => boolean
+  /** Told about the order each time it is read, so the pending rows can show how far it is. */
+  observed?: (order: Command) => void
 }
 
 export const POLL_MS = 1000
@@ -43,6 +45,7 @@ async function findWorkload(created: Created, name: string, deps: NewVmDeps): Pr
 /** One look: the outcome when the order has ended and the VM is listed, or null to look again later. */
 async function look(created: Created, name: string, deps: NewVmDeps): Promise<NewVmOutcome | null> {
   const order = await deps.getCommand(created.commandId)
+  deps.observed?.(order)
   if (order.state === 'failed') return { kind: 'failed', message: order.result?.error ?? FAILED_WITHOUT_REASON }
   if (order.state !== 'succeeded') return null
   const workload = await findWorkload(created, name, deps)

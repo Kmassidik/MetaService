@@ -55,6 +55,13 @@ test('when the person leaves the page the waiting stops at once', async () => {
   expect(await awaitNewVm(created, 'build-box', gone)).toEqual({ kind: 'slow' })
 })
 
+test('every order the waiting looks at is passed on, so the pending rows follow it', async () => {
+  const seen: string[] = []
+  const stand = deps([command({ state: 'queued' }), command({ state: 'running' }), command({ state: 'succeeded' })], [[made]])
+  await awaitNewVm(created, 'build-box', { ...stand, observed: (order) => seen.push(order.state) })
+  expect(seen).toEqual(['queued', 'running', 'succeeded'])
+})
+
 test('a machine that is not on the list never has the VM', async () => {
   expect(await awaitNewVm(created, 'build-box', deps([command({ state: 'succeeded' })], [[machine({ id: 'other' })]]))).toEqual({ kind: 'slow' })
 })

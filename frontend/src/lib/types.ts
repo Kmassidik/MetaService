@@ -133,6 +133,8 @@ export interface MachineSettingsPatch {
 export interface CommandResult {
   error?: string
   backup_id?: string
+  /** Set by a create order that succeeded: the id the machine gave the new VM. */
+  workload_id?: string
 }
 
 /** One order the Root gave an Agent (create, start, stop, delete) and how it ended. */
@@ -145,6 +147,7 @@ export interface Command {
   created_at: string
   params: Record<string, unknown>
   result?: CommandResult | null
+  finished_at?: string | null
 }
 
 /** One row of the AI use per machine (and per VM). */

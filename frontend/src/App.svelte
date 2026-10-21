@@ -21,9 +21,13 @@
   import NewWorkload from './components/NewWorkload.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import ChatLink from './components/ChatLink.svelte'
+  import { dismissedOrders, sessionOrders } from './lib/pendingStore.svelte.ts'
+  import { mergeOrders, pendingVms } from './lib/pendingVms.ts'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
   const CLOCK_MS = 5_000
+  /** While a VM is being made the lists are read this often, so it shows up soon after the machine reports it. */
+  const MAKING_POLL_MS = 3_000
 
   let phase = $state<'loading' | 'signedOut' | 'ready' | 'error'>('loading')
   let username = $state('')
@@ -56,6 +60,14 @@
   const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
   let removeBusy = $state(false)
   let removeFailure = $state('')
+  const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
+  const making = $derived(pending.some((entry) => entry.stage !== 'failed'))
+
+  $effect(() => {
+    if (!making) return
+    const timer = setInterval(() => !document.hidden && refresh(), MAKING_POLL_MS)
+    return () => clearInterval(timer)
+  })
 
   async function start() {
     try {
@@ -254,13 +266,13 @@
       {#if page === 'machines' && detailId && vmId}
         <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines' && detailId}
-        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
       {:else if page === 'vms' && vmsView(route) === 'create'}
-        {#key route}<VmCreate {machines} {route} {banner} onCreated={refresh} />{/key}
+        {#key route}<VmCreate {machines} {route} {banner} {pending} onCreated={refresh} />{/key}
       {:else if page === 'vms'}
-        <VmsList {machines} {route} {banner} />
+        <VmsList {machines} {route} {banner} {pending} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}

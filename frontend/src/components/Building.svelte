@@ -2,7 +2,7 @@
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string } = $props();
+  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.' }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -136,7 +136,7 @@
     </dl>
     <h3>VMs</h3>
     {#if residents.length === 0}
-      <p class="bv-none">No VMs on this machine yet.</p>
+      <p class="bv-none">{none}</p>
     {:else}
       <ul class="bv-tenants">
         {#each residents as tenant (tenant.id)}
