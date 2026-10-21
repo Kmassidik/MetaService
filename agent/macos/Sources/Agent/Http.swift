@@ -39,6 +39,9 @@ enum Json {
         make(try encoder.encode(value), status)
     }
 
+    /// Already-encoded JSON (the sampler writes its own snake_case keys and nulls).
+    static func raw(_ data: Data) -> Response { make(data, .ok) }
+
     static func error(_ status: HTTPResponse.Status, _ code: String, _ message: String, extra: [String: Any] = [:]) -> Response {
         let body = ["error": ["code": code, "message": message].merging(extra) { $1 }]
         return make((try? JSONSerialization.data(withJSONObject: body)) ?? Data(), status)

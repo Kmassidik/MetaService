@@ -84,6 +84,7 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: ErrorMiddleware())
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
+    StatsRoutes(sampler: StatsSampler(source: DarwinStatsSource())).register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)
     terminal.registerPlain(on: router)
     if let root, let machineToken {
