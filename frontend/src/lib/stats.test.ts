@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { barWidth, ceilingOf, coreColumns, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, historyPoint, HISTORY_LIMIT, isStale, memorySegments, MEASURING_TEXT, needsHelperUpdate, offlineText, percentOf, pushHistory, reservedText, sparkPath } from './stats.ts'
+import { barWidth, ceilingOf, coreColumns, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, historyPoint, HISTORY_LIMIT, isStale, memorySegments, MEASURING_TEXT, needsHelperUpdate, offlineText, percentOf, pushHistory, reservedText, sparkPath, statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 import { workload } from './testing.ts'
@@ -111,4 +111,9 @@ test('the reply parser refuses odd shapes', () => {
   expect(() => parseStatsReply(null)).toThrow(UnreadableAnswer)
   expect(() => parseStatsReply({ state: 'weird', stats: null })).toThrow(UnreadableAnswer)
   expect(() => parseStatsReply({ ...reply(), stats: { ...sampleStats(), uptime_seconds: 'x' } })).toThrow(UnreadableAnswer)
+})
+
+test('the stats address says whether the list of programs is wanted', () => {
+  expect(statsPath('mac mini', false)).toBe('/api/machines/mac%20mini/stats?processes=0')
+  expect(statsPath('studio', true)).toBe('/api/machines/studio/stats?processes=1')
 })

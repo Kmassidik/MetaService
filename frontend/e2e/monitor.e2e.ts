@@ -2,7 +2,8 @@
 // an offline machine says so with its last numbers greyed, a hostile process name stays text, and the Machines list asks slower than the page.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/monitor.e2e.ts   (needs a built panel, Google Chrome, `bun install` in frontend/)
 import puppeteer, { type Page } from 'puppeteer-core'
-import { HOSTILE_NAME, PROCESS_COUNT, startStandIn, type StandIn } from './monitor/stand-in.ts'
+import { startStandIn, type StandIn } from './monitor/stand-in.ts'
+import { cardsAreBorderedAndEqualInHeight, coresAreAlwaysShown, graphsLineUp, helpButtonsToggleTheExplanations, listIsNeverFetchedOrDrawnWhileTheWindowIsClosed, oneColumnWithoutSidewaysScroll, SIZES, waitForNumbers, windowListsFifteenAndFilters, windowRefreshesWhileOpenAndStopsWhenClosed } from './monitor/live-steps.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
 import { wait } from './support/net.ts'
@@ -12,10 +13,6 @@ import { chromePath, panelDist } from './support/paths.ts'
 const SHORT_WAIT_MS = 10000
 const PAGE_POLL_MS = 5000
 const LIST_POLL_MS = 15000
-const SIZES = { desktop: { width: 1280, height: 1000 }, laptop: { width: 1280, height: 800 }, phone: { width: 400, height: 900 } }
-const TOP_ROWS = 5
-/** "worker-1" matches worker-10 to worker-15 (the stand-in has workers 3 to 15). */
-const WORKER_ONE_MATCHES = 6
 const TABS = ['Live', 'VMs', 'Environment', 'Activity']
 const SLACK_MS = 2500
 
@@ -32,28 +29,15 @@ async function setVisible(b: Browse, visible: boolean) {
 
 async function numbersAppear(b: Browse, world: StandIn) {
   await openMachine(b, world.base, 'studio')
-  await b.until(() => !!document.querySelector('[data-testid=cpu-total]'), { timeout: SHORT_WAIT_MS })
+  await waitForNumbers(b)
   const first = await cpuText(b)
   const text = await b.text()
-  check('the monitor shows CPU, memory, disk, network, GPU and processes', ['cpu', 'memory', 'disk', 'network', 'gpu', 'top processes'].every((word) => text.toLowerCase().includes(word)))
-  check('the per-core grid is folded by default', (await b.run(() => document.querySelectorAll('.core').length)) === 0)
-  await b.click('32 cores ▾')
-  check('"32 cores" opens the grid: 32 small bars in a compact grid', (await b.run(() => document.querySelectorAll('.core').length)) === 32)
-  await b.click('32 cores ▴')
-  check('pressing it again folds the grid', (await b.run(() => document.querySelectorAll('.core').length)) === 0)
+  check('the monitor shows CPU, memory, disk, network and GPU cards and a Top processes button', ['cpu', 'memory', 'disk', 'network', 'gpu', 'top processes'].every((word) => text.toLowerCase().includes(word)))
+  check('the process table is not on the Live tab', !text.includes('Run by') && !text.includes('worker-3'))
   check('uptime and the one small reserved line are shown', /up 1d 1h/.test(text) && text.includes('VMs have reserved 4 cores, 8 GB memory, 80 GB disk'))
   check('the old allocated headline is gone', !/Disk allocated|cores promised|whole building/.test(text))
   await b.until((before) => document.querySelector<HTMLElement>('[data-testid=cpu-total]')?.innerText !== before, { timeout: PAGE_POLL_MS + SLACK_MS }, first)
   check('the numbers change by themselves', (await cpuText(b)) !== first)
-}
-
-async function hostileName(b: Browse) {
-  const result = await b.run(() => ({
-    images: document.querySelectorAll('.procs img, [data-testid=monitor] img').length,
-    scripts: document.querySelectorAll('[data-testid=monitor] script').length,
-    cell: document.querySelector<HTMLElement>('.procs .name')?.textContent ?? '',
-  }))
-  check('a hostile process name is shown as text, not as a tag', result.images === 0 && result.scripts === 0 && result.cell === HOSTILE_NAME, JSON.stringify(result))
 }
 
 async function hiddenTab(b: Browse, world: StandIn) {
@@ -65,24 +49,6 @@ async function hiddenTab(b: Browse, world: StandIn) {
   await setVisible(b, true)
   await wait(700)
   check('a shown tab asks at once', calls(world, 'studio') === before + 1, `${before} then ${calls(world, 'studio')}`)
-}
-
-const processRows = (b: Browse) => b.run(() => document.querySelectorAll('.procs tbody tr').length)
-
-async function processList(b: Browse) {
-  check('Live shows the top 5 programs', (await processRows(b)) === TOP_ROWS)
-  await b.click(`Show all ${PROCESS_COUNT}`)
-  check('"Show all" reveals all 15', (await processRows(b)) === PROCESS_COUNT)
-  await b.click('Show fewer')
-  check('"Show fewer" goes back to 5', (await processRows(b)) === TOP_ROWS)
-  await b.page.type('input[type=search]', 'KURNIA')
-  check('the filter narrows by account, ignoring letter case', (await b.run(() => [...document.querySelectorAll('.procs .name')].map((cell) => cell.textContent))).join() === 'node')
-  await b.type('input[type=search]', 'worker-1')
-  check('the filter narrows by name over all 15 programs, not just the first 5', (await processRows(b)) === WORKER_ONE_MATCHES)
-  await b.type('input[type=search]', 'zzz')
-  check('a filter with no match says so', (await b.text()).includes('No program matches that.'))
-  await b.type('input[type=search]', '')
-  check('the table says what "Run by" means', (await b.text()).includes('"Run by" is the account that started the program.') && (await b.run(() => document.querySelector('.procs th:nth-child(2)')?.textContent)) === 'Run by')
 }
 
 async function tabBarAndPolling(page: Page, b: Browse, world: StandIn) {
@@ -157,10 +123,25 @@ async function pictures(page: Page, b: Browse, world: StandIn) {
   for (const [size, viewport] of Object.entries(SIZES)) {
     await page.setViewport(viewport)
     await openMachine(b, world.base, 'studio')
-    await b.until(() => !!document.querySelector('[data-testid=cpu-total]'), { timeout: SHORT_WAIT_MS })
+    await waitForNumbers(b)
     await b.shot(`monitor-studio-${size}.png`, true)
     check(`no sideways scroll at ${size} width`, await b.run(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
   }
+}
+
+/** The machines without a GPU: Disk and Network share the lower row. A Mac and a plain Linux box. */
+async function machinesWithoutGpu(page: Page, b: Browse, world: StandIn) {
+  await page.setViewport(SIZES.laptop)
+  for (const [id, cores] of [['mac', 10], ['mini', 4]] as const) {
+    await openMachine(b, world.base, id)
+    await waitForNumbers(b)
+    await cardsAreBorderedAndEqualInHeight(b, id, 2)
+    await coresAreAlwaysShown(b, cores)
+    await oneColumnWithoutSidewaysScroll(page, b, id)
+    await page.setViewport(SIZES.laptop)
+    await b.shot(`live-${id}-laptop.png`)
+  }
+  await page.setViewport(SIZES.desktop)
 }
 
 const errors: string[] = []
@@ -173,10 +154,17 @@ try {
   const b = browse(page)
   await page.setViewport(SIZES.desktop)
   await numbersAppear(b, world)
-  await hostileName(b)
-  await processList(b)
+  await cardsAreBorderedAndEqualInHeight(b, 'studio', 3)
+  await graphsLineUp(b)
+  await coresAreAlwaysShown(b, 32)
+  await helpButtonsToggleTheExplanations(b)
+  await oneColumnWithoutSidewaysScroll(page, b, 'studio')
+  await listIsNeverFetchedOrDrawnWhileTheWindowIsClosed(b, world)
   await pageAsksEveryFiveSeconds(world)
+  await windowListsFifteenAndFilters(page, b, world)
+  await windowRefreshesWhileOpenAndStopsWhenClosed(b, world)
   await hiddenTab(b, world)
+  await machinesWithoutGpu(page, b, world)
   await tabBarAndPolling(page, b, world)
   await everyTabFitsAPhone(page, b, world)
   await pictures(page, b, world)

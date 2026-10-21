@@ -5,6 +5,9 @@ import type { MachineStats, MachineStatsReply, Workload } from './types.ts'
 /** How often a machine's own page asks for a reading, and how often the Machines list does. */
 export const MACHINE_PAGE_POLL_MS = 5000
 export const LIST_POLL_MS = 15000
+/** The address of a machine's reading. `withProcesses` false asks the parent to leave the list of programs out, which spares the machine the scan. */
+export const statsPath = (id: string, withProcesses: boolean): string => `/api/machines/${encodeURIComponent(id)}/stats?processes=${withProcesses ? 1 : 0}`
+
 /** The history kept in the browser: 60 readings, 5 minutes at 5 seconds. */
 export const HISTORY_LIMIT = 60
 const KIB = 1024

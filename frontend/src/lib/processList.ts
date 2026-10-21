@@ -1,22 +1,16 @@
-// Which programs the Live tab lists: the top few, all of them on request, or the ones that match what was typed. Pure functions, no DOM.
-import type { StatsProcess } from './types.ts'
-
-export const TOP_PROCESSES = 5
-
-export interface ProcessView {
-  rows: StatsProcess[]
-  /** How many programs the machine reported. */
-  total: number
-  /** There are more rows than the short list shows, so "Show all" means something. */
-  canExpand: boolean
-}
+// What the Top processes window lists: every program the machine reported (at most 15), or the ones that match what was typed. Pure functions, no DOM.
+import type { MachineStatsReply, StatsProcess } from './types.ts'
 
 const matches = (process: StatsProcess, needle: string): boolean => process.name.toLowerCase().includes(needle) || process.user.toLowerCase().includes(needle)
 
-/** A filter searches every program and shows every match; without one, the short list is the first rows unless `showAll`. */
-export function visibleProcesses(processes: readonly StatsProcess[], filter: string, showAll: boolean): ProcessView {
+/** The programs whose name or account holds what was typed (letter case and spaces around it do not matter); with nothing typed, all of them. */
+export function filterProcesses(processes: readonly StatsProcess[], filter: string): StatsProcess[] {
   const needle = filter.trim().toLowerCase()
-  const total = processes.length
-  if (needle !== '') return { rows: processes.filter((process) => matches(process, needle)), total, canExpand: false }
-  return { rows: showAll ? [...processes] : processes.slice(0, TOP_PROCESSES), total, canExpand: total > TOP_PROCESSES }
+  return needle === '' ? [...processes] : processes.filter((process) => matches(process, needle))
+}
+
+/** The list a reply carries, or null when it was asked without the list or has no numbers. An empty list from a reply that asked for it stays empty. */
+export function processesFromReply(reply: MachineStatsReply, askedForList: boolean): StatsProcess[] | null {
+  if (!askedForList || !reply.stats) return null
+  return reply.stats.processes
 }

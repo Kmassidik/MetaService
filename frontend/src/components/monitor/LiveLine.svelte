@@ -11,7 +11,7 @@
 
   async function load() {
     try {
-      const reply = await getMachineStats(machineId)
+      const reply = await getMachineStats(machineId, false)
       stats = isStale(reply) ? null : reply.stats
     } catch {
       stats = null

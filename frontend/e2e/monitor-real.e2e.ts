@@ -70,7 +70,12 @@ try {
   const dialogs: string[] = []
   page.on('dialog', (dialog) => { dialogs.push(dialog.message()); void dialog.dismiss() })
   const asked: number[] = []
-  page.on('request', (request) => request.url().includes(`/api/machines/${MACHINE}/stats`) && asked.push(Date.now()))
+  const urls: string[] = []
+  page.on('request', (request) => {
+    if (!request.url().includes(`/api/machines/${MACHINE}/stats`)) return
+    asked.push(Date.now())
+    urls.push(request.url())
+  })
   const b = browse(page)
   await firstRun(b, world)
   await seed(world)
@@ -85,16 +90,23 @@ try {
   check('the old allocated headline is gone', !/Disk allocated|cores promised|whole building/.test(text))
   await b.shot('monitor-real-desktop.png')
   await b.until((before) => document.querySelector<HTMLElement>('[data-testid=cpu-total]')?.innerText !== before, { timeout: PAGE_POLL_MS * 2 + SLACK_MS }, first)
-  await b.until(() => [...document.querySelectorAll('button')].some((button) => button.textContent?.trim() === '32 cores ▾'), { timeout: PAGE_POLL_MS * 2 + SLACK_MS })
-  check('the per-core grid is folded until "32 cores" is pressed', (await b.run(() => document.querySelectorAll('.core').length)) === 0)
-  await b.click('32 cores ▾')
-  check('32 cores draw 32 bars once measured', (await b.run(() => document.querySelectorAll('.core').length)) === 32)
+  await b.until(() => document.querySelectorAll('section[aria-label=CPU] .core').length === 32, { timeout: PAGE_POLL_MS * 2 + SLACK_MS })
+  check('32 cores draw 32 bars in the CPU card once measured, with nothing to press', (await b.run(() => document.querySelectorAll('section[aria-label=CPU] .core').length)) === 32)
+  check('while the window is closed the page asks the real parent without the list (processes=0)', urls.length > 0 && urls.every((url) => url.endsWith('?processes=0')), urls.join(' '))
+  check('no process table is on the page while the window is closed', (await b.run(() => document.querySelectorAll('.procs').length)) === 0)
   check('the numbers change by themselves', (await cpuText(b)) !== first)
-  const cell = await b.run(() => ({ images: document.querySelectorAll('[data-testid=monitor] img').length, name: [...document.querySelectorAll('.procs .name')].map((n) => n.textContent) }))
+  const askedBeforeWindow = asked.slice()
+  await b.click('Top processes')
+  await b.until(() => document.querySelectorAll('dialog[open] .procs tbody tr').length > 1, { timeout: PAGE_POLL_MS * 2 + SLACK_MS })
+  check('opening the window asks the real parent for the list (processes=1) and it shows 15 programs', urls.at(-1)?.endsWith('?processes=1') === true && (await b.run(() => document.querySelectorAll('dialog[open] .procs tbody tr').length)) === 15, urls.at(-1) ?? '')
+  const cell = await b.run(() => ({ images: document.querySelectorAll('dialog[open] img').length, name: [...document.querySelectorAll('dialog[open] .procs .name')].map((n) => n.textContent) }))
   check('the hostile process name is text: no tag, no alert', cell.images === 0 && cell.name.includes(HOSTILE_NAME) && dialogs.length === 0, JSON.stringify({ cell, dialogs }))
   check('the secret in a command line is nowhere on the page', !(await b.text()).includes('SECRET-FAKE'))
+  await b.shot('monitor-real-modal.png')
+  await b.click('Close')
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
 
-  const gaps = asked.slice(1).map((time, index) => time - (asked[index] ?? time)).filter((gap) => gap > 0)
+  const gaps = askedBeforeWindow.slice(1).map((time, index) => time - (askedBeforeWindow[index] ?? time)).filter((gap) => gap > 0)
   check('the page asks the parent about every 5 seconds', gaps.length > 0 && gaps.every((gap) => gap >= PAGE_POLL_MS - 500 && gap <= PAGE_POLL_MS + SLACK_MS), gaps.join(','))
 
   await page.setViewport(SIZES.phone)

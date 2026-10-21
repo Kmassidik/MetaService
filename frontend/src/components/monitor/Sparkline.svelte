@@ -14,7 +14,7 @@
 </svg>
 
 <style>
-  .spark { width: 100%; height: 28px; display: block; }
+  .spark { width: 100%; height: 100%; min-height: 0; display: block; }
   .base { stroke: var(--gray); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .line { fill: none; stroke: var(--green-d); stroke-width: 1.5; }
 </style>

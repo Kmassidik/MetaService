@@ -1,17 +1,15 @@
 <script lang="ts">
   // The Live tab of a machine's page: what the machine is really doing, refreshed every 5 seconds while the browser tab is visible and Live is shown.
+  // The list of programs is fetched and drawn only while its window is open.
   import { untrack } from 'svelte'
   import MonitorHeader from './MonitorHeader.svelte'
-  import CpuPanel from './CpuPanel.svelte'
-  import MemoryPanel from './MemoryPanel.svelte'
-  import DiskPanel from './DiskPanel.svelte'
-  import NetworkPanel from './NetworkPanel.svelte'
-  import GpuPanel from './GpuPanel.svelte'
-  import ProcessList from './ProcessList.svelte'
+  import LiveCards from './LiveCards.svelte'
+  import ProcessesModal from './ProcessesModal.svelte'
   import { getMachineStats } from '../../lib/api.ts'
+  import { processesFromReply } from '../../lib/processList.ts'
   import { historyPoint, MACHINE_PAGE_POLL_MS, pushHistory, reservedText, type HistoryPoint } from '../../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../../lib/statsPoll.ts'
-  import type { Machine, MachineStatsReply } from '../../lib/types.ts'
+  import type { Machine, MachineStatsReply, StatsProcess } from '../../lib/types.ts'
 
   /** `active` is false while another tab is shown: nothing is asked for then. */
   let { machine, now, active }: { machine: Machine; now: number; active: boolean } = $props()
@@ -20,16 +18,21 @@
   let reply = $state<MachineStatsReply | null>(null)
   let history = $state<HistoryPoint[]>([])
   let failed = $state(false)
+  let listOpen = $state(false)
+  let processes = $state<StatsProcess[] | null>(null)
   let lastTaken = ''
 
-  async function load() {
+  /** `current` says whether this polling run is still the one in charge: an answer that arrives after the window opened or closed is thrown away. */
+  async function load(withProcesses: boolean, current: () => boolean) {
     try {
-      const next = await getMachineStats(id)
+      const next = await getMachineStats(id, withProcesses)
+      if (!current()) return
       reply = next
       failed = false
+      processes = processesFromReply(next, withProcesses)
       remember(next)
     } catch {
-      failed = true
+      if (current()) failed = true
     }
   }
 
@@ -40,34 +43,44 @@
     history = pushHistory(history, historyPoint(next.stats))
   }
 
+  function openList() {
+    processes = null
+    listOpen = true
+  }
+
   // Asks only while Live is shown. Coming back to Live asks at once; the last numbers wait here meanwhile.
+  // Opening or closing the window starts a new run that asks with or without the list of programs.
   $effect(() => {
     if (!active) return
-    return untrack(() => startPolling(browserEnvironment(), MACHINE_PAGE_POLL_MS, load))
+    const withProcesses = listOpen
+    return untrack(() => {
+      let running = true
+      const stop = startPolling(browserEnvironment(), MACHINE_PAGE_POLL_MS, () => load(withProcesses, () => running))
+      return () => {
+        running = false
+        stop()
+      }
+    })
   })
 
   const stats = $derived(reply?.stats ?? null)
   const grey = $derived(failed || reply?.state === 'offline')
+  const canListPrograms = $derived(reply?.state === 'online' && stats !== null)
 </script>
 
 <section class="monitor" aria-label="Live monitor" data-testid="monitor">
-  <MonitorHeader {reply} {failed} {now} />
-  {#if stats}
-    <div class="blocks" class:grey data-testid="monitor-numbers">
-      <CpuPanel cpu={stats.cpu} history={history.map((point) => point.cpu)} />
-      <MemoryPanel memory={stats.memory} history={history.map((point) => point.memory)} />
-      <DiskPanel disks={stats.disks} />
-      <NetworkPanel network={stats.network} down={history.map((point) => point.down)} up={history.map((point) => point.up)} />
-      {#if stats.gpus.length}<GpuPanel gpus={stats.gpus} />{/if}
-    </div>
-    <div class:grey><ProcessList processes={stats.processes} /></div>
-  {/if}
+  <MonitorHeader {reply} {failed} {now}>
+    {#snippet actions()}
+      {#if canListPrograms}<button class="btn line sm" type="button" data-testid="processes-button" aria-haspopup="dialog" onclick={openList}>Top processes</button>{/if}
+    {/snippet}
+  </MonitorHeader>
+  {#if stats}<LiveCards {stats} {history} {grey} />{/if}
   <p class="reserved" data-testid="reserved">{reservedText(machine.workloads)}</p>
 </section>
 
+<ProcessesModal open={listOpen} {processes} onClose={() => (listOpen = false)} />
+
 <style>
-  .monitor { display: grid; gap: 18px; }
-  .blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-  .grey { opacity: 0.45; filter: grayscale(1); }
+  .monitor { display: grid; gap: 16px; }
   .reserved { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--m50); }
 </style>

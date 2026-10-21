@@ -2,6 +2,7 @@
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
+import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
@@ -168,4 +169,5 @@ export async function checkGpu(machine: string, workload: string): Promise<GpuCh
 }
 
 /** The machine's latest reading (docs/monitor-contract.md). An offline machine answers with state offline and the last reading, or null. */
-export const getMachineStats = async (id: string): Promise<MachineStatsReply> => parseStatsReply(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/stats`))
+/** A machine's live reading. Ask `withProcesses` only while the list of programs is on screen. */
+export const getMachineStats = async (id: string, withProcesses: boolean): Promise<MachineStatsReply> => parseStatsReply(await call<unknown>('GET', statsPath(id, withProcesses)))
