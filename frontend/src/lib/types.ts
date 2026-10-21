@@ -294,6 +294,8 @@ export interface WorkloadForm {
   machine?: string
   /** `container` when the person chose to share the machine's GPU; left out or `none` otherwise. */
   gpuMode?: string
+  /** The catalog id of the image to start from (`blank` when none is picked); sent only when it is not `blank`. */
+  bundle?: string
 }
 
 /** Step one of Connect: the SSH host key a computer shows, to confirm before any login. */

@@ -2,6 +2,7 @@
 // The parent's answers about the orders are played by the test (so each stage can be looked at as long as needed); the machine and its heartbeats are real.
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
+import { imageListArrived } from '../support/images.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
 import { enrollMachine, resendHeartbeats, sendHeartbeat, type World } from '../panel/world.ts'
@@ -54,6 +55,7 @@ const untilCardSays = (b: Browse, name: string, words: string, timeout = SHORT_W
 async function submitCreate(b: Browse, name: string): Promise<void> {
   await openCreate(b, `#/vms/create?machine=${MACHINE}`)
   await b.page.waitForSelector(NAME)
+  await imageListArrived(b)
   await b.type(NAME, name)
   await b.click('Create')
 }

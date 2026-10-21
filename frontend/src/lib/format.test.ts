@@ -78,6 +78,14 @@ test('workload body is what the Root expects', () => {
   expect(workloadBody({ ...good, kind: 'vm', gpuMode: 'container' })).not.toHaveProperty('gpu_mode')
 })
 
+test('the image is sent as bundle only when it is not Blank, and the page never sends an image name', () => {
+  expect(workloadBody({ ...good, bundle: 'blank' })).not.toHaveProperty('bundle')
+  expect(workloadBody(good)).not.toHaveProperty('bundle')
+  expect(workloadBody({ ...good, bundle: 'openclaw', machine: 'mini' })).toEqual({ name: 'demo', kind: 'vm', cpu: 2, ram_mb: 2048, disk_gb: 20, bundle: 'openclaw', machine: 'mini' })
+  expect(workloadBody({ ...good, bundle: 'blank' })).not.toHaveProperty('image')
+  expect(workloadBody({ ...good, bundle: 'openclaw' })).not.toHaveProperty('image')
+})
+
 test('command outcomes', () => {
   expect(commandOutcome(command({ state: 'running' }))).toBe('working…')
   expect(commandOutcome(command({ state: 'failed', result: { error: 'no room' } }))).toBe('no room')

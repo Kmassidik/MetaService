@@ -6,6 +6,7 @@ import puppeteer from 'puppeteer-core'
 import { CARD, CHECK_IDS, HOSTILE_DETAIL, REFUSED_CREATE, startGpuStandIn, type GpuStandIn } from './gpu/stand-in.ts'
 import { check, finish } from './support/check.ts'
 import { chromePath, panelDist } from './support/paths.ts'
+import { imageListArrived } from './support/images.ts'
 import { browse, type Browse } from './support/page.ts'
 
 const SHORT_WAIT_MS = 10000
@@ -22,6 +23,7 @@ const openCreate = async (b: Browse, base: string, machine: string): Promise<voi
   await b.page.waitForSelector(`dialog[open] ${PICKER}`, { timeout: SHORT_WAIT_MS })
   await b.page.select(PICKER, machine)
   await b.page.waitForSelector('#vm-create-name')
+  await imageListArrived(b)
 }
 
 const pickKind = async (b: Browse, kind: string): Promise<void> => {

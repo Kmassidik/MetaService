@@ -13,6 +13,16 @@ export const REFUSED_CREATE = 'No machine can share its GPU with a container: a 
 /** The containers whose GPU check is scripted, by id. */
 export const CHECK_IDS = { smi: 'g-smi', devices: 'g-dev', nothing: 'g-none', hostile: 'g-hostile', down: 'g-down', stopped: 'g-off' } as const
 
+/** The images every machine answers with: Blank, and the two that are listed but not yet available. */
+const IMAGES: Json = {
+  helper: 'answered',
+  images: [
+    { id: 'blank', title: 'Blank (plain Ubuntu)', description: 'Plain.', state: 'ready', ready: true, available: true, reason: null },
+    { id: 'openclaw', title: 'OpenClaw', description: 'OpenClaw.', state: 'planned', ready: false, available: false, reason: 'Coming soon' },
+    { id: 'hermes', title: 'Hermes', description: 'Hermes.', state: 'planned', ready: false, available: false, reason: 'Waiting' },
+  ],
+}
+
 const ANSWERS: Record<string, Json> = {
   [CHECK_IDS.smi]: { gpu_visible: true, how: 'nvidia-smi', detail: `${CARD}, 580.178.04, 32607 MiB`, note: 'The GPU is visible inside, and nvidia-smi can talk to it.' },
   [CHECK_IDS.devices]: { gpu_visible: true, how: 'device nodes', detail: '/dev/nvidia0, /dev/nvidiactl. NVRM version: NVIDIA UNIX x86_64 Kernel Module  580.178.04', note: 'The GPU device is there but nvidia-smi is not installed in this image.' },
@@ -71,6 +81,7 @@ export function startGpuStandIn(dist: string): GpuStandIn {
       return reply({ error: { code: 'missing_capability', message: REFUSED_CREATE, resource: 'capability', needed: 1, free: 0 } }, 409)
     }
     if (path.endsWith('/gpu-check')) return gpuCheck(path)
+    if (path.endsWith('/images')) return reply(IMAGES)
     if (path.endsWith('/stats')) return reply({ state: 'old_helper', last_seen: new Date().toISOString(), fetched_at: null, stats: null })
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })

@@ -1,6 +1,7 @@
 // The Create VM window (over All VMs): which machines can be picked and why not, the VM kind switched off on a containers-only machine, the same validation as the old dialog,
 // the parent's refusal shown with the typed values kept, a VM made on the simulated helper that closes the window and shows up, the old links, Escape and the X, and the machine page's button opening it with its machine locked.
 import { check } from '../support/check.ts'
+import { imageListArrived } from '../support/images.ts'
 import type { Browse } from '../support/page.ts'
 import { createAVm } from '../panel/workloads.ts'
 import { CONTAINER_MACHINE, OFFLINE_MACHINE, SICK_MACHINE } from './fleet.ts'
@@ -82,8 +83,8 @@ export async function whoCanBePicked(b: Browse): Promise<void> {
 export async function kindsOnAMachine(b: Browse): Promise<void> {
   await b.page.select(PICKER, CONTAINER_MACHINE)
   await b.page.waitForSelector(NAME)
-  const kinds = await b.page.$$eval('dialog[open] form select:not(#vm-create-machine) option', (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [`${option.value}:${option.disabled}`] : [])))
-  const kind = await b.run(() => document.querySelector<HTMLSelectElement>('dialog[open] form select:not(#vm-create-machine)')?.value)
+  const kinds = await b.page.$$eval('dialog[open] form select:not(#vm-create-machine):not(#vm-create-image) option', (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [`${option.value}:${option.disabled}`] : [])))
+  const kind = await b.run(() => document.querySelector<HTMLSelectElement>('dialog[open] form select:not(#vm-create-machine):not(#vm-create-image)')?.value)
   check('on a containers-only machine the VM kind is disabled and Container is chosen', JSON.stringify(kinds) === JSON.stringify(['vm:true', 'container:false']) && kind === 'container', JSON.stringify(kinds) + kind)
   await b.shot('vms-create-containers-only.png')
 }
@@ -140,6 +141,7 @@ export async function refusedThenMade(b: Browse): Promise<void> {
   await waitForHelper(b)
   await b.page.select(PICKER, HELPER_MACHINE)
   await b.page.waitForSelector(NAME)
+  await imageListArrived(b)
   await b.type(NAME, REFUSED_VM)
   await setField(b, 'RAM', TOO_MUCH_RAM_GB)
   await b.click('Create')

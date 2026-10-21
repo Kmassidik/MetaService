@@ -1,5 +1,6 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
 import { check } from '../support/check.ts'
+import { imageListArrived } from '../support/images.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
 import { vmPageScenario } from './vm-page.ts'
@@ -40,6 +41,7 @@ async function openTheMachine(b: Browse): Promise<void> {
 export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
   await b.click('＋ Create a VM here')
   await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await imageListArrived(b)
   await b.page.type('dialog[open] #vm-create-name', 'Bad Name')
   const submitOff = await b.run(() => document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')?.disabled ?? false)
   check('a bad workload name disables Create and explains', submitOff && (await b.text()).includes('Use lowercase letters'))
@@ -102,6 +104,7 @@ async function stopStartDelete(b: Browse): Promise<void> {
 async function aRequestThatFitsNowhere(b: Browse): Promise<void> {
   await b.click('＋ Create a VM here')
   await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await imageListArrived(b)
   await b.page.type('dialog[open] #vm-create-name', 'too-big')
   await b.run((megabytes) => {
     const label = [...document.querySelectorAll<HTMLElement>('dialog[open] label')].find((entry) => entry.innerText.startsWith('RAM'))

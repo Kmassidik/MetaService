@@ -1,4 +1,5 @@
 // Pure helpers for showing machine data. No DOM, no network, so they are easy to test.
+import { imageBundle } from './images.ts'
 import type { Command, WorkloadForm } from './types.ts'
 
 const SECOND = 1000
@@ -98,7 +99,9 @@ const LABELS: Record<LimitedField, string> = { cpu: 'CPU', ramGb: 'RAM (GB)', di
 export function workloadBody(form: WorkloadForm): Record<string, unknown> {
   const body = { name: form.name, kind: form.kind, cpu: Number(form.cpu), ram_mb: Math.round(Number(form.ramGb) * 1024), disk_gb: Number(form.diskGb) }
   const withGpu = form.gpuMode === 'container' && form.kind === 'container' ? { ...body, gpu_mode: 'container' } : body
-  return form.machine ? { ...withGpu, machine: form.machine } : withGpu
+  const bundle = imageBundle(form.bundle)
+  const withImage = bundle === undefined ? withGpu : { ...withGpu, bundle }
+  return form.machine ? { ...withImage, machine: form.machine } : withImage
 }
 
 const COMMAND_LABELS: Record<string, string> = { create: 'Create', start: 'Start', stop: 'Stop', delete: 'Delete' }

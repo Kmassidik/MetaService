@@ -1,5 +1,5 @@
 // End-to-end test of the VMs pages in a real browser against a real Root: the VMs link in the sidebar, All VMs (the table, the Machine filter kept in the address, empty states),
-// the Create VM window (who can be picked and why not, the containers-only machine, the refusal, a VM made on a simulated helper), the machine page's own button opening the same window, and a phone.
+// the Create VM window (who can be picked and why not, the containers-only machine, the Image choice, the refusal, a VM made on a simulated helper), the machine page's own button opening the same window, and a phone.
 // Needs: the Root build (`swift build` in control-plane/arm64), the macOS helper build (`swift build` in agent/macos), a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: bun e2e/vms.e2e.ts
 import { readFileSync } from 'node:fs'
@@ -11,6 +11,7 @@ import { browse, type Browse } from './support/page.ts'
 import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World } from './panel/world.ts'
 import { closeWithEscape, kindsOnAMachine, noMachinesYet, openCreate, openingAndClosing, preselectedAndValidated, refusedThenMade, thenInAllVms, theMachinePageButton, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
+import { createWithBlankIsAsBefore, hostileImageText, imageFollowsTheMachine, imageListFails, imageOnAPhone, imageSelect, recordCreateBodies } from './vms/images.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
 import { pendingScenario } from './vms/pending.ts'
 import { vmsIsOneLink, vmsLinkOnItsPages } from './vms/sidebar.ts'
@@ -93,11 +94,19 @@ try {
   await preselectedAndValidated(b)
   await openingAndClosing(b)
   helper = await startAgent(world)
+  const createBodies = recordCreateBodies(page)
   await refusedThenMade(b)
   await thenInAllVms(b)
+  await resendHeartbeats(world)
+  await imageSelect(b)
+  await imageFollowsTheMachine(b)
+  await hostileImageText(b)
+  await imageListFails(b)
+  await imageOnAPhone(b)
   await theMachinePageButton(b)
   await pendingScenario(b, world)
   await onAPhone(b, world)
+  createWithBlankIsAsBefore(createBodies)
 
   check('no script errors and no policy violations', errors.length === 0 && (await b.run(() => window.violation)) === undefined, errors.join(' | '))
 } finally {
