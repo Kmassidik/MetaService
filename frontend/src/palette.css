@@ -1,0 +1,29 @@
+/* The panel's colours, in one place. Every colour of the panel is a token here, and nothing else names a colour
+   (the one exception is the terminal's own theme object, which has to be a plain value).
+   White surfaces and neutral light grey as before, black-brown text, moss green accents from the Forest owl, amber warnings.
+   src/lib/palette.test.ts reads this file and checks the contrast of every pair of text and background. */
+:root {
+  /* page, cards, lines */
+  --page-bg: #fff; --surface: #fff; --surface-2: #f5f5f4; --line: #e5e5e5; --line-strong: #231b15; --focus: #231b15;
+  /* text: --text, then four muted steps, weakest first */
+  --text: #231b15; --m40: #6b655f; --m50: #655f59; --m60: #58524c; --m70: #443f3a; --muted: var(--m50);
+  /* dark blocks inside the page: buttons, counters, tooltips, the machine's roof, the GPU floor */
+  --inverse-bg: #231b15; --inverse-2: #2e251d; --inverse-line: #43372c; --inverse-text: #fff;
+  --inverse-text-soft: rgba(255,255,255,.74); --inverse-text-mid: rgba(255,255,255,.68); --inverse-text-dim: rgba(255,255,255,.62);
+  /* the brand colour: fills with dark text on them, marks (bars, focus, switch) and lines */
+  --accent: #7db26b; --accent-d: #4c7c3c; --accent-mark: #568a45; --accent-soft: #bfddb3; --accent-text: #1c2a12;
+  --announce-bg: #7db26b; --announce-text: #1c2a12; --announce-line: #231b15;
+  /* states: running or ok, needs attention, stopped, danger */
+  --ok: #2a6026; --ok-bg: #e3f0dc; --ok-note-bg: #f1f7ec; --ok-note-line: #c9debf; --ok-note-text: #2b3a22; --ok-note-title: #2a6026;
+  --warn: #8a5a00; --warn-bg: #fff1cc; --warn-line: #b77700; --warn-note-bg: #fff8e4; --warn-note-line: #ebd5a0; --warn-note-title: #5e3f00;
+  --off: #6b655f; --reserve-bg: #d9d9d6; --reserve-line: #8a8a8a;
+  --danger: #b3261e; --danger-bg: #fbe9e6; --danger-line: #e3b2ab; --danger-d: #8f1d17; --danger-ink: #8f1d17; --danger-bright: #b3261e;
+  --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
+  /* shadows and the dim layer behind a window */
+  --scrim: rgba(35,27,21,.6); --shadow-window: 0 20px 60px rgba(35,27,21,.4); --shadow-card: 0 18px 40px -24px rgba(35,27,21,.35); --pane-line: rgba(35,27,21,.18);
+  /* the dark panel of the sign-in page */
+  --pitch-bg: #231b15; --pitch-text: #fbf7ea; --pitch-soft: rgba(251,247,234,.72); --pitch-dim: rgba(251,247,234,.64); --pitch-faint: rgba(251,247,234,.36);
+  --pitch-dot: rgba(251,247,234,.06); --pitch-glow: rgba(125,178,107,.22);
+  /* the terminal window: dark */
+  --term-bg: #111; --term-bar: #1a1a1a; --term-line: #000; --term-text: #e8e8e8; --term-button-line: #3a3a3a; --term-button-text: #cfcfcf; --term-bad: #ff6b6b;
+}

@@ -1,7 +1,7 @@
-// Pictures of the real panel in three colour sets (today's neon green, A: forest, B: forest soft), page by page, at desktop and phone width,
-// and one sheet per page that puts the three side by side. A regression picture tool, not a test: it is not part of the `e2e` script.
+// Pictures of the real panel with its palette (src/palette.css), page by page, at desktop and phone width.
+// A regression picture tool, not a test: it is not part of the `e2e` script.
 // Needs: the Root build and the macOS helper build (`swift build`), a built panel (`bun run build`), Google Chrome (or CHROME_PATH), /usr/sbin/sshd, and `bun install` in frontend/.
-// Run: SHOTS_DIR=<dir> bun e2e/theme-shots.e2e.ts   (pictures: <theme>-<page>-<desktop|phone>.png and compare-<page>.png)
+// Run: SHOTS_DIR=<dir> bun e2e/theme-shots.e2e.ts   (pictures: <page>-<desktop|phone>.png)
 import { mkdirSync } from 'node:fs'
 import puppeteer from 'puppeteer-core'
 import { createAdmin } from './support/admin.ts'
@@ -11,7 +11,8 @@ import { scanSettings, startRoot } from './support/root.ts'
 import { startSshd } from './support/sshd.ts'
 import { startStandIn } from './monitor/stand-in.ts'
 import { resendHeartbeats, stopWorld } from './panel/world.ts'
-import { buildComparisons, captureAllThemes } from './themes/capture.ts'
+import type { PageId } from '../src/lib/shotNames.ts'
+import { capture } from './themes/capture.ts'
 import { seedFleet, worldAround } from './themes/fleet.ts'
 import { allVmsWithCreate, addMachineCheck, livePage, loginPage, machinesPage, offlineMachine, overviewPage, signInAsAdmin, vmsTab } from './themes/steps.ts'
 
@@ -37,9 +38,9 @@ try {
   const page = await browser.newPage()
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const b = browse(page)
-  const picture = async (name: Parameters<typeof captureAllThemes>[2]) => {
+  const picture = async (name: PageId) => {
     await resendHeartbeats(world)
-    await captureAllThemes(page, dir, name)
+    await capture(page, dir, name)
     console.log(`pictures of ${name}`)
   }
 
@@ -61,8 +62,6 @@ try {
   const stopAnswering = await addMachineCheck(b, sshd.port, sshd.fingerprint)
   await picture('add-machine-check')
   await stopAnswering()
-
-  await buildComparisons(browser, dir)
 } finally {
   await browser.close()
   standIn.stop()

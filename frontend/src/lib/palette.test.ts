@@ -1,18 +1,17 @@
-// The two review colour sets (A: forest, B: forest-soft) must meet WCAG AA for every pair the panel draws. If a pair fails, change the token in src/themes.css, never this list.
+// The panel's palette must meet WCAG AA for every pair it draws. If a pair fails, change the token in src/palette.css, never this list.
 import { test, expect } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { AA_LARGE_TEXT_AND_MARKS, AA_TEXT, contrastRatio } from './contrast.ts'
-import { readThemeSets, resolveTheme, type Tokens } from './themeTokens.ts'
+import { readTokens, resolveTokens, type Tokens } from './paletteTokens.ts'
 
-const THEMES = ['forest', 'forest-soft'] as const
-const NEON = ['#00f56d', '#00c24e', '#9ee8bd', '#053', '#043', '0,245,109']
 
-const css = readFileSync(new URL('../themes.css', import.meta.url), 'utf8')
-const sets = readThemeSets(css)
+const css = readFileSync(new URL('../palette.css', import.meta.url), 'utf8')
+const tokens = resolveTokens(readTokens(css))
 
 /** One thing the panel draws: a token as the colour of something, on a token as the background of it. */
 type Pair = readonly [foreground: string, background: string, minimum: number, what: string]
 
+const NEON = ['#00f56d', '#00c24e', '#9ee8bd', '#053', '#043', '0,245,109']
 const FLOORS = ['--page-bg', '--surface', '--surface-2'] as const
 const MUTED = ['--m40', '--m50', '--m60', '--m70'] as const
 
@@ -76,46 +75,29 @@ function colourOf(tokens: Tokens, name: string): string {
   return value
 }
 
-for (const theme of THEMES) {
-  const tokens = resolveTheme(sets, theme)
-
-  test(`${theme}: every text and mark pair meets WCAG AA`, () => {
-    const failures = PAIRS.flatMap(([foreground, background, minimum, what]) => {
-      const ratio = contrastRatio(colourOf(tokens, foreground), colourOf(tokens, background))
-      return ratio >= minimum ? [] : [`${what}: ${foreground} on ${background} is ${ratio.toFixed(2)}, needs ${minimum}`]
-    })
-    expect(failures).toEqual([])
+test('every text and mark pair meets WCAG AA', () => {
+  const failures = PAIRS.flatMap(([foreground, background, minimum, what]) => {
+    const ratio = contrastRatio(colourOf(tokens, foreground), colourOf(tokens, background))
+    return ratio >= minimum ? [] : [`${what}: ${foreground} on ${background} is ${ratio.toFixed(2)}, needs ${minimum}`]
   })
-
-  test(`${theme}: no neon green is left`, () => {
-    const left = Object.entries(tokens).filter(([, value]) => NEON.some((neon) => value.includes(neon)))
-    expect(left).toEqual([])
-  })
-
-  test(`${theme}: every token of today's set is also set here or deliberately kept`, () => {
-    const base = resolveTheme(sets)
-    expect(Object.keys(tokens).sort()).toEqual(Object.keys(base).sort())
-  })
-}
-
-test('the muted steps get stronger from m40 to m70 in both themes', () => {
-  for (const theme of THEMES) {
-    const tokens = resolveTheme(sets, theme)
-    const ratios = MUTED.map((step) => contrastRatio(colourOf(tokens, step), colourOf(tokens, '--surface')))
-    expect(ratios).toEqual([...ratios].sort((a, b) => a - b))
-  }
+  expect(failures).toEqual([])
 })
 
-test('the default set is still the neon green of today', () => {
-  const base = resolveTheme(sets)
-  expect(base['--accent']).toBe('#00f56d')
-  expect(base['--announce-bg']).toBe('#00f56d')
+test('the old neon green is gone', () => {
+  const left = Object.entries(tokens).filter(([, value]) => NEON.some((neon) => value.includes(neon)))
+  expect(left).toEqual([])
 })
 
-test('the terminal keeps the same dark colours in every theme', () => {
-  const base = resolveTheme(sets)
-  for (const theme of THEMES) {
-    const tokens = resolveTheme(sets, theme)
-    for (const name of Object.keys(base).filter((key) => key.startsWith('--term-'))) expect(tokens[name]).toBe(base[name])
-  }
+test('the muted steps get stronger from m40 to m70', () => {
+  const ratios = MUTED.map((step) => contrastRatio(colourOf(tokens, step), colourOf(tokens, '--surface')))
+  expect(ratios).toEqual([...ratios].sort((a, b) => a - b))
+})
+
+test('the accent is the owl moss green and the announcement bar uses it', () => {
+  expect(tokens['--accent']).toBe('#7db26b')
+  expect(tokens['--announce-bg']).toBe(tokens['--accent'])
+})
+
+test('the check can fail: a weak muted colour on the card colour is below AA', () => {
+  expect(contrastRatio('#a09080', colourOf(tokens, '--surface'))).toBeLessThan(AA_TEXT)
 })
