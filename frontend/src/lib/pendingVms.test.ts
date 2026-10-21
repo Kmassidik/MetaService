@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test'
 import { mergeOrders, parseCommand, pendingFor, pendingVms, reasonText, stageSteps, stageText, type PendingVm } from './pendingVms.ts'
+import { MAX_FAILURE_BYTES, MAX_FAILURE_LINES } from './stoppedReason.ts'
 import { command, machine, workload } from './testing.ts'
 
 const NOW = Date.parse('2026-01-01T00:10:00Z')
@@ -105,6 +106,15 @@ test('a reason is a sentence, and a missing one still says something plain', () 
   expect(reasonText({ error: 'Out of room.' })).toBe('Out of room.')
   expect(reasonText(null)).toBe('The machine could not make the VM.')
   expect(reasonText({})).toBe('The machine could not make the VM.')
+})
+
+test('a long reason from the machine keeps its lines, gets no full stop on a log line, and is cleaned and capped again', () => {
+  const error = 'The VM did not start.\nTry 1, with systemd: it stopped right after it started (exit code 255). Its last lines:\nFailed to mount API filesystems.\u001b[31m<b>x</b>\u001b[0m\u0000'
+  const text = reasonText({ error })
+  expect(text).toBe('The VM did not start.\nTry 1, with systemd: it stopped right after it started (exit code 255). Its last lines:\nFailed to mount API filesystems.<b>x</b>')
+  const huge = reasonText({ error: Array.from({ length: 200 }, (_, index) => `line ${index}`).join('\n') })
+  expect(huge.split('\n').length).toBeLessThanOrEqual(MAX_FAILURE_LINES)
+  expect(new TextEncoder().encode(reasonText({ error: 'é'.repeat(9000) })).length).toBeLessThanOrEqual(MAX_FAILURE_BYTES)
 })
 
 test('the parent\'s answer to a create is read into an order, and anything else is refused', () => {

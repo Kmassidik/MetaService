@@ -17,6 +17,12 @@ test('a row carries what the table shows, and its machine\'s state', () => {
   expect(row).toMatchObject({ machineId: 'alpha-box', machineState: 'offline', machineOs: 'macos', id: 'w-9', kind: 'vm', state: 'running', cpu: 4, ramMb: 8192, diskGb: 100 })
 })
 
+test('a row carries the reason a stopped VM gave, read again, and whether it runs without systemd', () => {
+  const reason = { exit_code: 255, log_tail: 'Exiting PID 1...' }
+  const rows = vmRows([machine({ workloads: [workload({ id: 'a', name: 'a', state: 'stopped', stopped_reason: reason, init_mode: 'plain' }), workload({ id: 'b', name: 'b' }), workload({ id: 'c', name: 'c', stopped_reason: { nonsense: true } })] })])
+  expect(rows.map((row) => [row.id, row.note, row.plain])).toEqual([['a', { kind: 'reason', reason }, true], ['b', null, false], ['c', null, false]])
+})
+
 test('sorting ignores upper and lower case and does not change the machines it was given', () => {
   const mixed = [machine({ id: 'b', name: 'b', workloads: [workload({ name: 'Zed' }), workload({ id: 'w2', name: 'apple' })] })]
   expect(vmRows(mixed).map((row) => row.name)).toEqual(['apple', 'Zed'])

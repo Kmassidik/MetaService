@@ -1,6 +1,7 @@
 // What the All VMs page shows: every VM of every machine as one row, narrowed to one machine, sorted, with a count. Pure functions, no DOM, no network.
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
+import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
 import type { Machine, MachineState, WorkloadKind } from './types.ts'
 
 export interface VmRow {
@@ -17,6 +18,10 @@ export interface VmRow {
   diskGb: number
   /** True when it was given the machine's GPU. */
   gpu: boolean
+  /** Why it stopped, when it stopped by itself and the machine said why. */
+  note: StopNote | null
+  /** True when it runs without systemd. */
+  plain: boolean
 }
 
 const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning'])
@@ -44,6 +49,8 @@ export function vmRows(machines: Machine[]): VmRow[] {
       ramMb: workload.ram_mb,
       diskGb: workload.disk_gb,
       gpu: hasGpu(workload),
+      note: reasonNote(readStoppedReason(workload.stopped_reason)),
+      plain: isPlainMode(workload),
     })),
   )
   return rows.sort(compareRows)

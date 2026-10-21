@@ -1,5 +1,6 @@
 // VMs that are being made. The parent answers a create at once with an order, but the machine only lists the VM on a later heartbeat, so for a while the VM is in no list.
 // These pure functions turn the orders (and the machines' lists) into the "Creating…" rows the pages show. No DOM, no network, no clock of their own.
+import { cleanFailureText } from './stoppedReason.ts'
 import type { Command, CommandResult, Machine, Workload } from './types.ts'
 
 export type PendingStage = 'waiting' | 'creating' | 'starting' | 'failed'
@@ -67,12 +68,13 @@ export function mergeOrders(listed: Command[], local: Command[]): Command[] {
   return [...listed, ...local.filter((order) => !known.has(order.id))]
 }
 
-/** A reason as a sentence: first letter big, ending with a full stop. */
+/** A reason as text: first letter big. A one-line reason ends with a full stop; a longer one (it holds the last lines a VM printed) is left as it came. */
 export function reasonText(result: CommandResult | null | undefined): string {
-  const text = result?.error?.trim()
+  const text = cleanFailureText(result?.error ?? '').trim()
   if (!text) return WITHOUT_REASON
   const sentence = text[0]?.toUpperCase() + text.slice(1)
-  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
+  const finished = sentence.includes('\n') || /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
+  return cleanFailureText(finished)
 }
 
 export const stageText = (stage: PendingStage): string => STAGE_TEXT[stage]
