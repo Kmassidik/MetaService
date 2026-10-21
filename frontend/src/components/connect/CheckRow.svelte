@@ -9,9 +9,9 @@
   let { row, form, fingerprint, onChecked }: { row: CheckRow; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
 </script>
 
-<li class="row" data-check={row.id} data-state={row.state}>
+<li class="cx-row" data-check={row.id} data-state={row.state}>
   <StatusMark kind={row.state} />
-  <div class="body">
+  <div class="cx-body">
     <div class="lbl">{row.label}</div>
     {#if row.sentence}<div class="det">{row.sentence}</div>{/if}
     {#if row.manual}<ManualSteps steps={row.manual} />{/if}
@@ -21,9 +21,9 @@
 </li>
 
 <style>
-  .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 12px; align-items: start; padding: 8px 0; }
-  .row > :global(.mark) { margin-top: 1px; }
-  .body { min-width: 0; overflow-wrap: anywhere; }
+  .cx-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 12px; align-items: start; padding: 8px 0; }
+  .cx-row > :global(.mark) { margin-top: 1px; }
+  .cx-body { min-width: 0; overflow-wrap: anywhere; }
   .lbl { font-weight: 600; }
   .det { color: var(--m70); font-size: 13px; }
   .val { color: var(--m70); font-size: 13px; text-align: right; overflow-wrap: anywhere; padding-top: 1px; }

@@ -57,7 +57,7 @@
 {/if}
 
 <style>
-  .act { grid-column: 3; }
+  .act { grid-column: 2; margin-top: 8px; }
   .wide { grid-column: 2 / -1; }
   .offer { padding: 6px 12px; background: transparent; color: var(--black); border: 1px solid var(--black); font-family: var(--sans); font-size: 13px; font-weight: 700; min-height: 36px; cursor: pointer; }
   .offer:focus-visible, .buttons :global(.btn:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -67,5 +67,4 @@
   .hint { font-size: 12px; color: var(--m50); }
   .bad { color: var(--danger); }
   .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-  @media (max-width: 520px) { .act { grid-column: 2; margin-top: 8px; } }
 </style>

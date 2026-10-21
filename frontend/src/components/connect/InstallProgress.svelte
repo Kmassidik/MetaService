@@ -60,13 +60,13 @@
 {/snippet}
 
 {#if job.state === 'done'}
-  <section class="card">
+  <section class="cx-card">
     <h4>Where it is</h4>
     <div class="where"><StatusMark kind="ready" /><div><span class="lbl">{job.name}</span><span class="det">Online · {where}</span></div></div>
   </section>
   <details class="all"><summary>Show the {progress.total} steps</summary>{@render steps()}</details>
 {:else}
-  <div class="card list-card">{@render steps()}</div>
+  <div class="cx-card">{@render steps()}</div>
 {/if}
 
 <div class="foot">
@@ -88,7 +88,7 @@
   .time.calm { font-family: var(--sans); }
   .problem { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--gray); border-left: 4px solid var(--danger); background: var(--gray2); font-weight: 600; overflow-wrap: anywhere; }
   .warn { margin: 0; padding: 10px 12px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); font-size: 13px; }
-  .card { padding: 6px 14px; border: 1px solid var(--gray); background: var(--gray2); }
+  .cx-card { padding: 6px 14px; border: 1px solid var(--gray); background: var(--gray2); }
   h4 { margin: 4px 0; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--m70); }
   .list { list-style: none; margin: 0; padding: 0; }
   .list li { display: flex; gap: 12px; align-items: center; padding: 6px 0; }

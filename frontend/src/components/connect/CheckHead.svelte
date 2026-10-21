@@ -2,9 +2,8 @@
   // The top of the Check step: the ring, the machine in one line, the short host key with Copy, and what is left to do.
   import CopyButton from './CopyButton.svelte'
   import ProgressRing from './ProgressRing.svelte'
-  import { hostKeyShort, readyCount, verdict } from '../../lib/checkRows.ts'
+  import { hostKeyShort, machineLine, readyCount, verdict } from '../../lib/checkRows.ts'
   import type { CheckRow } from '../../lib/checkRows.ts'
-  import { formatGb, formatMb } from '../../lib/format.ts'
   import type { VerifyResult } from '../../lib/types.ts'
 
   let { result, rows }: { result: VerifyResult; rows: CheckRow[] } = $props()
@@ -16,7 +15,7 @@
   <ProgressRing done={counts.ready} total={counts.total} alt="{counts.ready} of {counts.total} checks ready" tone={line.tone} />
   <div class="who">
     <p class="sys">{result.system || result.host}</p>
-    <p class="meta">{result.facts.cpu_cores ?? '–'} cores · {formatMb(result.facts.ram_mb)} memory · {formatGb(result.facts.disk_free_gb)} free · logged in as {result.facts.user}</p>
+    <p class="meta">{machineLine(result.facts)}</p>
     <p class="hostkey">Host key <code title={result.fingerprint}>{hostKeyShort(result.fingerprint)}</code><CopyButton text={result.fingerprint} describe="the host key" /></p>
     <p class="verdict {line.tone}" role="status">{line.text}</p>
   </div>

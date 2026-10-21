@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { checkCards, checkRows, hostKeyShort, isBlocking, manualSteps, readyCount, stoppedEarly, verdict } from './checkRows.ts'
+import { checkCards, checkRows, hostKeyShort, isBlocking, machineLine, manualSteps, readyCount, stoppedEarly, verdict } from './checkRows.ts'
 import type { Requirement } from './types.ts'
 
 const KEY = 'SHA256:DmQeV3tR8xYb2LfZkq0WnH5uAa7cPjE1sGdXoTi9Qki0+g'
@@ -169,6 +169,12 @@ test('the verdict counts what must be fixed and what is only missing', () => {
   expect(verdict(checkRows(extra))).toEqual({ tone: 'optional', text: 'Ready to add. One extra is missing, and it does not block adding.' })
   const windows = [ok('login', 'Login', 'Logged in as x.'), cross('system', 'System', 'Windows is not supported yet.')]
   expect(verdict(checkRows(windows))).toEqual({ tone: 'blocking', text: 'This computer cannot be added: this kind of computer is not supported yet.' })
+})
+
+test('the machine line lists what is known and leaves out what is not', () => {
+  expect(machineLine({ cpu_cores: 32, ram_mb: 63488, disk_free_gb: 79, user: 'luca' })).toBe('32 cores · 62 GB memory · 79 GB free · logged in as luca')
+  expect(machineLine({ cpu_cores: null, ram_mb: null, disk_free_gb: null, user: 'office' })).toBe('logged in as office')
+  expect(machineLine({ cpu_cores: 8, ram_mb: null, disk_free_gb: null, user: '' })).toBe('8 cores')
 })
 
 test('the host key is shortened to its start and end', () => {

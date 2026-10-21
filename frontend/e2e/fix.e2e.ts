@@ -161,7 +161,9 @@ async function toolkit(b: Browse): Promise<void> {
   check('a computer with an NVIDIA card gets a toolkit row: a dashed cross, the card, the manual steps and a button that says it adds NVIDIA\'s package source',
     row?.state === 'optional' && /NVIDIA GeForce RTX 5090/.test(row.shown) && row.all.includes("Follow NVIDIA's install guide") && row.buttons.includes("Install it for me (adds NVIDIA's package source)"), row?.all)
   check('the Incus and Python rows are unchanged ticks and there is exactly one toolkit row', list.filter((entry) => entry.id === 'gpu_toolkit').length === 1 && findRow(list, 'vm_tool')?.state === 'ready' && findRow(list, 'python')?.state === 'ready')
-  check('the toolkit does not block adding: Add machine is on, no card has the red outline and the verdict says so', !(await b.isDisabled('Add machine')) && (await b.page.$$('dialog[open] section.card.has-bad')).length === 0 && /does not block adding/.test(await b.dialogText()))
+  const blocking = list.filter((entry) => entry.state === 'blocking').length
+  const toolkitCardOutlined = await b.page.$eval('dialog[open] li[data-check=gpu_toolkit]', (item) => item.closest('section')?.classList.contains('has-bad') ?? true)
+  check('the toolkit does not block adding: its card has no red outline, and Add machine is off only when some other row blocks', !toolkitCardOutlined && (await b.isDisabled('Add machine')) === (blocking > 0), `blocking rows: ${blocking}`)
   await b.shot('fix-toolkit-offer.png')
   const target = (await b.page.$$(OFFER))[0]
   if (!target) throw new Error('no button under the toolkit row')

@@ -126,11 +126,12 @@ async function stepThree(b: Browse): Promise<void> {
   check('Add machine is on, because everything that must pass passed', !(await b.isDisabled('Add machine')))
   check('no row says "maybe": every row is a tick or a cross, drawn as a mark with its own shape', rows.every((row) => ['ready', 'blocking', 'optional'].includes(row.state) && row.marks === 1))
   check('a tick is one short line: no row has manual steps or a button, and every one has a value', rows.every((row) => !row.manualSteps && row.buttons.length === 0))
-  check('the rows are in three cards by topic', (await b.page.$$eval('dialog[open] section.card h4', (titles) => titles.map((title) => title.textContent))).join('|') === 'This computer|Software it needs|Connection')
+  check('the rows are in three cards by topic', (await b.page.$$eval('dialog[open] section.cx-card h4', (titles) => titles.map((title) => title.textContent))).join('|') === 'This computer|Software it needs|Connection')
   check('every label starts at the same x, so the rows are aligned', await labelsAligned(b.page))
   check('the ring says in words how many checks are ready', (await b.page.$$eval('dialog[open] [role=img]', (rings) => rings.map((ring) => ring.getAttribute('aria-label')))).includes(`${ALL_CHECKS} of ${ALL_CHECKS} checks ready`))
-  check('the host key is short and has a Copy button', /Host key SHA256:\S+…\S+/.test(result) && (await b.page.$('dialog[open] button[aria-label="Copy the host key"]')) !== null)
+  check('the host key is short and has a Copy button', /Host key\s+SHA256:\S+…\S+/.test(result) && (await b.page.$('dialog[open] button[aria-label="Copy the host key"]')) !== null)
   await b.shot('connect-result.png')
+  await onPhone(b, 'connect-result-phone.png', 'the Check step')
   await b.click('Check another')
   await b.page.waitForSelector('dialog[open] #connect-host')
   check('Check another goes back to step 1', /Look at it/.test(await b.dialogText()))
@@ -167,7 +168,7 @@ async function failingResult(b: Browse): Promise<void> {
     python?.state === 'blocking' && /Python runs the chat\. It is not installed on this computer\./.test(python.shown) && python.all.includes('Install it with sudo apt install python3') && !python.shown.includes('sudo apt')
       && incus?.state === 'blocking' && /Incus is the tool that makes the VMs/.test(incus.shown) && incus.all.includes('Install Incus on that computer: sudo apt install incus') && python.manualSteps && incus.manualSteps, rows.map((row) => row.shown).join(' | '))
   check('only crosses have manual steps, and nothing is a "maybe"', rows.filter((row) => row.manualSteps).length === 2 && rows.every((row) => row.state === 'ready' || row.state === 'blocking'))
-  check('the card that has a cross gets the red outline and the others do not', (await b.page.$$eval('dialog[open] section.card', (cards) => cards.map((card) => card.classList.contains('has-bad')))).join() === 'false,true')
+  check('the card that has a cross gets the red outline and the others do not', (await b.page.$$eval('dialog[open] section.cx-card', (cards) => cards.map((card) => card.classList.contains('has-bad')))).join() === 'false,true')
   check('a cross says in words what is wrong and the count of ready checks says so too', /2 things to fix before this computer can be added/.test(await b.dialogText()) && (await b.page.$('dialog[open] [role=img][aria-label="3 of 5 checks ready"]')) !== null)
   check('Add machine stays off until every cross is fixed', await b.isDisabled('Add machine'))
   await b.shot('connect-result-crosses.png')
@@ -209,7 +210,50 @@ async function installIntoThrowAwayFolder(b: Browse): Promise<{ box: string; key
   await b.until((where) => document.querySelector<HTMLElement>('dialog[open] ol.plan')?.innerText.includes(where), { timeout: SHORT_WAIT_MS }, box)
   check('the plan follows the folder that was typed', true)
   await b.shot('connect-plan.png')
+  await onPhone(b, 'connect-plan-phone.png', 'What will change')
   return { box, keysBefore }
+}
+
+const PHONE = { width: 400, height: 900 }
+const DESKTOP = { width: 1280, height: 800 }
+
+/** Looks at the open dialog on a phone: a picture, and no sideways scrolling. Then back to a desktop window. */
+async function onPhone(b: Browse, picture: `${string}.png`, what: string): Promise<void> {
+  await b.page.setViewport(PHONE)
+  await b.shot(picture)
+  check(`${what} has no sideways scrolling on a phone`, await b.run(() => document.documentElement.scrollWidth <= window.innerWidth && (document.querySelector('dialog[open]')?.scrollWidth ?? 0) <= (document.querySelector('dialog[open]')?.clientWidth ?? 0)))
+  await b.page.setViewport(DESKTOP)
+}
+
+const FAIL_REASON = 'The VM maker could not be installed. The computer could not reach the internet to download it.'
+const FAKE_JOB_ID = 'e2e-failed-job'
+
+/** An install that stops at step 5 (the answer is made up here): the failed view says why, marks the step, and Try again goes back to the plan with the choices kept. */
+async function failedInstall(b: Browse): Promise<void> {
+  const labels = ['Check the computer', 'Make the box folder', 'Copy the program', 'Set up Python', 'Set up the VM maker', 'Add the key line', 'Start the program', 'Connect to the parent', 'Check it is online']
+  const steps = labels.map((label, index) => ({ id: `s${index}`, label, state: index < 4 ? 'done' : index === 4 ? 'failed' : 'pending' }))
+  const job = { id: FAKE_JOB_ID, name: NAME, state: 'failed', steps, error: FAIL_REASON }
+  await b.page.setRequestInterception(true)
+  const answer = async (request: HTTPRequest): Promise<void> => {
+    const url = request.url()
+    if (url.endsWith('/api/remote/installs')) return void (await request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: FAKE_JOB_ID }) }))
+    if (url.endsWith(`/api/remote/installs/${FAKE_JOB_ID}`)) return void (await request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(job) }))
+    await request.continue()
+  }
+  b.page.on('request', answer)
+  await b.click('Install')
+  await waitForDialog(b, /Stopped at step 5/)
+  const text = await b.dialogText()
+  const states = await b.page.$$eval('dialog[open] ol[aria-label="Install steps"] li', (items) => items.map((item) => item.getAttribute('data-state')))
+  check('a failed install says where it stopped, the plain reason, and marks that step', states.join() === 'done,done,done,done,failed,pending,pending,pending,pending' && text.includes(FAIL_REASON) && /stopped after \d+:\d\d/.test(text))
+  check('the failed view has the ring in words and Try again beside Close', (await b.page.$('dialog[open] [role=img][aria-label="4 of 9 install steps done"]')) !== null && !(await b.isDisabled('Try again')) && !(await b.isDisabled('Close')))
+  await b.shot('connect-failed.png')
+  await onPhone(b, 'connect-failed-phone.png', 'the failed view')
+  await b.click('Try again')
+  await b.page.waitForSelector('dialog[open] #remote-name')
+  check('Try again goes back to the plan with the name kept and Install ready', (await b.run(() => document.querySelector<HTMLInputElement>('dialog[open] #remote-name')?.value ?? '')) === NAME && !(await b.isDisabled('Install')))
+  b.page.off('request', answer)
+  await b.page.setRequestInterception(false)
 }
 
 async function installAndFollow(b: Browse, box: string): Promise<void> {
@@ -267,6 +311,7 @@ try {
   await stepTwo(b)
   await stepThree(b)
   const { box, keysBefore } = await installIntoThrowAwayFolder(b)
+  await failedInstall(b)
   await installAndFollow(b, box)
   await machinePage(b)
   await removeIt(b, box, keysBefore)

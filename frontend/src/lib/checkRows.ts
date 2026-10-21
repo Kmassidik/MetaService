@@ -1,6 +1,7 @@
 // The check list of "Add a machine" as the panel shows it: grouped in cards, a short label, a short value for a tick, one plain sentence for a cross.
 // The parent's words (label, detail, fix) are API text and stay as they are: this module only reads them, and any row it does not know is shown with them unchanged.
 // Pure functions: no DOM, no network.
+import { formatGb, formatMb } from './format.ts'
 import type { InstallOffer, Requirement } from './types.ts'
 
 export type CheckGroup = 'computer' | 'software' | 'connection' | 'other'
@@ -199,6 +200,17 @@ export function verdict(rows: CheckRow[]): { tone: Tone; text: string } {
   if (blocking.length > 0) return { tone: 'blocking', text: `${things(blocking.length)} to fix before this computer can be added.` }
   if (rows.some((row) => row.state === 'optional')) return { tone: 'optional', text: 'Ready to add. One extra is missing, and it does not block adding.' }
   return { tone: 'ready', text: `All ${rows.length} checks passed. This computer can be added.` }
+}
+
+/** The machine in one line: cores, memory, free disk and the user. A fact the check could not read (a Windows computer has none) is left out, not shown as a dash. */
+export function machineLine(facts: { cpu_cores: number | null; ram_mb: number | null; disk_free_gb: number | null; user: string }): string {
+  const parts = [
+    facts.cpu_cores === null ? '' : `${facts.cpu_cores} cores`,
+    facts.ram_mb === null ? '' : `${formatMb(facts.ram_mb)} memory`,
+    facts.disk_free_gb === null ? '' : `${formatGb(facts.disk_free_gb)} free`,
+    facts.user ? `logged in as ${facts.user}` : '',
+  ]
+  return parts.filter((part) => part !== '').join(' · ')
 }
 
 /** The host key in a short form, for a person to recognise it. The full key is what the Copy button copies. */

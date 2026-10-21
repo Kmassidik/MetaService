@@ -40,14 +40,14 @@
     {#each preview.notes as note (note)}<p class="note">{note}</p>{/each}
   {/if}
 
-  <section class="card">
+  <section class="cx-card">
     <h4>Name</h4>
     <label for="remote-name">Machine name</label>
     <input id="remote-name" bind:value={choices.name} onchange={onChange} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" aria-invalid={nameProblem ? 'true' : 'false'} aria-describedby="remote-name-hint" />
     <p class="hint {nameProblem ? 'bad' : ''}" id="remote-name-hint">{nameProblem ?? 'How it shows in Machines. Small letters, numbers and dashes.'}</p>
   </section>
 
-  <details class="advanced card">
+  <details class="advanced cx-card">
     <summary>More choices (most people skip this)</summary>
     <label for="remote-box">Box folder</label>
     <input id="remote-box" bind:value={choices.box} onchange={onChange} autocomplete="off" spellcheck="false" placeholder="/home/build/metaservice-box" />
@@ -82,7 +82,7 @@
   .tile strong { display: block; }
   .change { display: block; color: var(--m70); font-size: 13px; }
   .note { font-size: 12px; color: var(--m70); }
-  .card { padding: 10px 14px 12px; border: 1px solid var(--gray); background: var(--gray2); }
+  .cx-card { padding: 10px 14px 12px; border: 1px solid var(--gray); background: var(--gray2); }
   h4 { margin: 0 0 6px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--m70); }
   label { display: block; margin: 10px 0 4px; font-size: 13px; font-weight: 600; }
   input:not([type='checkbox']) { display: block; width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid var(--m50); background: var(--white); color: var(--black); font-family: var(--sans); font-size: 14px; }
