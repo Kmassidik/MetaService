@@ -30,6 +30,7 @@
 <style>
   .checks { list-style: none; margin: 14px 0 0; padding: 10px 12px; display: grid; gap: 8px; background: var(--gray2); border: 1px solid var(--gray); font-size: 13px; }
   li { display: flex; gap: 10px; align-items: baseline; }
+  li > span:not(.mark) { min-width: 0; overflow-wrap: anywhere; }
   li.pass .mark { color: var(--run); font-weight: 700; }
   li.block .mark { color: #c0392b; font-weight: 700; }
   .fix { color: var(--m70); margin-top: 2px; }

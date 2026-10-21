@@ -64,7 +64,7 @@
   <div class="tabbody">
     {#if tab === 'overview'}
       <VmOverview {machine} {workload} {server} {pinned} onInstall={() => onInstall(machine, workload)} />
-      {#if hasGpu(workload)}<VmGpu machineId={machine.id} workloadId={workload.id} />{/if}
+      {#if hasGpu(workload)}{#key workload.id}<VmGpu machineId={machine.id} workloadId={workload.id} />{/key}{/if}
     {:else if tab === 'monitoring'}
       <VmMonitoring state={workload.state} />
     {:else if tab === 'access'}

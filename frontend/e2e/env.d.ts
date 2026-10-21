@@ -6,4 +6,6 @@ interface Window {
   violation?: string
   /** Set by hostile text in a workload if the panel ever ran it. */
   __xss?: number
+  /** Set by hostile text in a GPU check answer if the panel ever ran it. */
+  __gpuxss?: number
 }

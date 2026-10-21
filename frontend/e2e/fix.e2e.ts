@@ -10,6 +10,7 @@ import puppeteer from 'puppeteer-core'
 import { ADMIN, createAdmin } from './support/admin.ts'
 import { check, finish } from './support/check.ts'
 import { readRecord, textField } from './support/json.ts'
+import { wait } from './support/net.ts'
 import { chromePath, repo } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
@@ -18,6 +19,8 @@ const SETUP_TOKEN = 'e2e-setup-token-0123456789abcdef'
 const SHORT_WAIT_MS = 10000
 const STEP_WAIT_MS = 20000
 const INSTALL_WAIT_MS = 60000
+/** The install route answers 3 times a minute; the three tries before this step used them up. */
+const FIX_WINDOW_MS = 61000
 const WRONG_PASSWORD = 'Wrong-Pw-e2e-31c7'
 const ROW = 'dialog[open] .checks li'
 
@@ -46,7 +49,7 @@ async function waitForDialog(b: Browse, pattern: RegExp, timeout = STEP_WAIT_MS)
   try {
     await b.until((source) => new RegExp(source, 'i').test(document.querySelector<HTMLElement>('dialog[open]')?.innerText ?? ''), { timeout }, pattern.source)
   } catch {
-    throw new Error(`waiting for ${pattern} failed; the dialog says: ${(await b.dialogText()).replace(/\s+/g, ' ').slice(-500)}`)
+    throw new Error(`waiting for ${pattern} failed; the rows are: ${(await rows(b)).join(" | ")}`)
   }
 }
 
@@ -134,6 +137,46 @@ async function nothingKept(b: Browse): Promise<void> {
   check('the password travelled in request bodies only, one per try (two Incus tries, one Python)', sent.length === 3, String(sent.length))
 }
 
+const TOOLKIT_ROW = /^✗ NVIDIA container toolkit \(lets containers use the GPU\)/
+
+/** A computer with an NVIDIA card: the toolkit row is a cross with its fix line and a button that says it adds NVIDIA's package source; one click installs it and the row turns to a tick. */
+async function toolkit(b: Browse): Promise<void> {
+  writeFileSync(join(fake.dir, 'state', 'nvidia'), '')
+  await b.click('Check another')
+  await b.page.waitForSelector('dialog[open] #connect-host')
+  await reachTheCheck(b, false)
+  const list = await rows(b)
+  const row = list.find((entry) => entry.includes('NVIDIA container toolkit')) ?? ''
+  check('a computer with an NVIDIA card gets a toolkit row: a cross, the card, the To fix line and a button that says it adds NVIDIA\'s package source', TOOLKIT_ROW.test(row) && /NVIDIA GeForce RTX 5090/.test(row) && /To fix: Follow NVIDIA's install guide/.test(row) && /Install it for me \(adds NVIDIA's package source\)/.test(row), row)
+  check('the Incus and Python rows are unchanged ticks and there is exactly one toolkit row', list.filter((entry) => entry.includes('NVIDIA container toolkit')).length === 1 && list.some((entry) => /^✓ Incus/.test(entry)))
+  await b.shot('fix-toolkit-offer.png')
+  const target = (await b.page.$$(`${ROW} button`))[0]
+  if (!target) throw new Error('no button under the toolkit row')
+  await target.click()
+  await b.page.waitForSelector('dialog[open] input[name=sudo-password]')
+  const said = await b.dialogText()
+  check('before the press it says in plain words that it adds NVIDIA\'s package source and installs the toolkit, and the password is used once', /Adds NVIDIA's own package source and signing key/.test(said) && /installs NVIDIA's container toolkit/.test(said) && /not saved/.test(said), said.slice(-400))
+  await b.page.type('dialog[open] input[name=sudo-password]', fake.password)
+  await b.shot('fix-toolkit-password.png')
+  await wait(FIX_WINDOW_MS)
+  await b.click('Install')
+  try {
+    await b.until(() => [...document.querySelectorAll('dialog[open] .checks li')].some((li) => /NVIDIA container toolkit/.test(li.textContent ?? '') && li.classList.contains('pass')), { timeout: INSTALL_WAIT_MS })
+  } catch {
+    throw new Error(`the toolkit row did not turn to a tick; the rows are: ${(await rows(b)).join(" | ")}`)
+  }
+  check('after the install the toolkit row is a tick', (await rows(b)).some((entry) => /^✓ NVIDIA container toolkit/.test(entry)))
+  await b.shot('fix-toolkit-after.png')
+  const log = readFileSync(join(fake.dir, 'commands.log'), 'utf8')
+  check('the other computer fetched NVIDIA\'s key and package list, signed the source and installed nvidia-container-toolkit', /libnvidia-container\/gpgkey/.test(log) && /gpg --dearmor/.test(log) && /nvidia-container-toolkit\.list/.test(log) && /install nvidia-container-toolkit/.test(log), log.slice(-500))
+  const html = await b.run(() => document.documentElement.outerHTML + JSON.stringify(Object.entries(localStorage)))
+  check('the password is still nowhere in the page or its storage', !html.includes(fake.password))
+  await b.page.setViewport({ width: 400, height: 900 })
+  await b.shot('fix-toolkit-after-phone.png', true)
+  check('the check list has no sideways scrolling on a phone', await b.run(() => document.documentElement.scrollWidth <= window.innerWidth))
+  await b.page.setViewport({ width: 1280, height: 900 })
+}
+
 async function windows(b: Browse): Promise<void> {
   writeFileSync(join(fake.dir, 'state', 'windows'), '')
   await b.click('Check another')
@@ -158,6 +201,7 @@ try {
   await wrongPassword(b)
   await rightPassword(b)
   await nothingKept(b)
+  await toolkit(b)
   await windows(b)
   check('no script errors and no policy violations', errors.length === 0 && (await page.evaluate(() => window.violation)) === undefined, errors.join(' | '))
 } finally {

@@ -17,8 +17,8 @@
 {#if offer.show === 'choice'}
   <fieldset class="gpu" aria-label="GPU">
     <legend>GPU</legend>
-    <label class="opt"><input type="radio" name="gpu-mode" value="none" checked={form.gpuMode !== 'container'} onchange={() => (form.gpuMode = 'none')} /> {NO_GPU_LABEL}</label>
-    <label class="opt"><input type="radio" name="gpu-mode" value="container" checked={form.gpuMode === 'container'} onchange={() => (form.gpuMode = 'container')} /> {SHARE_GPU_LABEL} <span class="card">({offer.card})</span></label>
+    <label class="gpu-opt"><input type="radio" name="gpu-mode" value="none" checked={form.gpuMode !== 'container'} onchange={() => (form.gpuMode = 'none')} /> {NO_GPU_LABEL}</label>
+    <label class="gpu-opt"><input type="radio" name="gpu-mode" value="container" checked={form.gpuMode === 'container'} onchange={() => (form.gpuMode = 'container')} /> {SHARE_GPU_LABEL} <span class="gpu-card">({offer.card})</span></label>
     <p class="muted note">{GPU_EXPLAINED}</p>
   </fieldset>
 {:else if offer.show === 'vm_text'}
@@ -30,7 +30,7 @@
 <style>
   .gpu { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 10px; min-width: 0; margin: 0; }
   legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
-  .opt { display: flex; gap: 8px; align-items: baseline; font-weight: 400; font-size: 14px; flex-wrap: wrap; }
-  .card { font-family: var(--mono); font-size: 12px; color: var(--m50); overflow-wrap: anywhere; }
+  .gpu-opt { display: flex; gap: 8px; align-items: baseline; font-weight: 400; font-size: 14px; flex-wrap: wrap; }
+  .gpu-card { font-family: var(--mono); font-size: 12px; color: var(--m50); overflow-wrap: anywhere; }
   .note { margin: 0; font-size: 13px; }
 </style>
