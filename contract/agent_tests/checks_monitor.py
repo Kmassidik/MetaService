@@ -76,6 +76,27 @@ def check_processes_are_few_cut_and_never_carry_a_command_line():
             child.wait()
 
 
+def check_processes_zero_skips_the_list_and_the_rest_stays_whole():
+    with helper() as one:
+        fetch(one)
+        time.sleep(SAMPLE_GAP_SECONDS)
+        status, body = one.call("GET", f"{STATS}?processes=0")
+        problems = spec.problems("Stats", body)
+        expect(status == 200 and not problems, f"processes=0 gave {status}: {problems[:3]}")
+        expect(body["processes"] == [], f"no list wanted, none sent: {body['processes']}")
+        expect(body["measuring"] is False and body["cpu"]["total_percent"] is not None, "the machine numbers are still there")
+        status, with_list = one.call("GET", f"{STATS}?processes=1")
+        expect(status == 200 and len(with_list["processes"]) >= 1, "processes=1 keeps the list")
+
+
+def check_an_unknown_value_of_processes_is_a_plain_400():
+    with helper() as one:
+        for bad in ("processes=2", "processes=", "processes=yes", "processes=1&processes=0"):
+            status, body = one.call("GET", f"{STATS}?{bad}")
+            expect(status == 400 and body["error"]["code"] == "invalid_input", f"{bad} gave {status}: {body}")
+            expect(not spec.problems("Error", body), f"{bad}: not the plain error shape: {body}")
+
+
 def check_a_missing_gpu_is_a_missing_key_never_zeros():
     with helper() as one:
         stats = fetch(one)

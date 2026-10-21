@@ -32,8 +32,8 @@ LIAR_NAME = "N" * 500
 class LyingStats(FakeStats):
     """A helper that ignores the contract: too many cores and processes, huge names, a percentage over 100."""
 
-    def reading(self):
-        reading = super().reading()
+    def reading(self, with_processes=True):
+        reading = super().reading(with_processes)
         reading["cpu"]["core_count"] = LIAR_CORES
         reading["cpu"]["cores_percent"] = [250.0] * LIAR_CORES
         template = reading["processes"][0]
@@ -155,6 +155,106 @@ def check_twenty_tabs_asking_at_once_share_one_helper_call():
                 statuses = list(pool.map(ask, range(CONCURRENT_ASKERS)))
             expect(statuses == [200] * CONCURRENT_ASKERS, f"statuses: {statuses}")
             expect(helper.stats.calls == 1, f"{CONCURRENT_ASKERS} askers at once must share one call, made {helper.stats.calls}")
+        finally:
+            helper.stop()
+
+
+def read_without_processes(operator):
+    reply = operator.request("GET", f"{STATS_PATH}?processes=0")
+    expect(reply.status == 200, f"stats?processes=0 gave {reply.status}: {reply.raw[:200]!r}")
+    problems = spec.problems("MachineStatsReply", reply.body)
+    expect(not problems, f"the reply does not fit the contract: {problems[:3]}")
+    return reply
+
+
+def check_processes_zero_gives_an_empty_list_and_asks_the_helper_not_to_scan():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        try:
+            reply = read_without_processes(operator)
+            expect(reply.body["state"] == "online" and reply.body["stats"]["processes"] == [], f"no list wanted, none sent: {reply.body['stats']['processes']}")
+            expect(helper.stats.calls_without_processes == 1 and helper.stats.calls_with_processes == 0, "the helper was asked to skip the scan")
+            expect(helper.stats.queries == ["processes=0"], f"only the fixed query goes to the helper: {helper.stats.queries}")
+        finally:
+            helper.stop()
+
+
+def check_without_the_parameter_or_with_one_the_list_comes_as_before():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        try:
+            plain = read_stats(operator).body["stats"]
+            expect(len(plain["processes"]) == MAX_PROCESSES, f"today's behaviour: {len(plain['processes'])} processes")
+            explicit = operator.request("GET", f"{STATS_PATH}?processes=1")
+            expect(explicit.status == 200 and len(explicit.body["stats"]["processes"]) == MAX_PROCESSES, "processes=1 is the same as nothing")
+            expect(helper.stats.calls == 1 and helper.stats.queries == [""], f"one shared call with no query: {helper.stats.queries}")
+        finally:
+            helper.stop()
+
+
+def check_a_reading_with_processes_also_answers_a_request_without_them():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        try:
+            read_stats(operator)
+            lean = read_without_processes(operator)
+            expect(lean.body["stats"]["processes"] == [], "the list is dropped for the asker who did not want it")
+            expect(helper.stats.calls == 1, f"the held reading is enough: {helper.stats.calls} helper calls")
+        finally:
+            helper.stop()
+
+
+def check_a_request_with_processes_after_one_without_asks_the_helper_again_once():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        try:
+            read_without_processes(operator)
+            full = read_stats(operator)
+            expect(len(full.body["stats"]["processes"]) == MAX_PROCESSES, "the list is there once it was asked for")
+            expect(helper.stats.calls == 2, f"one more helper call for the list: {helper.stats.calls}")
+            read_stats(operator)
+            read_without_processes(operator)
+            expect(helper.stats.calls == 2, f"after that, both kinds are served from the held reading inside {REFRESH_SECONDS} s: {helper.stats.calls}")
+        finally:
+            helper.stop()
+
+
+def check_twenty_mixed_askers_cost_at_most_two_helper_calls():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        operator.sign_in()
+        cookie = "; ".join(f"{k}={v}" for k, v in operator.cookies.items())
+        try:
+            def ask(n):
+                suffix = "?processes=0" if n % 2 else ""
+                return Browser(root, auto_login=False).request("GET", STATS_PATH + suffix, cookies=False, headers={"Cookie": cookie}).status
+
+            with ThreadPoolExecutor(max_workers=CONCURRENT_ASKERS) as pool:
+                statuses = list(pool.map(ask, range(CONCURRENT_ASKERS)))
+            expect(statuses == [200] * CONCURRENT_ASKERS, f"statuses: {statuses}")
+            expect(helper.stats.calls <= 2, f"mixed askers at once must make at most 2 helper calls, made {helper.stats.calls}")
+        finally:
+            helper.stop()
+
+
+def check_an_unknown_value_of_processes_is_a_400_in_the_plain_shape_and_never_reaches_the_helper():
+    with running() as root:
+        operator = Browser(root)
+        helper = machine_with_helper(operator, root)
+        try:
+            for bad in ("processes=2", "processes=", "processes=true", "processes=0;x", "processes=%32", "processes=1&processes=0", "processes=a/b"):
+                reply = operator.request("GET", f"{STATS_PATH}?{bad}")
+                expect(reply.status == 400, f"{bad} must be 400, got {reply.status}")
+                problems = spec.problems("Error", reply.body)
+                expect(not problems and reply.body["error"]["code"] == "invalid_input", f"{bad}: {reply.body}")
+            expect(helper.stats.calls == 0, "a refused request must not reach the helper")
+            expect(operator.request("GET", f"{STATS_PATH}?other=1").status == 200, "another parameter is ignored")
+            expect(helper.stats.queries == [""], f"nothing the caller typed is passed on: {helper.stats.queries}")
         finally:
             helper.stop()
 

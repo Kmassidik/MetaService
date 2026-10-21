@@ -31,8 +31,13 @@ paths:
         The machine's real state now (read only): CPU total and per core, load, memory, disks, network speed, GPU (key left out when the system cannot say), uptime, top 15 processes
         (program name and user only, never a command line). The helper computes percentages between its own samples; the first answer after a start has measuring true and null rates.
         Optional, added without a version change (a helper without it answers 404). Exact rules: docs/monitor-contract.md.
+        The optional query `processes` (`1` or `0`, absent means `1`) was added later without a version change: `0` skips the scan of programs and the answer has `processes: []`;
+        a helper that does not know it ignores it and sends the list. Any other value is a 400 (code invalid_input).
+      parameters:
+        - { $ref: '#/components/parameters/ProcessesQuery' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Stats' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/workloads:
     get:
@@ -197,8 +202,10 @@ paths:
       security: []
       parameters:
         - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/ProcessesQuery' }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/MachineStatsReply' } } } }
+        '400': { description: 'processes is not 1 or 0 (code invalid_input)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -222,6 +229,12 @@ components:
   securitySchemes:
     machineToken: { type: http, scheme: bearer }
   parameters:
+    ProcessesQuery:
+      name: processes
+      in: query
+      required: false
+      description: '1 (also when absent) includes the top programs, 0 leaves them out and spares the machine the scan. The Root keeps one shared reading per machine: a reading with the list also answers a request without it; a request with the list after one without makes one more helper call. Nothing the caller typed is passed on to a helper.'
+      schema: { type: string, enum: ['0', '1'] }
     CommandIdHeader:
       name: X-Command-Id
       in: header

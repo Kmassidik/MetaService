@@ -4,9 +4,10 @@ import itertools
 import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 from agent.fake.engine import NotFound, Refused
-from agent.fake.stats import FakeStats
+from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
 from contract import spec, wsproto
 
@@ -112,7 +113,12 @@ class AgentHandler(BaseHTTPRequestHandler):
         self._send(200, self.engine.facts())
 
     def get_stats(self):
-        self._send(200, self.stats.reading())
+        query = urlsplit(self.path).query
+        self.stats.queries.append(query)
+        with_processes = wants_processes(query)
+        if with_processes is None:
+            raise ApiError(400, "invalid_input", "processes must be 1 or 0")
+        self._send(200, self.stats.reading(with_processes))
 
     def list_workloads(self):
         self._send(200, {"workloads": self.engine.workloads()})

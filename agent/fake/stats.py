@@ -14,6 +14,18 @@ MAX_PROCESSES = 15
 NAME_LIMIT = 64
 PROCESS_COUNT_SENT = 20
 FIRST_PID = 300
+PROCESSES_PARAMETER = "processes"
+
+
+def wants_processes(query):
+    """The optional ?processes= of GET /v1/stats: absent or `1` keeps the program list, `0` leaves it out, anything else is None (refused)."""
+    pairs = [pair.partition("=") for pair in query.split("&") if pair]
+    values = [value for key, _, value in pairs if key == PROCESSES_PARAMETER]
+    if not values:
+        return True
+    if len(values) != 1 or values[0] not in ("0", "1"):
+        return None
+    return values[0] == "1"
 
 
 class FakeStats:
@@ -22,12 +34,20 @@ class FakeStats:
     def __init__(self, cores=8, gpu=False, hostile=True, measuring_first=True):
         self.cores, self.gpu, self.hostile, self.measuring_first = cores, gpu, hostile, measuring_first
         self.calls = 0
+        self.queries = []  # the raw query text of every request, so a check can see what the parent passed on
+        self.calls_with_processes = 0
+        self.calls_without_processes = 0
         self._lock = threading.Lock()
         self._ticks = itertools.count(1)
 
-    def reading(self):
+    def reading(self, with_processes=True):
+        """with_processes False: the list is empty, as a helper that skipped the scan answers."""
         with self._lock:
             self.calls += 1
+            if with_processes:
+                self.calls_with_processes += 1
+            else:
+                self.calls_without_processes += 1
             tick = next(self._ticks)
         measuring = self.measuring_first and tick == 1
         reading = {
@@ -38,7 +58,7 @@ class FakeStats:
             "memory": self._memory(tick),
             "disks": self._disks(),
             "network": self._network(tick, measuring),
-            "processes": self._processes(tick, measuring),
+            "processes": self._processes(tick, measuring) if with_processes else [],
         }
         if self.gpu:
             reading["gpus"] = [self._gpu(tick)]
