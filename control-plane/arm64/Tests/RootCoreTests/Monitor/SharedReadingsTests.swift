@@ -1,0 +1,120 @@
+import XCTest
+import MSCore
+@testable import RootCore
+
+private final class TestClock: Clock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = Date(timeIntervalSince1970: 1_800_000_000)
+    var now: Date { lock.withLock { current } }
+    func advance(_ seconds: TimeInterval) { lock.withLock { current = current.addingTimeInterval(seconds) } }
+}
+
+private actor Counter {
+    private(set) var calls = 0
+    private(set) var outcome: ReadingOutcome<Int> = .fresh(1)
+    var delayNanoseconds: UInt64 = 0
+    func set(_ value: ReadingOutcome<Int>) { outcome = value }
+    func slow(_ nanoseconds: UInt64) { delayNanoseconds = nanoseconds }
+    func fetch() async -> ReadingOutcome<Int> {
+        calls += 1
+        if delayNanoseconds > 0 { try? await Task.sleep(nanoseconds: delayNanoseconds) }
+        return outcome
+    }
+}
+
+final class SharedReadingsTests: XCTestCase {
+    private func make() -> (SharedReadings<Int>, TestClock, Counter) {
+        let clock = TestClock()
+        return (SharedReadings<Int>(clock: clock), clock, Counter())
+    }
+
+    func testTwoAskersInsideFourSecondsCostOneHelperCall() async {
+        let (readings, clock, counter) = make()
+        let first = await readings.read("mini") { await counter.fetch() }
+        clock.advance(3.9)
+        let second = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(first.value, 1)
+        XCTAssertEqual(second.value, 1)
+    }
+
+    func testAfterFourSecondsTheHelperIsAskedAgain() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        clock.advance(4.0)
+        _ = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testManyAskersAtTheSameTimeShareOneCallInFlight() async {
+        let (readings, _, counter) = make()
+        await counter.slow(200_000_000)
+        await withTaskGroup(of: Int?.self) { group in
+            for _ in 0..<20 { group.addTask { await readings.read("mini") { await counter.fetch() }.value } }
+            for await value in group { XCTAssertEqual(value, 1) }
+        }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testMachinesDoNotShareReadings() async {
+        let (readings, _, counter) = make()
+        _ = await readings.read("a") { await counter.fetch() }
+        _ = await readings.read("b") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testAFailureIsKeptForFourSecondsToo() async {
+        let (readings, clock, counter) = make()
+        await counter.set(.unreachable)
+        let first = await readings.read("mini") { await counter.fetch() }
+        clock.advance(2)
+        _ = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(first.answer, .unreachable)
+    }
+
+    func testAfterAFailureTheLastGoodReadingIsStillOffered() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        await counter.set(.unreachable)
+        clock.advance(5)
+        let reply = await readings.read("mini") { await counter.fetch() }
+        XCTAssertEqual(reply.answer, .unreachable)
+        XCTAssertEqual(reply.value, 1, "the last numbers are kept for the greyed view")
+        XCTAssertNotNil(reply.fetchedAt)
+    }
+
+    func testAReadingNobodyAskedForInThirtySecondsIsDropped() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        clock.advance(30.5)
+        let dropped = await readings.lastKnown("mini")
+        XCTAssertNil(dropped.value)
+        let count = await readings.heldCount
+        XCTAssertEqual(count, 0)
+    }
+
+    func testAskingKeepsAReadingAlive() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        for _ in 0..<5 {
+            clock.advance(20)
+            _ = await readings.lastKnown("mini")
+        }
+        let alive = await readings.lastKnown("mini")
+        XCTAssertEqual(alive.value, 1)
+    }
+
+    func testAnOldHelperIsRememberedAsThat() async {
+        let (readings, _, counter) = make()
+        await counter.set(.oldHelper)
+        let reply = await readings.read("mini") { await counter.fetch() }
+        XCTAssertEqual(reply.answer, .oldHelper)
+        XCTAssertNil(reply.value)
+    }
+}

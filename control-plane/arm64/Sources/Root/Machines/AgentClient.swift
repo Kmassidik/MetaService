@@ -12,6 +12,8 @@ enum AgentCallFailure: Error {
 struct AgentReply {
     let status: Int
     let json: [String: Any]?
+    /// What the machine sent, as it came.
+    let data: Data
 }
 
 /// How the Root talks to an Agent. Only loopback and private addresses are ever called, with the machine's own command token.
@@ -20,18 +22,19 @@ struct AgentClient: Sendable {
     let secrets: SecretBox
     let tunnels: TunnelPorts
 
+    static let defaultTimeout: TimeInterval = 15
     private static let maxReplyBytes = 256 * 1024
     private static let session: URLSession = {
         let options = URLSessionConfiguration.ephemeral
-        options.timeoutIntervalForRequest = 15
+        options.timeoutIntervalForRequest = defaultTimeout
         options.httpCookieStorage = nil
         options.urlCache = nil
         return URLSession(configuration: options, delegate: NoRedirect(), delegateQueue: nil)
     }()
 
-    func call(machine: String, method: String, path: String, body: [String: Any]? = nil, commandId: String? = nil) async throws -> AgentReply {
-        let reply = try await send(machine: machine, method: method, path: path, body: body, commandId: commandId)
-        return AgentReply(status: reply.status, json: (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any])
+    func call(machine: String, method: String, path: String, body: [String: Any]? = nil, commandId: String? = nil, timeout: TimeInterval = defaultTimeout) async throws -> AgentReply {
+        let reply = try await send(machine: machine, method: method, path: path, body: body, commandId: commandId, timeout: timeout)
+        return AgentReply(status: reply.status, json: (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any], data: reply.data)
     }
 
     /// Where to reach a machine's Agent, and the token to prove who is asking. Loopback and private addresses only.
@@ -42,10 +45,11 @@ struct AgentClient: Sendable {
         return (url, try secrets.open(endpoint.sealedCommandToken))
     }
 
-    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?) async throws -> (status: Int, contentType: String?, data: Data) {
+    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?, timeout: TimeInterval) async throws -> (status: Int, contentType: String?, data: Data) {
         let (url, token) = try target(machine: machine, scheme: "http", path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = timeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let commandId { request.setValue(commandId, forHTTPHeaderField: "X-Command-Id") }
         if let body {

@@ -33,6 +33,7 @@ struct Services {
     let remoteMachines: RemoteMachineStore
     let remoteInstalls: RemoteInstallService
     let terminal: TerminalService
+    let stats: StatsService
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -66,5 +67,6 @@ struct Services {
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
+        stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
     }
 }

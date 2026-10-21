@@ -4,6 +4,7 @@ import pathlib
 
 from agent.fake.engine import FakeEngine
 from agent.fake.server import make_server
+from agent.fake.stats import FakeStats
 
 
 def main():
@@ -11,9 +12,11 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=9110)
     parser.add_argument("--token-file", required=True, help="file holding the machine token")
+    parser.add_argument("--cores", type=int, default=8, help="how many cores /v1/stats reports")
+    parser.add_argument("--gpu", action="store_true", help="/v1/stats reports one NVIDIA card")
     args = parser.parse_args()
     token = pathlib.Path(args.token_file).read_text().strip()
-    server = make_server(FakeEngine(), token, args.host, args.port)
+    server = make_server(FakeEngine(), token, args.host, args.port, FakeStats(cores=args.cores, gpu=args.gpu))
     print(f"Fake Agent on http://{args.host}:{server.server_address[1]}")
     server.serve_forever()
 

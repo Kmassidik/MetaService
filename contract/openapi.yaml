@@ -162,7 +162,7 @@ paths:
     get:
       summary: >
         Root endpoint for the panel. The machine's latest reading. The Root keeps one shared reading per machine (the helper is called at most once per 4 seconds however many tabs ask,
-        and the reading is dropped after 30 seconds without a request) and applies the limits again before passing it on. An offline machine answers 200 with state offline and the last reading, or null.
+        and the reading is dropped after 30 seconds without a request) and applies the limits again before passing it on. An offline machine answers 200 with state offline and the last reading, or null; a helper that has no stats route (an older helper) answers state old_helper with stats null.
       security: []
       parameters:
         - { name: machine, in: path, required: true, schema: { type: string } }
@@ -325,7 +325,7 @@ components:
       required: [state, last_seen, fetched_at, stats]
       additionalProperties: false
       properties:
-        state: { type: string, enum: [online, offline] }
+        state: { type: string, enum: [online, offline, old_helper] }
         last_seen: { type: string, nullable: true }
         fetched_at: { type: string, nullable: true }
         stats:

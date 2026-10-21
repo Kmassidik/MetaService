@@ -6,6 +6,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from agent.fake.engine import NotFound, Refused
+from agent.fake.stats import FakeStats
 from agent.fake.terminal import Consoles, Session
 from contract import spec, wsproto
 
@@ -24,6 +25,7 @@ class ApiError(Exception):
 class AgentHandler(BaseHTTPRequestHandler):
     engine = None
     consoles = None
+    stats = None
     token = b""
     server_version = "FakeAgent"
     _anon_ids = itertools.count(1)
@@ -109,6 +111,9 @@ class AgentHandler(BaseHTTPRequestHandler):
     def facts(self):
         self._send(200, self.engine.facts())
 
+    def get_stats(self):
+        self._send(200, self.stats.reading())
+
     def list_workloads(self):
         self._send(200, {"workloads": self.engine.workloads()})
 
@@ -170,6 +175,7 @@ def _accepted(record):
 ROUTES = [
     ("GET", r"/v1/health", AgentHandler.health),
     ("GET", r"/v1/facts", AgentHandler.facts),
+    ("GET", r"/v1/stats", AgentHandler.get_stats),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
@@ -182,6 +188,6 @@ ROUTES = [
 ]
 
 
-def make_server(engine, token, host="127.0.0.1", port=0):
-    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles()})
+def make_server(engine, token, host="127.0.0.1", port=0, stats=None):
+    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles(), "stats": stats or FakeStats()})
     return ThreadingHTTPServer((host, port), handler)
