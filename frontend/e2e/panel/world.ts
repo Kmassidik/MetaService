@@ -88,8 +88,17 @@ export async function enrollMachine(world: World, session: Session, name: string
   return textField(await readRecord(enrolled, 'enroll'), 'machine_token', 'enroll')
 }
 
+/** The last heartbeat each machine sent, so a slow test can send them again: a machine that stays silent for three beats shows as offline. */
+const lastHeartbeats = new Map<string, unknown>()
+
+/** Sends every machine's last heartbeat again, so the machines the test made online are still online. Machines that never sent one stay as they were (offline). */
+export async function resendHeartbeats(world: World): Promise<void> {
+  for (const [token, body] of lastHeartbeats) await sendHeartbeat(world, token, body)
+}
+
 /** One heartbeat from a machine, with whatever facts and VMs the test wants it to report. */
 export async function sendHeartbeat(world: World, machineToken: string, body: unknown): Promise<void> {
+  lastHeartbeats.set(machineToken, body)
   const reply = await fetch(`${world.root.agentBase}/v1/agents/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${machineToken}` }, body: JSON.stringify(body) })
   if (!reply.ok) throw new Error(`the heartbeat was refused (${reply.status}): ${(await reply.text()).slice(0, 300)}`)
 }

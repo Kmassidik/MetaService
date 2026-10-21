@@ -8,7 +8,7 @@ import { ADMIN, createAdmin } from './support/admin.ts'
 import { check, finish } from './support/check.ts'
 import { chromePath } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
-import { seed, startAgent, startWorld, stopWorld, type World } from './panel/world.ts'
+import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World } from './panel/world.ts'
 import { kindsOnAMachine, noMachinesYet, openCreate, preselectedAndValidated, refusedThenMade, thenInAllVms, theOldButtonStillWorks, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
@@ -32,7 +32,8 @@ async function makeAdminAndSignIn(b: Browse, world: World): Promise<void> {
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
 
-async function onAPhone(b: Browse): Promise<void> {
+async function onAPhone(b: Browse, world: World): Promise<void> {
+  await resendHeartbeats(world)
   await b.page.setViewport(PHONE)
   await openAllVms(b)
   await b.page.waitForSelector('table[aria-label="VMs"] tbody tr')
@@ -78,6 +79,7 @@ try {
   await filtering(b)
   await openingARow(b)
 
+  await resendHeartbeats(world)
   await whoCanBePicked(b)
   await kindsOnAMachine(b)
   await preselectedAndValidated(b)
@@ -85,7 +87,7 @@ try {
   await refusedThenMade(b)
   await thenInAllVms(b)
   await theOldButtonStillWorks(b)
-  await onAPhone(b)
+  await onAPhone(b, world)
 
   check('no script errors and no policy violations', errors.length === 0 && (await b.run(() => window.violation)) === undefined, errors.join(' | '))
 } finally {
