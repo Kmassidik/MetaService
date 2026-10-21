@@ -47,11 +47,14 @@ public actor AgentService {
     private var inflight: [String: Workload] = [:]
     private var deleting: Set<String> = []
     private let installer: BundleInstalling?
+    /// The open consoles; stopping or deleting a workload ends its console.
+    public nonisolated let consoles: ConsoleRegistry
     /// Called when something about the workloads changed, so the Root can hear about it without waiting for the next heartbeat.
     public nonisolated(unsafe) var onChange: (@Sendable () -> Void)?
 
     public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, ledger: CommandLedger = CommandLedger(), installer: BundleInstalling? = nil,
-                osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
+                consoles: ConsoleRegistry = ConsoleRegistry(), osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
+        self.consoles = consoles
         self.installer = installer
         self.engine = engine
         self.budget = budget
@@ -79,6 +82,11 @@ public actor AgentService {
         for (id, planned) in inflight where byId[id] == nil { byId[id] = planned }
         for id in deleting { byId[id]?.state = .deleting }
         return byId.values.sorted { $0.name < $1.name }
+    }
+
+    /// The program and arguments for a console in this workload (see `Engine.attach`).
+    public func attach(id: String) async throws -> [String] {
+        try await engine.attach(id: id)
     }
 
     public func command(_ id: String) throws -> Command {
@@ -130,6 +138,7 @@ public actor AgentService {
             try await engine.setRunning(id: id, running: running)
             command.state = .succeeded
             command.result = ["state": running ? "running" : "stopped"]
+            if !running { consoles.end(id, .vmStopped) }
         } catch {
             command.state = .failed
             command.result = ["error": "the machine could not change the workload"]
@@ -144,6 +153,7 @@ public actor AgentService {
         if let existing = ledger.find(commandId) { return existing }
         guard try await workloads().contains(where: { $0.id == id }) else { throw AgentError.notFound }
         deleting.insert(id)
+        consoles.end(id, .vmDeleted)
         let command = Command(commandId: commandId, type: .delete, state: .running, workloadId: id)
         ledger.record(command)
         Task { await self.finishDelete(command, id: id) }

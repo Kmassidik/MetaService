@@ -9,7 +9,7 @@ const MACHINE_URL_END = '#/machines/details?id=agent-mac'
 const SHORT_WAIT_MS = 10000
 const ACTION_WAIT_MS = 20000
 const TABS = ['Overview', 'Monitoring', 'Access', 'Danger']
-const MAAS_ONLY_WORDS = /Web terminal|Restart|Rename/
+const MAAS_ONLY_WORDS = /Restart|Rename/
 type CreateVm = (b: Browse, name: string) => Promise<void>
 
 const vmUrlEnd = (vmId: string) => `${MACHINE_URL_END}&vm=${vmId}`
@@ -54,13 +54,17 @@ async function theFourTabs(b: Browse): Promise<void> {
   check('the parts MAAS has but MetaService has no data for stay hidden', !MAAS_ONLY_WORDS.test(await b.text()))
 }
 
+const webTerminalButton = (b: Browse) => b.run(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === '▸ Web terminal'))
+
 async function stopThenStart(b: Browse): Promise<void> {
   await b.click('Stop')
   await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Start'), { timeout: ACTION_WAIT_MS })
   check('Stop on the VM page stops it and the button becomes Start', true)
+  check('a stopped VM has no Web terminal button', !(await webTerminalButton(b)))
   await b.click('Start')
   await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Stop'), { timeout: ACTION_WAIT_MS })
   check('Start on the VM page starts it again', true)
+  check('a running VM has the Web terminal button', await webTerminalButton(b))
 }
 
 async function deleteGoesBackToTheMachine(b: Browse, vmId: string): Promise<void> {

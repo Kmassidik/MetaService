@@ -54,6 +54,14 @@ public actor SimulatedEngine: Engine {
         return ""
     }
 
+    /// Tests type into a plain /bin/sh on this machine.
+    public func attach(id: String) async throws -> [String] {
+        guard store[id] != nil else { throw EngineError.notFound }
+        return [Self.shellPath]
+    }
+
+    public static let shellPath = "/bin/sh"
+
     private func change(_ id: String, _ edit: (inout Workload) -> Void) throws {
         guard var found = store[id] else { throw EngineError.notFound }
         edit(&found)

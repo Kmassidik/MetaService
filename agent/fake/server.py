@@ -6,7 +6,8 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from agent.fake.engine import NotFound, Refused
-from contract import spec
+from agent.fake.terminal import Consoles, Session
+from contract import spec, wsproto
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
@@ -22,6 +23,7 @@ class ApiError(Exception):
 
 class AgentHandler(BaseHTTPRequestHandler):
     engine = None
+    consoles = None
     token = b""
     server_version = "FakeAgent"
     _anon_ids = itertools.count(1)
@@ -129,6 +131,34 @@ class AgentHandler(BaseHTTPRequestHandler):
     def uninstall_bundle(self):
         self._send(202, _accepted(self.engine.uninstall_bundle(self._body("BundleUninstall"))))
 
+    def terminal(self, id):
+        """A WebSocket console: /bin/sh in a pty. 404 unknown, 409 not running or already open, 426 when this is not an upgrade (everything else passed)."""
+        workload = next((w for w in self.engine.workloads() if w["id"] == id), None)
+        if workload is None:
+            raise NotFound(id)
+        if workload["state"] != "running":
+            raise ApiError(409, "not_running", "the workload is not running")
+        key = self.headers.get("Sec-WebSocket-Key")
+        is_upgrade = self.headers.get("Upgrade", "").lower() == "websocket" and key
+        if self.consoles.is_open(id) or (is_upgrade and not self.consoles.claim(id)):
+            raise ApiError(409, "console_open", "this workload already has a console")
+        if not is_upgrade:
+            raise ApiError(426, "upgrade_required", "this route is a WebSocket")
+        try:
+            self._run_console(id, key)
+        finally:
+            self.consoles.release(id)
+
+    def _run_console(self, id, key):
+        self.wfile.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                          f"Sec-WebSocket-Accept: {wsproto.accept_key(key)}\r\n{spec.CONTRACT_HEADER}: {spec.CONTRACT_VERSION}\r\n\r\n").encode())
+        self.wfile.flush()
+        self.close_connection = True
+        Session(self.connection, self.rfile, lambda: self._is_running(id)).run()
+
+    def _is_running(self, id):
+        return any(w["id"] == id and w["state"] == "running" for w in self.engine.workloads())
+
     def get_command(self, id):
         self._send(200, self.engine.command(id))
 
@@ -142,6 +172,7 @@ ROUTES = [
     ("GET", r"/v1/facts", AgentHandler.facts),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
+    ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/start", AgentHandler.start_workload),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/stop", AgentHandler.stop_workload),
     ("DELETE", rf"/v1/workloads/(?P<id>{ID_PATTERN})", AgentHandler.delete_workload),
@@ -152,5 +183,5 @@ ROUTES = [
 
 
 def make_server(engine, token, host="127.0.0.1", port=0):
-    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode()})
+    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles()})
     return ThreadingHTTPServer((host, port), handler)

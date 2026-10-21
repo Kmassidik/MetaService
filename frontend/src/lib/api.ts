@@ -1,6 +1,7 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
+import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
@@ -149,3 +150,10 @@ export const remoteInstall = (body: Record<string, unknown>) => call<{ id: strin
 export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/api/remote/installs/${encodeURIComponent(id)}`)
 export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
 export const remoteRemove = (machine: string, body: Record<string, unknown>) => callNoBody('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
+
+/** Asks for a one-use ticket to open the console of a running VM. The socket is opened with it; a new ticket is needed for every connection. */
+export async function openTerminal(machine: string, workload: string): Promise<string> {
+  const ticket = parseTicket(await call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/terminal`))
+  if (!ticket) throw new ApiError(502, 'bad_reply', 'The Root gave no console ticket.')
+  return ticket.ticket
+}

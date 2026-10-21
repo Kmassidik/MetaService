@@ -7,7 +7,8 @@ import RootCore
 struct UIRoutes {
     let directory: URL
 
-    static let pagePolicy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+    /// Styles may be inline because the console's terminal library (xterm) injects its own; scripts stay 'self' only, and images, connections and frames stay locked, so injected CSS has nowhere to send anything.
+    static let pagePolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
         + "font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     static let assetCache = "public, max-age=31536000, immutable"
     /// "no-transform" tells Cloudflare not to rewrite the page: it would add its analytics script, which the page's own policy (script-src 'self') blocks.

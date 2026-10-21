@@ -66,6 +66,21 @@ paths:
         '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/workloads/{id}/terminal:
+    get:
+      summary: >
+        A console in a running workload, as a WebSocket (RFC 6455). Frames: binary from the client are keystrokes and paste (at most 65536 bytes);
+        a text frame {"resize":[cols,rows]} sets the window size (cols 1..500, rows 1..300; the start size is 80x24); binary from the server is terminal output.
+        Anything else, or an oversized frame, closes the socket with code 1008. The shell ending, the workload stopping or being deleted closes it with 1000 and a short plain reason.
+        The helper runs the engine's own "run a program inside the workload" in a pty and kills it when the socket closes. At most 1 console per workload.
+        Without an Upgrade header the route runs the same checks and answers 426 when all pass (a preflight for exact statuses; a refused upgrade itself may be any non-101 answer).
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
+      responses:
+        '101': { description: switching protocols to WebSocket }
+        '426': { description: upgrade required (preflight without upgrade headers; every check passed) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the workload is not running (code not_running) or already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
@@ -117,6 +132,38 @@ paths:
         '204': { description: recorded }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/machines/{machine}/workloads/{workload}/terminal:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: Root endpoint for the panel. Ask for a one-time ticket to open a console in a running VM. Empty body. The ticket is single use, bound to the operator, valid 30 seconds.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalTicket' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the VM is not running (code not_running), the machine is not a Mac (code not_supported), or it already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: '4 consoles are open in total (code too_many_consoles)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'the machine is offline (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/terminal/{ticket}:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
+    get:
+      summary: >
+        Root endpoint for the panel. Upgrades to a WebSocket that carries the console frames (see /v1/workloads/{id}/terminal; the Root passes them through unchanged
+        and never reads the content). Checks in this order: session cookie, Origin equals the panel's own origin, ticket valid and made by this operator.
+        Any failure refuses the upgrade with a plain HTTP reply (401, 403, 404 or a bare 400) and never opens a socket. Idle for 15 minutes or 8 hours in total closes it with 1000;
+        the machine going offline closes it with 1011 "the machine is offline". The audit log gets console_open and console_close (machine, VM, operator, seconds), never keystrokes or output.
+      security: []
+      parameters:
+        - { name: ticket, in: path, required: true, schema: { type: string, minLength: 32 } }
+      responses:
+        '101': { description: switching protocols to WebSocket }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Origin or operator, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     machineToken: { type: http, scheme: bearer }
@@ -149,6 +196,13 @@ components:
     Name:
       type: string
       pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    TerminalTicket:
+      type: object
+      required: [ticket, expires_in]
+      additionalProperties: false
+      properties:
+        ticket: { type: string, minLength: 32 }
+        expires_in: { type: integer, enum: [30] }
     Error:
       type: object
       required: [error]

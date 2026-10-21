@@ -33,6 +33,7 @@ struct WorkloadRoutes {
         if action == .delete { _ = try ConfirmRequest(body: try await guards.body(request)) }
         guard let machine = context.parameters.get("id"), let workload = context.parameters.get("workload"), Ids.isValid(machine), Ids.isValid(workload) else { throw ApiFailure.notFound }
         let command = try await services.workloads.act(actor: caller.name, machine: machine, workload: workload, action: action)
+        services.terminal.vmActed(machine: machine, workload: workload, action: action)
         return try Json.response(Reply(command: command), status: .accepted)
     }
 

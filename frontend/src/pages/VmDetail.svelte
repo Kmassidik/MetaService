@@ -4,8 +4,9 @@
   import VmMonitoring from '../components/vm/VmMonitoring.svelte'
   import VmAccess from '../components/vm/VmAccess.svelte'
   import VmDanger from '../components/vm/VmDanger.svelte'
+  import Terminal from '../components/Terminal.svelte'
   import { machineHref } from '../lib/routes.ts'
-  import { findServer, findWorkload, headerAction, tabLabel, VM_TABS } from '../lib/vm.ts'
+  import { findServer, findWorkload, headerAction, isRunning, tabLabel, VM_TABS } from '../lib/vm.ts'
   import type { VmTab } from '../lib/vm.ts'
   import type { Machine, Workload } from '../lib/types.ts'
 
@@ -22,6 +23,7 @@
 
   let { machine, workloadId, pinned, banner, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
   let tab: VmTab = $state('overview')
+  let terminalOpen = $state(false)
   const workload = $derived(machine ? findWorkload(machine, workloadId) : undefined)
   const server = $derived(machine ? findServer(machine, workloadId) : undefined)
   const action = $derived(workload ? headerAction(workload.state) : null)
@@ -43,6 +45,7 @@
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › <a href={machineHref(machine.id)}>{machine.name}</a> › {workload.id}</div>
     </div>
     <div class="sp">
+      {#if isRunning(workload.state)}<button class="btn line" type="button" onclick={() => (terminalOpen = true)}>▸ Web terminal</button>{/if}
       {#if workload.bundle_version}<button class="btn line" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
       {#if action}<button class="btn line" type="button" onclick={() => onAct(machine, workload, action)}>{action === 'start' ? 'Start' : 'Stop'}</button>{/if}
     </div>
@@ -66,6 +69,7 @@
     {/if}
   </div>
 {/if}
+{#if terminalOpen && machine && workload && server}<Terminal machine={machine.id} workload={workload.id} name={server.display || workload.id} onclose={() => (terminalOpen = false)} />{/if}
 
 <style>
   .titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HummingbirdWebSocket
 import AgentCore
 import MSCore
 
@@ -83,12 +84,16 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: ErrorMiddleware())
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
+    let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)
+    terminal.registerPlain(on: router)
     if let root, let machineToken {
         let heartbeat = Heartbeat(root: root, token: machineToken, service: service, agentPort: config.port, seconds: config.heartbeatSeconds)
         service.onChange = { heartbeat.beatSoon() }
         Task.detached { await heartbeat.run() }
     }
-    let app = Application(router: router, configuration: .init(address: .hostname(config.bind, port: config.port)))
+    let socketConfiguration = HTTP1WebSocketUpgradeChannel.Configuration(ws: .init(maxFrameSize: TerminalRoutes.socketFrameBytes))
+    let app = Application(router: router, server: .http1WebSocketUpgrade(webSocketRouter: terminal.socketRouter(), configuration: socketConfiguration),
+                          configuration: .init(address: .hostname(config.bind, port: config.port)))
     try await app.runService()
 }
 

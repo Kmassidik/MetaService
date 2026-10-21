@@ -34,13 +34,19 @@ struct AgentClient: Sendable {
         return AgentReply(status: reply.status, json: (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any])
     }
 
-    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?) async throws -> (status: Int, contentType: String?, data: Data) {
+    /// Where to reach a machine's Agent, and the token to prove who is asking. Loopback and private addresses only.
+    func target(machine: String, scheme: String, path: String) throws -> (url: URL, token: String) {
         guard let endpoint = try machines.endpoint(id: machine) else { throw AgentCallFailure.neverHeardFrom }
         let (host, port) = try Self.address(of: endpoint, through: tunnels.route(for: machine))
-        guard IPv4.isLoopbackOrPrivate(host), let url = URL(string: "http://\(host):\(port)\(path)") else { throw AgentCallFailure.notAllowedAddress }
+        guard IPv4.isLoopbackOrPrivate(host), let url = URL(string: "\(scheme)://\(host):\(port)\(path)") else { throw AgentCallFailure.notAllowedAddress }
+        return (url, try secrets.open(endpoint.sealedCommandToken))
+    }
+
+    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?) async throws -> (status: Int, contentType: String?, data: Data) {
+        let (url, token) = try target(machine: machine, scheme: "http", path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("Bearer \(try secrets.open(endpoint.sealedCommandToken))", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let commandId { request.setValue(commandId, forHTTPHeaderField: "X-Command-Id") }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -7,6 +7,8 @@ let package = Package(
     products: [.executable(name: "metaservice-root", targets: ["Root"])],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
+        // 2.8.0 (2026-09-28). 2.8.1 is newer but not yet two weeks old.
+        .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", exact: "2.7.0"),
         .package(path: "../../shared/metaservice-shared"),
     ],
     targets: [
@@ -17,7 +19,9 @@ let package = Package(
                 linkerSettings: [.linkedLibrary("sqlite3")]),
         .executableTarget(
             name: "Root",
-            dependencies: ["RootCore", "RootStore", .product(name: "Hummingbird", package: "hummingbird")],
+            dependencies: ["RootCore", "RootStore", .product(name: "Hummingbird", package: "hummingbird"),
+                          .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
+                          .product(name: "HummingbirdWSClient", package: "hummingbird-websocket")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(name: "RootCoreTests", dependencies: ["RootCore"], swiftSettings: [.swiftLanguageMode(.v5)]),

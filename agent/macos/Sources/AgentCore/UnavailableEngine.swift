@@ -24,6 +24,7 @@ public struct UnavailableEngine: Engine {
     public func setBundleVersion(id: String, version: String?) async throws { throw EngineError.notFound }
     public func push(id: String, hostPath: String, containerPath: String) async throws { throw EngineError.notFound }
     public func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String { throw EngineError.notFound }
+    public func attach(id: String) async throws -> [String] { throw EngineError.notFound }
 
     private var unavailable: EngineError { .failed(problem.message) }
 }

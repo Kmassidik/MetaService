@@ -169,9 +169,12 @@ def check_ui_files_are_served_with_a_strict_page_policy():
         page = Browser(root).request("GET", "/")
         expect(page.status == 200 and b"<title>x</title>" in page.raw, f"index gave {page.status}")
         policy = page.header("Content-Security-Policy") or ""
-        for needle in ("script-src 'self'", "style-src 'self'", "frame-ancestors 'none'", "base-uri 'none'"):
+        directives = {part.strip().split(" ", 1)[0]: part.strip().split(" ", 1)[-1] for part in policy.split(";") if part.strip()}
+        expect(directives.get("script-src") == "'self'", f"scripts must be 'self' only, got {directives.get('script-src')!r}")
+        expect(directives.get("style-src") == "'self' 'unsafe-inline'", f"styles are 'self' plus inline (the console's terminal needs it), got {directives.get('style-src')!r}")
+        for needle in ("frame-ancestors 'none'", "base-uri 'none'", "default-src 'none'", "connect-src 'self'"):
             expect(needle in policy, f"page policy lacks {needle}")
-        expect("unsafe-inline" not in policy and "unsafe-eval" not in policy, "page policy allows unsafe code")
+        expect("unsafe-eval" not in policy, "page policy allows eval")
         expect(page.header("Cache-Control") == "no-cache, no-transform", "index may be cached too long, or a proxy may rewrite it")
         asset = Browser(root).request("GET", "/assets/app-abc.js")
         expect(asset.status == 200 and "immutable" in (asset.header("Cache-Control") or ""), "hashed asset is not cached long")

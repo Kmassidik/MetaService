@@ -50,8 +50,8 @@ enum Json {
 }
 
 /// Turns every error into the contract's error shape. Unknown errors say nothing about the inside.
-struct ErrorMiddleware: RouterMiddleware {
-    func handle(_ request: Request, context: RootContext, next: (Request, RootContext) async throws -> Response) async throws -> Response {
+struct ErrorMiddleware<Context: RequestContext>: RouterMiddleware {
+    func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
         do {
             return try await next(request, context)
         } catch let failure as ApiFailure {

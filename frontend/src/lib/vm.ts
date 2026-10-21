@@ -23,6 +23,9 @@ export function findServer(machine: Machine, workloadId: string): BuildingServer
   return vmServers(machine).find((server) => server.id === workloadId)
 }
 
+/** The web terminal opens only on a running VM. */
+export const isRunning = (state: string): boolean => state === RUNNING_STATE
+
 /** Which button the header shows: Start for a stopped VM, Stop for a running one, none while it is being made. */
 export function headerAction(state: string): 'start' | 'stop' | null {
   if (state === STOPPED_STATE) return 'start'

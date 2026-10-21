@@ -1,4 +1,5 @@
 import Foundation
+import MSCore
 
 /// How the Apple `container` tool is called. Every call is a fixed program plus an argument list, so nothing a user typed
 /// can become a flag: names and ids are checked against the id pattern first, and the image against the image pattern.
@@ -34,6 +35,14 @@ public enum AppleContainer {
     public static func exec(_ id: String, arguments: [String], environment: [String: String]) -> [String] {
         ["exec"] + environment.sorted { $0.key < $1.key }.flatMap { ["-e", "\($0.key)=\($0.value)"] } + [name(for: id)] + arguments
     }
+
+    /// The arguments (after the tool's own path) for an interactive login shell: `container exec -it <name> /bin/sh -l`. A bad id is refused, not quoted.
+    public static func attach(_ id: String) throws -> [String] {
+        guard Ids.isValid(id) else { throw EngineError.notFound }
+        return ["exec", "-it", name(for: id), shellPath, "-l"]
+    }
+
+    public static let shellPath = "/bin/sh"
 
     /// Installs the chat bundle inside a workload: python3 if missing, a locked-down user, the files, a systemd service, and a health check.
     /// Fixed text. The version and port arrive as MS_VERSION and MS_PORT; the archive and key were copied in beforehand.

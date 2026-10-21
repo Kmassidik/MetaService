@@ -1,4 +1,5 @@
 import Hummingbird
+import HummingbirdWebSocket
 import RootStore
 
 /// Two listeners, so that what needs no sign-in never shares an address with what is open to the network.
@@ -17,9 +18,21 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     ScanRoutes(services: services, guards: guards).register(on: router.group())
     RemoteRoutes(services: services, guards: guards).register(on: router.group())
     RemoteInstallRoutes(services: services, guards: guards).register(on: router.group())
+    TerminalRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
-    return Application(router: router, configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
+    return Application(router: router, server: .http1WebSocketUpgrade(webSocketRouter: consoleRouter(services: services, guards: guards), configuration: consoleSocketConfiguration),
+                       configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
 }
+
+/// The console socket has its own router: only `/api/terminal/{ticket}` can ever upgrade.
+private func consoleRouter(services: Services, guards: Guards) -> Router<TerminalContext> {
+    let router = Router(context: TerminalContext.self)
+    router.add(middleware: ErrorMiddleware())
+    TerminalRoutes(services: services, guards: guards).registerSocket(on: router)
+    return router
+}
+
+private let consoleSocketConfiguration = HTTP1WebSocketUpgradeChannel.Configuration(ws: .init(maxFrameSize: TerminalBridge.socketFrameBytes))
 
 func buildAgentApplication(services: Services) -> some ApplicationProtocol {
     let router = baseRouter(publicSite: false)

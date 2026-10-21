@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { findServer, findWorkload, headerAction, monitoringMessage, specsText, tabLabel, vmFacts, VM_TABS } from './vm.ts'
+import { findServer, findWorkload, headerAction, isRunning, monitoringMessage, specsText, tabLabel, vmFacts, VM_TABS } from './vm.ts'
 import { machine as aMachine, workload } from './testing.ts'
 
 const box = workload({ id: 'w1', name: 'build-box', state: 'running', cpu: 2, ram_mb: 4096, disk_gb: 40, address: '10.0.0.5', bundle_version: '0.4.0' })
@@ -40,4 +40,8 @@ test('a VM with no chat and no address says so in words', () => {
 test('Monitoring says why there are no numbers', () => {
   expect(monitoringMessage('stopped')).toBe('● stopped — no live metrics')
   expect(monitoringMessage('running')).toBe('no live metrics reported yet')
+})
+
+test('the web terminal is offered only while the VM is running', () => {
+  expect(['stopped', 'running', 'creating', 'starting', 'failed'].map(isRunning)).toEqual([false, true, false, false, false])
 })

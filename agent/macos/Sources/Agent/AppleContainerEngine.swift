@@ -135,6 +135,11 @@ actor AppleContainerEngine: Engine {
         return String(decoding: try await cli.run(AppleContainer.exec(id, arguments: arguments, environment: environment), timeout: Self.slow), as: UTF8.self)
     }
 
+    func attach(id: String) async throws -> [String] {
+        guard records.all()[id] != nil else { throw EngineError.notFound }
+        return [cli.path] + (try AppleContainer.attach(id))
+    }
+
     // MARK: helpers
 
     private func ensureSystemRunning() async throws {

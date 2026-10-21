@@ -4,6 +4,8 @@ import MSCore
 
 /// The Apple `container` program. One call is one program run with an argument list; there is no shell.
 protocol ContainerCLI: Sendable {
+    /// Where the program lives, for the one call that must run it in a pty instead of through `run`.
+    var path: String { get }
     func run(_ arguments: [String], timeout: TimeInterval) async throws -> Data
 }
 

@@ -50,6 +50,7 @@ struct OperatorRoutes {
         } catch MachineError.notFound {
             throw ApiFailure.notFound
         }
+        services.terminal.machineRemoved(id)
         try services.chatAccess.remove(target: id)
         try services.machineSettings.remove(machine: id)
         try services.audit.record(actor: caller.name, action: "machine.remove", target: id, at: services.clock.now)

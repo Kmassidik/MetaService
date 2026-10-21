@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The Access tab. MAAS teaches SSH through a Cloudflare name and a web terminal; MetaService has neither, so only what it knows is shown: the VM's address and its chat.
+  // The Access tab. MAAS teaches SSH through a Cloudflare name and a web terminal; MetaService has no Cloudflare name, so only what it knows is shown: the VM's address and its chat. The web terminal is the button in the page header.
   import type { Workload } from '../../lib/types.ts'
 
   interface Props {

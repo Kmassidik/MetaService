@@ -19,6 +19,8 @@ public protocol Engine: Sendable {
     func push(id: String, hostPath: String, containerPath: String) async throws
     /// Runs one program inside the workload (no shell is added) and returns what it printed. Values go in through `environment`, never into the arguments.
     func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String
+    /// The program and arguments that open an interactive shell inside the workload, to be run in a pty. The first item is the program. No shell string, no user text.
+    func attach(id: String) async throws -> [String]
 }
 
 /// The name and version of the program a machine makes VMs with.
