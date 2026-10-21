@@ -2,12 +2,13 @@
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
 
-const GREEN = 'rgb(0, 245, 109)'
 const VMS_LINK = 'aside.side nav a[href="#/vms"]'
 const SHORT_WAIT_MS = 10000
 
 const isMarked = (b: Browse) => b.run((selector) => document.querySelector(selector)?.getAttribute('aria-current') === 'page', VMS_LINK)
 const stripeOfLink = (b: Browse) => b.run((selector) => { const link = document.querySelector(selector); return link ? getComputedStyle(link).borderLeftColor : '' }, VMS_LINK)
+/** What the accent mark token looks like once the browser has worked it out (a computed colour, like the stripe's). */
+const accentMark = (b: Browse) => b.run(() => { const probe = document.createElement('i'); probe.style.color = 'var(--accent-mark)'; document.body.append(probe); const colour = getComputedStyle(probe).color; probe.remove(); return colour })
 const infrastructure = (b: Browse) => b.page.$$eval('aside.side nav > div:nth-of-type(2) > :is(a, button)', (nodes) => nodes.map((node) => `${node.tagName.toLowerCase()}:${node.textContent?.trim()}`))
 
 export async function vmsIsOneLink(b: Browse): Promise<void> {
@@ -29,7 +30,7 @@ export async function vmsIsOneLink(b: Browse): Promise<void> {
 export async function vmsLinkOnItsPages(b: Browse): Promise<void> {
   await b.go('#/vms')
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'All VMs', { timeout: SHORT_WAIT_MS })
-  check('on All VMs the VMs link is marked, with the green stripe', (await isMarked(b)) && (await stripeOfLink(b)) === GREEN)
+  check('on All VMs the VMs link is marked, with the accent stripe', (await isMarked(b)) && (await stripeOfLink(b)) === (await accentMark(b)))
   await b.go('#/vms?machine=mac-mini')
   check('with a machine in the address the VMs link is still marked', await isMarked(b))
   await b.go('#/vms/create')
