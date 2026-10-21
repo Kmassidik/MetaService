@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { blankForm, kindChoices, kindAfterPick, machineChoices, machineDefaults, preselectedMachine } from './createVm.ts'
+import { blankForm, kindChoices, kindAfterPick, machineChoices, machineDefaults, preselectedMachine, unavailableNotes } from './createVm.ts'
 import { machine } from './testing.ts'
 
 const caps = (vm: boolean, container: boolean) => ({ vm, container, gpu_in_vm: false, gpu_in_container: false })
@@ -71,6 +71,11 @@ test('the machine in the address is preselected only when it is on the list and 
   expect(preselectedMachine('/vms/create?machine=zed', choices)).toBe('zed')
   expect(preselectedMachine('/vms/create?machine=box', choices)).toBe('box')
   for (const route of ['/vms/create', '/vms/create?machine=off', '/vms/create?machine=gone', '/vms/create?machine=Bad Name', '/machines?machine=zed']) expect(preselectedMachine(route, choices), route).toBe('')
+})
+
+test('each machine that cannot be picked is explained in a line, with the machine\'s own words when it gave some', () => {
+  expect(unavailableNotes(machineChoices(fleet))).toEqual(['none: cannot run VMs or containers', 'off: offline', 'sick: needs setup (the bridge incusbr0 is not trusted)', 'working: busy'])
+  expect(unavailableNotes(machineChoices([fleet[0]!]))).toEqual([])
 })
 
 test('a new form has the usual defaults; a machine set up with VM sizes gives them', () => {

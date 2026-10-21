@@ -42,7 +42,7 @@ function blockingReason(machine: Machine, vm: boolean, container: boolean): stri
   return vm || container ? null : REASON_NOTHING
 }
 
-function choiceFor(machine: Machine): MachineChoice {
+export function machineChoice(machine: Machine): MachineChoice {
   // A machine that has not reported what it can run is not guessed about: the parent refuses what does not fit.
   const vm = machine.capabilities?.vm ?? true
   const container = machine.capabilities?.container ?? true
@@ -61,7 +61,12 @@ function choiceFor(machine: Machine): MachineChoice {
 }
 
 /** Every machine on the list, sorted by name, each with whether it can be picked and why not. */
-export const machineChoices = (machines: Machine[]): MachineChoice[] => machines.map(choiceFor).sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base' }))
+export const machineChoices = (machines: Machine[]): MachineChoice[] => machines.map(machineChoice).sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base' }))
+
+/** One line for each machine that cannot be picked: its name, why, and what the machine itself said about it. */
+export function unavailableNotes(choices: MachineChoice[]): string[] {
+  return choices.filter((choice) => choice.disabled).map((choice) => `${choice.name}: ${choice.reason}${choice.detail ? ` (${choice.detail})` : ''}`)
+}
 
 /** The two kinds, with the VM kind switched off (and the reason in its label) on a machine that runs containers only. */
 export function kindChoices(choice: MachineChoice | undefined): KindChoice[] {
@@ -98,5 +103,5 @@ export function machineDefaults(machine: Machine | undefined): Partial<Pick<Work
 /** A form with nothing typed: the usual sizes, or the ones the machine was set up with, and a kind the machine runs. */
 export function blankForm(machine: Machine | undefined): NewVmForm {
   const form: NewVmForm = { name: '', kind: 'vm', ...DEFAULT_SIZES, ...machineDefaults(machine), machine: machine?.id ?? '' }
-  return { ...form, kind: kindAfterPick(machine ? choiceFor(machine) : undefined, form.kind) }
+  return { ...form, kind: kindAfterPick(machine ? machineChoice(machine) : undefined, form.kind) }
 }

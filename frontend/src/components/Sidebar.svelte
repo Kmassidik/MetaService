@@ -6,14 +6,19 @@
     icon: string
   }
 
-  import { machinesMenu } from '../lib/sidebar.ts'
+  import { machinesMenu, vmsMenu, type MenuItem } from '../lib/sidebar.ts'
 
   let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
-  // Machines is a dropdown: it opens by itself when a machines page is shown, and the person can close or open it.
-  let open = $state(false)
-  $effect(() => { if (active === 'machines') open = true })
+  // Machines and VMs are dropdowns: each opens by itself when one of its pages is shown, and the person can close or open it.
+  let machinesOpen = $state(false)
+  let vmsOpen = $state(false)
+  $effect(() => { if (active === 'machines') machinesOpen = true })
+  $effect(() => { if (active === 'vms') vmsOpen = true })
   const isOn = (page: NavPage) => active === page.id
-  const menu = $derived(machinesMenu(route))
+  const dropdowns = $derived<Record<string, { items: MenuItem[]; open: boolean; toggle: () => void }>>({
+    machines: { items: machinesMenu(route), open: machinesOpen, toggle: () => (machinesOpen = !machinesOpen) },
+    vms: { items: vmsMenu(route), open: vmsOpen, toggle: () => (vmsOpen = !vmsOpen) },
+  })
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [
     { id: 'overview', label: 'Overview', href: '#/', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
@@ -23,6 +28,7 @@
   ]
   const infrastructure: NavPage[] = [
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
+    { id: 'vms', label: 'VMs', href: '#/vms', icon: 'M4 4h16v6H4z M4 14h16v6H4z M8 7h1 M8 17h1' },
   ]
   const groups: [string, NavPage[]][] = [['Operator', operator], ['Infrastructure', infrastructure]]
 </script>
@@ -34,14 +40,15 @@
       <div>
         <h3>{title}</h3>
         {#each pages as page (page.id)}
-          {#if page.id === 'machines'}
-            <button class="group" class:here={isOn(page)} type="button" aria-expanded={open} aria-controls="machines-menu" onclick={() => (open = !open)}>
+          {@const menu = dropdowns[page.id]}
+          {#if menu}
+            <button class="group" class:here={isOn(page)} type="button" aria-expanded={menu.open} aria-controls="{page.id}-menu" onclick={menu.toggle}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={page.icon} /></svg>{page.label}
-              <svg class="chev" class:turned={open} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <svg class="chev" class:turned={menu.open} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
-            {#if open}
-              <div class="sub" id="machines-menu">
-                {#each menu as item (item.key)}
+            {#if menu.open}
+              <div class="sub" id="{page.id}-menu">
+                {#each menu.items as item (item.key)}
                   <a class:on={item.on} href={item.href} aria-current={item.on ? 'page' : undefined}>{item.label}</a>
                 {/each}
               </div>

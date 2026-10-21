@@ -9,7 +9,7 @@ test('the answer to a create names the order and the machine it went to', () => 
 })
 
 /** Steps the stand-ins through lists of answers, one per call, repeating the last. */
-function deps(commands: Command[], fleets: Machine[][]): NewVmDeps & { sleeps: number } {
+function deps(commands: Command[], fleets: Machine[][], left = false): NewVmDeps & { sleeps: number } {
   let askedCommand = 0
   let askedMachines = 0
   const state = {
@@ -17,6 +17,7 @@ function deps(commands: Command[], fleets: Machine[][]): NewVmDeps & { sleeps: n
     getCommand: async () => commands[Math.min(askedCommand++, commands.length - 1)] ?? command(),
     listMachines: async () => fleets[Math.min(askedMachines++, fleets.length - 1)] ?? [],
     pause: async () => { state.sleeps++ },
+    stopped: () => left,
   }
   return state
 }
@@ -47,6 +48,11 @@ test('a succeeded order whose VM is not listed yet is waited for', async () => {
 
 test('when it takes too long the answer is slow, not a failure', async () => {
   expect(await awaitNewVm(created, 'build-box', deps([command({ state: 'running' })], [[made]]))).toEqual({ kind: 'slow' })
+})
+
+test('when the person leaves the page the waiting stops at once', async () => {
+  const gone = deps([command({ state: 'succeeded' })], [[made]], true)
+  expect(await awaitNewVm(created, 'build-box', gone)).toEqual({ kind: 'slow' })
 })
 
 test('a machine that is not on the list never has the VM', async () => {

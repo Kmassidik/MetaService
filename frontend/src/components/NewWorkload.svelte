@@ -1,36 +1,36 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
+  import VmFields from './vms/VmFields.svelte'
   import { ApiError, createWorkload, refusalText } from '../lib/api.ts'
+  import { blankForm, kindAfterPick, kindChoices, machineChoice, machineDefaults, type NewVmForm } from '../lib/createVm.ts'
   import { workloadBody, workloadProblem } from '../lib/format.ts'
-  import type { Machine, WorkloadForm } from '../lib/types.ts'
+  import type { Machine } from '../lib/types.ts'
 
   /** `only` is set when the dialog was opened from one machine's own page: the VM goes there and nowhere else. */
   let { open, machines, only = null, onClose, onCreated }: { open: boolean; machines: Machine[]; only?: Machine | null; onClose: () => void; onCreated: () => void } = $props()
-  let form: WorkloadForm & { machine: string } = $state({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' })
+  let form: NewVmForm = $state(blankForm(undefined))
   let busy = $state(false)
   let failure = $state('')
   const problem = $derived(form.name ? workloadProblem(form) : null)
   const ready = $derived(form.name !== '' && workloadProblem(form) === null)
+  const picked = $derived(machines.find((machine: Machine) => machine.id === form.machine))
+  const kinds = $derived(kindChoices(picked ? machineChoice(picked) : undefined))
 
   $effect(() => {
     if (!open) return
     // Only opening the dialog resets it: what is typed afterwards must not make this run again.
     untrack(() => {
-      form = { name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: only?.id ?? '' }
-      if (only) useMachineDefaults()
+      form = blankForm(only ?? undefined)
       failure = ''
       busy = false
     })
   })
 
-  /** Picking a machine fills in what a new VM gets on it, if that machine was set up with such sizes. */
+  /** Picking a machine fills in what a new VM gets on it, if that machine was set up with such sizes, and keeps to a kind it can run. */
   function useMachineDefaults() {
-    const settings = machines.find((machine: Machine) => machine.id === form.machine)?.settings
-    if (!settings) return
-    if (settings.vm_cpu) form.cpu = settings.vm_cpu
-    if (settings.vm_ram_mb) form.ramGb = settings.vm_ram_mb / 1024
-    if (settings.vm_disk_gb) form.diskGb = settings.vm_disk_gb
+    Object.assign(form, machineDefaults(picked))
+    form.kind = kindAfterPick(picked ? machineChoice(picked) : undefined, form.kind)
   }
 
   async function submit(event: SubmitEvent) {
@@ -52,16 +52,7 @@
 
 <Dialog {open} title="Create a VM" {onClose}>
   <form onsubmit={submit} novalidate>
-    <label for="wl-name">Name</label>
-    <input id="wl-name" bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder="build-box" aria-invalid={problem ? 'true' : 'false'} />
-    <div class="grid">
-      <label>Kind
-        <select bind:value={form.kind}><option value="vm">VM</option><option value="container">Container</option></select>
-      </label>
-      <label>CPU <input type="number" min="1" max="64" step="1" bind:value={form.cpu} /></label>
-      <label>RAM (GB) <input type="number" min="0.5" max="1024" step="0.5" bind:value={form.ramGb} /></label>
-      <label>Disk (GB) <input type="number" min="1" max="100000" step="1" bind:value={form.diskGb} /></label>
-    </div>
+    <VmFields bind:form nameId="wl-name" {kinds} nameProblem={problem} />
     <label>Machine
       <select bind:value={form.machine} onchange={useMachineDefaults}>
         {#if !only}<option value="">Any machine with room</option>{/if}
@@ -80,9 +71,7 @@
 <style>
   form { display: grid; gap: 10px; }
   label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
-  input, select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; }
-  input[aria-invalid='true'] { border-color: var(--danger); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; }
   .hint { font-size: 13px; }
   .bad { color: var(--danger); }
   .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }

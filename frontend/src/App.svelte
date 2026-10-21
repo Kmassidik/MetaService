@@ -3,13 +3,15 @@
   import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, uninstallBundle, workloadAction } from './lib/api.ts'
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
-  import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute } from './lib/routes.ts'
+  import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsView } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
   import Machines from './pages/Machines.svelte'
   import MachineDetail from './pages/MachineDetail.svelte'
   import VmDetail from './pages/VmDetail.svelte'
+  import VmsList from './pages/VmsList.svelte'
+  import VmCreate from './pages/VmCreate.svelte'
   import TokenLedger from './pages/TokenLedger.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
@@ -255,6 +257,10 @@
         <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
+      {:else if page === 'vms' && vmsView(route) === 'create'}
+        {#key route}<VmCreate {machines} {route} {banner} onCreated={refresh} />{/key}
+      {:else if page === 'vms'}
+        <VmsList {machines} {route} {banner} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}

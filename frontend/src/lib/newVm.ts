@@ -18,6 +18,8 @@ export interface NewVmDeps {
   getCommand: (id: string) => Promise<Command>
   listMachines: () => Promise<Machine[]>
   pause: (ms: number) => Promise<void>
+  /** True once the person left the page: the waiting stops. */
+  stopped: () => boolean
 }
 
 export const POLL_MS = 1000
@@ -49,7 +51,7 @@ async function look(created: Created, name: string, deps: NewVmDeps): Promise<Ne
 
 /** Follows a create order until the VM is listed on its machine, the order fails, or the wait is over. */
 export async function awaitNewVm(created: Created, name: string, deps: NewVmDeps): Promise<NewVmOutcome> {
-  for (let poll = 0; poll < MAX_POLLS; poll++) {
+  for (let poll = 0; poll < MAX_POLLS && !deps.stopped(); poll++) {
     const outcome = await look(created, name, deps)
     if (outcome) return outcome
     await deps.pause(POLL_MS)
