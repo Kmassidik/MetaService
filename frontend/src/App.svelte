@@ -272,7 +272,7 @@
       {#if page === 'machines' && detailId && vmId}
         <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines' && detailId}
-        <MachineDetail machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
       {:else if page === 'vms' && vmsView(route) === 'create'}

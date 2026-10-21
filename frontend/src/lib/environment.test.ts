@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { CHAT_NOT_PINNED, NO_CHAT_BUILT, NOT_REPORTED, canRunText, compareVersions, engineText, gpuText, helperIsOld, newestVersion, reported, ruvioView, softwareRows, tunnelText } from './environment.ts'
+import { CHAT_NOT_PINNED, NO_CHAT_BUILT, NOT_REPORTED, canRunText, compareVersions, engineText, factRows, gpuText, helperIsOld, newestVersion, reported, ruvioView, softwareRows, tunnelText } from './environment.ts'
 import { machine } from './testing.ts'
 import type { RemoteMachineInfo, Ruvio, RuvioState } from './types.ts'
 
@@ -65,6 +65,22 @@ test('tunnelText reports the tunnel, or that none is reported', () => {
   expect(tunnelText(null, NOW)).toBe(NOT_REPORTED)
   expect(tunnelText(remote(), NOW)).toContain('No tunnel')
   expect(tunnelText(remote({ tunnel: { state: 'connected', since: '2026-10-21T11:00:00Z', local_port: 9000, failures: 0 } }), NOW)).toBe('SSH tunnel · connected 1h ago')
+})
+
+test('factRows carry every fact the old Overview tab showed, in the same order, with plain labels', () => {
+  const studio = machine({ id: 'mac-studio', state: 'online', ip: '10.0.0.9', cpu_cores: 20, ram_total_mb: 65536, free_ram_mb: 32768, disk_total_gb: 1000, free_disk_gb: 500, last_seen: '2026-10-21T11:59:58Z', gpu: [{ vendor: 'nvidia', model: 'GB10' }] })
+  const rows = factRows(studio, NOW)
+  expect(rows.map((row) => row.label)).toEqual(['Machine ID', 'Status', 'Address', 'System', 'CPU', 'Memory', 'Disk', 'GPU', 'Last seen'])
+  expect(rows.map((row) => row.value)).toEqual(['mac-studio', 'online', '10.0.0.9', 'macOS · Apple Silicon', '20 cores', '32 GB free of 64 GB', '500 GB free of 1 TB', 'nvidia GB10', 'just now'])
+  expect(rows.some((row) => row.old)).toBe(false)
+})
+
+test('factRows say unknown or none instead of inventing a value', () => {
+  const rows = factRows(machine({ last_seen: null }), NOW)
+  expect(rows.find((row) => row.label === 'Address')?.value).toBe('unknown')
+  expect(rows.find((row) => row.label === 'CPU')?.value).toBe('– cores')
+  expect(rows.find((row) => row.label === 'GPU')?.value).toBe('none')
+  expect(rows.find((row) => row.label === 'Last seen')?.value).toBe('never')
 })
 
 test('softwareRows of the real mac-studio record: nothing is invented', () => {

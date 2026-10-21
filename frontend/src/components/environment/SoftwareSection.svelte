@@ -3,10 +3,10 @@
   import Section from './Section.svelte'
   import { NOT_REPORTED, type SoftwareRow } from '../../lib/environment.ts'
 
-  let { rows, newest }: { rows: SoftwareRow[]; newest: string | null } = $props()
+  let { rows, newest = null, title = 'Software' }: { rows: SoftwareRow[]; newest?: string | null; title?: string } = $props()
 </script>
 
-<Section title="Software">
+<Section {title}>
   <dl class="kv">
     {#each rows as row (row.label)}
       <div>

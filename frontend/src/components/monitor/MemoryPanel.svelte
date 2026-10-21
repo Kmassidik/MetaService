@@ -6,6 +6,9 @@
   let { memory, history }: { memory: StatsMemory; history: readonly (number | null)[] } = $props()
   const parts = $derived(memorySegments(memory))
   const FULL = 100
+  const CACHED_HINT = 'Cached memory holds recently used files and is handed back when a program needs it.'
+  const SWAP_HINT = 'Swap is disk space used as slow memory when the real memory runs short.'
+  const hint = $derived(memory.swap_total_bytes > 0 ? `${CACHED_HINT} ${SWAP_HINT}` : CACHED_HINT)
 </script>
 
 <section class="block" aria-label="Memory">
@@ -18,6 +21,7 @@
     <div><dt><i class="free"></i>Free</dt><dd class="nums">{formatBytes(memory.free_bytes)}</dd></div>
     {#if memory.swap_total_bytes > 0}<div><dt>Swap</dt><dd class="nums">{formatBytes(memory.swap_used_bytes)} / {formatBytes(memory.swap_total_bytes)}</dd></div>{/if}
   </dl>
+  <p class="hint">{hint}</p>
   <Sparkline values={history} ceiling={FULL} label="Memory in use over the last minutes" />
 </section>
 
@@ -31,6 +35,7 @@
   i.used { background: var(--green); }
   i.cached { background: #9ee8bd; }
   i.free { background: var(--gray2); border: 1px solid var(--gray); }
+  .hint { margin: 0; font-size: 12px; color: var(--m50); }
   .legend { margin: 0; display: grid; gap: 2px; font-family: var(--mono); font-size: 11px; color: var(--m60); }
   .legend > div { display: flex; justify-content: space-between; gap: 8px; }
   .legend dt { display: flex; align-items: center; gap: 6px; }

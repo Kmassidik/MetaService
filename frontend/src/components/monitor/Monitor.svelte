@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The top of a machine's page: what the machine is really doing, refreshed every 5 seconds while the tab is visible.
+  // The Live tab of a machine's page: what the machine is really doing, refreshed every 5 seconds while the browser tab is visible and Live is shown.
   import { untrack } from 'svelte'
   import MonitorHeader from './MonitorHeader.svelte'
   import CpuPanel from './CpuPanel.svelte'
@@ -13,7 +13,8 @@
   import { browserEnvironment, startPolling } from '../../lib/statsPoll.ts'
   import type { Machine, MachineStatsReply } from '../../lib/types.ts'
 
-  let { machine, now }: { machine: Machine; now: number } = $props()
+  /** `active` is false while another tab is shown: nothing is asked for then. */
+  let { machine, now, active }: { machine: Machine; now: number; active: boolean } = $props()
   /** The machine's name for the route; a new machine object with the same id must not restart the polling. */
   const id = $derived(machine.id)
   let reply = $state<MachineStatsReply | null>(null)
@@ -39,7 +40,11 @@
     history = pushHistory(history, historyPoint(next.stats))
   }
 
-  $effect(() => untrack(() => startPolling(browserEnvironment(), MACHINE_PAGE_POLL_MS, load)))
+  // Asks only while Live is shown. Coming back to Live asks at once; the last numbers wait here meanwhile.
+  $effect(() => {
+    if (!active) return
+    return untrack(() => startPolling(browserEnvironment(), MACHINE_PAGE_POLL_MS, load))
+  })
 
   const stats = $derived(reply?.stats ?? null)
   const grey = $derived(failed || reply?.state === 'offline')
@@ -61,9 +66,8 @@
 </section>
 
 <style>
-  .monitor { display: grid; gap: 18px; padding: 20px 28px; border-bottom: 1px solid var(--gray); }
+  .monitor { display: grid; gap: 18px; }
   .blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
   .grey { opacity: 0.45; filter: grayscale(1); }
   .reserved { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--m50); }
-  @media (max-width: 820px) { .monitor { padding: 16px; } }
 </style>

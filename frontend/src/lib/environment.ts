@@ -1,4 +1,5 @@
 // What the machine page's Environment tab says about a machine: software, Ruvio, and what it can run. Pure functions, no DOM, no network.
+import { archName, formatGb, formatMb, osName, relativeTime } from './format.ts'
 import { connectionText } from './remote.ts'
 import type { Capabilities, Engine, Gpu, Machine, RemoteMachineInfo, Ruvio } from './types.ts'
 
@@ -64,6 +65,23 @@ export function canRunText(capabilities: Capabilities | undefined): string {
 }
 
 export const gpuText = (gpu: Gpu[]): string => (gpu.length ? gpu.map((entry) => `${entry.vendor} ${entry.model}`).join(', ') : 'none')
+
+/** What the machine is, one plain row each: the facts the old Overview tab showed. */
+export function factRows(machine: Machine, now: number): SoftwareRow[] {
+  const row = (label: string, value: string): SoftwareRow => ({ label, value, old: false })
+  const system = machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch)
+  return [
+    row('Machine ID', machine.id),
+    row('Status', machine.state),
+    row('Address', machine.ip ?? 'unknown'),
+    row('System', `${osName(machine.os)} · ${system}`),
+    row('CPU', `${machine.cpu_cores ?? '–'} cores`),
+    row('Memory', `${formatMb(machine.free_ram_mb)} free of ${formatMb(machine.ram_total_mb)}`),
+    row('Disk', `${formatGb(machine.free_disk_gb)} free of ${formatGb(machine.disk_total_gb)}`),
+    row('GPU', gpuText(machine.gpu)),
+    row('Last seen', relativeTime(machine.last_seen, now)),
+  ]
+}
 
 /** The tunnel the parent keeps to the helper, in words. A machine the parent did not install over SSH has none to report. */
 export const tunnelText = (remote: RemoteMachineInfo | null, now: number): string => (remote ? connectionText(remote, now) : NOT_REPORTED)

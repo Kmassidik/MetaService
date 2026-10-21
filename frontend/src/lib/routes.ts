@@ -1,4 +1,6 @@
 // The panel's pages and the addresses that lead to them. Older addresses still work.
+import { tabFromName, type MachineTab } from './machineTabs.ts'
+
 export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings'
 
 const PAGES: Record<string, Page> = {
@@ -24,7 +26,7 @@ const split = (route: string) => {
   return { path, query: new URLSearchParams(query) }
 }
 
-/** The address of one machine's page, where its deployments and activity are. */
+/** The address of one machine's page, where its live numbers, VMs, settings and activity are. */
 export const machineHref = (id: string) => `#/machines/details?id=${encodeURIComponent(id)}`
 
 /** The machine a detail address (/machines/details?id=...) is about, or null for every other address. */
@@ -34,7 +36,10 @@ export function machineFromRoute(route: string): string | null {
   return path === '/machines/details' && MACHINE_ID.test(id) ? id : null
 }
 
-const WORKLOAD_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+/** The tab a machine address names (?id=...&tab=...). Old names (overview, deployments) land on their new tab; no name opens Live. */
+export const machineTabFromRoute = (route: string): MachineTab => tabFromName(split(route).query.get('tab'))
+
+const WORKLOAD_ID =/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 
 /** The address of one VM's page: its machine's address plus the VM. */
 export const vmHref = (machine: string, workload: string) => `${machineHref(machine)}&vm=${encodeURIComponent(workload)}`

@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { formatUptime, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
+  import { formatUptime, MACHINE_PAGE_POLL_MS, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
   import type { MachineStatsReply } from '../../lib/types.ts'
+
+  const REFRESH_SECONDS = MACHINE_PAGE_POLL_MS / 1000
 
   let { reply, failed, now }: { reply: MachineStatsReply | null; failed: boolean; now: number } = $props()
 </script>
@@ -16,7 +18,7 @@
   {:else if failed}
     <span class="note warn" role="status">Cannot reach the parent. Showing the last numbers.</span>
   {:else if reply.stats}
-    <span class="note nums">{reply.stats.measuring ? 'measuring…' : 'live'} · up {formatUptime(reply.stats.uptime_seconds)}</span>
+    <span class="note nums">{reply.stats.measuring ? 'measuring…' : 'live'} · up {formatUptime(reply.stats.uptime_seconds)} · refreshes every {REFRESH_SECONDS} s</span>
   {/if}
 </div>
 

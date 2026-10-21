@@ -1,5 +1,14 @@
 import { test, expect } from 'bun:test'
-import { createVmHref, machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute, vmsView } from './routes.ts'
+import { createVmHref, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute, vmsView } from './routes.ts'
+
+test('a machine address can name a tab (&tab=); old names and missing names land on a new tab', () => {
+  expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=vms')).toBe('vms')
+  expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=Overview')).toBe('environment')
+  expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=deployments')).toBe('vms')
+  expect(machineTabFromRoute('/machines/details?id=mac-mini')).toBe('live')
+  expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=nope')).toBe('live')
+  expect(machineTabFromRoute('/machines')).toBe('live')
+})
 
 test('each address leads to its page', () => {
   expect(['/', '/machines', '/machines/find', '/usage', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'machines', 'machines', 'usage', 'health', 'settings'])

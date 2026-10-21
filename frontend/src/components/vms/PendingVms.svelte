@@ -6,11 +6,12 @@
 
   const STEP_NAMES = ['Waiting for the machine', 'Creating', 'Starting']
 
-  let { pending, showMachine = true }: { pending: PendingVm[]; showMachine?: boolean } = $props()
+  /** `compact` is one slim row per VM (no step list): the machine page keeps it above its tabs without pushing them down. */
+  let { pending, showMachine = true, compact = false }: { pending: PendingVm[]; showMachine?: boolean; compact?: boolean } = $props()
 </script>
 
 {#if pending.length > 0}
-  <ul class="pending" aria-label="VMs being made">
+  <ul class="pending" class:compact aria-label="VMs being made">
     {#each pending as entry (entry.id)}
       <li class:failed={entry.stage === 'failed'} data-pending={entry.name}>
         <div class="head">
@@ -21,14 +22,14 @@
         {#if entry.stage === 'failed'}
           <p class="reason" role="alert">{entry.reason}</p>
           <button class="btn line sm" type="button" onclick={() => dismissOrder(entry.id)}>Dismiss</button>
-        {:else}
+        {:else if !compact}
           <ol class="steps" aria-label="Progress">
             {#each stageSteps(entry.stage) as step, index (index)}
               <li class={step} aria-current={step === 'now' ? 'step' : undefined}><i aria-hidden="true"></i>{STEP_NAMES[index]}</li>
             {/each}
           </ol>
-          {#if entry.note}<p class="note muted" role="status">{entry.note}</p>{/if}
         {/if}
+        {#if entry.note && entry.stage !== 'failed'}<p class="note muted" role="status">{entry.note}</p>{/if}
       </li>
     {/each}
   </ul>
@@ -38,6 +39,8 @@
   .pending { list-style: none; margin: 0; padding: 16px 28px 0; display: grid; gap: 10px; }
   .pending > li { border: 1px solid var(--warn); border-left-width: 4px; background: var(--warnbg); padding: 12px 14px; display: grid; gap: 8px; }
   .pending > li.failed { border-color: #e0b4b4; border-left-color: #c0392b; background: #fff5f4; }
+  .pending.compact { padding-top: 8px; gap: 6px; }
+  .compact > li { padding: 6px 12px; gap: 4px; }
   .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .name { overflow-wrap: anywhere; }
   .on { color: var(--m60); font-size: 13px; }

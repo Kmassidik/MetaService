@@ -1,6 +1,7 @@
 <script lang="ts">
-  // The Environment tab: what is on the machine, Ruvio on or off, limits, what a new VM gets, and names. One Save; changes apply to new VMs only.
+  // The Environment tab: what the machine is, what is on it, Ruvio on or off, limits, what a new VM gets, and names. One Save; changes apply to new VMs only.
   import { untrack } from 'svelte'
+  import MachineFacts from './MachineFacts.svelte'
   import SoftwareSection from './SoftwareSection.svelte'
   import RuvioSection from './RuvioSection.svelte'
   import LimitsSection from './LimitsSection.svelte'
@@ -107,6 +108,7 @@
   }
 </script>
 
+<MachineFacts {machine} {now} />
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
 {#if loaded}
   <SoftwareSection {rows} newest={newestHelper} />
