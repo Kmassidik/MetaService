@@ -68,8 +68,8 @@ async function theThreeViews(b: Browse): Promise<void> {
   await b.page.waitForSelector('.bv')
   await b.shot('deployments-building.png', true)
   const building = await b.text()
-  check('the Deployments tab opens as the MAAS building view, with the disk bar and the VM as an apartment',
-    /Disk allocated/.test(building) && /1\/1 running/.test(building) && await b.run(() => [...document.querySelectorAll('.bv-apt')].some((apartment) => /build-box/.test(apartment.getAttribute('aria-label') ?? ''))))
+  check('the Deployments tab opens as the building view with the VM as an apartment, and no allocated-disk headline (the monitor above says what is real)',
+    !/Disk allocated/.test(building) && /1\/1 running/.test(building) && await b.run(() => [...document.querySelectorAll('.bv-apt')].some((apartment) => /build-box/.test(apartment.getAttribute('aria-label') ?? ''))))
   await pickView(b, 'Cards')
   await b.until(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && card.innerText.includes('build-box')), { timeout: SHORT_WAIT_MS })
   check('the Cards view shows the VM with its actions', await b.run(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && /build-box/.test(card.innerText) && /Stop/.test(card.innerText))))
