@@ -66,8 +66,8 @@ public enum RemoteVerify {
                                fix: "Use a Mac with Apple Silicon (M1 or newer).")
         }
         let kvm = facts.kvm == true
-        return Requirement(id: "vm_support", label: "Can run VMs", ok: kvm, detail: kvm ? "/dev/kvm is there." : "There is no /dev/kvm, so VMs cannot run.",
-                           fix: "Turn virtualization on in that computer's BIOS (AMD: SVM Mode, Intel: Intel Virtualization Technology), restart it, then check that `ls /dev/kvm` shows the file. If it is already on, load the module: `sudo modprobe kvm_amd` (AMD) or `sudo modprobe kvm_intel` (Intel).")
+        let detail = kvm ? "/dev/kvm is there: VMs and containers." : "Containers only: there is no /dev/kvm, so full VMs cannot run (they need virtualization turned on in the BIOS)."
+        return Requirement(id: "vm_support", label: "Can run workloads", ok: true, detail: detail)
     }
 
     static func vmTool(_ facts: RemoteFacts) -> Requirement {

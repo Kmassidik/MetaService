@@ -31,7 +31,7 @@ final class RemoteVerifyTests: XCTestCase {
         let poor = "os=Linux\narch=aarch64\nuser=u\nram_mb=2048\nkvm=no\ndisk_free_gb=5\nsudo=none\nport_9101=free\n"
         let result = RemoteVerify.run(facts: facts(poor), fingerprint: "SHA256:abc", agentBuilds: ["linux-arm64"], parentURL: "http://x:9102")
         XCTAssertFalse(result.canAdd)
-        for id in ["memory", "disk", "vm_support", "vm_tool", "python"] {
+        for id in ["memory", "disk", "vm_tool", "python"] {
             XCTAssertFalse(row(result, id).ok, id)
             XCTAssertFalse((row(result, id).fix ?? "").isEmpty, "\(id) must say what to do")
         }
@@ -44,13 +44,15 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertTrue(result.requirements.allSatisfy { $0.fix == nil })
     }
 
-    func testALinuxComputerWithoutKvmIsToldToTurnVirtualizationOnInTheBios() {
-        let noKvm = linux.replacingOccurrences(of: "kvm=yes", with: "kvm=no")
+    func testALinuxComputerWithoutKvmCanStillBeAddedAsContainersOnly() {
+        let noKvm = linux.replacingOccurrences(of: "kvm=yes", with: "kvm=no").replacingOccurrences(of: "tool=incus\n", with: "tool=incus\ntool=python3\n")
         let result = RemoteVerify.run(facts: facts(noKvm), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
-        XCTAssertFalse(result.canAdd)
-        XCTAssertFalse(row(result, "vm_support").ok)
-        XCTAssertTrue(row(result, "vm_support").fix!.contains("BIOS"))
-        XCTAssertTrue(row(result, "vm_support").fix!.contains("/dev/kvm"))
+        XCTAssertTrue(result.canAdd, "\(result.requirements.filter { !$0.ok })")
+        XCTAssertTrue(row(result, "vm_support").ok)
+        XCTAssertTrue(row(result, "vm_support").detail.contains("Containers only"))
+        XCTAssertNil(row(result, "vm_support").fix)
+        let withKvm = RemoteVerify.run(facts: facts(noKvm.replacingOccurrences(of: "kvm=no", with: "kvm=yes")), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
+        XCTAssertTrue(row(withKvm, "vm_support").detail.contains("VMs and containers"))
     }
 
     func testALinuxComputerWithoutIncusIsToldHowToInstallItAndNothingMentionsATickBox() {

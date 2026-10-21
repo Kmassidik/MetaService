@@ -128,16 +128,16 @@ async function stepThree(b: Browse): Promise<void> {
   await reachResult(b)
 }
 
-const MISSING_KVM = { id: 'vm_support', label: 'Can run VMs', ok: false, detail: 'There is no /dev/kvm, so VMs cannot run.', fix: 'Turn virtualization on in that computer\'s BIOS, then check that ls /dev/kvm shows the file.' }
+const MISSING_PYTHON = { id: 'python', label: 'Python (runs the chat)', ok: false, detail: 'Not installed.', fix: 'Install it with sudo apt install python3, then check again.' }
 const MISSING_INCUS = { id: 'vm_tool', label: 'Incus (makes the VMs)', ok: false, detail: 'Not installed.', fix: 'Install Incus on that computer: sudo apt install incus' }
 
-/** A computer that misses two things: both are crosses with a "To fix" line, and Add machine stays off. The answer is made up here, because the test server is always a ready Mac. */
+/** A computer that misses two things (Incus and Python): both are crosses with a "To fix" line, and Add machine stays off. The answer is made up here, because the test server is always a ready Mac. */
 async function failingResult(b: Browse): Promise<void> {
   await b.page.setRequestInterception(true)
   const answer = async (request: HTTPRequest): Promise<void> => {
     if (!request.url().endsWith('/api/remote/verify')) return void (await request.continue())
     const passing = (id: string, label: string): Requirement => ({ id, label, ok: true, detail: 'Found.' })
-    const requirements = [passing('login', 'Login'), passing('system', 'System'), MISSING_KVM, MISSING_INCUS, passing('python', 'Python (runs the chat)')]
+    const requirements = [passing('login', 'Login'), passing('system', 'System'), passing('vm_support', 'Can run workloads'), MISSING_INCUS, MISSING_PYTHON]
     const facts = { os: 'Linux', arch: 'x86_64', version: 'Ubuntu 24.04', chip: 'AMD Ryzen 9 5950X', user: 'luca', home: '/home/luca', cpu_cores: 32, ram_mb: 64000, disk_free_gb: 79 }
     const body = { host: '127.0.0.1', fingerprint: sshd.fingerprint, facts, requirements, can_add: false, isolation: ['folder'], system: 'Ubuntu 24.04 · AMD Ryzen 9 5950X · x86_64' }
     await request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
@@ -151,7 +151,7 @@ async function failingResult(b: Browse): Promise<void> {
   await b.click('Log in and check')
   await waitForDialog(b, /cannot be added yet/)
   const rows = await b.page.$$eval('dialog[open] .checks li', (items) => items.map((item) => item instanceof HTMLElement ? item.innerText.replace(/\s+/g, ' ').trim() : ''))
-  check('a missing requirement is a cross and says "To fix" with what to do', rows.some((row) => /^✗ Can run VMs.*To fix: Turn virtualization on/.test(row)) && rows.some((row) => /^✗ Incus.*To fix: Install Incus/.test(row)), rows.join(' | '))
+  check('a missing requirement is a cross and says "To fix" with what to do', rows.some((row) => /^✗ Python.*To fix: Install it with sudo apt install python3/.test(row)) && rows.some((row) => /^✗ Incus.*To fix: Install Incus/.test(row)), rows.join(' | '))
   check('only crosses have a fix line and nothing is marked with "!"', rows.filter((row) => row.includes('To fix')).length === 2 && !rows.some((row) => row.startsWith('!')))
   check('Add machine stays off until every cross is fixed', await b.isDisabled('Add machine'))
   await b.shot('connect-result-crosses.png')
