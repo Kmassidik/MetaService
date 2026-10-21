@@ -133,10 +133,12 @@ public enum ContainerJson {
     private static func info(_ item: [String: Any]) -> ContainerInfo? {
         let configuration = item["configuration"] as? [String: Any]
         guard let name = item["id"] as? String ?? configuration?["id"] as? String, !name.isEmpty else { return nil }
+        // Older tools nest the state and the networks under "status"; newer ones print the state as a plain word with "networks" beside it.
         let status = item["status"] as? [String: Any]
-        let networks = status?["networks"] as? [[String: Any]]
+        let state = (status?["state"] as? String) ?? (item["status"] as? String) ?? "unknown"
+        let networks = (status?["networks"] as? [[String: Any]]) ?? (item["networks"] as? [[String: Any]])
         let address = (networks?.first?["ipv4Address"] as? String)?.split(separator: "/").first.map(String.init)
-        return ContainerInfo(name: name, state: (status?["state"] as? String) ?? (item["status"] as? String) ?? "unknown", ipv4: address)
+        return ContainerInfo(name: name, state: state, ipv4: address)
     }
 }
 
@@ -166,6 +168,18 @@ public struct WorkloadRecord: Codable, Equatable {
 
 /// Turns the tool's state word into a workload state.
 public enum ContainerStates {
+    private static let mapped: Set<String> = ["running", "stopped", "exited", "created", "stopping", "removing", "starting"]
+
+    /// The state words in a listing that `workloadState` does not know, each once and in order, so a new word of the tool is noticed.
+    public static func unmappedWords(_ containers: [ContainerInfo]) -> [String] {
+        Array(Set(containers.map(\.state).filter { !mapped.contains($0) })).sorted()
+    }
+
+    /// One line for the helper log. It holds only the tool's state word, never anything the person typed.
+    public static func unmappedWarning(_ word: String) -> String {
+        "container state word \"\(word)\" is not one the helper knows, so the VM is reported as failed"
+    }
+
     public static func workloadState(_ raw: String?) -> WorkloadState {
         switch raw {
         case "running": return .running

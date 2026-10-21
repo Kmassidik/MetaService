@@ -46,6 +46,19 @@ final class AppleContainerTests: XCTestCase {
         for junk in ["", "null", "7", "[1,2]", "garbage"] { XCTAssertTrue(ContainerJson.parse(Data(junk.utf8)).isEmpty, junk) }
     }
 
+    func testJsonShapeWithAPlainStatusWordAndNetworksNextToIt() {
+        let list = Data(#"[{"status":"running","configuration":{"id":"ms-w-4"},"networks":[{"ipv4Address":"192.168.64.9/24"}]},{"status":"stopped","configuration":{"id":"ms-w-5"},"networks":[]}]"#.utf8)
+        XCTAssertEqual(ContainerJson.parse(list), [ContainerInfo(name: "ms-w-4", state: "running", ipv4: "192.168.64.9"), ContainerInfo(name: "ms-w-5", state: "stopped", ipv4: nil)])
+    }
+
+    func testStateWordsTheHelperCannotMapAreFoundOnce() {
+        let infos = [ContainerInfo(name: "ms-a", state: "running", ipv4: nil), ContainerInfo(name: "ms-b", state: "paused", ipv4: nil),
+                     ContainerInfo(name: "ms-c", state: "paused", ipv4: nil), ContainerInfo(name: "ms-d", state: "unknown", ipv4: nil)]
+        XCTAssertEqual(ContainerStates.unmappedWords(infos), ["paused", "unknown"])
+        XCTAssertEqual(ContainerStates.unmappedWarning("paused"), "container state word \"paused\" is not one the helper knows, so the VM is reported as failed")
+        XCTAssertTrue(ContainerStates.unmappedWords([ContainerInfo(name: "ms-a", state: "stopped", ipv4: nil)]).isEmpty)
+    }
+
     func testStates() {
         XCTAssertEqual(ContainerStates.workloadState("running"), .running)
         XCTAssertEqual(ContainerStates.workloadState("stopped"), .stopped)

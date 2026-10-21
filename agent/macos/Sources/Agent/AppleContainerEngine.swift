@@ -13,6 +13,7 @@ actor AppleContainerEngine: Engine {
     private let waitSeconds: Int
     private nonisolated let service = ServiceFlag()
     private var knownVersion: String?
+    private var warnedStates: Set<String> = []
     private static let quick: TimeInterval = 30
     private static let slow: TimeInterval = 900
 
@@ -65,7 +66,16 @@ actor AppleContainerEngine: Engine {
     }
 
     private func containers() async throws -> [ContainerInfo] {
-        ContainerJson.parse(try await cli.run(AppleContainer.listAll, timeout: Self.quick))
+        let found = ContainerJson.parse(try await cli.run(AppleContainer.listAll, timeout: Self.quick))
+        warnAboutUnmappedStates(found)
+        return found
+    }
+
+    /// Says in the helper log, once per state word, when the tool prints a word the helper cannot map. Without it a changed tool shows only as a wrong state in the panel.
+    private func warnAboutUnmappedStates(_ found: [ContainerInfo]) {
+        for word in ContainerStates.unmappedWords(found) where warnedStates.insert(word).inserted {
+            FileHandle.standardError.write(Data("metaservice-agent: \(ContainerStates.unmappedWarning(word))\n".utf8))
+        }
     }
 
     private func find(_ id: String) async throws -> ContainerInfo? {
