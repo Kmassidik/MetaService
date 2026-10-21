@@ -52,6 +52,8 @@ export interface Workload {
   cpu: number
   ram_mb: number
   disk_gb: number
+  /** Whether the GPU was given to it: `container` shares the machine's GPU. Older answers may leave it out. */
+  gpu_mode?: 'none' | 'container' | 'passthrough'
   address?: string | null
   bundle_version?: string | null
 }
@@ -286,6 +288,8 @@ export interface WorkloadForm {
   ramGb: FormNumber
   diskGb: FormNumber
   machine?: string
+  /** `container` when the person chose to share the machine's GPU; left out or `none` otherwise. */
+  gpuMode?: string
 }
 
 /** Step one of Connect: the SSH host key a computer shows, to confirm before any login. */

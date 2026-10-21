@@ -53,7 +53,7 @@
 
 <Dialog {open} title="Create a VM" {onClose}>
   <form onsubmit={submit} novalidate>
-    <VmFields bind:form nameId="wl-name" {kinds} nameProblem={problem} />
+    <VmFields bind:form nameId="wl-name" {kinds} nameProblem={problem} machine={picked} />
     <label>Machine
       <select bind:value={form.machine} onchange={useMachineDefaults}>
         {#if !only}<option value="">Any machine with room</option>{/if}

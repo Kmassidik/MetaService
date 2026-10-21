@@ -100,7 +100,7 @@
       <section class="step" aria-labelledby="step-sizes">
         <h2 id="step-sizes">2 · The VM</h2>
         <fieldset disabled={busy}>
-          <VmFields bind:form nameId="vm-create-name" {kinds} nameProblem={problem} />
+          <VmFields bind:form nameId="vm-create-name" {kinds} nameProblem={problem} machine={machines.find((entry) => entry.id === form.machine)} />
         </fieldset>
         <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The machine checks its own space again before it makes the VM.'}</p>
       </section>

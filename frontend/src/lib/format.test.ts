@@ -73,6 +73,9 @@ test('workload form rules match the Root', () => {
 test('workload body is what the Root expects', () => {
   expect(workloadBody(good)).toEqual({ name: 'demo', kind: 'vm', cpu: 2, ram_mb: 2048, disk_gb: 20 })
   expect(workloadBody({ ...good, machine: 'dgx', ramGb: 0.5 })).toEqual({ name: 'demo', kind: 'vm', cpu: 2, ram_mb: 512, disk_gb: 20, machine: 'dgx' })
+  expect(workloadBody({ ...good, gpuMode: 'none' })).toEqual({ name: 'demo', kind: 'vm', cpu: 2, ram_mb: 2048, disk_gb: 20 })
+  expect(workloadBody({ ...good, kind: 'container', gpuMode: 'container', machine: 'rtx' })).toEqual({ name: 'demo', kind: 'container', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'container', machine: 'rtx' })
+  expect(workloadBody({ ...good, kind: 'vm', gpuMode: 'container' })).not.toHaveProperty('gpu_mode')
 })
 
 test('command outcomes', () => {

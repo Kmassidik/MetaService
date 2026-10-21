@@ -2,7 +2,7 @@
   // "Install it for me", under a ✗ the parent can fix itself: a button, then a password field. The password goes to the parent in one request and is forgotten as soon as it is answered.
   import SecretField from './SecretField.svelte'
   import { ApiError, remoteFix } from '../lib/api.ts'
-  import { fixBody, fixNeedsPassword, fixPasswordLabel, fixWhat } from '../lib/remote.ts'
+  import { fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat } from '../lib/remote.ts'
   import type { ConnectForm, InstallOffer, VerifyResult } from '../lib/types.ts'
 
   let { offer, form, fingerprint, onChecked }: { offer: InstallOffer; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
@@ -30,7 +30,7 @@
 </script>
 
 {#if !open}
-  <button class="btn green sm" type="button" onclick={() => (open = true)}>Install it for me</button>
+  <button class="btn green sm" type="button" onclick={() => (open = true)}>{fixButtonLabel(offer)}</button>
 {:else}
   <form class="fix" onsubmit={install} novalidate>
     <p class="muted">{fixWhat(offer)} {needsPassword ? 'Type the password; it is used once and not saved.' : 'It needs no password.'}</p>

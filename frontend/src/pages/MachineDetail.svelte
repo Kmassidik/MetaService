@@ -1,6 +1,7 @@
 <script lang="ts">
   // One machine, not one VM: what it is and can run (Overview), what is installed on it and how it is set (Environment), the VMs on it (Deployments) and what has happened on it.
   import StatePill from '../components/StatePill.svelte'
+  import GpuToolkitNote from '../components/GpuToolkitNote.svelte'
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
@@ -83,6 +84,7 @@
           {#each machine.problems as problem (problem.code)}<div class="op-alert"><b>{problem.message}</b><p>{problem.fix}</p></div>{/each}
         </div>
       {/if}
+      <GpuToolkitNote {machine} />
       <dl class="kv">
         {#each facts as [label, value] (label)}
           <div><dt>{label}</dt><dd>{#if value === null}<StatePill state={machine.state} />{:else}{value}{/if}</dd></div>

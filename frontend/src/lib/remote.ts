@@ -53,7 +53,15 @@ export const fixPasswordLabel = (form: ConnectForm): string => `Password of ${fo
 const FIX_WHAT: Record<string, string> = {
   vm_tool: 'Installs Incus (the tool that makes VMs) with apt, sets it up, and lets the login user use it.',
   python: 'Installs Python 3 with apt.',
+  gpu_toolkit: "Adds NVIDIA's own package source and signing key to this computer (a source that is not part of the system), then installs NVIDIA's container toolkit from it with apt, so containers can use the GPU.",
 }
+
+const FIX_BUTTON: Record<string, string> = {
+  gpu_toolkit: "Install it for me (adds NVIDIA's package source)",
+}
+
+/** The label of the button under a cross. The toolkit's says it adds a package source from NVIDIA, so the person knows before pressing. */
+export const fixButtonLabel = (offer: InstallOffer): string => FIX_BUTTON[offer.part] ?? 'Install it for me'
 
 export const fixWhat = (offer: InstallOffer): string => FIX_WHAT[offer.part] ?? 'Installs it with apt.'
 

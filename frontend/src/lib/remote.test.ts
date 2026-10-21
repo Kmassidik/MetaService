@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { fixBody, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
+import { fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
@@ -139,6 +139,15 @@ test('Install it for me asks for a password with a password login, and with a ke
   expect(fixPasswordLabel(form())).toBe('Password of kurnia on that computer')
   expect(fixWhat(offer(true))).toMatch(/Incus/)
   expect(fixWhat({ part: 'python', needs_password: true })).toMatch(/Python/)
+})
+
+test("the toolkit install says before the press that it adds NVIDIA's package source and installs the toolkit", () => {
+  const toolkit = { part: 'gpu_toolkit', needs_password: true }
+  expect(fixButtonLabel(toolkit)).toMatch(/NVIDIA's package source/)
+  expect(fixWhat(toolkit)).toMatch(/package source/)
+  expect(fixWhat(toolkit)).toMatch(/container toolkit/)
+  expect(fixBody(form({ password: '' }), 'SHA256:abc', toolkit, 'typed')).toMatchObject({ fix: 'gpu_toolkit', sudo_password: 'typed' })
+  expect(fixButtonLabel(offer(true))).toBe('Install it for me')
 })
 
 test('a password login sends the one typed password as the login and as sudo', () => {

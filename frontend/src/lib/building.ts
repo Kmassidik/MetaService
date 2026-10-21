@@ -14,6 +14,8 @@ export interface BuildingServer {
   mem_gb?: number
   cpu?: number
   disk_gb?: number
+  /** True when it was given the machine's GPU. */
+  gpu?: boolean
 }
 
 /** The machine as the host of its VMs. */

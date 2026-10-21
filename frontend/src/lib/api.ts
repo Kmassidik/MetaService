@@ -1,6 +1,7 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
+import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
 import { parseStatsReply } from './statsParse.ts'
 import type { NewVmDeps } from './newVm.ts'
 import { parseTicket } from './terminal.ts'
@@ -166,6 +167,11 @@ export async function openTerminal(machine: string, workload: string): Promise<s
   const ticket = parseTicket(await call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/terminal`))
   if (!ticket) throw new ApiError(502, 'bad_reply', 'The Root gave no console ticket.')
   return ticket.ticket
+}
+
+/** Looks inside one container for the GPU (read-only). Null when the parent's answer is not in the promised shape. */
+export async function checkGpu(machine: string, workload: string): Promise<GpuCheckAnswer | null> {
+  return parseGpuCheck(await call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/gpu-check`))
 }
 
 /** The machine's latest reading (docs/monitor-contract.md). An offline machine answers with state offline and the last reading, or null. */

@@ -1,5 +1,6 @@
 <script lang="ts">
   // The VMs of every machine in one table. Each row opens the VM's own page; the machine name opens the machine's page.
+  import GpuBadge from '../GpuBadge.svelte'
   import StatePill from '../StatePill.svelte'
   import TerminalButton from './TerminalButton.svelte'
   import { formatGb, formatMb } from '../../lib/format.ts'
@@ -20,7 +21,7 @@
             <a href={machineHref(row.machineId)}>{row.machineName}</a>
             {#if row.machineState !== 'online'}<StatePill state={row.machineState} />{/if}
           </td>
-          <td class="mono" data-label="Kind">{row.kind}</td>
+          <td class="mono" data-label="Kind">{row.kind}{#if row.gpu}<GpuBadge />{/if}</td>
           <td data-label="State"><StatePill state={vmTone(row.state)} label={row.state} /></td>
           <td class="mono nums" data-label="vCPU">{row.cpu}</td>
           <td class="mono nums" data-label="RAM">{formatMb(row.ramMb)}</td>

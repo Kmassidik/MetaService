@@ -97,7 +97,8 @@ const LABELS: Record<LimitedField, string> = { cpu: 'CPU', ramGb: 'RAM (GB)', di
 
 export function workloadBody(form: WorkloadForm): Record<string, unknown> {
   const body = { name: form.name, kind: form.kind, cpu: Number(form.cpu), ram_mb: Math.round(Number(form.ramGb) * 1024), disk_gb: Number(form.diskGb) }
-  return form.machine ? { ...body, machine: form.machine } : body
+  const withGpu = form.gpuMode === 'container' && form.kind === 'container' ? { ...body, gpu_mode: 'container' } : body
+  return form.machine ? { ...withGpu, machine: form.machine } : withGpu
 }
 
 const COMMAND_LABELS: Record<string, string> = { create: 'Create', start: 'Start', stop: 'Stop', delete: 'Delete' }

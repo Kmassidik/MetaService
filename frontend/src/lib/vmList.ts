@@ -1,4 +1,5 @@
 // What the All VMs page shows: every VM of every machine as one row, narrowed to one machine, sorted, with a count. Pure functions, no DOM, no network.
+import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import type { Machine, MachineState, WorkloadKind } from './types.ts'
 
@@ -14,6 +15,8 @@ export interface VmRow {
   cpu: number
   ramMb: number
   diskGb: number
+  /** True when it was given the machine's GPU. */
+  gpu: boolean
 }
 
 const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning'])
@@ -40,6 +43,7 @@ export function vmRows(machines: Machine[]): VmRow[] {
       cpu: workload.cpu,
       ramMb: workload.ram_mb,
       diskGb: workload.disk_gb,
+      gpu: hasGpu(workload),
     })),
   )
   return rows.sort(compareRows)

@@ -4,6 +4,9 @@
   import VmMonitoring from '../components/vm/VmMonitoring.svelte'
   import VmAccess from '../components/vm/VmAccess.svelte'
   import VmDanger from '../components/vm/VmDanger.svelte'
+  import GpuBadge from '../components/GpuBadge.svelte'
+  import VmGpu from '../components/vm/VmGpu.svelte'
+  import { hasGpu } from '../lib/gpuChoice.ts'
   import { machineHref } from '../lib/routes.ts'
   import { consoleTitle, terminalAccess } from '../lib/terminalAccess.ts'
   import { openConsole } from '../lib/terminalStore.svelte.ts'
@@ -42,7 +45,7 @@
 {:else}
   <div class="phead">
     <div>
-      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {server.cls}">{server.status}</span></div>
+      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {server.cls}">{server.status}</span>{#if hasGpu(workload)}<GpuBadge />{/if}</div>
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › <a href={machineHref(machine.id)}>{machine.name}</a> › {workload.id}</div>
     </div>
     <div class="sp">
@@ -61,6 +64,7 @@
   <div class="tabbody">
     {#if tab === 'overview'}
       <VmOverview {machine} {workload} {server} {pinned} onInstall={() => onInstall(machine, workload)} />
+      {#if hasGpu(workload)}<VmGpu machineId={machine.id} workloadId={workload.id} />{/if}
     {:else if tab === 'monitoring'}
       <VmMonitoring state={workload.state} />
     {:else if tab === 'access'}

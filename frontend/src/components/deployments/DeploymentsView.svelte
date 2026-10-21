@@ -9,6 +9,7 @@
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
+  import GpuBadge from '../GpuBadge.svelte'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
@@ -73,7 +74,7 @@
       {@const workload = workloadOf(server)}
       <div class="card">
         <div class="ch">
-          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span></div>
+          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
         </div>
@@ -98,7 +99,7 @@
           <tr>
             <td class="c-name"><a href={vmHref(machine.id, server.id)}>{server.display}</a></td>
             <td class="mono muted">{server.id}</td>
-            <td><span class="tag {server.cls}">{server.status}</span></td>
+            <td><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}</td>
             <td class="mono">{bundleFlag(workload.bundle_version, pinned).text}</td>
             <td class="mono">{workload.kind}</td>
             <td class="mono nums">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>

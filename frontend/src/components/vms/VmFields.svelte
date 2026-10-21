@@ -1,6 +1,8 @@
 <script lang="ts">
   // The fields every "new VM" form has: name, kind and the three sizes. The dialog on a machine's page and the Create VM page both use it, so the fields and their limits are in one place.
+  import GpuChoice from '../GpuChoice.svelte'
   import type { KindChoice, NewVmForm } from '../../lib/createVm.ts'
+  import type { Machine } from '../../lib/types.ts'
 
   interface Props {
     form: NewVmForm
@@ -9,9 +11,11 @@
     kinds: KindChoice[]
     /** What is wrong with the name, or null; marks the name field. */
     nameProblem: string | null
+    /** The machine the VM goes to, when one is picked: its GPU decides what the GPU line says. */
+    machine?: Machine | undefined
   }
 
-  let { form = $bindable(), nameId, kinds, nameProblem }: Props = $props()
+  let { form = $bindable(), nameId, kinds, nameProblem, machine }: Props = $props()
 </script>
 
 <label for={nameId}>Name</label>
@@ -24,6 +28,7 @@
   <label>RAM (GB) <input type="number" min="0.5" max="1024" step="0.5" bind:value={form.ramGb} /></label>
   <label>Disk (GB) <input type="number" min="1" max="100000" step="1" bind:value={form.diskGb} /></label>
 </div>
+<GpuChoice bind:form {machine} />
 
 <style>
   label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; min-width: 0; }

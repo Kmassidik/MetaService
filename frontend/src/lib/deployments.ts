@@ -1,6 +1,7 @@
 // What a machine's Deployments tab needs, worked out from the machine the Root reports: its VMs as "servers" and the machine as the "host" of the building view.
 
 import type { BuildingHost, BuildingServer } from './building.ts'
+import { hasGpu } from './gpuChoice.ts'
 import type { Machine } from './types.ts'
 
 const PROGRESS = new Set(['creating', 'starting', 'provisioning'])
@@ -15,6 +16,7 @@ export function vmServers(machine: Machine): BuildingServer[] {
     mem_mb: workload.ram_mb,
     cpu: workload.cpu,
     disk_gb: workload.disk_gb,
+    gpu: hasGpu(workload),
   }))
 }
 
