@@ -12,6 +12,7 @@ import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World }
 import { kindsOnAMachine, noMachinesYet, openCreate, preselectedAndValidated, refusedThenMade, thenInAllVms, theOldButtonStillWorks, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
+import { pendingScenario } from './vms/pending.ts'
 import { vmsDropdown, vmsDropdownOnItsPages } from './vms/sidebar.ts'
 
 const DESKTOP = { width: 1280, height: 800 }
@@ -87,6 +88,7 @@ try {
   await refusedThenMade(b)
   await thenInAllVms(b)
   await theOldButtonStillWorks(b)
+  await pendingScenario(b, world)
   await onAPhone(b, world)
 
   check('no script errors and no policy violations', errors.length === 0 && (await b.run(() => window.violation)) === undefined, errors.join(' | '))

@@ -35,7 +35,7 @@ export async function fullTable(b: Browse): Promise<void> {
   const rows = await tableRows(b)
   const names = rows.map((cells) => `${cells[1]}/${cells[0]}`)
   check('All VMs lists the VMs of every machine, sorted by machine name then VM name', JSON.stringify(names) === JSON.stringify([`${CONTAINER_MACHINE}/${CONTAINER_VM}`, 'dgx-spark/demo', 'mac-mini/demo']), JSON.stringify(names))
-  check('a row shows name, machine, kind, state, vCPU, RAM and disk', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb']), JSON.stringify(rows[2]))
+  check('a row shows name, machine, kind, state, vCPU, RAM and disk', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb', '▸ terminal']), JSON.stringify(rows[2]))
   check('a container is listed as a container, with its own sizes', rows[0]?.[2] === 'container' && rows[0][5] === '512 MB' && rows[0][6] === '5 GB')
   check('the header counts the VMs and the machines they are on', (await crumb(b)) === 'Infrastructure › 3 VMs on 3 machines', await crumb(b))
   check('the table shows no script from machine data', (await b.run(() => window.__xss)) === undefined && (await b.page.$('img[src="x"]')) === null)

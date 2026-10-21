@@ -4,6 +4,7 @@ import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
+import { terminalButtonsScenario } from './terminal-buttons.ts'
 import { createAVm } from './workloads.ts'
 import { startAgent, type World } from './world.ts'
 
@@ -32,16 +33,16 @@ export const watchTickets = (b: Browse): TicketLog => {
 const READ_ROWS = () => [...document.querySelectorAll<HTMLElement>('.xterm-rows > div')].map((row) => (row.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\s+$/, '')).join('\n')
 const screen = (b: Browse) => b.run(READ_ROWS)
 const statusLine = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('.tstatus')?.innerText ?? '')
-const isOpen = (b: Browse) => b.run(() => document.querySelector('.term-box') !== null)
-const untilConnected = (b: Browse) => b.until(() => /connected/i.test(document.querySelector<HTMLElement>('.tstatus')?.innerText ?? '') && !/disconnected/i.test(document.querySelector<HTMLElement>('.tstatus')?.innerText ?? ''), { timeout: SHORT_WAIT_MS })
+export const isOpen = (b: Browse) => b.run(() => document.querySelector('.term-box') !== null)
+export const untilConnected = (b: Browse) => b.until(() => /connected/i.test(document.querySelector<HTMLElement>('.tstatus')?.innerText ?? '') && !/disconnected/i.test(document.querySelector<HTMLElement>('.tstatus')?.innerText ?? ''), { timeout: SHORT_WAIT_MS })
 
-async function typeLine(b: Browse, line: string): Promise<void> {
+export async function typeLine(b: Browse, line: string): Promise<void> {
   await b.page.focus('.xterm-helper-textarea')
   await b.page.keyboard.type(line)
   await b.page.keyboard.press('Enter')
 }
 
-async function untilScreenHas(b: Browse, pattern: RegExp): Promise<string> {
+export async function untilScreenHas(b: Browse, pattern: RegExp): Promise<string> {
   try {
     await b.until((source) => new RegExp(source, 'm').test([...document.querySelectorAll<HTMLElement>('.xterm-rows > div')].map((row) => (row.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\s+$/, '')).join('\n')), { timeout: OUTPUT_WAIT_MS }, pattern.source)
   } catch {
@@ -129,6 +130,7 @@ export async function terminalScenario(b: Browse, world: World): Promise<void> {
     await closesWithEscape(b)
     await reconnectsWithANewTicket(b, tickets)
     await closesWithTheButton(b)
+    await terminalButtonsScenario(b, world)
   } finally {
     agent.kill()
   }
