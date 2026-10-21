@@ -88,6 +88,7 @@ public enum RemoteVerify {
 
     static func port(_ facts: RemoteFacts) -> Requirement {
         switch facts.port9101Free {
+        case .some(true) where facts.port9101Ours: return Requirement(id: "port", label: "Port \(agentPort) free", ok: true, optional: false, detail: "MetaService's own program from an earlier install is running there. Adding the computer replaces it.")
         case .some(true): return Requirement(id: "port", label: "Port \(agentPort) free", ok: true, optional: false, detail: "Nothing uses it.")
         case .some(false): return Requirement(id: "port", label: "Port \(agentPort) free", ok: false, optional: false, detail: "Something already listens on \(agentPort). Stop it first, or MetaService cannot start there.")
         case .none: return Requirement(id: "port", label: "Port \(agentPort) free", ok: true, optional: true, detail: "Could not check it.")

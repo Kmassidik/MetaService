@@ -90,6 +90,13 @@ final class RemoteFactsTests: XCTestCase {
         XCTAssertTrue(RemoteProbe.script.hasPrefix("PATH=\"$PATH:"), "the path is widened before any tool is looked for")
     }
 
+    func testThePortAnswerSaysWhetherTheProgramThereIsOurs() throws {
+        let ours = try XCTUnwrap(RemoteProbe.parse(mac.replacingOccurrences(of: "port_9101=free", with: "port_9101=ours")))
+        XCTAssertEqual([ours.port9101Free, ours.port9101Ours], [true, true])
+        let other = try XCTUnwrap(RemoteProbe.parse(mac.replacingOccurrences(of: "port_9101=free", with: "port_9101=busy")))
+        XCTAssertEqual([other.port9101Free, other.port9101Ours], [false, false])
+    }
+
     func testTheProbeScriptAsksForEveryFactTheParserReads() {
         for key in ["os=", "arch=", "user=", "host=", "home=", "version=", "chip=", "cpu=", "ram_mb=", "disk_free_gb=", "kvm=", "tool=", "sudo=", "port_9101="] {
             XCTAssertTrue(RemoteProbe.script.contains("echo \"\(key)") || RemoteProbe.script.contains("echo \"\(key)"), key)

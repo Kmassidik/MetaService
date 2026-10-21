@@ -155,7 +155,10 @@ public enum PlanScripts {
         set -u
         if [ -d \(Shell.quote(options.sshDirectory)) ]; then echo "ssh_dir_existed=yes"; else echo "ssh_dir_existed=no"; fi
         if [ -e \(Shell.quote(options.sshDirectory + "/authorized_keys")) ]; then echo "key_file_existed=yes"; else echo "key_file_existed=no"; fi
-        if [ -e \(Shell.quote(options.box)) ]; then echo "ms-error: the folder \(options.box) already exists, so nothing was changed"; exit 20; fi
+        if [ -e \(Shell.quote(options.box)) ]; then
+          if grep -q '"made_by":"\(madeBy)"' \(Shell.quote(options.box + "/manifest.json")) 2>/dev/null; then echo "earlier_box=ours"
+          else echo "ms-error: the folder \(options.box) already exists and is not a MetaService box, so nothing was changed"; exit 20; fi
+        fi
         if [ ! -d \(Shell.quote((options.box as NSString).deletingLastPathComponent)) ]; then echo "ms-error: the folder for the box does not exist"; exit 21; fi
         if [ ! -w \(Shell.quote((options.box as NSString).deletingLastPathComponent)) ]; then echo "ms-error: that user cannot write there"; exit 22; fi
         echo ok
@@ -197,14 +200,17 @@ public enum PlanScripts {
     public struct BeforeFacts: Equatable, Sendable {
         public let sshDirExisted: Bool
         public let keyFileExisted: Bool
+        /// The box folder is already there and is MetaService's own, from an earlier install: it is removed before the new one goes in.
+        public let earlierBoxIsOurs: Bool
 
-        public init(sshDirExisted: Bool, keyFileExisted: Bool) {
+        public init(sshDirExisted: Bool, keyFileExisted: Bool, earlierBoxIsOurs: Bool = false) {
             self.sshDirExisted = sshDirExisted
             self.keyFileExisted = keyFileExisted
+            self.earlierBoxIsOurs = earlierBoxIsOurs
         }
 
         public static func parse(_ output: String) -> BeforeFacts {
-            BeforeFacts(sshDirExisted: output.contains("ssh_dir_existed=yes"), keyFileExisted: output.contains("key_file_existed=yes"))
+            BeforeFacts(sshDirExisted: output.contains("ssh_dir_existed=yes"), keyFileExisted: output.contains("key_file_existed=yes"), earlierBoxIsOurs: output.contains("earlier_box=ours"))
         }
     }
 

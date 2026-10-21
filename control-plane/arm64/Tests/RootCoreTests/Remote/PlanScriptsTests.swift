@@ -211,4 +211,36 @@ final class PlanScriptsTests: XCTestCase {
         XCTAssertTrue(PlanScripts.startScript(value).contains("'--state-dir' 'state'"), "start.sh uses paths inside the box")
         XCTAssertFalse(PlanScripts.startScript(value).contains(home), "start.sh keeps working if the folder is moved")
     }
+
+    private func runBeforeScript(box: String, manifest: String?) throws -> (status: Int32, output: String) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ms-before-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let boxPath = folder.appendingPathComponent(box).path
+        try FileManager.default.createDirectory(atPath: boxPath, withIntermediateDirectories: true)
+        if let manifest { try manifest.write(toFile: boxPath + "/manifest.json", atomically: true, encoding: .utf8) }
+        var options = RemoteInstallOptions.defaults(name: "office-mini", home: folder.path, engine: "apple", rootURL: "http://192.168.100.40:9102")
+        options.box = boxPath
+        options.sshDirectory = folder.path + "/.ssh"
+        let process = Process(), pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", PlanScripts.beforeScript(options)]
+        process.standardOutput = pipe
+        try process.run()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
+    }
+
+    func testABoxFromAnEarlierInstallOfOursIsReportedNotRefused() throws {
+        let result = try runBeforeScript(box: "box", manifest: "{\"made_by\":\"metaservice\"}")
+        XCTAssertEqual(result.status, 0)
+        XCTAssertTrue(PlanScripts.BeforeFacts.parse(result.output).earlierBoxIsOurs)
+    }
+
+    func testAFolderThatIsNotOursIsStillRefused() throws {
+        for manifest in [nil, "{\"made_by\":\"someone else\"}"] {
+            let result = try runBeforeScript(box: "box", manifest: manifest)
+            XCTAssertEqual(result.status, 20)
+            XCTAssertTrue(result.output.contains("not a MetaService box"))
+        }
+    }
 }

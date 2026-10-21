@@ -22,6 +22,8 @@ public struct RemoteFacts: Equatable, Sendable {
     public var tools: Set<String> = []
     public var sudo: SudoAccess = .none
     public var port9101Free: Bool?
+    /// True when what listens on the port is MetaService's own program from an earlier install, which an install can replace.
+    public var port9101Ours = false
 
     public init() {}
 
@@ -64,9 +66,14 @@ public enum RemoteProbe {
     elif command -v sudo >/dev/null 2>&1; then echo "sudo=password"
     else echo "sudo=none"; fi
     if command -v lsof >/dev/null 2>&1; then
-      if lsof -nP -iTCP:9101 -sTCP:LISTEN >/dev/null 2>&1; then echo "port_9101=busy"; else echo "port_9101=free"; fi
+      holder=$(lsof -t -nP -iTCP:9101 -sTCP:LISTEN 2>/dev/null | head -1)
+      if [ -z "$holder" ]; then echo "port_9101=free"
+      elif ps -p "$holder" -o command= 2>/dev/null | grep -q metaservice-agent; then echo "port_9101=ours"
+      else echo "port_9101=busy"; fi
     elif command -v ss >/dev/null 2>&1; then
-      if ss -ltn 2>/dev/null | grep -q ':9101 '; then echo "port_9101=busy"; else echo "port_9101=free"; fi
+      if ! ss -ltn 2>/dev/null | grep -q ':9101 '; then echo "port_9101=free"
+      elif ss -ltnp 2>/dev/null | grep ':9101 ' | grep -q metaservice-agent; then echo "port_9101=ours"
+      else echo "port_9101=busy"; fi
     fi
     """
 
@@ -104,7 +111,7 @@ public enum RemoteProbe {
         case "kvm": facts.kvm = value == "yes"
         case "tool": if knownTools.contains(value) { facts.tools.insert(value) }
         case "sudo": facts.sudo = SudoAccess(rawValue: value) ?? .none
-        case "port_9101": facts.port9101Free = value == "free"
+        case "port_9101": facts.port9101Free = value == "free" || value == "ours"; facts.port9101Ours = value == "ours"
         default: break
         }
     }

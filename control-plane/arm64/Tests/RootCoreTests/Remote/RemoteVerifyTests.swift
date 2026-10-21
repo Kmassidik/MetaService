@@ -35,6 +35,13 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertTrue(row(result, "vm_tool").detail.contains("Install the VM tool too"))
     }
 
+    func testOurOwnProgramOnThePortDoesNotBlockAndIsSaidToBeReplaced() {
+        let ours = RemoteVerify.run(facts: facts(mac.replacingOccurrences(of: "port_9101=free", with: "port_9101=ours")), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://192.168.100.40:9102")
+        XCTAssertTrue(ours.canAdd)
+        XCTAssertTrue(row(ours, "port").ok)
+        XCTAssertTrue(row(ours, "port").detail.contains("replaces it"))
+    }
+
     func testABusyPortBlocks() {
         let busy = RemoteVerify.run(facts: facts(mac.replacingOccurrences(of: "port_9101=free", with: "port_9101=busy")), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://192.168.100.40:9102")
         XCTAssertFalse(busy.canAdd)

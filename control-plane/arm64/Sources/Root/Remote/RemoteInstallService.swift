@@ -143,6 +143,7 @@ final class RemoteInstallService: @unchecked Sendable {
         guard let path = builds[facts.agentBuild], let content = FileManager.default.contents(atPath: path) else { throw InstallFailure("there is no MetaService program for \(facts.agentBuild)") }
         let plan = try Self.makePlan(request.choices, home: facts.home, isMac: facts.isMac, rootURL: url, reversePort: reversePort, config: parts.config, binarySize: content.count)
         let before = try await preflight(plan.options, target, credentials)
+        try await replaceEarlierBox(before, plan.options, target, credentials)
         // Through the return path the Agent arrives from loopback, so the token cannot be pinned to the computer's address; it is still used once, within minutes, over that SSH connection.
         let token = try parts.enrollments.create(machineName: plan.options.name, expectedIp: reversePort == nil ? address : nil, now: parts.clock.now).token
         let sha = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
@@ -176,6 +177,14 @@ final class RemoteInstallService: @unchecked Sendable {
         let result = try await parts.ssh.run(PlanScripts.beforeScript(options), on: target, with: credentials, timeout: Self.stepSeconds)
         try Self.require(result, "the check before the install")
         return PlanScripts.BeforeFacts.parse(result.output)
+    }
+
+    /// A box left by an earlier install of this same program (for example before the parent's data was cleared) is taken away first, with the same safe removal as the Remove button: it stops the old program and removes its key line.
+    private func replaceEarlierBox(_ before: PlanScripts.BeforeFacts, _ options: RemoteInstallOptions, _ target: RemoteTarget, _ credentials: SshCredentials) async throws {
+        guard before.earlierBoxIsOurs else { return }
+        let key = PlanScripts.RemovedKey(file: options.sshDirectory + "/authorized_keys", marker: PlanScripts.keyMarker(options.name), fileCreated: false, directoryCreated: false)
+        let result = try await parts.ssh.run(PlanScripts.removeScript(box: options.box, key: key), on: target, with: credentials, timeout: Self.stepSeconds)
+        try Self.require(result, "replacing the earlier install")
     }
 
     // MARK: the steps
