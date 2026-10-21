@@ -44,7 +44,7 @@
     <div class="brand"><span class="sq"></span>MetaService</div>
     <div>
       <h1>One panel for <span class="hl">every machine</span>.</h1>
-      <p class="lede">Add your machines, create VMs and containers on them, open the chat on each one and see their screens. Macs and Linux, one place.</p>
+      <p class="lede">Add your machines, create VMs and containers on them, and open the chat on each one. Macs and Linux, one place.</p>
     </div>
     <svg class="diagram" viewBox="0 0 520 150" role="img" aria-label="One parent connected to four machines">
       <g stroke="rgba(250,250,250,.35)" stroke-width="1.5" fill="none">

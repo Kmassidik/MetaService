@@ -331,17 +331,3 @@ export interface RemoteMachineInfo {
   tunnel?: { state: 'connecting' | 'connected' | 'disconnected'; since: string; local_port: number | null; failures: number }
 }
 
-/** An open screen: the ticket belongs to the operator who opened it. */
-export interface ScreenSession {
-  ticket: string
-  machine: string
-  mode: 'view' | 'control'
-  idle_seconds: number
-  max_seconds: number
-}
-
-export type ScreenInput =
-  | { type: 'move'; x: number; y: number }
-  | { type: 'button'; button: 'left' | 'middle' | 'right'; down: boolean }
-  | { type: 'scroll'; dx: number; dy: number }
-  | { type: 'key'; code: number; down: boolean }

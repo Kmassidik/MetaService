@@ -27,8 +27,6 @@ public struct RemoteInstallOptions: Equatable, Sendable {
     public var installVmTool: Bool
     public var settings: MachineSettings
     public var chat: Bool
-    /// Lets the panel see and control this computer's screen. Off unless the operator ticks it; macOS still asks the person at that computer for permission.
-    public var allowScreen = false
     /// The port on that computer's loopback that leads back to the parent (see ParentUrl). Nil for a computer that is this one.
     public var reversePort: Int?
 

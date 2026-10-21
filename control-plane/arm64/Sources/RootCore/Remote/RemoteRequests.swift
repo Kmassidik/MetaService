@@ -80,10 +80,9 @@ public struct InstallChoices: Equatable {
     public let installKey: Bool
     public let installVmTool: Bool
     public let chat: Bool
-    public let allowScreen: Bool
     public let settings: MachineSettings
 
-    static let fields: Set<String> = Set(["name", "box", "ssh_dir", "agent_port", "install_key", "install_vm_tool", "chat", "allow_screen"]).union(MachineSettings.fields)
+    static let fields: Set<String> = Set(["name", "box", "ssh_dir", "agent_port", "install_key", "install_vm_tool", "chat"]).union(MachineSettings.fields)
 
     init(_ object: StrictObject) throws {
         name = try object.id("name")
@@ -93,7 +92,6 @@ public struct InstallChoices: Equatable {
         installKey = object.has("install_key") ? try object.bool("install_key") : true
         installVmTool = object.has("install_vm_tool") ? try object.bool("install_vm_tool") : false
         chat = object.has("chat") ? try object.bool("chat") : false
-        allowScreen = object.has("allow_screen") ? try object.bool("allow_screen") : false
         settings = try MachineSettings(object)
     }
 
@@ -112,7 +110,6 @@ public struct InstallChoices: Equatable {
         value.installKey = installKey
         value.installVmTool = installVmTool
         value.chat = chat
-        value.allowScreen = allowScreen
         return try value.validated()
     }
 }

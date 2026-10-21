@@ -7,9 +7,9 @@ LINUX = "--linux" in sys.argv
 if LINUX:
     os.environ["MS_AGENT_BINARY"] = os.path.join(os.path.dirname(__file__), "..", "..", "agent", "linux", "target", "debug", "metaservice-agent")
 
-from contract.agent_tests import checks_agent, checks_apple, checks_incus, checks_screen  # noqa: E402
+from contract.agent_tests import checks_agent, checks_apple, checks_incus  # noqa: E402
 
-ALL_CHECKS = checks_agent.CHECKS + (checks_incus.CHECKS if LINUX else checks_apple.CHECKS + checks_screen.CHECKS)
+ALL_CHECKS = checks_agent.CHECKS + (checks_incus.CHECKS if LINUX else checks_apple.CHECKS)
 
 
 def main():

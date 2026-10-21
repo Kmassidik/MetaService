@@ -29,14 +29,6 @@ func makeEngine(_ config: AgentConfig) throws -> Engine {
                                 backupDirectory: config.backupDirectory ?? config.stateDirectory + "/backups", defaultImage: config.defaultImage)
 }
 
-func makeScreen(_ config: AgentConfig) -> ScreenSource {
-    switch config.screenName {
-    case "mac": return MacScreen()
-    case "simulated": return SimulatedScreen()
-    default: return ScreenOff()
-    }
-}
-
 /// The command ledger lives in a file (mode 600) next to the token, so a repeated command id still means "already done" after a restart.
 func makeLedger(_ config: AgentConfig) -> CommandLedger {
     let path = config.stateDirectory + "/commands.json"
@@ -90,7 +82,7 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: SecurityHeadersMiddleware())
     router.add(middleware: ErrorMiddleware())
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
-    AgentRoutes(service: service, screen: makeScreen(config)).register(on: router)
+    AgentRoutes(service: service).register(on: router)
     if let root, let machineToken {
         let heartbeat = Heartbeat(root: root, token: machineToken, service: service, agentPort: config.port, seconds: config.heartbeatSeconds)
         service.onChange = { heartbeat.beatSoon() }

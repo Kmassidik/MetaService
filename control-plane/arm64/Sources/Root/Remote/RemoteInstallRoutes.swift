@@ -58,7 +58,6 @@ struct RemoteInstallRoutes {
         } catch let failure as InstallFailure {
             throw ApiFailure(status: .badGateway, code: "remote_removal_failed", message: failure.message)
         }
-        services.screens.closeAll(machine: name)
         return Response(status: .noContent)
     }
 

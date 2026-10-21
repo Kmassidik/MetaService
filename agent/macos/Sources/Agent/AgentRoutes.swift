@@ -3,12 +3,10 @@ import Hummingbird
 import HTTPTypes
 import AgentCore
 import MSCore
-import NIOCore
 
 /// The Agent half of contract/openapi.yaml.
 struct AgentRoutes {
     let service: AgentService
-    let screen: ScreenSource
 
     func register(on router: Router<AgentContext>) {
         router.get("/v1/health") { _, _ in try Json.response(await service.health()) }
@@ -21,9 +19,6 @@ struct AgentRoutes {
         router.post("/v1/bundle/install", use: installBundle)
         router.post("/v1/bundle/uninstall", use: uninstallBundle)
         router.get("/v1/commands/{id}", use: command)
-        router.get("/v1/screen") { _, _ in try Json.response(ScreenStatusBody(await screen.status())) }
-        router.get("/v1/screen/frame") { _, _ in try await frame() }
-        router.post("/v1/screen/input", use: screenInput)
     }
 
     private func create(_ request: Request, context: AgentContext) async throws -> Response {
@@ -54,19 +49,6 @@ struct AgentRoutes {
         return try Json.response(try await service.command(id))
     }
 
-    private func frame() async throws -> Response {
-        let picture = try await screen.frame()
-        var headers = HTTPFields()
-        headers[.contentType] = picture.contentType
-        return Response(status: .ok, headers: headers, body: .init(byteBuffer: ByteBuffer(data: picture.data)))
-    }
-
-    private func screenInput(_ request: Request, context: AgentContext) async throws -> Response {
-        let input = try ScreenInputRequest(body: try await Self.body(request))
-        try await screen.send(input.events)
-        return Response(status: .noContent)
-    }
-
     // MARK: helpers
 
     private static func accepted(_ command: Command) throws -> Response {
@@ -94,17 +76,3 @@ struct AgentRoutes {
 
 private struct WorkloadList: Encodable { let workloads: [Workload] }
 private struct Accepted: Encodable { let commandId: String; let state: CommandState }
-
-private struct ScreenStatusBody: Encodable {
-    let access: String
-    let width: Int
-    let height: Int
-    let message: String?
-
-    init(_ status: ScreenStatus) {
-        access = status.access.rawValue
-        width = status.width
-        height = status.height
-        message = status.message
-    }
-}

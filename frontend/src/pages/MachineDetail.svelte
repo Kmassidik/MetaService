@@ -4,7 +4,6 @@
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
-  import ScreenViewer from '../components/ScreenViewer.svelte'
   import { canRunText, gpuText } from '../lib/environment.ts'
   import { archName, formatGb, formatMb, osName, relativeTime } from '../lib/format.ts'
   import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
@@ -36,7 +35,6 @@
   let { machine, remote, commands, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
   const TABS: [Tab, string][] = [['overview', 'Overview'], ['environment', 'Environment'], ['deployments', 'Deployments'], ['activity', 'Activity']]
   let tab: Tab = $state('overview')
-  let screenOpen = $state(false)
   const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
   const facts = $derived(machine ? [
@@ -81,10 +79,6 @@
         {/each}
       </dl>
       <p class="id">{canRunText(machine.capabilities)}</p>
-      <div class="chatbar">
-        <button class="btn line sm" type="button" disabled={machine.state === 'offline'} onclick={() => (screenOpen = true)}>Open screen</button>
-      </div>
-      <ScreenViewer machine={machine.id} name={machine.name} open={screenOpen} onClose={() => (screenOpen = false)} />
     {:else if tab === 'environment'}
       {#key machine.id}
         <EnvironmentTab {machine} {remote} {now} {newestHelper} {chatsBuilt} {onRuvio} {onOpenChat} {onChanged} />
@@ -110,7 +104,6 @@
   .kv > div { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--gray2); padding-bottom: 12px; }
   .kv dt { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   .kv dd { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .chatbar { display: flex; gap: 8px; margin-top: 20px; }
   .flush { padding-left: 0; padding-right: 0; margin-left: 0; }
   @media (max-width: 820px) { .tabs, .tabbody { padding-left: 16px; padding-right: 16px; } .kv > div { grid-template-columns: 1fr; gap: 4px; } }
 </style>

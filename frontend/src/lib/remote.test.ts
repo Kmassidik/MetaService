@@ -65,11 +65,11 @@ test('a machine name is suggested from the address or the host name', () => {
   expect(suggestMachineName('a'.repeat(100)).length).toBe(63)
   expect(nameWrong('office-mini')).toBe(null)
   expect(nameWrong('Office Mini') ?? '').toMatch(/lowercase/)
-  expect(defaultAddChoices('office-mini.local')).toEqual({ name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
+  expect(defaultAddChoices('office-mini.local')).toEqual({ name: 'office-mini', installKey: true, box: '', sshDir: '', agentPort: '' })
 })
 
 test('the plan request carries the home folder and the system that Connect read, and no login', () => {
-  const body = planBody(form(), result(), { name: 'office-mini', installKey: true, allowScreen: false, box: '', sshDir: '', agentPort: '' })
+  const body = planBody(form(), result(), { name: 'office-mini', installKey: true, box: '', sshDir: '', agentPort: '' })
   expect(body).toEqual({ host: '192.168.100.40', home: '/Users/kurnia', os: 'Darwin', name: 'office-mini', install_key: true })
   expect(JSON.stringify(body).includes('secret')).toBe(false)
   expect(planBody(form(), result('Linux'), { ...defaultAddChoices('x'), installKey: false }).os).toBe('Linux')
@@ -110,13 +110,6 @@ test('the connection of a machine installed over SSH is said in one plain line',
   expect(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 1 }), now)).toBe('SSH tunnel · down since 5m ago, trying again')
   expect(connectionText(info({ state: 'disconnected', since, local_port: null, failures: 3 }), now)).toBe('SSH tunnel · down since 5m ago, trying again (3 tries)')
   expect(connectionText(info(undefined), now)).toMatch(/No tunnel/)
-})
-
-test('the screen choice is sent only when it is ticked', () => {
-  const plain = planBody(form(), result(), defaultAddChoices('office-mini'))
-  expect('allow_screen' in plain).toBe(false)
-  const ticked = planBody(form(), result(), { ...defaultAddChoices('office-mini'), allowScreen: true })
-  expect(ticked.allow_screen).toBe(true)
 })
 
 test('a password box is offered unless the computer said it takes only keys', () => {

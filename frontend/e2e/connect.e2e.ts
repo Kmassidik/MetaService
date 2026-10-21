@@ -24,8 +24,6 @@ const SHORT_WAIT_MS = 10000
 const STEP_WAIT_MS = 20000
 const INSTALL_WAIT_MS = 120000
 const ONLINE_WAIT_MS = 60000
-const SCREEN_WIDTH_PX = 160
-const POINTER_VISIBLE = 200
 const ALL_CHECKS = 11
 const ALL_INSTALL_STEPS = 9
 
@@ -152,10 +150,6 @@ async function installIntoThrowAwayFolder(b: Browse): Promise<{ box: string; key
   await b.type('#remote-name', 'Bad Name')
   check('a bad machine name turns Install off and says why', /lowercase letters/i.test(await b.dialogText()) && await b.run(() => document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')?.disabled ?? false))
   await b.type('#remote-name', NAME)
-  check('the screen choice is off until it is ticked', await b.run(() => ![...document.querySelectorAll<HTMLLabelElement>('dialog[open] label.check')].find((label) => /see and control/.test(label.textContent ?? ''))?.querySelector('input')?.checked))
-  await b.run(() => [...document.querySelectorAll<HTMLLabelElement>('dialog[open] label.check')].find((label) => /see and control/.test(label.textContent ?? ''))?.querySelector('input')?.click())
-  await b.until(() => /take its mouse and keyboard/.test(document.querySelector<HTMLElement>('dialog[open] ol.plan')?.innerText ?? ''), { timeout: SHORT_WAIT_MS })
-  check('ticking it adds a plain sentence to What will change', true)
   await b.run(() => { const details = document.querySelector<HTMLDetailsElement>('dialog[open] details.advanced'); if (details) details.open = true })
   await b.type('#remote-box', box)
   await b.type('#remote-ssh', dirname(sshd.authorized))
@@ -182,42 +176,12 @@ async function installAndFollow(b: Browse, box: string): Promise<void> {
   check('the new machine shows in Machines and is online', true)
 }
 
-async function machinePageAndScreen(b: Browse): Promise<void> {
+async function machinePage(b: Browse): Promise<void> {
   await openMachine(b, root.base, NAME)
   await openTab(b, 'Environment')
   await b.until(() => /tunnel\s*SSH tunnel · connected/i.test(document.body.innerText), { timeout: 30000 })
   check('the Environment tab says its SSH tunnel is connected, and where the helper is installed', /helper folder\s*[^\n]*metaservice-box/i.test(await b.text()))
   await b.shot('connect-machine-page.png')
-  await openTab(b, 'Overview')
-  // The screen: view only first, control only after the second, confirmed step, and the picture follows the pointer.
-  await b.click('Open screen')
-  await waitForDialog(b, new RegExp(`Screen of ${NAME}`))
-  await b.until((width) => document.querySelector<HTMLCanvasElement>('dialog[open] canvas')?.width === width, { timeout: STEP_WAIT_MS }, SCREEN_WIDTH_PX)
-  check('the screen opens as view only and a picture is drawn', /View only/.test(await b.dialogText()))
-  const centreRed = () => b.run(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('dialog[open] canvas')
-    const pixel = canvas?.getContext('2d')?.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data[0]
-    return pixel ?? -1
-  })
-  check('before control the centre is the plain background, not the pointer', (await centreRed()) < POINTER_VISIBLE)
-  await b.click('Take control')
-  check('control needs a confirm that names the computer', /Everything you type goes to that computer/.test(await b.dialogText()) && new RegExp(NAME).test(await b.dialogText()))
-  await b.click('Yes, take control')
-  await b.until((name) => new RegExp(`You are controlling ${name}`).test(document.querySelector<HTMLElement>('dialog[open]')?.innerText ?? ''), { timeout: SHORT_WAIT_MS }, NAME)
-  check('the banner says the computer is being controlled', true)
-  const area = await (await b.page.$('dialog[open] canvas'))?.boundingBox()
-  if (!area) throw new Error('the screen picture has no size')
-  await b.page.mouse.move(area.x + area.width / 2, area.y + area.height / 2)
-  await b.until((visible) => {
-    const canvas = document.querySelector<HTMLCanvasElement>('dialog[open] canvas')
-    const pixel = canvas?.getContext('2d')?.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data[0]
-    return pixel !== undefined && pixel > visible
-  }, { timeout: SHORT_WAIT_MS }, POINTER_VISIBLE)
-  check('moving the pointer over the picture moves the pointer on the computer', true)
-  await b.shot('connect-screen.png')
-  await b.click('End')
-  await b.until(() => !document.querySelector('dialog[open]'), { timeout: SHORT_WAIT_MS })
-  check('End closes the screen', true)
 }
 
 async function removeIt(b: Browse, box: string, keysBefore: string): Promise<void> {
@@ -249,7 +213,7 @@ try {
   await stepThree(b)
   const { box, keysBefore } = await installIntoThrowAwayFolder(b)
   await installAndFollow(b, box)
-  await machinePageAndScreen(b)
+  await machinePage(b)
   await removeIt(b, box, keysBefore)
   check('no script errors and no policy violations', errors.length === 0 && (await page.evaluate(() => window.violation)) === undefined, errors.join(' | '))
 } finally {

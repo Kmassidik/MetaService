@@ -75,9 +75,6 @@ struct ErrorMiddleware: RouterMiddleware {
             return Json.error(.badRequest, "invalid_input", error.message)
         } catch let refusal as Refusal {
             return Json.error(.conflict, refusal.code.rawValue, refusal.message, extra: ["resource": refusal.resource.rawValue, "needed": refusal.needed, "free": refusal.free])
-        } catch let error as ScreenError {
-            guard case .notAllowed(let reason) = error else { throw error }
-            return Json.error(.forbidden, "screen_not_allowed", reason)
         } catch AgentError.notFound {
             return Json.error(.notFound, "not_found", "no such thing")
         } catch let error as HTTPError {
