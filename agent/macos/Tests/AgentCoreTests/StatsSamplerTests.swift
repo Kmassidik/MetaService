@@ -3,7 +3,13 @@ import XCTest
 
 private final class FakeSource: StatsSource {
     var snapshots: [StatsSnapshot] = []
-    func read() throws -> StatsSnapshot { snapshots.removeFirst() }
+    /// What each call asked for: true when the list of programs was wanted.
+    var asked: [Bool] = []
+    func read(includeProcesses: Bool) throws -> StatsSnapshot {
+        asked.append(includeProcesses)
+        let next = snapshots.removeFirst()
+        return includeProcesses ? next : next.withoutProcesses()
+    }
 }
 
 private let start = Date(timeIntervalSince1970: 1_800_000_000)
@@ -19,8 +25,7 @@ private func process(_ pid: Int, name: String = "p", cpuNanos: UInt64 = 0, memor
     RawProcess(pid: pid, name: name, user: "kurnia", cpuNanoseconds: cpuNanos, memoryBytes: memory)
 }
 
-private func sampler(_ snapshots: [StatsSnapshot]) -> StatsSampler {
-    let source = FakeSource()
+private func sampler(_ snapshots: [StatsSnapshot], source: FakeSource = FakeSource()) -> StatsSampler {
     source.snapshots = snapshots
     return StatsSampler(source: source)
 }
@@ -115,5 +120,59 @@ final class StatsSamplerTests: XCTestCase {
                                                receivedTotalBytes: 0, sentTotalBytes: 0, processes: [])]).sample()
         XCTAssertLessThanOrEqual(stats.memory.usedBytes + stats.memory.cachedBytes + stats.memory.freeBytes, 100)
         XCTAssertNil(stats.cpu.load.one)
+    }
+
+    // The optional "no process list" request: the system is not asked for programs and the answer has an empty list.
+
+    func testWithoutProcessesTheSourceIsToldNotToScanAndTheListIsEmpty() throws {
+        let source = FakeSource()
+        let sampler = sampler([snapshot(processes: [process(1)]), snapshot(at: 5, processes: [process(1)])], source: source)
+        _ = try sampler.sample(includeProcesses: false)
+        let stats = try sampler.sample(includeProcesses: false)
+        XCTAssertEqual(source.asked, [false, false])
+        XCTAssertEqual(stats.processes, [])
+        XCTAssertFalse(stats.measuring)
+        XCTAssertEqual(stats.cpu.totalPercent, 0)
+    }
+
+    func testByDefaultTheProgramsAreScanned() throws {
+        let source = FakeSource()
+        _ = try sampler([snapshot(processes: [process(1)])], source: source).sample()
+        XCTAssertEqual(source.asked, [true])
+    }
+
+    func testProgramsAfterAnAnswerWithoutThemHaveNoCpuYetNotAFalseZero() throws {
+        let source = FakeSource()
+        let sampler = sampler([snapshot(processes: [process(1, cpuNanos: 0)]), snapshot(at: 5, processes: [process(1, cpuNanos: 9_000_000_000)])], source: source)
+        _ = try sampler.sample(includeProcesses: false)
+        let stats = try sampler.sample(includeProcesses: true)
+        XCTAssertEqual(stats.processes.count, 1)
+        XCTAssertNil(stats.processes[0].cpuPercent, "there was no earlier list to compare with")
+        XCTAssertFalse(stats.measuring, "the machine numbers are still ready")
+    }
+
+    func testTheNextAnswerWithProgramsHasTheirCpu() throws {
+        let sampler = sampler([snapshot(processes: [process(1, cpuNanos: 0)]), snapshot(at: 5, processes: [process(1, cpuNanos: 1_000_000_000)]), snapshot(at: 10, processes: [process(1, cpuNanos: 6_000_000_000)])])
+        _ = try sampler.sample(includeProcesses: false)
+        _ = try sampler.sample(includeProcesses: true)
+        XCTAssertEqual(try sampler.sample(includeProcesses: true).processes[0].cpuPercent, 100)
+    }
+}
+
+final class StatsRequestTests: XCTestCase {
+    func testAbsentMeansPrograms() throws {
+        XCTAssertTrue(try StatsRequest.includesProcesses(values: []))
+    }
+
+    func testOneAndZero() throws {
+        XCTAssertTrue(try StatsRequest.includesProcesses(values: ["1"]))
+        XCTAssertFalse(try StatsRequest.includesProcesses(values: ["0"]))
+    }
+
+    func testAnythingElseIsRefused() {
+        for bad in ["", "2", "true", "no", " 0", "0 ", "00", "x"] {
+            XCTAssertThrowsError(try StatsRequest.includesProcesses(values: [bad]), "'\(bad)' must be refused")
+        }
+        XCTAssertThrowsError(try StatsRequest.includesProcesses(values: ["0", "1"]))
     }
 }

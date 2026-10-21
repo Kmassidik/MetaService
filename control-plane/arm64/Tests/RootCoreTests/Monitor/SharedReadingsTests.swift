@@ -117,4 +117,69 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertEqual(reply.answer, .oldHelper)
         XCTAssertNil(reply.value)
     }
+
+    // A reading with the extra part (the process list) also answers a request without it; the other way round it does not.
+
+    func testAReadingWithDetailAlsoAnswersARequestWithoutDetail() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testARequestWithDetailAfterOneWithoutAsksTheHelperAgainAtOnce() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testOnceTheDetailedReadingIsHeldFurtherRequestsInsideFourSecondsCostNothing() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testAfterFourSecondsAPlainRequestRefreshesWithoutDetailAndDetailIsAskedForAgain() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        clock.advance(4)
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 3)
+    }
+
+    func testAFailedCallIsNotRepeatedJustBecauseDetailWasAskedFor() async {
+        let (readings, clock, counter) = make()
+        await counter.set(.unreachable)
+        _ = await readings.read("mini", detailed: false) { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini", detailed: true) { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1, "a dead helper is left alone for four seconds whatever is asked")
+    }
+
+    func testAskersWithDetailWhileAPlainCallIsRunningShareOneFollowUpCall() async {
+        let (readings, _, counter) = make()
+        await counter.slow(150_000_000)
+        async let plain = readings.read("mini", detailed: false) { await counter.fetch() }
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<5 { group.addTask { _ = await readings.read("mini", detailed: true) { await counter.fetch() } } }
+        }
+        _ = await plain
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
 }

@@ -42,15 +42,25 @@ public struct StatsSnapshot {
     public let memory: MemoryReading
     public let disks: [DiskReading]
     public let receivedTotalBytes, sentTotalBytes: UInt64
-    public let processes: [RawProcess]
+    /// nil: the programs were not scanned this time (the caller did not want the list).
+    public let processes: [RawProcess]?
     public init(takenAt: Date, uptimeSeconds: Int, cores: [CoreTicks], load: [Double?], memory: MemoryReading, disks: [DiskReading],
-                receivedTotalBytes: UInt64, sentTotalBytes: UInt64, processes: [RawProcess]) {
+                receivedTotalBytes: UInt64, sentTotalBytes: UInt64, processes: [RawProcess]?) {
         self.takenAt = takenAt; self.uptimeSeconds = uptimeSeconds; self.cores = cores; self.load = load; self.memory = memory; self.disks = disks
         self.receivedTotalBytes = receivedTotalBytes; self.sentTotalBytes = sentTotalBytes; self.processes = processes
     }
 }
 
+extension StatsSnapshot {
+    /// The same moment with no program list.
+    public func withoutProcesses() -> StatsSnapshot {
+        StatsSnapshot(takenAt: takenAt, uptimeSeconds: uptimeSeconds, cores: cores, load: load, memory: memory, disks: disks,
+                      receivedTotalBytes: receivedTotalBytes, sentTotalBytes: sentTotalBytes, processes: nil)
+    }
+}
+
 /// Where the numbers come from. The real one reads the system; tests give a fake.
 public protocol StatsSource: AnyObject {
-    func read() throws -> StatsSnapshot
+    /// `includeProcesses` false: do not scan the programs (the expensive part) and leave `processes` nil.
+    func read(includeProcesses: Bool) throws -> StatsSnapshot
 }

@@ -8,10 +8,10 @@ enum StatsReadError: Error { case cpu, memory, boot }
 final class DarwinStatsSource: StatsSource {
     private let processes = DarwinProcesses()
 
-    func read() throws -> StatsSnapshot {
+    func read(includeProcesses: Bool) throws -> StatsSnapshot {
         let (received, sent) = DarwinNetwork.totals()
         return StatsSnapshot(takenAt: Date(), uptimeSeconds: try Self.uptimeSeconds(), cores: try Self.cores(), load: Self.load(), memory: try DarwinMemory.read(),
-                             disks: DarwinDisks.read(), receivedTotalBytes: received, sentTotalBytes: sent, processes: processes.list())
+                             disks: DarwinDisks.read(), receivedTotalBytes: received, sentTotalBytes: sent, processes: includeProcesses ? processes.list() : nil)
     }
 
     private static func cores() throws -> [CoreTicks] {

@@ -68,11 +68,15 @@ enum StatsMath {
         return round1(Double(new - old) / seconds)
     }
 
+    /// Without a program list in this snapshot the answer has none. Without one in the earlier snapshot there is nothing to compare with: the CPU of each program is unknown, not 0.
     private static func processes(_ now: StatsSnapshot, _ old: StatsSnapshot?, _ seconds: Double?) -> [MachineStats.Process] {
-        let before = Dictionary(old?.processes.map { ($0.pid, $0.cpuNanoseconds) } ?? [], uniquingKeysWith: { first, _ in first })
-        let listed = now.processes.map { raw in
+        guard let current = now.processes else { return [] }
+        let earlierList = old?.processes
+        let before = Dictionary(earlierList?.map { ($0.pid, $0.cpuNanoseconds) } ?? [], uniquingKeysWith: { first, _ in first })
+        let comparable = earlierList == nil ? nil : seconds
+        let listed = current.map { raw in
             MachineStats.Process(pid: raw.pid, name: String(raw.name.prefix(StatsSampler.maxTextCharacters)), user: String(raw.user.prefix(StatsSampler.maxTextCharacters)),
-                                 cpuPercent: seconds.map { cpuPercent(raw, before[raw.pid], $0) }, memoryBytes: raw.memoryBytes)
+                                 cpuPercent: comparable.map { cpuPercent(raw, before[raw.pid], $0) }, memoryBytes: raw.memoryBytes)
         }
         return Array(listed.sorted(by: outranks).prefix(StatsSampler.maxProcesses))
     }

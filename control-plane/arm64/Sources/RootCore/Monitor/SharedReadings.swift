@@ -28,6 +28,13 @@ public struct Reading<Value: Sendable>: Sendable {
     }
 }
 
+extension Reading where Value == MachineStats {
+    /// The same reading with the process list left out.
+    public func withoutProcesses() -> Reading<MachineStats> {
+        Reading(answer: answer, value: value?.withoutProcesses(), fetchedAt: fetchedAt)
+    }
+}
+
 /// One shared reading per machine, however many tabs ask (docs/monitor-contract.md, "Shared reading").
 /// A helper is called at most once per `refreshSeconds`; askers that arrive during a call wait for that call; a reading nobody asked for in `dropSeconds` is thrown away.
 public actor SharedReadings<Value: Sendable> {
@@ -38,6 +45,8 @@ public actor SharedReadings<Value: Sendable> {
         var lastAsked: Date
         var attemptedAt: Date?
         var kind: ReadingKind = .unreachable
+        /// The last call asked for the extra part (the process list); such a reading also answers a request without it.
+        var detailed = false
         var good: (value: Value, at: Date)?
         var inFlight: Task<Void, Never>?
     }
@@ -52,15 +61,17 @@ public actor SharedReadings<Value: Sendable> {
     public var heldCount: Int { entries.count }
 
     /// The reading for a machine; calls `fetch` only when the shared one is older than `refreshSeconds` and nobody is already fetching.
-    public func read(_ key: String, fetch: @escaping @Sendable () async -> ReadingOutcome<Value>) async -> Reading<Value> {
+    /// `detailed` says the asker wants the extra part (the process list). A held detailed reading answers everybody; a held plain one does not answer a detailed
+    /// request, which then makes one call at once (a failed or old-helper reading is not repeated for it: a dead helper is left alone for `refreshSeconds`).
+    public func read(_ key: String, detailed: Bool = false, fetch: @escaping @Sendable () async -> ReadingOutcome<Value>) async -> Reading<Value> {
         let now = clock.now
         sweep(now)
         var entry = entries[key] ?? Entry(lastAsked: now)
         entry.lastAsked = now
         entries[key] = entry
-        if let running = entry.inFlight { await running.value; return snapshot(key) }
-        guard isStale(entry, now) else { return snapshot(key) }
-        let task = Task { await self.finish(key, await fetch()) }
+        while let running = entries[key]?.inFlight { await running.value }
+        guard let current = entries[key], needsCall(current, detailed, clock.now) else { return snapshot(key) }
+        let task = Task { await self.finish(key, detailed, await fetch()) }
         entries[key]?.inFlight = task
         await task.value
         return snapshot(key)
@@ -74,14 +85,16 @@ public actor SharedReadings<Value: Sendable> {
         return snapshot(key)
     }
 
-    private func isStale(_ entry: Entry, _ now: Date) -> Bool {
+    private func needsCall(_ entry: Entry, _ detailed: Bool, _ now: Date) -> Bool {
         guard let attempted = entry.attemptedAt else { return true }
-        return now.timeIntervalSince(attempted) >= Self.refreshSeconds
+        let lacksDetail = detailed && !entry.detailed && entry.kind == .fresh
+        return lacksDetail || now.timeIntervalSince(attempted) >= Self.refreshSeconds
     }
 
-    private func finish(_ key: String, _ outcome: ReadingOutcome<Value>) {
+    private func finish(_ key: String, _ detailed: Bool, _ outcome: ReadingOutcome<Value>) {
         guard var entry = entries[key] else { return }
         entry.attemptedAt = clock.now
+        entry.detailed = detailed
         entry.inFlight = nil
         switch outcome {
         case .fresh(let value): entry.kind = .fresh; entry.good = (value, clock.now)

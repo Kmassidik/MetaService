@@ -16,9 +16,10 @@ public final class StatsSampler: @unchecked Sendable {
 
     public init(source: StatsSource) { self.source = source }
 
-    public func sample() throws -> MachineStats {
+    /// `includeProcesses` false: the programs are not scanned and the answer has an empty list.
+    public func sample(includeProcesses: Bool = true) throws -> MachineStats {
         lock.lock(); defer { lock.unlock() }
-        let now = try source.read()
+        let now = try source.read(includeProcesses: includeProcesses)
         let earlier = comparable(previous, now)
         previous = now
         return StatsMath.build(now, since: earlier)
