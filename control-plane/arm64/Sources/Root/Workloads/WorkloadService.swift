@@ -16,9 +16,6 @@ final class WorkloadService: @unchecked Sendable {
     private let chatAccess: ChatAccessStore
     private let secrets: SecretBox
     private let creating = NSLock()
-    private static let pollSeconds: UInt64 = 1
-    private static let giveUpAfterSeconds = 20 * 60
-    private static let lostContactAfterPolls = 300
 
     init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox) {
         self.bundles = bundles
@@ -159,11 +156,11 @@ final class WorkloadService: @unchecked Sendable {
     private func follow(_ id: String, machine: String) {
         Task.detached { [self] in
             var silent = 0
-            for _ in 0..<Self.giveUpAfterSeconds {
-                try? await Task.sleep(nanoseconds: Self.pollSeconds * 1_000_000_000)
+            for _ in 0..<OrderFollowing.giveUpAfterSeconds {
+                try? await Task.sleep(nanoseconds: UInt64(OrderFollowing.pollSeconds) * 1_000_000_000)
                 guard let reply = try? await client.call(machine: machine, method: "GET", path: "/v1/commands/\(id)") else {
                     silent += 1
-                    guard silent < Self.lostContactAfterPolls else { return lost(id, "lost contact with the machine") }
+                    guard silent < OrderFollowing.lostContactAfterPolls else { return lost(id, "lost contact with the machine") }
                     continue
                 }
                 silent = 0
