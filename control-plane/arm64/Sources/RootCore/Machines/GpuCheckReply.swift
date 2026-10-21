@@ -31,9 +31,13 @@ public struct GpuCheckReply: Encodable, Equatable, Sendable {
         return GpuCheckReply(gpuVisible: visible, how: how, detail: printable(detail, limit: longestDetail), note: plainNote)
     }
 
+    /// The C0 controls (below the space) and the C1 controls, and DEL: none of them is text.
+    private static let controls: Set<UInt32> = Set(0..<32).union(0x80...0x9f)
+    private static let delete: UInt32 = 127
+
     /// Printable characters only (a new line stays a new line), cut to `limit`.
     static func printable(_ text: String, limit: Int) -> String {
-        let kept = text.unicodeScalars.filter { $0 == "\n" || ($0.value >= 32 && $0.value != 127 && !(0x80...0x9f).contains($0.value)) }
+        let kept = text.unicodeScalars.filter { $0 == "\n" || (!controls.contains($0.value) && $0.value != delete) }
         return String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespacesAndNewlines).prefix(limit).description
     }
 }
