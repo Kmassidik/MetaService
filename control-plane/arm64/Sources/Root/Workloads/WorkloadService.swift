@@ -33,8 +33,8 @@ final class WorkloadService: @unchecked Sendable {
 
     func create(actor: String, request: CreateWorkloadOperatorRequest) async throws -> CommandRow {
         let (machine, id) = try reserve(actor: actor, request: request)
-        var body: [String: Any] = ["command_id": id, "name": request.name, "kind": request.kind, "cpu": request.cpu, "ram_mb": request.ramMb, "disk_gb": request.diskGb, "gpu_mode": request.gpuMode]
-        body["image"] = request.image ?? (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
+        let savedDefault = (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
+        let body = HelperCreateBody.make(commandId: id, request: request, machineDefaultImage: savedDefault)
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads", body: body)
     }
 

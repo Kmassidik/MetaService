@@ -24,7 +24,19 @@ struct WorkloadRoutes {
         let caller = try guards.operatorWrite(request)
         try guards.limit("workload-create", per: context, max: Self.createsPerMinute, seconds: 60)
         let wish = try CreateWorkloadOperatorRequest(body: try await guards.body(request))
+        try requireSelectable(wish.bundle)
         return try Json.response(Reply(command: try await services.workloads.create(actor: caller.name, request: wish)), status: .accepted)
+    }
+
+    /// A listed image that cannot be chosen yet is a plain 409 that says why, in the catalog's words.
+    private func requireSelectable(_ bundle: String) throws {
+        do {
+            _ = try ImageCatalog.choose(bundle)
+        } catch ImageChoiceError.notAvailable(let reason) {
+            throw ApiFailure(status: .conflict, code: "image_not_available", message: reason)
+        } catch ImageChoiceError.unknown {
+            throw ApiFailure.invalid("bundle is not one of the listed images")
+        }
     }
 
     private func act(_ request: Request, _ context: RootContext, _ action: WorkloadService.Action) async throws -> Response {

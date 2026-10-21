@@ -193,12 +193,11 @@ public struct CreateWorkloadOperatorRequest: Equatable {
     public let diskGb: Int
     public let gpuMode: String
     public let machine: String?
-    public let image: String?
-
-    private static let imagePattern = #/^[a-z0-9][a-z0-9._:\/-]{0,127}$/#
+    /// The catalog id of the image to start from. Blank when the request does not say. The browser never names an engine image: only this id, and the parent maps it.
+    public let bundle: String
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "image"])
+        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "bundle"])
         name = try object.id("name")
         kind = try object.choice("kind", among: ["vm", "container"])
         cpu = try object.int("cpu", range: 1...64)
@@ -206,7 +205,13 @@ public struct CreateWorkloadOperatorRequest: Equatable {
         diskGb = try object.int("disk_gb", range: 1...100_000)
         gpuMode = object.has("gpu_mode") ? try object.choice("gpu_mode", among: ["none", "container", "passthrough"]) : "none"
         machine = object.has("machine") ? try object.id("machine") : nil
-        image = object.has("image") ? try object.string("image", pattern: Self.imagePattern, maxLength: 128, minLength: 1) : nil
+        bundle = object.has("bundle") ? try Self.knownBundle(object) : ImageCatalog.blankId
+    }
+
+    private static func knownBundle(_ object: StrictObject) throws -> String {
+        let id = try object.string("bundle", pattern: ImageCatalog.pattern, maxLength: 32, minLength: 1)
+        guard ImageCatalog.entry(id: id) != nil else { throw InputError("bundle is not one of the listed images") }
+        return id
     }
 }
 
