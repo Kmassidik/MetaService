@@ -45,6 +45,14 @@ test('a succeeded order the machine never listed stops showing after a few minut
   expect(pendingVms([long], [box], NOW, none)).toEqual([])
 })
 
+test('a VM that was made and then deleted does not come back as pending', () => {
+  const done = order({ state: 'succeeded', result: { workload_id: 'w-1' }, finished_at: iso(NOW - 2 * MINUTE) })
+  const removal = command({ id: 'c2', type: 'delete', state: 'succeeded', workload_id: 'w-1', created_at: iso(NOW - MINUTE) })
+  expect(pendingVms([done, removal], [box], NOW, none)).toEqual([])
+  const otherRemoval = command({ id: 'c3', type: 'delete', state: 'succeeded', workload_id: 'w-9', created_at: iso(NOW - MINUTE) })
+  expect(pendingVms([done, otherRemoval], [box], NOW, none)).toHaveLength(1)
+})
+
 test('a failed order stays with its reason until it is dismissed or old', () => {
   const failed = order({ state: 'failed', result: { error: 'no space left' }, finished_at: iso(NOW - MINUTE) })
   expect(pendingVms([failed], [box], NOW, none)[0]).toMatchObject({ stage: 'failed', reason: 'No space left.' })

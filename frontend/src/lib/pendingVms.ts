@@ -124,7 +124,9 @@ function entryFor(order: Command, machines: Machine[], now: number, dismissed: R
 
 /** The VMs that are being made or could not be made, newest first: orders to create a VM that no machine lists yet, and failed ones the person has not dismissed. */
 export function pendingVms(orders: Command[], machines: Machine[], now: number, dismissed: ReadonlySet<string>): PendingVm[] {
-  const newestFirst = [...orders].sort((left, right) => ageMs(left.created_at, now) - ageMs(right.created_at, now))
+  const removed = new Set(orders.filter((order) => order.type === 'delete' && order.workload_id).map((order) => order.workload_id))
+  const kept = orders.filter((order) => !(order.result?.workload_id && removed.has(order.result.workload_id)))
+  const newestFirst = [...kept].sort((left, right) => ageMs(left.created_at, now) - ageMs(right.created_at, now))
   return newestFirst.map((order) => entryFor(order, machines, now, dismissed)).filter((entry): entry is PendingVm => entry !== null)
 }
 
