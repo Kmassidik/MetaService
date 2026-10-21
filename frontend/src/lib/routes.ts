@@ -57,14 +57,13 @@ const MACHINES_VIEWS: Record<string, MachinesView> = { '/machines/find': 'find' 
 /** Which screen the Machines page shows: the list of added machines, or Find machines. */
 export const machinesView = (route: string): MachinesView => MACHINES_VIEWS[split(route).path] ?? 'list'
 
-export type VmsView = 'list' | 'create'
-const VMS_VIEWS: Record<string, VmsView> = { '/vms/create': 'create' }
-const VMS_PATHS = new Set(['/vms', '/vms/create'])
+const CREATE_VM_PATH = '/vms/create'
+const VMS_PATHS = new Set(['/vms', CREATE_VM_PATH])
 
-/** Which screen the VMs page shows: every VM on every machine, or the form that makes a new one. */
-export const vmsView = (route: string): VmsView => VMS_VIEWS[split(route).path] ?? 'list'
+/** True for the old Create VM address: All VMs is shown with the Create VM window open on top of it. */
+export const createVmOpen = (route: string): boolean => split(route).path === CREATE_VM_PATH
 
-/** The machine kept in the address of a VMs page (?machine=<id>): the filter of All VMs, the preselected machine of Create VM. Null when absent or not a valid id. */
+/** The machine kept in the address of a VMs page (?machine=<id>): the filter of All VMs, the preselected machine of the Create VM window. Null when absent or not a valid id. */
 export function vmsMachineFromRoute(route: string): string | null {
   const { path, query } = split(route)
   if (!VMS_PATHS.has(path)) return null
@@ -77,7 +76,7 @@ const withMachine = (base: string, machine: string | null) => (machine ? `${base
 /** The address of All VMs, narrowed to one machine when given. */
 export const vmsHref = (machine: string | null) => withMachine('#/vms', machine)
 
-/** The address of Create VM, with a machine preselected when given. */
-export const createVmHref = (machine: string | null) => withMachine('#/vms/create', machine)
+/** The address that opens the Create VM window, with a machine preselected when given. */
+export const createVmHref = (machine: string | null) => withMachine(`#${CREATE_VM_PATH}`, machine)
 
 export const pageFor = (route: string): Page => PAGES[split(route).path] ?? 'overview'

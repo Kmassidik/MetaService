@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { blankForm, kindChoices, kindAfterPick, machineChoices, machineDefaults, preselectedMachine, unavailableNotes } from './createVm.ts'
+import { blankForm, kindChoices, kindAfterPick, machineChoices, machineDefaults, machineOptions, preselectedMachine, startingMachine, unavailableNotes } from './createVm.ts'
 import { machine } from './testing.ts'
 
 const caps = (vm: boolean, container: boolean) => ({ vm, container, gpu_in_vm: false, gpu_in_container: false })
@@ -71,6 +71,21 @@ test('the machine in the address is preselected only when it is on the list and 
   expect(preselectedMachine('/vms/create?machine=zed', choices)).toBe('zed')
   expect(preselectedMachine('/vms/create?machine=box', choices)).toBe('box')
   for (const route of ['/vms/create', '/vms/create?machine=off', '/vms/create?machine=gone', '/vms/create?machine=Bad Name', '/machines?machine=zed']) expect(preselectedMachine(route, choices), route).toBe('')
+})
+
+test('opened from a machine\'s own page the dropdown lists that machine only, otherwise every machine', () => {
+  const choices = machineChoices(fleet)
+  expect(machineOptions(choices, null)).toEqual(choices)
+  expect(machineOptions(choices, 'zed').map((entry) => entry.id)).toEqual(['zed'])
+  expect(machineOptions(choices, 'gone')).toEqual([])
+})
+
+test('the window starts with the machine it was opened from, else the pickable one in the address, else none', () => {
+  const choices = machineChoices(fleet)
+  expect(startingMachine('/vms/create?machine=box', 'zed', choices)).toBe('zed')
+  expect(startingMachine('/vms/create?machine=box', null, choices)).toBe('box')
+  expect(startingMachine('/vms/create?machine=off', null, choices)).toBe('')
+  expect(startingMachine('/vms', null, choices)).toBe('')
 })
 
 test('each machine that cannot be picked is explained in a line, with the machine\'s own words when it gave some', () => {

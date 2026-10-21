@@ -1,23 +1,8 @@
 import { test, expect } from 'bun:test'
-import { machinesMenu, vmsMenu } from './sidebar.ts'
+import { machinesMenu } from './sidebar.ts'
 
-const vmsMarked = (route: string) => vmsMenu(route).filter((item) => item.on).map((item) => item.label)
-
-test('the VMs dropdown has two items, All VMs then Create VM, and no machine names', () => {
-  expect(vmsMenu('/vms').map((item) => [item.label, item.href])).toEqual([['All VMs', '#/vms'], ['Create VM', '#/vms/create']])
-})
-
-test('the VMs page being looked at is marked, also with a machine in the address', () => {
-  expect(vmsMarked('/vms')).toEqual(['All VMs'])
-  expect(vmsMarked('/vms?machine=mac-mini')).toEqual(['All VMs'])
-  expect(vmsMarked('/vms/create')).toEqual(['Create VM'])
-  expect(vmsMarked('/vms/create?machine=mac-mini')).toEqual(['Create VM'])
-})
-
-test('on any other page nothing in the VMs dropdown is marked, and the VMs pages mark nothing in the Machines dropdown', () => {
-  for (const route of ['/', '/usage', '/health', '/settings', '/machines', '/machines/find', '/machines/details?id=a&vm=w-1']) expect(vmsMarked(route), route).toEqual([])
-  expect(machinesMenu('/vms').filter((item) => item.on)).toEqual([])
-  expect(machinesMenu('/vms/create').filter((item) => item.on)).toEqual([])
+test('the VMs pages mark nothing in the Machines dropdown', () => {
+  for (const route of ['/vms', '/vms?machine=mac-mini', '/vms/create']) expect(machinesMenu(route).filter((item) => item.on), route).toEqual([])
 })
 
 const marked = (route: string) => machinesMenu(route).filter((item) => item.on).map((item) => item.label)

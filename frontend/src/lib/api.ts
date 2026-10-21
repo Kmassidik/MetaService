@@ -3,7 +3,6 @@ import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
 import { parseStatsReply } from './statsParse.ts'
-import type { NewVmDeps } from './newVm.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
@@ -119,12 +118,6 @@ export const startScan = () => call<unknown>('POST', '/api/scans')
 export const latestScan = async () => (await call<{ scan: Scan | null }>('GET', '/api/scans/latest')).scan
 
 export const createWorkload = (body: Record<string, unknown>) => call<unknown>('POST', '/api/workloads', body)
-export const getCommand = async (id: string) => (await call<{ command: Command }>('GET', `/api/commands/${encodeURIComponent(id)}`)).command
-
-const PAUSE = (ms: number) => new Promise<void>((done) => setTimeout(done, ms))
-
-/** What Create VM needs to follow its order to the end: the real calls and a real clock. `stopped` says when the person left the page. */
-export const newVmDeps = (stopped: () => boolean): NewVmDeps => ({ getCommand, listMachines, pause: PAUSE, stopped })
 
 export const listCommands = async () => (await call<{ commands: Command[] }>('GET', '/api/commands?limit=15')).commands
 

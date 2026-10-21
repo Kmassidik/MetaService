@@ -1,4 +1,4 @@
-// What the Create VM form needs to know about the machines: which can take a new VM right now and why not, which kinds each can run, and the form's starting values. Pure functions, no DOM, no network.
+// What the Create VM window needs to know about the machines: which can take a new VM right now and why not, which kinds each can run, and the form's starting values. Pure functions, no DOM, no network.
 import { vmsMachineFromRoute } from './routes.ts'
 import type { Machine, WorkloadForm, WorkloadKind } from './types.ts'
 
@@ -89,6 +89,12 @@ export function preselectedMachine(route: string, choices: MachineChoice[]): str
   const wanted = vmsMachineFromRoute(route)
   return choices.find((choice) => choice.id === wanted && !choice.disabled)?.id ?? ''
 }
+
+/** The machines the dropdown lists: every one, or only the one the window was opened from (on that machine's own page). */
+export const machineOptions = (choices: MachineChoice[], only: string | null): MachineChoice[] => (only === null ? choices : choices.filter((choice) => choice.id === only))
+
+/** The machine the window starts with chosen: the one it was opened from, else the pickable one named in the address, else none (''). */
+export const startingMachine = (route: string, only: string | null, choices: MachineChoice[]): string => only ?? preselectedMachine(route, choices)
 
 /** The sizes a machine was set up to give a new VM; only the ones it has. */
 export function machineDefaults(machine: Machine | undefined): Partial<Pick<WorkloadForm, 'cpu' | 'ramGb' | 'diskGb'>> {

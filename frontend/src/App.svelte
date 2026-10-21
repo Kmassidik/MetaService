@@ -3,7 +3,7 @@
   import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, uninstallBundle, workloadAction } from './lib/api.ts'
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
-  import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsView } from './lib/routes.ts'
+  import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsHref, createVmOpen } from './lib/routes.ts'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
@@ -11,14 +11,13 @@
   import MachineDetail from './pages/MachineDetail.svelte'
   import VmDetail from './pages/VmDetail.svelte'
   import VmsList from './pages/VmsList.svelte'
-  import VmCreate from './pages/VmCreate.svelte'
-  import TokenLedger from './pages/TokenLedger.svelte'
+    import TokenLedger from './pages/TokenLedger.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
   import ConfirmRemoveRemote from './components/ConfirmRemoveRemote.svelte'
-  import NewWorkload from './components/NewWorkload.svelte'
+  import CreateVmDialog from './components/vms/CreateVmDialog.svelte'
   import ConfirmDelete from './components/ConfirmDelete.svelte'
   import ChatLink from './components/ChatLink.svelte'
   import Terminal from './components/Terminal.svelte'
@@ -54,6 +53,8 @@
   let loaded = $state(false)
   let openLink = $state<string | null>(null)
   let creating = $state(false)
+  /** The Create VM window is open from a button (creating) or from the old Create VM address. */
+  const createOpen = $derived(loaded && (creating || createVmOpen(route)))
   let deleting = $state<{ machine: Machine; workload: Workload } | null>(null)
   let deleteBusy = $state(false)
   let deleteFailure = $state('')
@@ -104,6 +105,15 @@
       }
       banner = 'Cannot reach the Root. Showing the last data.'
     }
+  }
+
+  /** Closes the window, whichever way it was opened. The old address is replaced by plain All VMs, so Back does not reopen it. */
+  function closeCreate() {
+    creating = false
+    creatingOnId = null
+    if (!createVmOpen(route)) return
+    history.replaceState(null, '', vmsHref(null))
+    route = '/vms'
   }
 
   function startCreate(machine?: Machine) {
@@ -275,8 +285,6 @@
         <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
-      {:else if page === 'vms' && vmsView(route) === 'create'}
-        {#key route}<VmCreate {machines} {route} {banner} {pending} onCreated={refresh} />{/key}
       {:else if page === 'vms'}
         <VmsList {machines} {route} {banner} {pending} />
       {:else if page === 'usage'}
@@ -294,7 +302,7 @@
   <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} />{/if}
-  <NewWorkload open={creating} {machines} only={creatingOn} onClose={() => (creating = false)} onCreated={refresh} />
+  <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   {#if removingRemote}
     <ConfirmRemoveRemote machine={removing} info={removingRemote} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemoveRemote} />

@@ -6,18 +6,15 @@
     icon: string
   }
 
-  import { machinesMenu, vmsMenu, type MenuItem } from '../lib/sidebar.ts'
+  import { machinesMenu, type MenuItem } from '../lib/sidebar.ts'
 
   let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
-  // Machines and VMs are dropdowns: each opens by itself when one of its pages is shown, and the person can close or open it.
+  // Machines is a dropdown: it opens by itself when one of its pages is shown, and the person can close or open it. VMs is one plain link to All VMs.
   let machinesOpen = $state(false)
-  let vmsOpen = $state(false)
   $effect(() => { if (active === 'machines') machinesOpen = true })
-  $effect(() => { if (active === 'vms') vmsOpen = true })
   const isOn = (page: NavPage) => active === page.id
   const dropdowns = $derived<Record<string, { items: MenuItem[]; open: boolean; toggle: () => void }>>({
     machines: { items: machinesMenu(route), open: machinesOpen, toggle: () => (machinesOpen = !machinesOpen) },
-    vms: { items: vmsMenu(route), open: vmsOpen, toggle: () => (vmsOpen = !vmsOpen) },
   })
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [

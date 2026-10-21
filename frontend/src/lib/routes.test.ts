@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { createVmHref, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute, vmsView } from './routes.ts'
+import { createVmHref, createVmOpen, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute } from './routes.ts'
 
 test('a machine address can name a tab (&tab=); old names and missing names land on a new tab', () => {
   expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=vms')).toBe('vms')
@@ -38,7 +38,11 @@ test('a VM\'s page adds &vm=<workload> to its machine\'s address, and only a val
 
 test('the VMs pages are /vms (all VMs) and /vms/create, and both belong to the vms page', () => {
   expect(['/vms', '/vms/create', '/vms?machine=mac-mini', '/vms/create?machine=mac-mini'].map(pageFor)).toEqual(['vms', 'vms', 'vms', 'vms'])
-  expect(['/vms', '/vms?machine=x', '/vms/create', '/vms/create?machine=x', '/vms/other'].map(vmsView)).toEqual(['list', 'list', 'create', 'create', 'list'])
+})
+
+test('the Create VM window is in the address of the old Create VM links only', () => {
+  expect(['/vms/create', '/vms/create?machine=x'].map(createVmOpen)).toEqual([true, true])
+  for (const route of ['/vms', '/vms?machine=x', '/vms/other', '/', '/machines/details?id=a', '/machines/create']) expect(createVmOpen(route), route).toBe(false)
 })
 
 test('the machine kept in the address of the VMs pages is read only when it is a valid id', () => {
