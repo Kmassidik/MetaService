@@ -52,6 +52,6 @@
 <style>
   .waiting { padding: 16px 28px 0; margin: 0; font-size: 13px; }
   .filter { display: flex; align-items: center; gap: 10px; padding: 16px 28px 0; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
-  select { min-height: 38px; min-width: 200px; max-width: 100%; padding: 0 10px; border: 1px solid var(--gray); background: var(--bg); font-family: var(--mono); font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--black); }
+  select { min-height: 38px; min-width: 200px; max-width: 100%; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); font-family: var(--mono); font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text); }
   @media (max-width: 820px) { .filter { padding: 16px 16px 0; } select { flex: 1; min-width: 0; } }
 </style>

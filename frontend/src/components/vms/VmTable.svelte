@@ -35,7 +35,7 @@
 
 <style>
   tr { position: relative; }
-  tbody tr:hover { background: var(--gray2); }
+  tbody tr:hover { background: var(--surface-2); }
   tr.offline { opacity: 0.7; }
   .name, .machine { overflow-wrap: anywhere; }
   /* The whole row is the link to the VM; the machine link sits above it. */
@@ -45,7 +45,7 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (max-width: 820px) {
     thead { display: none; }
-    tbody tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--gray); }
+    tbody tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); }
     tbody td { display: flex; gap: 8px; align-items: center; padding: 3px 0; border: 0; }
     tbody td::before { content: attr(data-label); flex: 0 0 64px; color: var(--m50); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
     .machine { display: flex; }

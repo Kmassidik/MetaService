@@ -15,9 +15,9 @@
 </section>
 
 <style>
-  .cx-card { padding: 10px 14px 4px; border: 1px solid var(--gray); background: var(--gray2); }
+  .cx-card { padding: 10px 14px 4px; border: 1px solid var(--line); background: var(--surface-2); }
   .cx-card.has-bad { border: 2px solid var(--danger); padding: 9px 13px 3px; }
   h4 { margin: 0 0 4px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--m70); }
   .checks { list-style: none; margin: 0; padding: 0; }
-  .checks :global(li + li) { border-top: 1px solid var(--gray); }
+  .checks :global(li + li) { border-top: 1px solid var(--line); }
 </style>

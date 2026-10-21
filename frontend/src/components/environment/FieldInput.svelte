@@ -20,11 +20,11 @@
 <style>
   .entry { display: grid; gap: 6px; align-content: start; min-width: 0; }
   label { font: 10px var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--m50); }
-  input { width: 100%; border: 1px solid var(--gray); background: var(--white); color: var(--black); padding: 10px 12px; font: 14px var(--sans); }
+  input { width: 100%; border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 10px 12px; font: 14px var(--sans); }
   input::placeholder { color: var(--m40); }
-  input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
-  input[aria-invalid='true'] { border-color: #c0392b; }
+  input:focus { outline: 2px solid var(--accent-mark); outline-offset: -1px; }
+  input[aria-invalid='true'] { border-color: var(--danger); }
   .error, .hint { margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-  .error { color: #c0392b; }
+  .error { color: var(--danger); }
   .hint { color: var(--m50); }
 </style>

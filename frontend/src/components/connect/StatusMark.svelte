@@ -35,7 +35,7 @@
   .blocking { color: var(--danger); }
   .optional { color: var(--warn); }
   .waiting { color: var(--m50); }
-  .spin { width: 22px; height: 22px; border: 3px solid var(--gray); border-top-color: var(--ok); border-radius: 50%; animation: turn 0.9s linear infinite; }
+  .spin { width: 22px; height: 22px; border: 3px solid var(--line); border-top-color: var(--ok); border-radius: 50%; animation: turn 0.9s linear infinite; }
   @keyframes turn { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; border-style: dotted; border-top-color: var(--ok); } }
 </style>

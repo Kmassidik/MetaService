@@ -9,7 +9,7 @@
 <span class="bar" role="img" aria-label="{label}: {percent === null ? 'measuring' : Math.round(percent) + '%'}"><i class:hot style:width={barWidth(percent)}></i></span>
 
 <style>
-  .bar { display: block; height: 7px; background: var(--gray2); border: 1px solid var(--gray); overflow: hidden; }
-  i { display: block; height: 100%; background: var(--green); transition: width 0.4s ease; }
-  i.hot { background: var(--warn); }
+  .bar { display: block; height: 7px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+  i { display: block; height: 100%; background: var(--accent-mark); transition: width 0.4s ease; }
+  i.hot { background: var(--warn-line); }
 </style>

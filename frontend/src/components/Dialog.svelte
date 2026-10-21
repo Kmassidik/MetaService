@@ -26,10 +26,10 @@
 </dialog>
 
 <style>
-  dialog { max-height: calc(100vh - 32px); overflow-y: auto; width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--black); background: var(--white); color: var(--black); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+  dialog { max-height: calc(100vh - 32px); overflow-y: auto; width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); box-shadow: var(--shadow-window); }
   dialog.wide { width: min(1040px, calc(100vw - 32px)); }
-  dialog::backdrop { background: rgba(17, 17, 17, 0.6); }
-  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--gray); }
+  dialog::backdrop { background: var(--scrim); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--line); }
   .modal-head h3 { font-family: var(--mono); font-size: 13px; font-weight: 700; margin: 0; }
   .modal-body { padding: 20px 22px; display: grid; gap: 14px; }
 </style>

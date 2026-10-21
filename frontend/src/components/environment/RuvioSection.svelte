@@ -39,18 +39,18 @@
   .what { min-width: 0; }
   .what b { font: 700 13px var(--mono); }
   .reason { margin: 2px 0 0; font-size: 12.5px; color: var(--warn); }
-  .switch { position: relative; flex: none; width: 46px; height: 26px; padding: 0; border: 1px solid var(--black); background: var(--white); }
-  .switch .knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: var(--black); transition: transform 0.15s; }
-  .switch.on { background: var(--green); }
+  .switch { position: relative; flex: none; width: 46px; height: 26px; padding: 0; border: 1px solid var(--line-strong); background: var(--surface); }
+  .switch .knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: var(--inverse-bg); transition: transform 0.15s; }
+  .switch.on { background: var(--accent-mark); }
   .switch.on .knob { transform: translateX(20px); }
   .switch:disabled { opacity: 0.45; cursor: not-allowed; }
-  .switch:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .switch:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; }
   .kv { display: grid; margin: 0; }
-  .kv > div { display: grid; grid-template-columns: 160px 1fr; gap: 16px; border-bottom: 1px solid var(--gray2); padding: 10px 0; }
+  .kv > div { display: grid; grid-template-columns: 160px 1fr; gap: 16px; border-bottom: 1px solid var(--surface-2); padding: 10px 0; }
   .kv dt { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   .kv dd { margin: 0; font-size: 13px; }
   .kv dd.missing { color: var(--m50); }
-  .failure { margin: 12px 0 0; padding: 10px 12px; border: 1px solid #efc5c1; border-left: 4px solid #b52b22; background: #fff5f4; color: #98281f; font-size: 13px; overflow-wrap: anywhere; }
+  .failure { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--danger-note-line); border-left: 4px solid var(--danger-note-bar); background: var(--danger-note-bg); color: var(--danger-note-text); font-size: 13px; overflow-wrap: anywhere; }
   .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .note { margin: 12px 0 0; font-size: 12.5px; color: var(--m60); }
   @media (max-width: 820px) { .kv > div { grid-template-columns: 1fr; gap: 4px; } }

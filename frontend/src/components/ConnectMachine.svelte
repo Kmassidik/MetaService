@@ -182,29 +182,29 @@
 </Dialog>
 
 <style>
-  .steps { list-style: none; display: flex; gap: 18px; margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--gray); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m40); }
-  .steps li.on { color: var(--black); font-weight: 700; }
+  .steps { list-style: none; display: flex; gap: 18px; margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m40); }
+  .steps li.on { color: var(--text); font-weight: 700; }
   .steps li.past { color: var(--ok); }
   @media (max-width: 520px) { .steps { gap: 10px; } .steps li:not(.on) .t { display: none; } }
   .steps b { display: inline-block; min-width: 18px; text-align: center; border: 1px solid currentColor; border-radius: 50%; }
   label { display: block; margin-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--m50); }
-  input:not([type='radio']) { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--gray); background: var(--white); font-family: var(--mono); font-size: 14px; }
-  input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
-  .found { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--gray); background: var(--gray2); }
+  input:not([type='radio']) { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--line); background: var(--surface); font-family: var(--mono); font-size: 14px; }
+  input:focus { outline: 2px solid var(--accent-mark); outline-offset: -1px; }
+  .found { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface-2); }
   .found p { margin: 2px 0 0; font-size: 13px; }
-  .ico { flex: none; color: var(--green); }
+  .ico { flex: none; color: var(--accent-mark); }
   .why { margin-top: 12px; font-size: 13px; }
   .why summary { cursor: pointer; color: var(--m50); }
   .how { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 14px; }
   .how li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; }
-  .how b { display: inline-block; width: 22px; height: 22px; line-height: 20px; text-align: center; border: 1px solid var(--green); border-radius: 50%; font-size: 12px; }
+  .how b { display: inline-block; width: 22px; height: 22px; line-height: 20px; text-align: center; border: 1px solid var(--accent-mark); border-radius: 50%; font-size: 12px; }
   .how p { margin: 2px 0 0; font-size: 13px; }
   .how .btn { margin-top: 8px; }
   .link { background: none; border: 0; padding: 0; margin-top: 10px; color: var(--m50); font-size: 13px; text-decoration: underline; cursor: pointer; }
-  .print { padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 15px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
-  .key { display: block; padding: 10px; border: 1px solid var(--gray); background: var(--bg); overflow-wrap: anywhere; user-select: all; font-size: 12px; }
+  .print { padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); font-size: 15px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+  .key { display: block; padding: 10px; border: 1px solid var(--line); background: var(--surface); overflow-wrap: anywhere; user-select: all; font-size: 12px; }
   .sub { margin: 16px 0 6px; font-size: 13px; }
   .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
   .hint { font-size: 12px; margin-top: 6px; }
-  .bad { color: #d92d20; }
+  .bad { color: var(--danger-bright); }
 </style>

@@ -18,19 +18,22 @@
   }
 
   const FIRST_FIT_DELAY_MS = 50
-  const TERMINAL_OPTIONS = {
+  const ACCENT_TOKEN = '--accent'
+  const accentColour = () => getComputedStyle(document.documentElement).getPropertyValue(ACCENT_TOKEN).trim()
+  /** The terminal keeps its own dark colours in every theme. Only the cursor and the selection take the panel's accent colour, read from its token. */
+  const terminalOptions = () => ({
     cursorBlink: true,
     fontFamily: "'Space Mono',ui-monospace,monospace",
     fontSize: 13,
     scrollback: 5000,
-    theme: { background: '#111111', foreground: '#e8e8e8', cursor: '#00f56d', selectionBackground: '#00f56d', selectionForeground: '#111111' },
-  }
+    theme: { background: '#111111', foreground: '#e8e8e8', cursor: accentColour(), selectionBackground: accentColour(), selectionForeground: '#111111' },
+  })
 
   let { machine, workload, name, onclose }: Props = $props()
   let host: HTMLDivElement | undefined
   let phase: TerminalState = $state('connecting')
   let reason = $state('')
-  const term = new Terminal(TERMINAL_OPTIONS)
+  const term = new Terminal(terminalOptions())
   const fit = new FitAddon()
   let socket: WebSocket | undefined
   let asking = false
@@ -165,15 +168,15 @@
 
 <style>
   /* fills most of the viewport; the terminal itself flexes to fill all space below the header */
-  .term-box { width: min(1000px, 96vw); height: 82vh; display: flex; flex-direction: column; background: var(--black); border-color: #000; }
-  .thead { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 9px 14px; background: #1a1a1a; border-bottom: 1px solid #000; }
-  .ttitle { font-family: var(--mono); font-size: 12px; font-weight: 700; color: #e8e8e8; }
+  .term-box { width: min(1000px, 96vw); height: 82vh; display: flex; flex-direction: column; background: var(--term-bg); border-color: var(--term-line); }
+  .thead { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 9px 14px; background: var(--term-bar); border-bottom: 1px solid var(--term-line); }
+  .ttitle { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--term-text); }
   .tstatus { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--m40); }
-  .tstatus.ok { color: var(--green); }
-  .tstatus.no { color: #ff6b6b; }
+  .tstatus.ok { color: var(--accent); }
+  .tstatus.no { color: var(--term-bad); }
   .tspace { flex: 1; }
-  .tbtn { background: none; border: 1px solid #3a3a3a; color: #cfcfcf; font-family: var(--mono); font-size: 11px; padding: 5px 11px; }
-  .tbtn:hover { border-color: var(--green); color: var(--green); }
+  .tbtn { background: none; border: 1px solid var(--term-button-line); color: var(--term-button-text); font-family: var(--mono); font-size: 11px; padding: 5px 11px; }
+  .tbtn:hover { border-color: var(--accent); color: var(--accent); }
   .term { flex: 1; min-height: 0; padding: 8px 10px; overflow: hidden; }
   .term :global(.xterm) { height: 100%; }
   .term :global(.xterm-viewport) { overflow-y: auto; }

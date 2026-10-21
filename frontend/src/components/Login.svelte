@@ -47,16 +47,16 @@
       <p class="lede">Add your machines, create VMs and containers on them, and open the chat on each one. Macs and Linux, one place.</p>
     </div>
     <svg class="diagram" viewBox="0 0 520 150" role="img" aria-label="One parent connected to four machines">
-      <g stroke="rgba(250,250,250,.35)" stroke-width="1.5" fill="none">
+      <g stroke="var(--pitch-faint)" stroke-width="1.5" fill="none">
         <path d="M260 40 L70 110" /><path d="M260 40 L195 110" /><path d="M260 40 L325 110" /><path d="M260 40 L450 110" />
       </g>
-      <g stroke="#00f56d" stroke-width="1.5" fill="none" stroke-dasharray="3 5"><path d="M260 40 L195 110" /><path d="M260 40 L325 110" /></g>
-      <rect x="226" y="14" width="68" height="40" fill="#111" stroke="#00f56d" stroke-width="1.5" />
-      <text x="260" y="39" text-anchor="middle" fill="#fafafa" font-family="monospace" font-size="12" font-weight="700">PARENT</text>
+      <g stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="3 5"><path d="M260 40 L195 110" /><path d="M260 40 L325 110" /></g>
+      <rect x="226" y="14" width="68" height="40" fill="var(--pitch-bg)" stroke="var(--accent)" stroke-width="1.5" />
+      <text x="260" y="39" text-anchor="middle" fill="var(--pitch-text)" font-family="monospace" font-size="12" font-weight="700">PARENT</text>
       {#each [70, 195, 325, 450] as x, index (x)}
-        <rect x={x - 34} y="96" width="68" height="36" fill="#111" stroke="rgba(250,250,250,.55)" stroke-width="1.5" />
-        <rect x={x - 26} y="104" width="6" height="6" fill={index < 3 ? '#00f56d' : 'rgba(250,250,250,.4)'} />
-        <text x={x + 4} y="119" text-anchor="middle" fill="rgba(250,250,250,.8)" font-family="monospace" font-size="11">machine</text>
+        <rect x={x - 34} y="96" width="68" height="36" fill="var(--pitch-bg)" stroke="var(--pitch-dim)" stroke-width="1.5" />
+        <rect x={x - 26} y="104" width="6" height="6" fill={index < 3 ? 'var(--accent)' : 'var(--pitch-faint)'} />
+        <text x={x + 4} y="119" text-anchor="middle" fill="var(--pitch-soft)" font-family="monospace" font-size="11">machine</text>
       {/each}
     </svg>
     <div class="facts">
@@ -90,6 +90,6 @@
   form .btn { width: 100%; padding: 12px 15px; }
   .note { font-family: var(--mono); font-size: 11px; color: var(--m50); margin: -4px 0 12px; }
   .hintline { font-family: var(--mono); font-size: 12px; color: var(--m50); min-height: 18px; margin-bottom: 14px; }
-  .hintline.ok { color: var(--run); }
-  .hintline.no { color: #d92d20; }
+  .hintline.ok { color: var(--ok); }
+  .hintline.no { color: var(--danger-bright); }
 </style>

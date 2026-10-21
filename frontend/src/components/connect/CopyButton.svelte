@@ -23,7 +23,7 @@
 <button class="copy" type="button" aria-label={`Copy ${describe}`} onclick={copy}>{shown}</button>
 
 <style>
-  .copy { flex: none; padding: 2px 8px; background: transparent; color: var(--black); border: 1px solid var(--m50); font-family: var(--sans); font-size: 12px; cursor: pointer; }
-  .copy:hover { border-color: var(--black); }
+  .copy { flex: none; padding: 2px 8px; background: transparent; color: var(--text); border: 1px solid var(--m50); font-family: var(--sans); font-size: 12px; cursor: pointer; }
+  .copy:hover { border-color: var(--line-strong); }
   .copy:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 </style>

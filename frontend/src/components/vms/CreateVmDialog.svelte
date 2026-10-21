@@ -119,7 +119,7 @@
   .step { display: grid; gap: 10px; }
   fieldset { display: grid; gap: 10px; border: 0; margin: 0; padding: 0; min-width: 0; }
   label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
-  select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; max-width: 100%; }
+  select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-weight: 400; max-width: 100%; }
   .note, .hint { font-size: 13px; margin: 0; }
   .bad { color: var(--danger); margin: 0; }
   .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }

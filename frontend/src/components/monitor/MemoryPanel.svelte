@@ -26,11 +26,11 @@
 <style>
   .big { font-family: var(--mono); font-size: 24px; font-weight: 700; }
   .big small { font-size: 12px; font-weight: 400; color: var(--m60); }
-  .stack { display: flex; height: 7px; background: var(--gray2); border: 1px solid var(--gray); overflow: hidden; }
+  .stack { display: flex; height: 7px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
   .stack i { display: block; height: 100%; }
-  i.used { background: var(--green); }
-  i.cached { background: #9ee8bd; }
-  i.free { background: var(--gray2); border: 1px solid var(--gray); }
+  i.used { background: var(--accent-mark); }
+  i.cached { background: var(--accent-soft); }
+  i.free { background: var(--surface-2); border: 1px solid var(--line); }
   .line { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-family: var(--mono); font-size: 11px; color: var(--m60); }
   .line span { display: inline-flex; align-items: center; gap: 6px; }
   .line i { width: 8px; height: 8px; display: inline-block; }

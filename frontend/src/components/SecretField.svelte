@@ -31,5 +31,5 @@
   .inp { position: relative; }
   .inp input { padding-right: 44px; }
   .eye { position: absolute; right: 0; top: 0; bottom: 0; width: 42px; background: none; border: 0; color: var(--m40); display: grid; place-items: center; }
-  .eye:hover, .eye[aria-pressed='true'] { color: var(--black); }
+  .eye:hover, .eye[aria-pressed='true'] { color: var(--text); }
 </style>

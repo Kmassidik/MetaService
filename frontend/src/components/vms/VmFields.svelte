@@ -32,7 +32,7 @@
 
 <style>
   label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; min-width: 0; }
-  input, select { min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; }
+  input, select { min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-weight: 400; }
   input[aria-invalid='true'] { border-color: var(--danger); }
   .sizes { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 </style>

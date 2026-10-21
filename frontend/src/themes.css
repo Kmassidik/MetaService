@@ -1,0 +1,63 @@
+/* Every colour of the panel is a token here, and nothing else in the panel names a colour (the one exception is the terminal's own theme object, which has to be a plain value).
+   :root is today's look (neon green on white). The two data-theme sets below it exist only so Kurnia can compare them; the page chooses one with <html data-theme="...">.
+   src/lib/themes.test.ts reads this file and checks the contrast of every pair of text and background in both sets. */
+:root {
+  /* page, cards, lines */
+  --page-bg: #fff; --surface: #fff; --surface-2: #f5f5f4; --line: #e5e5e5; --line-strong: #111; --focus: #111;
+  /* text: --text, then four muted steps, weakest first */
+  --text: #111; --m40: rgba(17,17,17,.4); --m50: rgba(17,17,17,.5); --m60: rgba(17,17,17,.6); --m70: rgba(17,17,17,.72); --muted: var(--m50);
+  /* dark blocks inside the page: buttons, counters, tooltips, the machine's roof, the GPU floor */
+  --inverse-bg: #111; --inverse-2: #1c1c1c; --inverse-line: #333; --inverse-text: #fff;
+  --inverse-text-soft: rgba(255,255,255,.72); --inverse-text-mid: rgba(255,255,255,.62); --inverse-text-dim: rgba(255,255,255,.55);
+  /* the brand colour: fills with dark text on them, marks (bars, focus, switch) and lines */
+  --accent: #00f56d; --accent-d: #00c24e; --accent-mark: #00f56d; --accent-soft: #9ee8bd; --accent-text: #053;
+  --announce-bg: #00f56d; --announce-text: #043; --announce-line: #111;
+  /* states: running or ok, needs attention, stopped, danger */
+  --ok: #0a8f45; --ok-bg: #e7fbef; --ok-note-bg: #f3faf6; --ok-note-line: #cce4d5; --ok-note-text: #254334; --ok-note-title: #17643a;
+  --warn: #c07600; --warn-bg: #fff4e2; --warn-line: #c07600; --warn-note-bg: #fffaf1; --warn-note-line: #ead6b7; --warn-note-title: #65420d;
+  --off: #8a8a8a; --reserve-bg: #d9d9d6; --reserve-line: #8a8a8a;
+  --danger: #c0392b; --danger-bg: #fdecec; --danger-line: #e0b4b4; --danger-d: #a93226; --danger-ink: #a02; --danger-bright: #d92d20;
+  --danger-note-bg: #fff5f4; --danger-note-line: #efc5c1; --danger-note-bar: #b52b22; --danger-note-text: #98281f; --danger-hatch: #e8a3a3;
+  /* shadows and the dim layer behind a window */
+  --scrim: rgba(17,17,17,.6); --shadow-window: 0 20px 60px rgba(0,0,0,.4); --shadow-card: 0 18px 40px -24px rgba(0,0,0,.35); --pane-line: rgba(17,17,17,.18);
+  /* the dark panel of the sign-in page */
+  --pitch-bg: #111; --pitch-text: #fafafa; --pitch-soft: rgba(250,250,250,.66); --pitch-dim: rgba(250,250,250,.55); --pitch-faint: rgba(250,250,250,.35);
+  --pitch-dot: rgba(255,255,255,.07); --pitch-glow: rgba(0,245,109,.18);
+  /* the terminal window: dark in every theme */
+  --term-bg: #111; --term-bar: #1a1a1a; --term-line: #000; --term-text: #e8e8e8; --term-button-line: #3a3a3a; --term-button-text: #cfcfcf; --term-bad: #ff6b6b;
+}
+
+/* The owl colours both review sets share: moss green, amber, forest green for ok, red kept red. */
+:root[data-theme="forest"], :root[data-theme="forest-soft"] {
+  --accent: #7db26b; --accent-d: #4c7c3c; --accent-mark: #568a45; --accent-soft: #bfddb3; --accent-text: #1c2a12;
+  --ok: #2a6026; --ok-bg: #e3f0dc; --ok-note-bg: #f1f7ec; --ok-note-line: #c9debf; --ok-note-text: #2b3a22; --ok-note-title: #2a6026;
+  --warn: #8a5a00; --warn-bg: #fff1cc; --warn-line: #b77700; --warn-note-bg: #fff8e4; --warn-note-line: #ebd5a0; --warn-note-title: #5e3f00;
+  --danger: #b3261e; --danger-bg: #fbe9e6; --danger-line: #e3b2ab; --danger-d: #8f1d17; --danger-ink: #8f1d17; --danger-bright: #b3261e;
+  --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
+  --announce-text: #1c2a12;
+  --pitch-glow: rgba(125,178,107,.22);
+}
+
+/* A: Forest. Cream page, near-white cards, cream-grey lines, a brown announcement bar with cream text. */
+:root[data-theme="forest"] {
+  --page-bg: #faf6e8; --surface: #fffdf7; --surface-2: #f4eeda; --line: #e2d9bc; --line-strong: #3a2d22; --focus: #3a2d22;
+  --text: #2b2119; --m40: #6e604f; --m50: #675a4a; --m60: #5a4e40; --m70: #473d32;
+  --inverse-bg: #2b2119; --inverse-2: #382c22; --inverse-line: #4b3c2e; --inverse-text: #fbf7ea;
+  --inverse-text-soft: rgba(251,247,234,.74); --inverse-text-mid: rgba(251,247,234,.68); --inverse-text-dim: rgba(251,247,234,.62);
+  --announce-bg: #7a5a3a; --announce-text: #f3ebc8; --announce-line: #5e4429;
+  --off: #6e604f; --reserve-bg: #ddd3b5; --reserve-line: #9c8e70;
+  --scrim: rgba(43,33,25,.6); --shadow-window: 0 20px 60px rgba(43,33,25,.4); --shadow-card: 0 18px 40px -24px rgba(43,33,25,.35); --pane-line: rgba(43,33,25,.18);
+  --pitch-bg: #2b2119; --pitch-text: #fbf7ea; --pitch-soft: rgba(251,247,234,.72); --pitch-dim: rgba(251,247,234,.64); --pitch-faint: rgba(251,247,234,.36); --pitch-dot: rgba(251,247,234,.06);
+}
+
+/* B: Forest soft. White and neutral light grey as today, black-brown text, a moss green announcement bar: only the accents change. */
+:root[data-theme="forest-soft"] {
+  --page-bg: #fff; --surface: #fff; --surface-2: #f5f5f4; --line: #e5e5e5; --line-strong: #231b15; --focus: #231b15;
+  --text: #231b15; --m40: #6b655f; --m50: #655f59; --m60: #58524c; --m70: #443f3a;
+  --inverse-bg: #231b15; --inverse-2: #2e251d; --inverse-line: #43372c; --inverse-text: #fff;
+  --inverse-text-soft: rgba(255,255,255,.74); --inverse-text-mid: rgba(255,255,255,.68); --inverse-text-dim: rgba(255,255,255,.62);
+  --announce-bg: #7db26b; --announce-line: #231b15;
+  --off: #6b655f;
+  --scrim: rgba(35,27,21,.6); --shadow-window: 0 20px 60px rgba(35,27,21,.4); --shadow-card: 0 18px 40px -24px rgba(35,27,21,.35); --pane-line: rgba(35,27,21,.18);
+  --pitch-bg: #231b15; --pitch-text: #fbf7ea; --pitch-soft: rgba(251,247,234,.72); --pitch-dim: rgba(251,247,234,.64); --pitch-faint: rgba(251,247,234,.36); --pitch-dot: rgba(251,247,234,.06);
+}

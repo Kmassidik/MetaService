@@ -43,7 +43,7 @@
   h3 { margin: 0; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   p { margin: 0; }
   .head { font-weight: 700; }
-  .head.ok { color: var(--run); }
+  .head.ok { color: var(--ok); }
   .head.no { color: var(--danger); }
   .evidence { font-family: var(--mono); font-size: 12px; color: var(--m70); overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; }
   .bad { color: var(--danger); }

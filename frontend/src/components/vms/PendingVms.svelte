@@ -37,25 +37,25 @@
 
 <style>
   .pending { list-style: none; margin: 0; padding: 16px 28px 0; display: grid; gap: 10px; }
-  .pending > li { border: 1px solid var(--warn); border-left-width: 4px; background: var(--warnbg); padding: 12px 14px; display: grid; gap: 8px; }
-  .pending > li.failed { border-color: #e0b4b4; border-left-color: #c0392b; background: #fff5f4; }
+  .pending > li { border: 1px solid var(--warn-line); border-left-width: 4px; background: var(--warn-bg); padding: 12px 14px; display: grid; gap: 8px; }
+  .pending > li.failed { border-color: var(--danger-line); border-left-color: var(--danger); background: var(--danger-note-bg); }
   .pending.compact { padding-top: 8px; padding-bottom: 8px; gap: 6px; }
   .compact > li { padding: 6px 12px; gap: 4px; }
   .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .name { overflow-wrap: anywhere; }
   .on { color: var(--m60); font-size: 13px; }
   .on a { text-decoration: underline; }
-  .tag.bad { color: #c0392b; border-color: #c0392b; }
-  .reason { margin: 0; color: #98281f; overflow-wrap: anywhere; }
+  .tag.bad { color: var(--danger); border-color: var(--danger); }
+  .reason { margin: 0; color: var(--danger-note-text); overflow-wrap: anywhere; }
   .note { margin: 0; font-size: 13px; }
   .steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
-  .steps li { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; font-family: var(--mono); font-size: 11px; color: var(--m50); padding-top: 6px; border-top: 3px solid var(--gray); }
-  .steps li.done { color: var(--run); border-top-color: var(--green); }
-  .steps li.now { color: var(--black); font-weight: 700; border-top-color: var(--green); }
+  .steps li { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; font-family: var(--mono); font-size: 11px; color: var(--m50); padding-top: 6px; border-top: 3px solid var(--line); }
+  .steps li.done { color: var(--ok); border-top-color: var(--accent-mark); }
+  .steps li.now { color: var(--text); font-weight: 700; border-top-color: var(--accent-mark); }
   .steps i { width: 10px; height: 10px; border: 2px solid currentColor; border-radius: 50%; flex: none; }
-  .steps .now i { border-color: var(--gray); border-top-color: var(--black); animation: spin 0.9s linear infinite; }
-  .steps .done i { background: var(--green); border-color: var(--green); }
+  .steps .now i { border-color: var(--line); border-top-color: var(--line-strong); animation: spin 0.9s linear infinite; }
+  .steps .done i { background: var(--accent-mark); border-color: var(--accent-mark); }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .steps .now i { animation: none; border-top-color: var(--black); } }
+  @media (prefers-reduced-motion: reduce) { .steps .now i { animation: none; border-top-color: var(--line-strong); } }
   @media (max-width: 820px) { .pending { padding-left: 16px; padding-right: 16px; } }
 </style>

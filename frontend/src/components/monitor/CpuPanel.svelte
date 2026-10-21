@@ -30,6 +30,6 @@
   .big { font-family: var(--mono); font-size: 24px; font-weight: 700; }
   .line { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--m60); }
   .cores { display: grid; gap: 3px; max-height: 150px; overflow-y: auto; }
-  .core { display: flex; align-items: flex-end; height: 34px; background: var(--gray2); border: 1px solid var(--gray); }
-  .core i { display: block; width: 100%; background: var(--green); }
+  .core { display: flex; align-items: flex-end; height: 34px; background: var(--surface-2); border: 1px solid var(--line); }
+  .core i { display: block; width: 100%; background: var(--accent-mark); }
 </style>

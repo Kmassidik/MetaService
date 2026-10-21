@@ -19,6 +19,6 @@
   summary { display: inline-block; padding: 4px 0; color: var(--m70); text-decoration: underline; cursor: pointer; }
   summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   p { margin: 4px 0; color: var(--m70); }
-  .codebox { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 4px; padding: 6px 8px; border: 1px solid var(--gray); background: var(--white); }
+  .codebox { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 4px; padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); }
   code { min-width: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; user-select: all; }
 </style>

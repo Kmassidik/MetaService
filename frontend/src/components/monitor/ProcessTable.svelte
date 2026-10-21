@@ -39,8 +39,8 @@
   .actions { display: flex; justify-content: flex-end; }
   .wrap { overflow-x: auto; }
   .procs { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
-  th { text-align: left; font-size: 10px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--m40); padding: 0 8px 6px; border-bottom: 1px solid var(--gray); }
-  td { padding: 5px 8px; border-bottom: 1px solid var(--gray2); }
+  th { text-align: left; font-size: 10px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--m40); padding: 0 8px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--surface-2); }
   .r { text-align: right; }
   .name { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
   .user { color: var(--m60); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

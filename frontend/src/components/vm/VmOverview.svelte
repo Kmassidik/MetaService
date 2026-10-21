@@ -27,7 +27,7 @@
 
 <style>
   .kv { display: grid; gap: 14px; margin: 0; }
-  .kv > div { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--gray2); padding-bottom: 12px; }
+  .kv > div { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--surface-2); padding-bottom: 12px; }
   .kv dt { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   .kv dd { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
   .chatbar { display: flex; gap: 8px; margin-top: 20px; }

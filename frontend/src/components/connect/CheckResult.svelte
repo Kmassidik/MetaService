@@ -39,9 +39,9 @@
 <style>
   .cards { display: grid; gap: 10px; }
   .note { margin: 0; font-size: 13px; color: var(--m70); }
-  .note b { color: var(--black); }
+  .note b { color: var(--text); }
   .note ul { margin: 2px 0 0; padding-left: 18px; }
   .foot { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
-  .btn.line { border-color: var(--black); }
+  .btn.line { border-color: var(--line-strong); }
   @media (max-width: 520px) { .foot .btn { flex: 1 1 100%; } }
 </style>

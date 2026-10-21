@@ -59,9 +59,9 @@
 <style>
   .act { grid-column: 2; margin-top: 8px; }
   .wide { grid-column: 2 / -1; }
-  .offer { padding: 6px 12px; background: transparent; color: var(--black); border: 1px solid var(--black); font-family: var(--sans); font-size: 13px; font-weight: 700; min-height: 36px; cursor: pointer; }
+  .offer { padding: 6px 12px; background: transparent; color: var(--text); border: 1px solid var(--line-strong); font-family: var(--sans); font-size: 13px; font-weight: 700; min-height: 36px; cursor: pointer; }
   .offer:focus-visible, .buttons :global(.btn:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
-  .fix { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--gray); background: var(--white); }
+  .fix { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); }
   .fix :global(.field) { margin-bottom: 4px; }
   p { margin: 0 0 6px; font-size: 13px; overflow-wrap: anywhere; }
   .hint { font-size: 12px; color: var(--m50); }

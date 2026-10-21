@@ -22,7 +22,7 @@
 
 <style>
   .kv { display: grid; gap: 0; margin: 0; }
-  .kv > div { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--gray2); padding: 10px 0; }
+  .kv > div { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--surface-2); padding: 10px 0; }
   .kv dt { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   .kv dd { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; font-size: 13px; }
   .kv dd.missing { color: var(--m50); }

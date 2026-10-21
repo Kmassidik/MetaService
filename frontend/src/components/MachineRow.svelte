@@ -64,11 +64,11 @@
   .labels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .where { font-family: var(--mono); font-size: 11px; color: var(--m50); margin-top: 3px; }
   .nm { overflow-wrap: anywhere; }
-  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--gray); }
-  .problems { display: grid; gap: 6px; padding: 12px 16px; background: var(--warnbg); color: var(--warn); border-bottom: 1px solid var(--warn); font-size: 13px; }
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .problems { display: grid; gap: 6px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-bottom: 1px solid var(--warn-line); font-size: 13px; }
   .problems ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   .problems li { display: grid; gap: 2px; }
-  .fix { color: var(--black); font-family: var(--mono); font-size: 11px; }
+  .fix { color: var(--text); font-family: var(--mono); font-size: 11px; }
   .acts .seen { margin-left: 4px; }
   .stale { color: var(--warn); font-weight: 700; }
 </style>

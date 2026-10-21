@@ -129,9 +129,9 @@
 </form>
 
 <style>
-  .savebar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 820px; padding-top: 16px; border-top: 1px solid var(--gray); }
+  .savebar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 820px; padding-top: 16px; border-top: 1px solid var(--line); }
   .loading { margin: 0 0 24px; color: var(--m50); font: 12px var(--mono); }
   .apply { font-size: 12.5px; color: var(--m60); }
-  .failure { max-width: 820px; margin: 12px 0; padding: 10px 12px; border: 1px solid #efc5c1; border-left: 4px solid #b52b22; background: #fff5f4; color: #98281f; font-size: 13px; overflow-wrap: anywhere; }
-  .done { max-width: 820px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid #cce4d5; border-left: 4px solid var(--run); background: #f3faf6; color: #254334; font-size: 13px; }
+  .failure { max-width: 820px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--danger-note-line); border-left: 4px solid var(--danger-note-bar); background: var(--danger-note-bg); color: var(--danger-note-text); font-size: 13px; overflow-wrap: anywhere; }
+  .done { max-width: 820px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--ok-note-line); border-left: 4px solid var(--ok); background: var(--ok-note-bg); color: var(--ok-note-text); font-size: 13px; }
 </style>

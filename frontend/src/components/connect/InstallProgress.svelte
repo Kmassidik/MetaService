@@ -86,13 +86,13 @@
   h2 { margin: 0; font-size: 18px; line-height: 1.25; }
   .time { margin: 2px 0 0; font-family: var(--mono); font-size: 13px; color: var(--m70); }
   .time.calm { font-family: var(--sans); }
-  .problem { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--gray); border-left: 4px solid var(--danger); background: var(--gray2); font-weight: 600; overflow-wrap: anywhere; }
-  .warn { margin: 0; padding: 10px 12px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); font-size: 13px; }
-  .cx-card { padding: 6px 14px; border: 1px solid var(--gray); background: var(--gray2); }
+  .problem { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--danger); background: var(--surface-2); font-weight: 600; overflow-wrap: anywhere; }
+  .warn { margin: 0; padding: 10px 12px; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); font-size: 13px; }
+  .cx-card { padding: 6px 14px; border: 1px solid var(--line); background: var(--surface-2); }
   h4 { margin: 4px 0; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--m70); }
   .list { list-style: none; margin: 0; padding: 0; }
   .list li { display: flex; gap: 12px; align-items: center; padding: 6px 0; }
-  .list li + li { border-top: 1px solid var(--gray); }
+  .list li + li { border-top: 1px solid var(--line); }
   .list li[data-state='pending'] { color: var(--m70); }
   .list li div { min-width: 0; overflow-wrap: anywhere; }
   .lbl { display: block; font-weight: 600; }
@@ -103,7 +103,7 @@
   .all summary { padding: 4px 0; color: var(--m70); text-decoration: underline; cursor: pointer; }
   .all summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   .foot { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
-  .open { text-decoration: none; display: inline-flex; align-items: center; border-color: var(--black); }
-  .btn.line { border-color: var(--black); }
+  .open { text-decoration: none; display: inline-flex; align-items: center; border-color: var(--line-strong); }
+  .btn.line { border-color: var(--line-strong); }
   @media (max-width: 520px) { .foot .btn { flex: 1 1 100%; justify-content: center; } }
 </style>

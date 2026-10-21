@@ -51,8 +51,8 @@
 </Dialog>
 
 <style>
-  fieldset { border: 0; border-top: 1px solid var(--gray); margin: 16px 0 0; padding: 0; }
-  legend { padding: 0 8px 0 0; margin-top: -9px; background: var(--white); font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--m40); }
+  fieldset { border: 0; border-top: 1px solid var(--line); margin: 16px 0 0; padding: 0; }
+  legend { padding: 0 8px 0 0; margin-top: -9px; background: var(--surface); font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--m40); }
   .check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 10px; }
   .check input { margin: 0; }
   .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }

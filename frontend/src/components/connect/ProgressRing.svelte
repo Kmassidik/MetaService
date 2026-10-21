@@ -19,7 +19,7 @@
   .ring { position: relative; width: 92px; height: 92px; flex: none; }
   svg { width: 100%; height: 100%; transform: rotate(-90deg); }
   circle { fill: none; }
-  .track { stroke: var(--gray); }
+  .track { stroke: var(--line); }
   .val { stroke: var(--ok); }
   .optional .val { stroke: var(--warn); }
   .blocking .val { stroke: var(--danger); }

@@ -25,10 +25,10 @@
 <style>
   .notes { display: grid; gap: 6px; margin-top: 16px; }
   label { font: 10px var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--m50); }
-  textarea { width: 100%; resize: vertical; border: 1px solid var(--gray); background: var(--white); color: var(--black); padding: 10px 12px; font: 14px var(--sans); }
-  textarea:focus { outline: 2px solid var(--green); outline-offset: -1px; }
-  textarea[aria-invalid='true'] { border-color: #c0392b; }
+  textarea { width: 100%; resize: vertical; border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 10px 12px; font: 14px var(--sans); }
+  textarea:focus { outline: 2px solid var(--accent-mark); outline-offset: -1px; }
+  textarea[aria-invalid='true'] { border-color: var(--danger); }
   .error, .hint { margin: 0; font-size: 12px; }
-  .error { color: #c0392b; }
+  .error { color: var(--danger); }
   .hint { color: var(--m50); }
 </style>

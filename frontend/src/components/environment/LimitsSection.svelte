@@ -21,5 +21,5 @@
 
 <style>
   .check { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; }
-  .check input { width: 16px; height: 16px; accent-color: var(--green); }
+  .check input { width: 16px; height: 16px; accent-color: var(--accent-mark); }
 </style>

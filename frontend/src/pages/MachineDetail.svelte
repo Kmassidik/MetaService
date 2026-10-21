@@ -110,9 +110,9 @@
   .titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .name { letter-spacing: 0; text-transform: none; font-size: 18px; }
   .crumb { margin-top: 4px; }
-  .tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--gray); padding: 0 28px; }
+  .tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 0 28px; }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--m50); margin-bottom: -1px; white-space: nowrap; }
-  .tabs button.on { color: var(--black); border-bottom-color: var(--green); font-weight: 700; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent-mark); font-weight: 700; }
   .tabbody { padding: 24px 28px; }
   @media (max-width: 820px) { .tabs, .tabbody { padding-left: 16px; padding-right: 16px; } }
 </style>

@@ -28,5 +28,5 @@
 {/if}
 
 <style>
-  .live { padding: 8px 16px; border-bottom: 1px solid var(--gray); font-family: var(--mono); font-size: 11px; color: var(--m60); }
+  .live { padding: 8px 16px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--m60); }
 </style>
