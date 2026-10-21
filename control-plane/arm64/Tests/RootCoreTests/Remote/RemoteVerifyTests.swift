@@ -27,6 +27,20 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertEqual(result.isolation, ["folder"], "no sudo, so only the folder box")
     }
 
+    func testAMissingLinuxProgramPointsToTheBuildScript() {
+        let fix = "Run scripts/build-linux-helpers.sh on the parent's computer, then check again."
+        for arch in ["x86_64", "aarch64"] {
+            let result = RemoteVerify.run(facts: facts("os=Linux\narch=\(arch)\nuser=u\nport_9101=free\n"), fingerprint: "SHA256:abc", agentBuilds: builds, parentURL: "http://x:9102")
+            XCTAssertEqual(row(result, "agent").fix, fix, arch)
+        }
+    }
+
+    func testAMissingMacProgramKeepsItsOwnSentence() {
+        let result = RemoteVerify.run(facts: facts(mac), fingerprint: "SHA256:abc", agentBuilds: [], parentURL: "http://x:9102")
+        XCTAssertTrue(row(result, "agent").fix?.contains("darwin-arm64") ?? false)
+        XCTAssertFalse(row(result, "agent").fix?.contains("build-linux-helpers") ?? true)
+    }
+
     func testEveryMissingRequirementIsACrossThatBlocksAndSaysWhatToDo() {
         let poor = "os=Linux\narch=aarch64\nuser=u\nram_mb=2048\nkvm=no\ndisk_free_gb=5\nsudo=none\nport_9101=free\n"
         let result = RemoteVerify.run(facts: facts(poor), fingerprint: "SHA256:abc", agentBuilds: ["linux-arm64"], parentURL: "http://x:9102")

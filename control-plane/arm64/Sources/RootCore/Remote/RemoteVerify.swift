@@ -52,7 +52,15 @@ public enum RemoteVerify {
         let have = builds.contains(facts.agentBuild)
         return Requirement(id: "agent", label: "MetaService program for this system", ok: have,
                            detail: have ? "Found (\(facts.agentBuild))." : "The parent has no MetaService program for \(facts.agentBuild) yet, so it cannot be installed there.",
-                           fix: "Build the \(facts.agentBuild) program on the parent's side and put it in the parent's state/agent-builds folder, then check again.")
+                           fix: missingProgramFix(facts))
+    }
+
+    /// Linux programs come from one script on the parent's computer; a Mac program is built there by hand.
+    private static func missingProgramFix(_ facts: RemoteFacts) -> String {
+        guard facts.isLinux else {
+            return "Build the \(facts.agentBuild) program on the parent's side and put it in the parent's state/agent-builds folder, then check again."
+        }
+        return "Run scripts/build-linux-helpers.sh on the parent's computer, then check again."
     }
 
     static func memory(_ facts: RemoteFacts) -> Requirement {
