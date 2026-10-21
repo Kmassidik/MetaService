@@ -22,6 +22,8 @@ case "$SSH_ORIGINAL_COMMAND" in
     cat "$DIR/answer.txt"
     [ -e "$DIR/state/incus" ] && echo tool=incus
     [ -e "$DIR/state/python3" ] && echo tool=python3
+    [ -e "$DIR/state/nvidia" ] && echo "nvidia_gpu=NVIDIA GeForce RTX 5090"
+    [ -e "$DIR/state/nvidia_toolkit" ] && echo tool=nvidia-ctk
     exit 0 ;;
   *) exec sh -c "$SSH_ORIGINAL_COMMAND" ;;
 esac
@@ -54,6 +56,7 @@ if [ -e "$DIR/state/no_network" ]; then echo "Err:1 http://archive.ubuntu.com no
 case "$*" in
   *"install incus"*) touch "$DIR/state/incus" ;;
   *"install python3"*) touch "$DIR/state/python3" ;;
+  *"install nvidia-container-toolkit"*) touch "$DIR/state/nvidia_toolkit"; printf '#!/bin/sh\\nexit 0\\n' > "$DIR/bin/nvidia-ctk"; chmod +x "$DIR/bin/nvidia-ctk" ;;
 esac
 exit 0
 """
@@ -73,7 +76,31 @@ esac
 exit 0
 """
 
+# NVIDIA's package source: the fakes download nothing and write nothing outside the fake folder; they log what they were asked.
+CURL = """#!/bin/sh
+DIR='{dir}'
+echo "curl $*" >> "$DIR/commands.log"
+if [ -e "$DIR/state/no_network" ]; then echo "curl: (6) Could not resolve host: nvidia.github.io" >&2; exit 6; fi
+while [ $# -gt 0 ]; do
+  if [ "$1" = -o ]; then shift; out="$1"; fi
+  shift
+done
+printf 'deb https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /\\n' > "$out"
+"""
+
+GPG = """#!/bin/sh
+echo "gpg $*" >> '{dir}/commands.log'
+"""
+
+INSTALL = """#!/bin/sh
+echo "install $*" >> '{dir}/commands.log'
+cp "$3" '{dir}/nvidia-source.list'
+"""
+
 SIMPLE = {
+    "curl": CURL,
+    "gpg": GPG,
+    "install": INSTALL,
     "usermod": '#!/bin/sh\necho "usermod $*" >> \'{dir}/commands.log\'\ntouch \'{dir}/state/in_group\'\n',
     "getent": "#!/bin/sh\necho 'incus-admin:x:999:'\n",
     "id": '#!/bin/sh\nif [ "$1" = -u ] && [ -n "$FAKE_ROOT" ]; then echo 0; exit 0; fi\nexec /usr/bin/id "$@"\n',
