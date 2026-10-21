@@ -7,6 +7,7 @@ final class RemoteFactsTests: XCTestCase {
     os=Darwin
     arch=arm64
     user=mac
+    host=Macs-Mini
     home=/Users/mac
     version=macOS 26.6.2
     chip=Apple M2 Pro
@@ -40,6 +41,7 @@ final class RemoteFactsTests: XCTestCase {
     func testARealMacAnswerIsRead() throws {
         let facts = try XCTUnwrap(RemoteProbe.parse(mac))
         XCTAssertEqual([facts.os, facts.arch, facts.user, facts.home, facts.version, facts.chip], ["Darwin", "arm64", "mac", "/Users/mac", "macOS 26.6.2", "Apple M2 Pro"])
+        XCTAssertEqual(facts.hostname, "Macs-Mini")
         XCTAssertEqual([facts.cpuCores, facts.ramMb, facts.diskFreeGb], [10, 16384, 242])
         XCTAssertEqual(facts.tools, ["container", "python3", "curl", "tar"])
         XCTAssertEqual(facts.sudo, .password)
@@ -89,7 +91,7 @@ final class RemoteFactsTests: XCTestCase {
     }
 
     func testTheProbeScriptAsksForEveryFactTheParserReads() {
-        for key in ["os=", "arch=", "user=", "home=", "version=", "chip=", "cpu=", "ram_mb=", "disk_free_gb=", "kvm=", "tool=", "sudo=", "port_9101="] {
+        for key in ["os=", "arch=", "user=", "host=", "home=", "version=", "chip=", "cpu=", "ram_mb=", "disk_free_gb=", "kvm=", "tool=", "sudo=", "port_9101="] {
             XCTAssertTrue(RemoteProbe.script.contains("echo \"\(key)") || RemoteProbe.script.contains("echo \"\(key)"), key)
         }
     }

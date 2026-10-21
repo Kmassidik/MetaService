@@ -24,7 +24,7 @@ struct VerifyResult: Encodable {
     let system: String
 
     struct FactsView: Encodable {
-        let os: String, arch: String, version: String, chip: String, user: String, home: String
+        let os: String, arch: String, version: String, chip: String, user: String, home: String, computerName: String
         let cpuCores: Int?, ramMb: Int?, diskFreeGb: Int?
     }
 }
@@ -100,7 +100,7 @@ final class RemoteService: @unchecked Sendable {
     static func result(_ host: String, _ fingerprint: String, _ facts: RemoteFacts, parentURL: String, builds: Set<String>) -> VerifyResult {
         let verification = RemoteVerify.run(facts: facts, fingerprint: fingerprint, agentBuilds: builds, parentURL: parentURL)
         return VerifyResult(host: host, fingerprint: fingerprint,
-                            facts: .init(os: facts.os, arch: facts.arch, version: facts.version, chip: facts.chip, user: facts.user, home: facts.home, cpuCores: facts.cpuCores, ramMb: facts.ramMb, diskFreeGb: facts.diskFreeGb),
+                            facts: .init(os: facts.os, arch: facts.arch, version: facts.version, chip: facts.chip, user: facts.user, home: facts.home, computerName: facts.hostname, cpuCores: facts.cpuCores, ramMb: facts.ramMb, diskFreeGb: facts.diskFreeGb),
                             requirements: verification.requirements, canAdd: verification.canAdd, isolation: verification.isolation, system: verification.system)
     }
 

@@ -10,7 +10,7 @@
   const POLL_MS = 1000
 
   let { form, result, onBack, onClose, onInstalled }: { form: ConnectForm; result: VerifyResult; onBack: () => void; onClose: () => void; onInstalled: () => void } = $props()
-  let choices = $state(untrack(() => defaultAddChoices(form.host)))
+  let choices = $state(untrack(() => defaultAddChoices(result.facts.computer_name || form.host)))
   let password = $state('')
   let preview: PlanPreview | null = $state(null)
   let job: InstallJob | null = $state(null)

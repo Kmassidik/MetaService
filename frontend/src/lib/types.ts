@@ -292,7 +292,7 @@ export interface ProbeResult {
 export interface VerifyResult {
   host: string
   fingerprint: string
-  facts: { os: string; arch: string; version: string; chip: string; user: string; home: string; cpu_cores: number | null; ram_mb: number | null; disk_free_gb: number | null }
+  facts: { os: string; arch: string; version: string; chip: string; user: string; home: string; computer_name?: string; cpu_cores: number | null; ram_mb: number | null; disk_free_gb: number | null }
   requirements: Requirement[]
   can_add: boolean
   isolation: string[]

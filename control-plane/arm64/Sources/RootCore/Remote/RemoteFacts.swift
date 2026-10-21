@@ -11,6 +11,8 @@ public struct RemoteFacts: Equatable, Sendable {
     public var arch = ""
     public var user = ""
     public var home = ""
+    /// The name the computer calls itself (`hostname -s`), the readable default for the machine's name.
+    public var hostname = ""
     public var version = ""
     public var chip = ""
     public var cpuCores: Int?
@@ -42,6 +44,7 @@ public enum RemoteProbe {
     echo "os=$os"
     echo "arch=$(uname -m)"
     echo "user=$(id -un)"
+    echo "host=$(hostname -s 2>/dev/null)"
     echo "home=$HOME"
     if [ "$os" = Darwin ]; then
       echo "version=macOS $(sw_vers -productVersion 2>/dev/null)"
@@ -92,6 +95,7 @@ public enum RemoteProbe {
         case "arch": facts.arch = value
         case "user": facts.user = value
         case "home": facts.home = value
+        case "host": facts.hostname = value
         case "version": facts.version = value
         case "chip": facts.chip = value
         case "cpu": facts.cpuCores = Int(value)
