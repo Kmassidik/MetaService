@@ -54,6 +54,7 @@ final class RemoteFixService: @unchecked Sendable {
         switch part {
         case .vmTool: return facts.tools.contains("incus")
         case .python: return facts.tools.contains("python3")
+        case .gpuToolkit: return facts.hasGpuToolkit
         }
     }
 

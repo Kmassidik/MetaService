@@ -12,7 +12,7 @@ public struct RemoteFixRequest {
     public init(body: Data) throws {
         let object = try StrictObject(data: body, allowed: RemoteLoginRequest.fields.union(["fix", "sudo_password"]))
         login = try RemoteLoginRequest(object)
-        guard let chosen = MissingPart(rawValue: try object.string("fix", maxLength: 20, minLength: 1)) else { throw InputError("fix must be vm_tool or python") }
+        guard let chosen = MissingPart(rawValue: try object.string("fix", maxLength: 20, minLength: 1)) else { throw InputError("fix must be vm_tool, python or gpu_toolkit") }
         part = chosen
         sudoPassword = SudoPassword(try object.optionalString("sudo_password", maxLength: Self.longestPassword) ?? "")
     }

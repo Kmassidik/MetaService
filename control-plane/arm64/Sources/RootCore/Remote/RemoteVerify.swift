@@ -13,12 +13,16 @@ public struct RemoteVerification: Encodable, Equatable {
 public enum RemoteVerify {
     public static let minimumRamMb = 4096
     public static let agentPort = 9101
+    /// Rows whose cross does not stop the computer from being added: the computer works without them, only one feature does not.
+    static let optionalRows: Set<String> = [gpuToolkitRow]
+    static let gpuToolkitRow = "gpu_toolkit"
 
     /// `parentURL` is where an Agent there will find the parent: its own loopback, through the SSH connection (see ParentUrl).
     public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String) -> RemoteVerification {
         guard !facts.isWindows else { return windows(facts, fingerprint) }
-        let rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts), python(facts), admin(facts), port(facts), parent(parentURL)]
-        return RemoteVerification(requirements: rows, canAdd: rows.allSatisfy(\.ok), isolation: facts.sudo == .none ? ["folder"] : ["folder", "dedicated_user"],
+        let rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts)] + gpuToolkit(facts)
+            + [python(facts), admin(facts), port(facts), parent(parentURL)]
+        return RemoteVerification(requirements: rows, canAdd: rows.filter { !optionalRows.contains($0.id) }.allSatisfy(\.ok), isolation: facts.sudo == .none ? ["folder"] : ["folder", "dedicated_user"],
                                   system: [facts.version, facts.chip, facts.arch].filter { !$0.isEmpty }.joined(separator: " · "))
     }
 
@@ -84,6 +88,15 @@ public enum RemoteVerify {
         let found = facts.tools.contains(tool)
         return Requirement(id: "vm_tool", label: label, ok: found, detail: found ? "Installed. It is used as it is; nothing about it is changed." : "Not installed. MetaService needs it to make VMs.",
                            fix: ManualFixes.vmTool(facts), install: InstallOffers.offer(for: .vmTool, facts: facts))
+    }
+
+    /// Only for a Linux computer with an NVIDIA card: without NVIDIA's container toolkit a container cannot use the card. Not needed to add the computer.
+    static func gpuToolkit(_ facts: RemoteFacts) -> [Requirement] {
+        guard facts.isLinux, let card = facts.nvidiaGpu else { return [] }
+        let found = facts.hasGpuToolkit
+        return [Requirement(id: gpuToolkitRow, label: "NVIDIA container toolkit (lets containers use the GPU)", ok: found,
+                            detail: found ? "Installed. Containers can share the \(card)." : "Not installed. This computer has an NVIDIA GPU (\(card)) but containers cannot use it yet. You can add the computer without it.",
+                            fix: ManualFixes.gpuToolkit(facts), install: InstallOffers.offer(for: .gpuToolkit, facts: facts))]
     }
 
     static func python(_ facts: RemoteFacts) -> Requirement {

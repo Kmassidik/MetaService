@@ -23,6 +23,7 @@ public enum InstallMissingScripts {
         switch part {
         case .vmTool: return incus(user: user)
         case .python: return python
+        case .gpuToolkit: return GpuToolkitScript.body
         }
     }
 

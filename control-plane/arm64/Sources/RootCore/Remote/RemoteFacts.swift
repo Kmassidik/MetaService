@@ -20,6 +20,8 @@ public struct RemoteFacts: Equatable, Sendable {
     public var diskFreeGb: Int?
     public var kvm: Bool?
     public var tools: Set<String> = []
+    /// The name of the first NVIDIA card `nvidia-smi -L` lists, or nil when there is no such card (or no such program).
+    public var nvidiaGpu: String?
     public var sudo: SudoAccess = .none
     /// The package manager of a Linux computer, when it is one MetaService knows.
     public var packageManager: PackageManager?
@@ -28,6 +30,9 @@ public struct RemoteFacts: Equatable, Sendable {
     public var port9101Ours = false
 
     public init() {}
+
+    /// True when the NVIDIA container toolkit is there (either of its programs).
+    public var hasGpuToolkit: Bool { tools.contains("nvidia-ctk") || tools.contains("nvidia-container-cli") }
 
     public var isMac: Bool { os == "Darwin" }
     public var isLinux: Bool { os == "Linux" }
@@ -65,7 +70,11 @@ public enum RemoteProbe {
       if [ -e /dev/kvm ]; then echo "kvm=yes"; else echo "kvm=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
-    for tool in container incus python3 curl tar; do command -v "$tool" >/dev/null 2>&1 && echo "tool=$tool"; done
+    if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then
+      card=$(nvidia-smi -L 2>/dev/null | sed -n 's/^GPU 0: //p' | sed 's/ (UUID.*//' | head -1)
+      [ -n "$card" ] && echo "nvidia_gpu=$card"
+    fi
+    for tool in container incus python3 curl tar nvidia-ctk nvidia-container-cli; do command -v "$tool" >/dev/null 2>&1 && echo "tool=$tool"; done
     for manager in apt-get:apt dnf:dnf pacman:pacman zypper:zypper apk:apk; do
       if command -v "${manager%%:*}" >/dev/null 2>&1; then echo "pkg=${manager##*:}"; break; fi
     done
@@ -92,7 +101,7 @@ public enum RemoteProbe {
         return facts
     }
 
-    private static let knownTools: Set<String> = ["container", "incus", "python3", "curl", "tar"]
+    private static let knownTools: Set<String> = ["container", "incus", "python3", "curl", "tar", "nvidia-ctk", "nvidia-container-cli"]
     private static let longestValue = 120
 
     /// Reads the script's answer. Nothing without an OS and a chip type is useful, so that is nil.
@@ -123,6 +132,7 @@ public enum RemoteProbe {
         case "cpu": facts.cpuCores = Int(value)
         case "ram_mb": facts.ramMb = Int(value)
         case "disk_free_gb": facts.diskFreeGb = Int(value)
+        case "nvidia_gpu": facts.nvidiaGpu = value.isEmpty ? nil : value
         case "kvm": facts.kvm = value == "yes"
         case "tool": if knownTools.contains(value) { facts.tools.insert(value) }
         case "pkg": facts.packageManager = PackageManager(rawValue: value)

@@ -19,6 +19,14 @@ enum ManualFixes {
         }
     }
 
+    static let toolkitDocs = "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
+
+    /// NVIDIA's own steps (its install guide): add NVIDIA's package source and signing key, then install the package. Other systems follow the guide.
+    static func gpuToolkit(_ facts: RemoteFacts) -> String {
+        guard facts.packageManager == .apt else { return "Follow NVIDIA's install guide for this system: \(toolkitDocs). Then check again." }
+        return "Follow NVIDIA's install guide (\(toolkitDocs)): add NVIDIA's package source and signing key, run `sudo apt-get update`, then `sudo apt-get install -y nvidia-container-toolkit`. Then check again."
+    }
+
     static func python(_ facts: RemoteFacts) -> String {
         if facts.isMac { return "Install it with `xcode-select --install`, then check again." }
         switch facts.packageManager {
