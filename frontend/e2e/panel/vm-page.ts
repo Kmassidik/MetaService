@@ -1,4 +1,4 @@
-// The VM page (the MAAS detail page for one VM): reached from all three Deployments views, its four tabs, Stop and Start, the MAAS-only parts staying hidden,
+// The VM page (the MAAS detail page for one VM): reached from all three VMs views, its four tabs, Stop and Start, the MAAS-only parts staying hidden,
 // and Delete (confirm first, then back to the machine's page).
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
@@ -15,16 +15,16 @@ type CreateVm = (b: Browse, name: string) => Promise<void>
 const vmUrlEnd = (vmId: string) => `${MACHINE_URL_END}&vm=${vmId}`
 const onTheVmPage = (b: Browse) => b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, VM)
 
-async function backToDeployments(b: Browse): Promise<void> {
+async function backToVms(b: Browse): Promise<void> {
   await b.go(MACHINE_URL_END)
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'agent-mac', { timeout: SHORT_WAIT_MS })
-  await openTab(b, 'Deployments')
+  await openTab(b, 'VMs')
   await b.page.waitForSelector('.segmented')
 }
 
 /** The id Root gave the VM (its name is only what it is called), read from its link in the Table view. */
 async function theVmId(b: Browse): Promise<string> {
-  await backToDeployments(b)
+  await backToVms(b)
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const href = await b.run((name) => [...document.querySelectorAll<HTMLAnchorElement>('td.c-name a')].find((link) => link.textContent?.trim() === name)?.getAttribute('href') ?? '', VM)
@@ -34,7 +34,7 @@ async function theVmId(b: Browse): Promise<string> {
 }
 
 async function opensFrom(b: Browse, view: string, link: string, vmId: string): Promise<void> {
-  await backToDeployments(b)
+  await backToVms(b)
   await pickView(b, view)
   await b.page.waitForSelector(link)
   await b.run((selector, name) => [...document.querySelectorAll<HTMLElement>(selector)].find((entry) => entry.getAttribute('aria-label')?.includes(name) || entry.textContent?.trim() === name)?.click(), link, VM)

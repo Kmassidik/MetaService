@@ -12,6 +12,7 @@ export const HOSTILE_NAME = '<img src=x onerror=alert(1)>'
 export const HOSTILE_USER = '<script>alert(2)</script>'
 const STUDIO_CORES = 32
 const PERCENT_SPAN = 60
+export const PROCESS_COUNT = 15
 
 export interface StandIn {
   base: string
@@ -37,8 +38,14 @@ function reading(call: number, cores: number, withGpu: boolean): Json {
     disks: [{ mount: '/', name: 'root', fs: 'ext4', total_bytes: 500 * GIB, used_bytes: 200 * GIB, free_bytes: 300 * GIB }],
     network: { received_total_bytes: 1000 * call, sent_total_bytes: 500 * call, received_bytes_per_second: 100000 + call * 1000, sent_bytes_per_second: 20000 + call * 100 },
     ...(withGpu ? { gpus: [{ name: 'Test GPU 5090', utilization_percent: 40, memory_used_bytes: 2 * GIB, memory_total_bytes: 32 * GIB, temperature_celsius: 55 }] } : {}),
-    processes: [{ pid: 1, name: HOSTILE_NAME, user: HOSTILE_USER, cpu_percent: 80 + call, memory_bytes: 5 * GIB }, { pid: 2, name: 'node', user: 'kurnia', cpu_percent: 12.5, memory_bytes: GIB }],
+    processes: processesAt(call),
   }
+}
+
+/** Fifteen programs, busiest first: the hostile one, "node", then thirteen quiet workers run by "service". */
+function processesAt(call: number): Json[] {
+  const workers = Array.from({ length: PROCESS_COUNT - 2 }, (_, index) => ({ pid: index + 3, name: `worker-${index + 3}`, user: 'service', cpu_percent: 10 - index * 0.5, memory_bytes: GIB / 2 }))
+  return [{ pid: 1, name: HOSTILE_NAME, user: HOSTILE_USER, cpu_percent: 80 + call, memory_bytes: 5 * GIB }, { pid: 2, name: 'node', user: 'kurnia', cpu_percent: 12.5, memory_bytes: GIB }, ...workers]
 }
 
 export function startStandIn(dist: string): StandIn {

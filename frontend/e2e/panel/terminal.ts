@@ -59,7 +59,7 @@ async function goToTheVmPage(b: Browse): Promise<void> {
   await b.go(`#/machines/details?id=${MACHINE}`)
   await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, MACHINE)
   await createAVm(b, VM)
-  await openTab(b, 'Deployments')
+  await openTab(b, 'VMs')
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   await b.run((name) => [...document.querySelectorAll<HTMLAnchorElement>('td.c-name a')].find((link) => link.textContent?.trim() === name)?.click(), VM)

@@ -11,7 +11,7 @@ const AGENT_WAIT_MS = 20000
 const TOO_MUCH_RAM_MB = '500'
 const NEW_VM = 'build-box'
 
-/** Presses a button in the row of one VM, on a machine's Deployments tab. */
+/** Presses a button in the row of one VM, on a machine's VMs tab. */
 const rowButton = (b: Browse, vm: string, label: string) =>
   b.run((name, wanted) => [...document.querySelectorAll('tbody tr')].find((row) => row instanceof HTMLElement && row.innerText.includes(name))?.querySelectorAll('button').forEach((button) => button.textContent?.trim() === wanted && button.click()), vm, label)
 
@@ -27,10 +27,14 @@ async function openTheMachine(b: Browse): Promise<void> {
   await machineHeading(b, 'agent-mac')
   check('opening a machine goes to /machines/details?id=<machine>', b.page.url().endsWith('#/machines/details?id=agent-mac'), b.page.url())
   const shown = await b.text()
-  check('the machine page shows its facts', /Machines › agent-mac/.test(shown) && /ID\s*agent-mac/.test(shown) && /Memory/i.test(shown))
+  check('the machine page has its breadcrumb and opens on Live', /Machines › agent-mac/.test(shown) && (await b.run(() => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim())) === 'Live')
   await b.shot('machine-detail.png')
+  await openTab(b, 'Environment')
+  const facts = await b.text()
+  check('the machine page shows its facts on the Environment tab', /ID\s*agent-mac/i.test(facts) && /Memory/i.test(facts))
+  await openTab(b, 'Live')
   const sidebar = await b.page.$eval('aside.side', (side) => side instanceof HTMLElement ? side.innerText : '')
-  check('the sidebar has no Deployments page: the deployments are inside the machine', !/Deployments$/m.test(sidebar) && /Deployments \(0\)/.test(shown))
+  check('the sidebar has no Deployments page: the VMs are inside the machine, on the VMs tab', !/Deployments$/m.test(sidebar) && /VMs \(0\)/.test(shown))
 }
 
 export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
@@ -61,14 +65,14 @@ async function itsActivity(b: Browse): Promise<void> {
 }
 
 async function theThreeViews(b: Browse): Promise<void> {
-  await openTab(b, 'Deployments')
+  await openTab(b, 'VMs')
   await b.until(() => document.body.innerText.includes('build-box'), { timeout: ROW_WAIT_MS })
   await b.page.waitForSelector('.segmented')
   await pickView(b, 'Building')
   await b.page.waitForSelector('.bv')
   await b.shot('deployments-building.png', true)
   const building = await b.text()
-  check('the Deployments tab opens as the building view with the VM as an apartment, and no allocated-disk headline (the monitor above says what is real)',
+  check('the VMs tab opens as the building view with the VM as an apartment, and no allocated-disk headline (the monitor above says what is real)',
     !/Disk allocated/.test(building) && /1\/1 running/.test(building) && await b.run(() => [...document.querySelectorAll('.bv-apt')].some((apartment) => /build-box/.test(apartment.getAttribute('aria-label') ?? ''))))
   await pickView(b, 'Cards')
   await b.until(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && card.innerText.includes('build-box')), { timeout: SHORT_WAIT_MS })
@@ -77,7 +81,7 @@ async function theThreeViews(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('tbody tr')
   await b.shot('workloads.png', true)
-  check("the workload appears in its machine's Deployments tab", (await b.text()).includes(NEW_VM))
+  check("the workload appears in its machine's VMs tab", (await b.text()).includes(NEW_VM))
 }
 
 async function stopStartDelete(b: Browse): Promise<void> {

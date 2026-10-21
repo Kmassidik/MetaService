@@ -122,7 +122,7 @@ async function badges(b: Browse, base: string): Promise<void> {
 
 async function machineNote(b: Browse, base: string): Promise<void> {
   const noteOn = async (id: string) => {
-    await b.page.goto(`${base}/#/machines/details?id=${id}`, { waitUntil: 'networkidle0' })
+    await b.page.goto(`${base}/#/machines/details?id=${id}&tab=environment`, { waitUntil: 'networkidle0' })
     await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, id)
     return b.run(() => document.querySelector<HTMLElement>('[data-gpu-note=machine]')?.innerText ?? null)
   }

@@ -68,7 +68,7 @@ export async function machinesList(b: Browse): Promise<void> {
 export async function hostileTextIsShownAsText(b: Browse): Promise<void> {
   await b.go('#/machines/details?id=dgx-spark')
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'dgx-spark', { timeout: SHORT_WAIT_MS })
-  await openTab(b, 'Deployments')
+  await openTab(b, 'VMs')
   await b.page.waitForSelector('.segmented')
   await pickView(b, 'Table')
   await b.until(() => document.body.innerText.includes('<img src=x'), {})
@@ -85,8 +85,8 @@ export async function removeAMachine(b: Browse): Promise<void> {
   check('a removed machine disappears', !(await b.text()).includes('mac-mini'))
 }
 
-/** Opens one of a machine page's tabs, such as Deployments or Activity. */
+/** Opens one of a machine page's tabs, such as Live, VMs or Activity. */
 export const openTab = (b: Browse, label: string) => b.run((wanted) => [...document.querySelectorAll<HTMLElement>('[role=tab]')].find((tab) => tab.textContent?.trim().startsWith(wanted))?.click(), label)
 
-/** Picks one of the Deployments views: Building, Table or Cards. */
+/** Picks one of the VMs tab views: Building, Table or Cards. */
 export const pickView = (b: Browse, label: string) => b.run((wanted) => [...document.querySelectorAll<HTMLElement>('.segmented button')].find((button) => button.textContent?.trim() === wanted)?.click(), label)

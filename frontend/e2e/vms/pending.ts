@@ -13,6 +13,7 @@ const BAD_VM = 'bad-box'
 const NEW_ID = 'wl-pending'
 const SHORT_WAIT_MS = 10000
 const LIST_WAIT_MS = 25000
+const PENDING_MAX_PX = 60
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 const NAME = '#vm-create-name'
@@ -83,8 +84,11 @@ async function onTheOtherPages(b: Browse, stand: Stand): Promise<void> {
   await b.page.setViewport(DESKTOP)
   await b.go(`#/machines/details?id=${MACHINE}`)
   await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, MACHINE)
-  check('the machine page shows the pending VM and counts it in Deployments', (await hasCard(b, GOOD_VM)) && /Deployments\s*\(1\)/.test(await b.text()))
-  await openTab(b, 'Deployments')
+  check('the machine page shows the pending VM and counts it in VMs', (await hasCard(b, GOOD_VM)) && /VMs\s*\(1\)/.test(await b.text()))
+  check('on the machine page the Creating card adds at most 60 px above the tabs', await b.run((limit) => (document.querySelector<HTMLElement>('ul.pending')?.getBoundingClientRect().height ?? Infinity) <= limit, PENDING_MAX_PX))
+  await openTab(b, 'Activity')
+  check('the Creating card is still there on another tab', await hasCard(b, GOOD_VM))
+  await openTab(b, 'VMs')
   await pickView(b, 'Table')
   const text = await b.text()
   check('while a VM is being made the machine page never says there are no VMs', !/No VMs on this machine yet\./.test(text) && /is being made/.test(text), text.slice(0, 300))
@@ -94,14 +98,14 @@ async function onTheOtherPages(b: Browse, stand: Stand): Promise<void> {
   await b.page.setViewport(DESKTOP)
   stand.order = newOrder('rc-e2e-1', GOOD_VM, 'succeeded', { finished_at: new Date().toISOString(), result: { workload_id: NEW_ID } })
   await untilCardSays(b, GOOD_VM, 'Starting…', LIST_WAIT_MS)
-  check('a made VM that the machine has not listed yet is shown as starting', (await b.run(() => document.querySelector('ul.pending li [aria-current="step"]')?.textContent?.trim() ?? '')) === 'Starting')
+  check('a made VM that the machine has not listed yet is shown as starting', (await b.run((selector) => document.querySelector(`${selector} .tag`)?.textContent?.trim() ?? '', card(GOOD_VM))) === 'Starting…')
   await b.shot('pending-machine-starting.png')
 }
 
 async function listedByTheMachine(b: Browse, world: World, token: string): Promise<void> {
   await sendHeartbeat(world, token, heartbeat([{ id: NEW_ID, name: GOOD_VM, kind: 'vm', state: 'running', cpu: 1, ram_mb: 1024, disk_gb: 10, gpu_mode: 'none', address: null, bundle_version: null }]))
-  await b.until((selector) => document.querySelector(selector) === null && document.body.innerText.includes('Deployments (1)'), { timeout: LIST_WAIT_MS }, card(GOOD_VM))
-  check('once the machine lists the VM the pending card is replaced by the real VM', !(await hasCard(b, GOOD_VM)) && /Deployments\s*\(1\)/.test(await b.text()))
+  await b.until((selector) => document.querySelector(selector) === null && document.body.innerText.includes('VMs (1)'), { timeout: LIST_WAIT_MS }, card(GOOD_VM))
+  check('once the machine lists the VM the pending card is replaced by the real VM', !(await hasCard(b, GOOD_VM)) && /VMs\s*\(1\)/.test(await b.text()))
   await b.shot('pending-machine-listed.png')
 }
 

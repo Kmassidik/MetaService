@@ -11,8 +11,9 @@ export const openMachine = async (b: Browse, base: string, id: string): Promise<
   await b.until((wanted) => document.querySelector('.phead h1')?.textContent === wanted, { timeout: SHORT_WAIT_MS }, id)
 }
 
+/** Opens a tab of the machine page by the start of its label (so "VMs" finds "VMs (2)"). */
 export const openTab = async (b: Browse, label: string): Promise<void> => {
-  await b.click(label)
+  await b.run((wanted) => [...document.querySelectorAll<HTMLElement>('[role=tab]')].find((tab) => tab.textContent?.trim().startsWith(wanted))?.click(), label)
   await b.until((wanted) => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim().startsWith(wanted), { timeout: SHORT_WAIT_MS }, label)
 }
 
