@@ -79,10 +79,16 @@ final class RemoteFactsTests: XCTestCase {
 
     func testTheProbeOnlyReads() {
         let commands = RemoteProbe.script.split(separator: "\n").dropFirst().joined(separator: "\n")  // the first line only widens the search path
-        for word in ["rm ", "mv ", "chmod", "chown", "mkdir", "touch", "tee ", ">>", "curl -", "wget", "apt", "brew", "launchctl", "systemctl"] {
+        for word in ["rm ", "mv ", "chmod", "chown", "mkdir", "touch", "tee ", ">>", "curl -", "wget", "apt install", "apt-get install", "apt-get update", "dnf install", "brew", "launchctl", "systemctl"] {
             XCTAssertFalse(commands.contains(word), "the probe must not contain \(word)")
         }
         XCTAssertFalse(commands.contains(" > "), "no redirect to a file (only to /dev/null, written without spaces)")
+    }
+
+    func testTheProbeOnlyLooksForThePackageManagerAndNeverRunsIt() {
+        let line = RemoteProbe.script.split(separator: "\n").first { $0.contains("command -v \"${manager%%:*}\"") }
+        XCTAssertNotNil(line, "the package manager is found with command -v only")
+        XCTAssertFalse(RemoteProbe.script.contains("sudo apt"))
     }
 
     func testTheProbeLooksInTheUsualToolFoldersBecauseAnSshShellHasAShortPath() {
