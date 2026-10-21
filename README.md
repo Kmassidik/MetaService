@@ -34,6 +34,20 @@ You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) 
 
 Stop it from the menu (choice 6) or with `./install.sh stop`. You sign in to the panel in your browser (the admin login from step 2); there is no sign-in in the terminal.
 
+## Start again after a reboot
+
+By default the parent is a plain background process and the Cloudflare connector is a user job, so after a reboot with nobody logged in neither comes back. To fix that:
+
+```sh
+./install.sh autostart on      # needs sudo once (see below)
+./install.sh autostart status  # installed / loaded / running, and whether the panel answers
+./install.sh autostart off     # remove both; MetaService is then stopped
+```
+
+`autostart on` installs two system LaunchDaemons that run as you (not root), so they start at boot without a login: `io.metaservice.parent` (the built parent, restarted if it stops) and, when remote access is set up and `cloudflared` is installed, `io.metaservice.connector`.
+It stops the parent you started by hand and the user connector job, loads the daemons, and waits for http://127.0.0.1:9100. Run `./install.sh install` first: it refuses until the parent is built.
+It never asks for a password. It uses `sudo -n`; if that does not work it prints the exact commands to run yourself (or run `sudo -v` and try again). With autostart on, `./install.sh stop` does not stop it (launchd would restart it): use `autostart off`.
+
 ## Uninstall
 
 Choose **7 Uninstall** in the menu, or run `./install.sh uninstall`. It stops MetaService and shows what it will remove, with sizes: the builds, the packages, the run files and your data (machines, admin login, keys). It asks you to type `yes` first.

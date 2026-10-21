@@ -1,7 +1,7 @@
 #!/bin/sh
 # MetaService installer. Run it from this folder: ./install.sh
 # It opens with a welcome and a menu that stays open until you quit. Install checks the settings (.env) and the computer, builds what is
-# missing and starts the parent in the background, so you can close the terminal. Every choice can also be named: ./install.sh help|readme|install|status|logs|stop|uninstall
+# missing and starts the parent in the background, so you can close the terminal. Every choice can also be named: ./install.sh help|readme|install|status|logs|stop|autostart|uninstall
 # ./install.sh --check runs the two checks only. ./install.sh run starts the parent in this terminal. Any other --option goes to the parent with install.
 cd "$(dirname "$0")" || exit 1
 env_file="${METASERVICE_ENV_FILE:-control-plane/arm64/.env}"
@@ -41,7 +41,26 @@ show_help() {
   echo "  ./install.sh install --skip-nmap         install without nmap (Find machines sees fewer computers)"
   echo "  ./install.sh run          start in this terminal (stops when you close it)"
   echo "  ./install.sh remote check|plan|up|status|down   reach the panel from outside through its own Cloudflare tunnel (see the README)"
+  echo "  ./install.sh autostart on|off|status   start MetaService (and the remote connector) at boot, with nobody logged in; on needs sudo"
   echo "  ./install.sh --agent-bind 192.168.100.40   any other --option goes to the parent, with install"
+}
+
+autostart="scripts/autostart.sh"
+
+# With autostart on, launchd restarts the parent the moment it stops, so a plain stop would fight it.
+stop_now() {
+  if sh "$autostart" installed; then
+    echo "      Autostart is on: launchd starts MetaService again as soon as it stops, so it was not stopped."
+    echo "      To stop it for good, run ./install.sh autostart off (it needs sudo). Start it by hand again later with ./install.sh install."
+    return 1
+  fi
+  sh "$service" stop
+}
+
+status_now() {
+  sh "$service" status
+  sh "$autostart" installed || return 0
+  sh "$autostart" status
 }
 
 show_readme() {
@@ -97,9 +116,9 @@ choose() {
       1|help) show_help ;;
       2|readme) show_readme ;;
       3|install) install_now ;;
-      4|status) sh "$service" status ;;
+      4|status) status_now ;;
       5|logs) sh "$service" logs ;;
-      6|stop) sh "$service" stop ;;
+      6|stop) stop_now ;;
       7|uninstall) sh scripts/uninstall.sh ;;
       8|quit|q) echo "Bye."; exit 0 ;;
       *) echo "Please type a number from 1 to 8." ;;
@@ -113,7 +132,10 @@ case "$1" in
   help|--help|-h) show_help ;;
   readme|--readme) show_readme ;;
   install) shift; install_now "$@"; exit $? ;;
-  status|logs|stop) sh "$service" "$1" ;;
+  status) status_now; exit $? ;;
+  stop) stop_now; exit $? ;;
+  logs) sh "$service" logs ;;
+  autostart) shift; sh "$autostart" "$@"; exit $? ;;
   uninstall) shift; sh scripts/uninstall.sh "$@"; exit $? ;;
   run) shift; run_checks || exit 1; exec scripts/start-parent.sh "$@" ;;
   remote) shift; run_checks || exit 1; exec python3 scripts/remote_access --env "$env_file" "$@" ;;

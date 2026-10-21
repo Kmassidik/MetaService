@@ -11,7 +11,7 @@ INSTALL = os.path.join(ROOT, "install.sh")
 def isolated(folder, env_path):
     """The settings every run here gets, so no test reads or changes the real parent or the real parent's files. METASERVICE_ROOT points the uninstaller at an empty folder, which it refuses."""
     return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder),
-            "METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": os.path.join(folder, "agents"),
+            "METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": os.path.join(folder, "agents"), "METASERVICE_DAEMONS_DIR": os.path.join(folder, "daemons"),
             "METASERVICE_NMAP_PATHS": os.path.join(folder, "no-nmap-here"), "METASERVICE_BREW": os.path.join(folder, "no-brew-here")}
 
 

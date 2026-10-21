@@ -148,6 +148,10 @@ class Tool:
         state["token_file"] = True
 
     def _start_connector(self, state: dict) -> None:
+        if cf_connector.daemon_installed():
+            self.say(f"The connector is the boot-time daemon {cf_connector.DAEMON_LABEL} (./install.sh autostart on), so no user job is made.")
+            state["connector_domain"] = "system"
+            return
         os.makedirs(self.agents_dir, exist_ok=True)
         with open(self._plist_path(), "w", encoding="utf-8") as file:
             file.write(cf_connector.plist_text(self.find_binary(), self._token_path(), os.path.join(self.state_dir, LOG_FILE)))
@@ -191,10 +195,13 @@ class Tool:
             return EXIT_PROBLEMS
         connections = self._connection_count(state)
         self.say(f"Host: {state.get('host')}. Tunnel: {state.get('tunnel_name')} ({connections} connection(s)). "
-                 f"Connector job: {'loaded' if self.launchd.is_loaded() else 'NOT loaded'}.")
+                 f"Connector job: {self._connector_name()} {'loaded' if self.launchd.is_loaded() else 'NOT loaded'}.")
         public = self.probe(f"https://{state.get('host')}/")
         self.say(f"https://{state.get('host')}/ answers HTTP {public}." if public else f"https://{state.get('host')}/ does not answer.")
         return EXIT_OK if connections and reached(public) else EXIT_PROBLEMS
+
+    def _connector_name(self) -> str:
+        return f"{cf_connector.DAEMON_LABEL} (boot-time daemon)" if cf_connector.daemon_installed() else cf_connector.LABEL
 
     def _connection_count(self, state: dict) -> int:
         try:
@@ -222,6 +229,8 @@ class Tool:
         return EXIT_OK
 
     def _remove_connector(self, state: dict) -> None:
+        if cf_connector.daemon_installed():
+            self.say(f"The connector daemon {cf_connector.DAEMON_LABEL} is still installed and will keep restarting. Run ./install.sh autostart off to remove it.")
         self.launchd.stop()
         for path in (self._plist_path(), self._token_path()):
             if os.path.exists(path):

@@ -4,6 +4,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "remote_access"))
@@ -58,6 +59,10 @@ class Fixture:
         self.agents_dir = os.path.join(folder.name, "agents")
         self.said = []
         self.probes = []
+        self.daemons_dir = os.path.join(folder.name, "daemons")  # no real autostart daemon on this Mac may change what these tests see
+        patched = mock.patch.dict(os.environ, {cf_connector.DAEMONS_DIR_VARIABLE: self.daemons_dir})
+        patched.start()
+        test.addCleanup(patched.stop)
         self.launchd = FakeLaunchd(self.world, fail_start)
         values = cf_env.read_env(GOOD_ENV)
         self.settings = cf_env.settings_from(values, host=host)
@@ -182,6 +187,42 @@ class PartsTest(unittest.TestCase):
         domain = cf_connector.Launchd(501, run=run).start("/p.plist")
         self.assertEqual(domain, "user/501")
         self.assertIn(["bootstrap", "gui/501", "/p.plist"], calls)
+
+
+class AutostartDaemonTest(unittest.TestCase):
+    """With ./install.sh autostart on, the connector is a boot-time daemon and the tool makes no user job beside it."""
+
+    def installed(self, fx):
+        os.makedirs(fx.daemons_dir)
+        with open(os.path.join(fx.daemons_dir, cf_connector.DAEMON_LABEL + ".plist"), "w") as file:
+            file.write("x")
+
+    def test_up_makes_no_user_job_when_the_daemon_exists(self):
+        fx = Fixture(self)
+        self.installed(fx)
+        fx.tool._build()
+        self.assertEqual(fx.launchd.started, [])
+        self.assertFalse(os.path.exists(os.path.join(fx.agents_dir, cf_connector.LABEL + ".plist")))
+        self.assertEqual(cf_state.load(fx.state_dir)["connector_domain"], "system")
+
+    def test_status_names_the_daemon_as_the_connector(self):
+        fx = Fixture(self)
+        self.installed(fx)
+        fx.tool._build()
+        fx.tool.status()
+        self.assertIn(f"Connector job: {cf_connector.DAEMON_LABEL} (boot-time daemon)", fx.output())
+
+    def test_up_still_makes_the_user_job_without_the_daemon(self):
+        fx = Fixture(self)
+        fx.tool._build()
+        self.assertEqual(len(fx.launchd.started), 1)
+
+    def test_down_warns_that_the_daemon_is_left_installed(self):
+        fx = Fixture(self)
+        fx.tool._build()
+        self.installed(fx)
+        fx.tool.down()
+        self.assertIn("autostart off", fx.output())
 
 
 class CheckAndPlanTest(unittest.TestCase):
@@ -396,8 +437,8 @@ class CommandLineTest(unittest.TestCase):
 
     def setUp(self):
         import importlib.util
-        from unittest import mock
-        harmless = mock.patch.dict(os.environ, {"METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": tempfile.mkdtemp(prefix="ms-agents-")})
+        harmless = mock.patch.dict(os.environ, {"METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": tempfile.mkdtemp(prefix="ms-agents-"),
+                                                "METASERVICE_DAEMONS_DIR": tempfile.mkdtemp(prefix="ms-daemons-")})
         harmless.start()
         self.addCleanup(harmless.stop)
         spec = importlib.util.spec_from_file_location("remote_access_main", os.path.join(HERE, "..", "remote_access", "__main__.py"))
