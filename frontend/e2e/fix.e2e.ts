@@ -14,6 +14,7 @@ import { wait } from './support/net.ts'
 import { chromePath, repo } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
+import { findRow, labelsAligned, readRows } from './support/checkRows.ts'
 
 const SETUP_TOKEN = 'e2e-setup-token-0123456789abcdef'
 const SHORT_WAIT_MS = 10000
@@ -23,6 +24,8 @@ const INSTALL_WAIT_MS = 60000
 const FIX_WINDOW_MS = 61000
 const WRONG_PASSWORD = 'Wrong-Pw-e2e-31c7'
 const ROW = 'dialog[open] .checks li'
+const OFFER = `${ROW} button.offer`
+const VERDICT = /things? to fix before|All \d+ checks passed|Ready to add|cannot be added/
 
 interface Fake { port: number; dir: string; authorized: string; fingerprint: string; password: string }
 
@@ -53,7 +56,12 @@ async function waitForDialog(b: Browse, pattern: RegExp, timeout = STEP_WAIT_MS)
   }
 }
 
-const rows = (b: Browse): Promise<string[]> => b.page.$$eval(ROW, (items) => items.map((item) => item instanceof HTMLElement ? item.innerText.replace(/\s+/g, ' ').trim() : ''))
+const rows = async (b: Browse): Promise<string[]> => (await readRows(b.page)).map((row) => `${row.state}: ${row.shown}`)
+
+/** Waits until the row of this id has this state (ready is a tick). */
+async function waitForState(b: Browse, id: string, state: string): Promise<void> {
+  await b.until((selector, wanted) => document.querySelector(selector)?.getAttribute('data-state') === wanted, { timeout: INSTALL_WAIT_MS }, `${ROW}[data-check=${id}]`, state)
+}
 
 /** Sign in, Find machines, Add on a row, then the address of the pretend computer, its host key, and the key login: the path to the Check step. */
 async function reachTheCheck(b: Browse, first: boolean): Promise<void> {
@@ -78,32 +86,37 @@ async function reachTheCheck(b: Browse, first: boolean): Promise<void> {
   await waitForDialog(b, /Found a computer at/)
   await b.type('#connect-user', userInfo().username)
   await b.click('Log in and check')
-  await waitForDialog(b, /cannot be added yet|Looks good/)
+  await waitForDialog(b, VERDICT)
 }
 
 async function offers(b: Browse): Promise<void> {
-  const list = await rows(b)
-  check('a missing Incus is a cross with its To fix line AND an Install it for me button', list.some((row) => /^✗ Incus.*To fix: Run `sudo apt install incus`.*Install it for me/.test(row)), list.join(' | '))
-  check('Python is a cross with the button too, and the ticks have none', list.some((row) => /^✗ Python.*Install it for me/.test(row)) && list.filter((row) => row.startsWith('✓')).every((row) => !row.includes('Install it for me')))
+  const list = await readRows(b.page)
+  const incus = findRow(list, 'vm_tool')
+  const python = findRow(list, 'python')
+  check('a missing Incus is a cross with one plain sentence, its manual steps with the command, AND an Install it for me button',
+    incus?.state === 'blocking' && /Incus is the tool that makes the VMs/.test(incus.shown) && incus.all.includes('Run sudo apt install incus') && incus.manualSteps && incus.buttons.includes('Install it for me'), incus?.all)
+  check('Python is a cross with the button too, and the ticks have none', python?.state === 'blocking' && python.buttons.includes('Install it for me') && list.filter((row) => row.state === 'ready').every((row) => row.buttons.length === 0))
+  check('the command to run by hand is in a code box with a Copy button', (await b.page.$(`${ROW}[data-check=vm_tool] .codebox code`)) !== null && (await b.page.$(`${ROW}[data-check=vm_tool] .codebox button[aria-label="Copy this command"]`)) !== null)
   check('the button is a button and there is no password field before it is pressed', (await b.page.$$('dialog[open] input[type=password]')).length === 0)
+  check('every label starts at the same x on this list too', await labelsAligned(b.page))
   await b.shot('fix-offer.png')
 }
 
 async function wrongPassword(b: Browse): Promise<void> {
-  const button = (await b.page.$$(`${ROW} button`))[0]
+  const button = (await b.page.$$(OFFER))[0]
   if (!button) throw new Error('no Install it for me button')
   await button.click()
   await b.page.waitForSelector('dialog[open] input[name=sudo-password]')
   const field = await b.page.$eval('dialog[open] input[name=sudo-password]', (node) => ({ type: node.getAttribute('type'), autocomplete: node.getAttribute('autocomplete') }))
   check('the password field hides what is typed and is not offered to a password manager', field.type === 'password' && field.autocomplete === 'off', JSON.stringify(field))
   check('the field has an eye to show what was typed', (await b.page.$('dialog[open] .fix button.eye')) !== null)
-  check('the field says whose password it is, in plain words', /Password of .* on that computer/i.test(await b.dialogText()) && /not saved/.test(await b.dialogText()))
+  check('the field says whose password it is, in plain words', /Password of .* on that computer/i.test(await b.dialogText()) && /never saved/.test(await b.dialogText()))
   check('Install is off until something is typed', await b.isDisabled('Install'))
   await b.page.type('dialog[open] input[name=sudo-password]', WRONG_PASSWORD)
   await b.shot('fix-password.png')
   await b.click('Install')
   await waitForDialog(b, /did not accept that password/)
-  check('a wrong password is said plainly and nothing is ticked', /did not accept that password/.test(await b.dialogText()) && (await rows(b)).some((row) => row.startsWith('✗ Incus')))
+  check('a wrong password is said plainly and nothing is ticked', /did not accept that password/.test(await b.dialogText()) && findRow(await readRows(b.page), 'vm_tool')?.state === 'blocking')
   check('the field is empty again after the answer', (await b.page.$eval('dialog[open] input[name=sudo-password]', (node) => (node instanceof HTMLInputElement ? node.value : 'x'))) === '')
   await b.shot('fix-wrong.png')
 }
@@ -111,21 +124,21 @@ async function wrongPassword(b: Browse): Promise<void> {
 async function rightPassword(b: Browse): Promise<void> {
   await b.page.type('dialog[open] input[name=sudo-password]', fake.password)
   await b.click('Install')
-  await b.until(() => document.querySelectorAll('dialog[open] .checks li.pass').length > 0 && [...document.querySelectorAll('dialog[open] .checks li')].some((li) => /Incus/.test(li.textContent ?? '') && li.classList.contains('pass')), { timeout: INSTALL_WAIT_MS })
-  const list = await rows(b)
-  check('after the install the Incus cross became a tick', list.some((row) => /^✓ Incus/.test(row)) && !list.some((row) => /^✗ Incus/.test(row)), list.join(' | '))
-  check('Python is still a cross with its button', list.some((row) => /^✗ Python.*Install it for me/.test(row)))
+  await waitForState(b, 'vm_tool', 'ready')
+  const list = await readRows(b.page)
+  check('after the install the Incus cross became a tick', findRow(list, 'vm_tool')?.state === 'ready' && findRow(list, 'vm_tool')?.manualSteps === false, (await rows(b)).join(' | '))
+  check('Python is still a cross with its button', findRow(list, 'python')?.state === 'blocking' && findRow(list, 'python')?.buttons.includes('Install it for me') === true)
   await b.shot('fix-after.png')
   const log = readFileSync(join(fake.dir, 'commands.log'), 'utf8')
   check('the other computer ran apt, set Incus up and added the user to the incus-admin group', /install incus/.test(log) && /admin init --minimal/.test(log) && /usermod -a -G incus-admin build/.test(log), log.slice(-300))
-  const python = (await b.page.$$(`${ROW} button`))[0]
+  const python = (await b.page.$$(OFFER))[0]
   if (!python) throw new Error('no Install it for me button for Python')
   await python.click()
   await b.page.waitForSelector('dialog[open] input[name=sudo-password]')
   await b.page.type('dialog[open] input[name=sudo-password]', fake.password)
   await b.click('Install')
-  await b.until(() => [...document.querySelectorAll('dialog[open] .checks li')].some((li) => /Python/.test(li.textContent ?? '') && li.classList.contains('pass')), { timeout: INSTALL_WAIT_MS })
-  check('Python became a tick too', (await rows(b)).some((row) => /^✓ Python/.test(row)))
+  await waitForState(b, 'python', 'ready')
+  check('Python became a tick too', findRow(await readRows(b.page), 'python')?.state === 'ready')
 }
 
 async function nothingKept(b: Browse): Promise<void> {
@@ -137,35 +150,35 @@ async function nothingKept(b: Browse): Promise<void> {
   check('the password travelled in request bodies only, one per try (two Incus tries, one Python)', sent.length === 3, String(sent.length))
 }
 
-const TOOLKIT_ROW = /^✗ NVIDIA container toolkit \(lets containers use the GPU\)/
-
 /** A computer with an NVIDIA card: the toolkit row is a cross with its fix line and a button that says it adds NVIDIA's package source; one click installs it and the row turns to a tick. */
 async function toolkit(b: Browse): Promise<void> {
   writeFileSync(join(fake.dir, 'state', 'nvidia'), '')
   await b.click('Check another')
   await b.page.waitForSelector('dialog[open] #connect-host')
   await reachTheCheck(b, false)
-  const list = await rows(b)
-  const row = list.find((entry) => entry.includes('NVIDIA container toolkit')) ?? ''
-  check('a computer with an NVIDIA card gets a toolkit row: a cross, the card, the To fix line and a button that says it adds NVIDIA\'s package source', TOOLKIT_ROW.test(row) && /NVIDIA GeForce RTX 5090/.test(row) && /To fix: Follow NVIDIA's install guide/.test(row) && /Install it for me \(adds NVIDIA's package source\)/.test(row), row)
-  check('the Incus and Python rows are unchanged ticks and there is exactly one toolkit row', list.filter((entry) => entry.includes('NVIDIA container toolkit')).length === 1 && list.some((entry) => /^✓ Incus/.test(entry)))
+  const list = await readRows(b.page)
+  const row = findRow(list, 'gpu_toolkit')
+  check('a computer with an NVIDIA card gets a toolkit row: a dashed cross, the card, the manual steps and a button that says it adds NVIDIA\'s package source',
+    row?.state === 'optional' && /NVIDIA GeForce RTX 5090/.test(row.shown) && row.all.includes("Follow NVIDIA's install guide") && row.buttons.includes("Install it for me (adds NVIDIA's package source)"), row?.all)
+  check('the Incus and Python rows are unchanged ticks and there is exactly one toolkit row', list.filter((entry) => entry.id === 'gpu_toolkit').length === 1 && findRow(list, 'vm_tool')?.state === 'ready' && findRow(list, 'python')?.state === 'ready')
+  check('the toolkit does not block adding: Add machine is on, no card has the red outline and the verdict says so', !(await b.isDisabled('Add machine')) && (await b.page.$$('dialog[open] section.card.has-bad')).length === 0 && /does not block adding/.test(await b.dialogText()))
   await b.shot('fix-toolkit-offer.png')
-  const target = (await b.page.$$(`${ROW} button`))[0]
+  const target = (await b.page.$$(OFFER))[0]
   if (!target) throw new Error('no button under the toolkit row')
   await target.click()
   await b.page.waitForSelector('dialog[open] input[name=sudo-password]')
   const said = await b.dialogText()
-  check('before the press it says in plain words that it adds NVIDIA\'s package source and installs the toolkit, and the password is used once', /Adds NVIDIA's own package source and signing key/.test(said) && /installs NVIDIA's container toolkit/.test(said) && /not saved/.test(said), said.slice(-400))
+  check('before the press it says in plain words that it adds NVIDIA\'s package source and installs the toolkit, and the password is used once', /Adds NVIDIA's own package source and signing key/.test(said) && /installs NVIDIA's container toolkit/.test(said) && /never saved/.test(said), said.slice(-400))
   await b.page.type('dialog[open] input[name=sudo-password]', fake.password)
   await b.shot('fix-toolkit-password.png')
   await wait(FIX_WINDOW_MS)
   await b.click('Install')
   try {
-    await b.until(() => [...document.querySelectorAll('dialog[open] .checks li')].some((li) => /NVIDIA container toolkit/.test(li.textContent ?? '') && li.classList.contains('pass')), { timeout: INSTALL_WAIT_MS })
+    await waitForState(b, 'gpu_toolkit', 'ready')
   } catch {
     throw new Error(`the toolkit row did not turn to a tick; the rows are: ${(await rows(b)).join(" | ")}`)
   }
-  check('after the install the toolkit row is a tick', (await rows(b)).some((entry) => /^✓ NVIDIA container toolkit/.test(entry)))
+  check('after the install the toolkit row is a tick', findRow(await readRows(b.page), 'gpu_toolkit')?.state === 'ready')
   await b.shot('fix-toolkit-after.png')
   const log = readFileSync(join(fake.dir, 'commands.log'), 'utf8')
   check('the other computer fetched NVIDIA\'s key and package list, signed the source and installed nvidia-container-toolkit', /libnvidia-container\/gpgkey/.test(log) && /gpg --dearmor/.test(log) && /nvidia-container-toolkit\.list/.test(log) && /install nvidia-container-toolkit/.test(log), log.slice(-500))
@@ -182,8 +195,8 @@ async function windows(b: Browse): Promise<void> {
   await b.click('Check another')
   await b.page.waitForSelector('dialog[open] #connect-host')
   await reachTheCheck(b, false)
-  const list = await rows(b)
-  check('a Windows computer is one plain cross that says why, with no button', list.length === 2 && /^✗ System.*Windows is not supported yet.*there is no Windows helper/.test(list[1] ?? '') && !list.join(' ').includes('Install it for me'), list.join(' | '))
+  const list = await readRows(b.page)
+  check('a Windows computer is a Login tick and one plain System cross that says why, with no button and nothing else', list.length === 2 && list[0]?.state === 'ready' && list[1]?.state === 'blocking' && /Windows is not supported yet\. Please use a Linux or Mac computer/.test(list[1].shown) && list.every((row) => row.buttons.length === 0), (await rows(b)).join(' | '))
   check('Add machine stays off for Windows', await b.isDisabled('Add machine'))
   await b.shot('fix-windows.png')
 }

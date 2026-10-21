@@ -13,6 +13,7 @@ import { chromePath } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
 import { startSshd } from './support/sshd.ts'
+import { findRow, labelsAligned, readRows } from './support/checkRows.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import type { Requirement } from '../src/lib/types.ts'
 
@@ -26,6 +27,7 @@ const STEP_WAIT_MS = 20000
 const INSTALL_WAIT_MS = 120000
 const ONLINE_WAIT_MS = 60000
 const ALL_CHECKS = 11
+const READY_VERDICT = /All \d+ checks passed/
 const ALL_INSTALL_STEPS = 9
 
 const sshd = await startSshd()
@@ -106,21 +108,28 @@ async function stepTwo(b: Browse): Promise<void> {
   check('the key steps show a line with the public key to paste on that computer', shownLine.includes(publicKey))
   await b.click('Log in and check')
   await waitForDialog(b, /refused/)
-  check('before the key is allowed the login is refused and said plainly', /refused/i.test(await b.dialogText()) && /Looks good/.test(await b.dialogText()) === false)
+  check('before the key is allowed the login is refused and said plainly', /refused/i.test(await b.dialogText()) && !READY_VERDICT.test(await b.dialogText()))
   appendFileSync(sshd.authorized, publicKey + '\n')
 }
 
 async function stepThree(b: Browse): Promise<void> {
   await b.click('Log in and check')
-  await waitForDialog(b, /Looks good/)
+  await waitForDialog(b, READY_VERDICT)
   const result = await b.dialogText()
   check('step 3 says what the computer is', /macOS/.test(result) && /Apple/.test(result) && new RegExp(userInfo().username).test(result))
-  const rows = await b.page.$$eval('dialog[open] .checks li', (items) => items.map((item) => item instanceof HTMLElement ? item.innerText.replace(/\s+/g, ' ').trim() : ''))
+  const rows = await readRows(b.page)
+  const shown = rows.map((row) => `${row.state}: ${row.shown}`)
+  const ready = (id: string) => findRow(rows, id)?.state === 'ready'
   check('step 3 lists every check, with the program for this system found',
-    rows.length === ALL_CHECKS && rows.some((row) => /^✓ MetaService program/.test(row)) && rows.some((row) => /^✓ Apple's container tool/.test(row)) && rows.some((row) => /^✓ The parent can be reached/.test(row)), rows.join(' | '))
+    rows.length === ALL_CHECKS && ready('agent') && ready('parent') && ready('vm_tool') && /Apple's container tool/.test(findRow(rows, 'vm_tool')?.shown ?? ''), shown.join(' | '))
   check('step 3 says where MetaService would go, in plain words', /In a folder of that user/.test(result))
   check('Add machine is on, because everything that must pass passed', !(await b.isDisabled('Add machine')))
-  check('no row says "maybe": every row is a tick or a cross', rows.every((row) => /^[✓✗] /.test(row)))
+  check('no row says "maybe": every row is a tick or a cross, drawn as a mark with its own shape', rows.every((row) => ['ready', 'blocking', 'optional'].includes(row.state) && row.marks === 1))
+  check('a tick is one short line: no row has manual steps or a button, and every one has a value', rows.every((row) => !row.manualSteps && row.buttons.length === 0))
+  check('the rows are in three cards by topic', (await b.page.$$eval('dialog[open] section.card h4', (titles) => titles.map((title) => title.textContent))).join('|') === 'This computer|Software it needs|Connection')
+  check('every label starts at the same x, so the rows are aligned', await labelsAligned(b.page))
+  check('the ring says in words how many checks are ready', (await b.page.$$eval('dialog[open] [role=img]', (rings) => rings.map((ring) => ring.getAttribute('aria-label')))).includes(`${ALL_CHECKS} of ${ALL_CHECKS} checks ready`))
+  check('the host key is short and has a Copy button', /Host key SHA256:\S+…\S+/.test(result) && (await b.page.$('dialog[open] button[aria-label="Copy the host key"]')) !== null)
   await b.shot('connect-result.png')
   await b.click('Check another')
   await b.page.waitForSelector('dialog[open] #connect-host')
@@ -132,7 +141,7 @@ async function stepThree(b: Browse): Promise<void> {
 const MISSING_PYTHON = { id: 'python', label: 'Python (runs the chat)', ok: false, detail: 'Not installed.', fix: 'Install it with sudo apt install python3, then check again.' }
 const MISSING_INCUS = { id: 'vm_tool', label: 'Incus (makes the VMs)', ok: false, detail: 'Not installed.', fix: 'Install Incus on that computer: sudo apt install incus' }
 
-/** A computer that misses two things (Incus and Python): both are crosses with a "To fix" line, and Add machine stays off. The answer is made up here, because the test server is always a ready Mac. */
+/** A computer that misses two things (Incus and Python): both are crosses with a plain sentence and their manual steps, and Add machine stays off. The answer is made up here, because the test server is always a ready Mac. */
 async function failingResult(b: Browse): Promise<void> {
   await b.page.setRequestInterception(true)
   const answer = async (request: HTTPRequest): Promise<void> => {
@@ -150,10 +159,16 @@ async function failingResult(b: Browse): Promise<void> {
   await waitForDialog(b, /Found a computer at/)
   await b.type('#connect-user', userInfo().username)
   await b.click('Log in and check')
-  await waitForDialog(b, /cannot be added yet/)
-  const rows = await b.page.$$eval('dialog[open] .checks li', (items) => items.map((item) => item instanceof HTMLElement ? item.innerText.replace(/\s+/g, ' ').trim() : ''))
-  check('a missing requirement is a cross and says "To fix" with what to do', rows.some((row) => /^✗ Python.*To fix: Install it with sudo apt install python3/.test(row)) && rows.some((row) => /^✗ Incus.*To fix: Install Incus/.test(row)), rows.join(' | '))
-  check('only crosses have a fix line and nothing is marked with "!"', rows.filter((row) => row.includes('To fix')).length === 2 && !rows.some((row) => row.startsWith('!')))
+  await waitForDialog(b, /things? to fix before this computer can be added/)
+  const rows = await readRows(b.page)
+  const python = findRow(rows, 'python')
+  const incus = findRow(rows, 'vm_tool')
+  check('a missing requirement is a cross, says one plain sentence, and keeps what to do behind "Show the manual steps"',
+    python?.state === 'blocking' && /Python runs the chat\. It is not installed on this computer\./.test(python.shown) && python.all.includes('Install it with sudo apt install python3') && !python.shown.includes('sudo apt')
+      && incus?.state === 'blocking' && /Incus is the tool that makes the VMs/.test(incus.shown) && incus.all.includes('Install Incus on that computer: sudo apt install incus') && python.manualSteps && incus.manualSteps, rows.map((row) => row.shown).join(' | '))
+  check('only crosses have manual steps, and nothing is a "maybe"', rows.filter((row) => row.manualSteps).length === 2 && rows.every((row) => row.state === 'ready' || row.state === 'blocking'))
+  check('the card that has a cross gets the red outline and the others do not', (await b.page.$$eval('dialog[open] section.card', (cards) => cards.map((card) => card.classList.contains('has-bad')))).join() === 'false,true')
+  check('a cross says in words what is wrong and the count of ready checks says so too', /2 things to fix before this computer can be added/.test(await b.dialogText()) && (await b.page.$('dialog[open] [role=img][aria-label="3 of 5 checks ready"]')) !== null)
   check('Add machine stays off until every cross is fixed', await b.isDisabled('Add machine'))
   await b.shot('connect-result-crosses.png')
   b.page.off('request', answer)
@@ -170,7 +185,7 @@ async function reachResult(b: Browse): Promise<void> {
   await waitForDialog(b, /Found a computer at/)
   await b.type('#connect-user', userInfo().username)
   await b.click('Log in and check')
-  await waitForDialog(b, /Looks good/)
+  await waitForDialog(b, READY_VERDICT)
 }
 
 /** What will change, with the advanced choices pointing at throw-away folders, so nothing outside them is touched. Returns the box folder and the keys as they were. */
@@ -178,7 +193,7 @@ async function installIntoThrowAwayFolder(b: Browse): Promise<{ box: string; key
   const box = join(mkdtempSync(join(tmpdir(), 'ms-e2e-box-')), 'metaservice-box')
   const keysBefore = readFileSync(sshd.authorized, 'utf8')
   await b.click('Add machine')
-  await waitForDialog(b, /What will change on/)
+  await waitForDialog(b, /will change on/)
   await b.page.waitForSelector('dialog[open] ol.plan')
   const plan = await b.page.$$eval('dialog[open] ol.plan > li', (items) => items.map((item) => item.querySelector('strong')?.textContent ?? ''))
   check('What will change lists every step in plain words', plan.join(' | ') === "Make the box folder | Copy the MetaService program | Enroll it with the parent | Start the program | Allow the parent's tunnel | Write the record", plan.join(' | '))
@@ -200,9 +215,11 @@ async function installIntoThrowAwayFolder(b: Browse): Promise<{ box: string; key
 async function installAndFollow(b: Browse, box: string): Promise<void> {
   await b.click('Install')
   await waitForDialog(b, new RegExp(`Installing ${NAME}`))
-  await b.until(() => /is added: it shows in Machines/.test(document.querySelector<HTMLElement>('dialog[open]')?.innerText ?? ''), { timeout: INSTALL_WAIT_MS })
-  const steps = await b.page.$$eval('dialog[open] ol[aria-label="Install steps"] li', (items) => items.map((item) => item instanceof HTMLElement ? (item.innerText.replace(/\s+/g, ' ').trim().split(' ')[0] ?? '') : ''))
-  check('the install shows every step and ends with all of them done', steps.length === ALL_INSTALL_STEPS && steps.every((mark) => mark === '✓'), steps.join(' '))
+  check('while it installs there is a ring, a timer and a Close button that is off', /time so far \d+:\d\d/.test(await b.dialogText()) && await b.isDisabled('Close'))
+  await b.until((name) => (document.querySelector<HTMLElement>('dialog[open]')?.innerText ?? '').includes(`${name} is online`), { timeout: INSTALL_WAIT_MS }, NAME)
+  const steps = await b.page.$$eval('dialog[open] ol[aria-label="Install steps"] li', (items) => items.map((item) => item.getAttribute('data-state')))
+  check('the install shows every step and ends with all of them done', steps.length === ALL_INSTALL_STEPS && steps.every((state) => state === 'done'), steps.join(' '))
+  check('the done view says how long it took and links to the machine\'s page', /All \d+ steps done in \d+:\d\d/.test(await b.dialogText()) && (await b.page.$(`dialog[open] a[href*="${NAME}"]`)) !== null)
   await b.shot('connect-installed.png')
   const keyLines = readFileSync(sshd.authorized, 'utf8').split('\n').filter((line) => line.endsWith(`metaservice-${NAME}`))
   check('the box exists and the one key line was added', existsSync(join(box, 'manifest.json')) && existsSync(join(box, 'bin', 'metaservice-agent')) && keyLines.length === 1)

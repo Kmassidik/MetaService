@@ -184,7 +184,7 @@ table.restable{width:100%;border-collapse:collapse;font-size:13px}
 
 /* names the MetaService components use, mapped onto the MAAS tokens */
 :root{--bg:var(--white);--surface:var(--white);--surface-2:var(--gray2);--ink:var(--black);--muted:var(--m50);--line:var(--gray);--accent:var(--black);--accent-ink:var(--white);
-  --ok:var(--run);--ok-bg:var(--runbg);--warn-bg:var(--warnbg);--off:var(--stop);--off-bg:var(--gray2);--danger:#c0392b;--danger-bg:#fdecec;--shadow:none;--radius:0;color-scheme:light}
+  --ok:var(--run);--ok-bg:var(--runbg);--warn-bg:var(--warnbg);--off:var(--stop);--off-bg:var(--gray2);--danger:#c0392b;--danger-bg:#fdecec;--focus:var(--black);--shadow:none;--radius:0;color-scheme:light}
 .muted{color:var(--m50)}.nums{font-variant-numeric:tabular-nums}
 .btn.small{padding:7px 11px;font-size:11px}
 .btn.primary{background:var(--green);border-color:var(--green);color:#053}
@@ -211,3 +211,5 @@ table.restable{width:100%;border-collapse:collapse;font-size:13px}
 }
 
 .id{font-family:var(--mono);font-size:11px;color:var(--m50)}
+
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

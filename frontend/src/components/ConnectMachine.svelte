@@ -3,11 +3,10 @@
   import { untrack } from 'svelte'
   import AddRemote from './AddRemote.svelte'
   import Dialog from './Dialog.svelte'
-  import Requirements from './Requirements.svelte'
+  import CheckResult from './connect/CheckResult.svelte'
   import SecretField from './SecretField.svelte'
   import { ApiError, parentKey, remoteProbe, remoteVerify } from '../lib/api.ts'
-  import { emptyConnectForm, groupedFingerprint, isolationText, keyCommand, loginProblem, passwordAccepted, probeBody, userWarning, verifyBody, whereProblem } from '../lib/remote.ts'
-  import { formatGb, formatMb } from '../lib/format.ts'
+  import { emptyConnectForm, groupedFingerprint, keyCommand, loginProblem, passwordAccepted, probeBody, userWarning, verifyBody, whereProblem } from '../lib/remote.ts'
   import type { ConnectForm, ProbeResult, VerifyResult } from '../lib/types.ts'
 
   type Step = 'where' | 'confirm' | 'result' | 'add'
@@ -24,6 +23,7 @@
   const loginWrong = $derived(loginProblem(form))
   const userWrong = $derived(userWarning(form.user))
   const STEPS: [Step, string][] = [['where', 'Computer'], ['confirm', 'Confirm'], ['result', 'Check'], ['add', 'Add']]
+  const stepIndex = $derived(STEPS.findIndex(([id]) => id === step))
 
   $effect(() => {
     if (!open) return
@@ -103,7 +103,9 @@
 
 <Dialog {open} title="Add a machine" {onClose}>
   <ol class="steps" aria-label="Steps">
-    {#each STEPS as [id, label], index (id)}<li class:on={step === id} aria-current={step === id ? 'step' : undefined}><b>{index + 1}</b> {label}</li>{/each}
+    {#each STEPS as [id, label], index (id)}
+      <li class:on={step === id} class:past={index < stepIndex} aria-current={step === id ? 'step' : undefined}><b>{index < stepIndex ? '✓' : index + 1}</b> <span class="t">{label}</span></li>
+    {/each}
   </ol>
 
   {#if step === 'where'}
@@ -173,20 +175,7 @@
       </div>
     </form>
   {:else if step === 'result' && result}
-    <p><strong>{result.system || result.host}</strong></p>
-    <p class="muted">{result.facts.cpu_cores ?? '–'} cores · {formatMb(result.facts.ram_mb)} memory · {formatGb(result.facts.disk_free_gb)} free · logged in as {result.facts.user}</p>
-    <Requirements items={result.requirements} label="What that computer has" {form} fingerprint={result.fingerprint} onChecked={(fresh) => (result = fresh)} />
-    <h3 class="sub">Where MetaService would go</h3>
-    <ul class="levels">{#each result.isolation as level (level)}<li>{isolationText(level)}</li>{/each}</ul>
-    {#if result.can_add}
-      <p class="good" role="status">Looks good. MetaService can be installed on this computer.</p>
-    {:else}
-      <p class="bad" role="alert">It cannot be added yet: fix the ✗ above first.</p>
-    {/if}
-    <div class="row">
-      <button class="btn line" type="button" onclick={again}>Check another</button>
-      <button class="btn green" type="button" disabled={!result.can_add} onclick={() => (step = 'add')}>Add machine</button>
-    </div>
+    <CheckResult {result} {form} onChecked={(fresh) => (result = fresh)} onAgain={again} onAdd={() => (step = 'add')} />
   {:else if step === 'add' && result}
     <AddRemote {form} {result} onBack={() => (step = 'result')} {onClose} {onInstalled} />
   {/if}
@@ -194,7 +183,9 @@
 
 <style>
   .steps { list-style: none; display: flex; gap: 18px; margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--gray); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m40); }
-  .steps li.on { color: var(--black); }
+  .steps li.on { color: var(--black); font-weight: 700; }
+  .steps li.past { color: var(--ok); }
+  @media (max-width: 520px) { .steps { gap: 10px; } .steps li:not(.on) .t { display: none; } }
   .steps b { display: inline-block; min-width: 18px; text-align: center; border: 1px solid currentColor; border-radius: 50%; }
   label { display: block; margin-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--m50); }
   input:not([type='radio']) { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--gray); background: var(--white); font-family: var(--mono); font-size: 14px; }
@@ -213,9 +204,7 @@
   .print { padding: 12px 14px; background: var(--gray2); border: 1px solid var(--gray); font-size: 15px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
   .key { display: block; padding: 10px; border: 1px solid var(--gray); background: var(--bg); overflow-wrap: anywhere; user-select: all; font-size: 12px; }
   .sub { margin: 16px 0 6px; font-size: 13px; }
-  .levels { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
   .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
   .hint { font-size: 12px; margin-top: 6px; }
   .bad { color: #d92d20; }
-  .good { color: var(--run); }
 </style>
