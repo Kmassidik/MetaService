@@ -16,3 +16,4 @@ control-plane/arm64/run/
 Package.resolved.bak
 !frontend/dist/
 result
+.claude/
