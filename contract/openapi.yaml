@@ -501,6 +501,25 @@ components:
         gpu_mode: { type: string, enum: [none, container, passthrough] }
         address: { type: string, nullable: true }
         bundle_version: { type: string, nullable: true }
+        stopped_reason: { $ref: '#/components/schemas/StoppedReason' }
+        init_mode:
+          type: string
+          enum: [systemd, plain]
+          description: >
+            Optional. How a VM came up: with systemd, or plain (a process that only keeps it alive: a terminal works, services such as systemd do not).
+            Left out when the helper does not know.
+    StoppedReason:
+      type: object
+      nullable: true
+      required: [exit_code, log_tail]
+      additionalProperties: false
+      description: >
+        Optional, only on a workload that is stopped (or failed) and that the helper did not stop on request. Why it stopped, as the helper found it.
+        `log_tail` is text from inside the VM: at most 12 lines and 2048 bytes, escape sequences and control characters removed. It is data, never markup.
+        The Root cleans and caps it again, keeps it with the workload, and drops it as soon as the workload runs again or is gone.
+      properties:
+        exit_code: { type: integer, nullable: true, minimum: -1000, maximum: 1000 }
+        log_tail: { type: string, maxLength: 20000 }
     WorkloadList:
       type: object
       required: [workloads]

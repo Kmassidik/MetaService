@@ -177,7 +177,7 @@ final class WorkloadService: @unchecked Sendable {
     private func done(_ id: String, _ state: String, _ result: [String: Any]?) {
         var text = (result ?? [:]).compactMapValues { $0 as? String }
         keepChatKey(id, &text)
-        try? finish(id, state: state, result: text)
+        try? finish(id, state: state, result: HelperFailureText.cleanResult(text))
     }
 
     /// A finished install hands over the chat's access key. It goes into the sealed key store and never into the command record.

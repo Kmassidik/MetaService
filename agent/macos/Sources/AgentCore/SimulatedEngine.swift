@@ -24,11 +24,6 @@ public actor SimulatedEngine: Engine {
     /// Makes every later create fail with this error, as a machine whose VMs do not start would.
     public func failCreates(_ error: EngineError?) { createFailure = error }
 
-    /// Makes a VM stop on its own, as if its first process had quit, with the reason a real machine would have found.
-    public func stopByItself(id: String, reason: StoppedReason?) throws {
-        try change(id) { $0.state = .stopped; $0.stoppedReason = reason }
-    }
-
     public func create(id: String, request: CreateWorkloadRequest) async throws -> Workload {
         if let createFailure { throw createFailure }
         let made = Workload(id: id, name: request.name, kind: request.kind, state: .running, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb, gpuMode: request.gpuMode)
@@ -37,10 +32,7 @@ public actor SimulatedEngine: Engine {
     }
 
     public func setRunning(id: String, running: Bool) async throws {
-        try change(id) {
-            $0.state = running ? .running : .stopped
-            $0.stoppedReason = nil
-        }
+        try change(id) { $0.state = running ? .running : .stopped }
     }
 
     public func backup(id: String) async throws -> String {

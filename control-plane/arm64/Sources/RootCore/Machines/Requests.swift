@@ -98,8 +98,13 @@ public struct WorkloadReport: Equatable {
     public let gpuMode: String
     public let address: String?
     public let bundleVersion: String?
+    /// Only kept for a workload that is stopped or failed; a running one has no reason.
+    public let stoppedReason: StoppedReasonReport?
+    /// How the VM came up: "systemd", or "plain" (no systemd). Nil when the helper does not say.
+    public let initMode: String?
 
-    static let keys: Set<String> = ["id", "name", "kind", "state", "cpu", "ram_mb", "disk_gb", "gpu_mode", "address", "bundle_version"]
+    static let keys: Set<String> = ["id", "name", "kind", "state", "cpu", "ram_mb", "disk_gb", "gpu_mode", "address", "bundle_version", "stopped_reason", "init_mode"]
+    static let statesWithAReason: Set<String> = ["stopped", "failed"]
     static let maxPerMachine = 1000
 
     init(_ object: StrictObject) throws {
@@ -113,6 +118,9 @@ public struct WorkloadReport: Equatable {
         gpuMode = try object.choice("gpu_mode", among: ["none", "container", "passthrough"])
         address = try object.optionalString("address", maxLength: 255)
         bundleVersion = try Self.version(object)
+        let reason = object.has("stopped_reason") ? try StoppedReasonReport(object.object("stopped_reason", allowed: StoppedReasonReport.keys)) : nil
+        stoppedReason = Self.statesWithAReason.contains(state) ? reason : nil
+        initMode = object.has("init_mode") ? try object.choice("init_mode", among: ["systemd", "plain"]) : nil
     }
 
     private static func version(_ object: StrictObject) throws -> String? {

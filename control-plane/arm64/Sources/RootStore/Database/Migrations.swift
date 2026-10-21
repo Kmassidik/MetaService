@@ -109,6 +109,11 @@ public enum Migrations {
         (16, { try $0.exec("DROP TABLE IF EXISTS local_agents;") }),
         // What engine a machine's helper makes VMs with (name, version, ready), as the helper reports it. The helper's own version goes in the agent_version column that has been there from the start.
         (17, { try $0.exec("ALTER TABLE machines ADD COLUMN engine_json TEXT;") }),
+        // Why a VM stopped by itself (the helper's optional stopped_reason, as JSON) and how it came up (systemd or plain). Both are replaced with every heartbeat, so they go when the VM runs again or is gone.
+        (18, { try $0.exec("""
+            ALTER TABLE workloads ADD COLUMN stopped_reason_json TEXT;
+            ALTER TABLE workloads ADD COLUMN init_mode TEXT;
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

@@ -60,6 +60,7 @@ class FakeEngine:
         self.bundle_version = DEFAULT_BUNDLE_VERSION
         self._workloads = {}
         self._commands = {}
+        self.create_failure = None
         self._ids = itertools.count(1)
         self._lock = threading.Lock()
 
@@ -117,12 +118,25 @@ class FakeEngine:
             return dict(found)
 
     # ---- write side ------------------------------------------------
+    def quit_by_itself(self, workload_id, exit_code, log_tail):
+        """Makes a VM stop on its own, as if its first process had quit, and gives the reason a real helper would have found."""
+        with self._lock:
+            workload = self._get(workload_id)
+            workload.update(state="stopped", stopped_reason={"exit_code": exit_code, "log_tail": log_tail})
+
+    def fail_creates_with(self, message):
+        """Every later create fails with this plain-words reason (None: creates work again)."""
+        with self._lock:
+            self.create_failure = message
+
     def create(self, body):
         with self._lock:
             existing = self._commands.get(body["command_id"])
             if existing is not None:
                 return dict(existing)
             self._check_room(body)
+            if self.create_failure is not None:
+                return self._fail(body["command_id"], "create", self.create_failure)
             workload = self._new_workload(body)
             self._workloads[workload["id"]] = workload
             return self._finish(body["command_id"], "create", workload["id"], {"workload_id": workload["id"]})
@@ -159,6 +173,7 @@ class FakeEngine:
                 return dict(existing)
             workload = self._get(workload_id)
             workload["state"] = state
+            workload.pop("stopped_reason", None)
             return self._finish(command_id, command_type, workload_id, {"state": state})
 
     def delete(self, command_id, workload_id):
@@ -201,6 +216,11 @@ class FakeEngine:
         if found is None:
             raise NotFound(workload_id)
         return found
+
+    def _fail(self, command_id, command_type, reason):
+        record = {"command_id": command_id, "type": command_type, "state": "failed", "result": {"error": reason}}
+        self._commands[command_id] = record
+        return dict(record)
 
     def _finish(self, command_id, command_type, workload_id, result):
         record = {"command_id": command_id, "type": command_type, "state": "succeeded", "result": result}

@@ -53,6 +53,46 @@ final class MachineReportStoreTests: XCTestCase {
         XCTAssertTrue((json["engine"] as! [String: Any])["version"] is NSNull)
     }
 
+    private func beat(state: String, extra: [String: Any] = [:]) throws -> HeartbeatRequest {
+        var workload: [String: Any] = ["id": "w-1", "name": "test", "kind": "vm", "state": state, "cpu": 2, "ram_mb": 2048, "disk_gb": 10, "gpu_mode": "none", "address": NSNull()]
+        workload.merge(extra) { $1 }
+        let facts: [String: Any] = ["os": "macos", "arch": "arm64", "cpu_cores": 10, "ram_total_mb": 65536, "disk_total_gb": 1000, "free_ram_mb": 50000, "free_disk_gb": 800,
+                                    "gpu": [], "capabilities": ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]]
+        return try HeartbeatRequest(body: JSONSerialization.data(withJSONObject: ["facts": facts, "workloads": [workload]]))
+    }
+
+    func testAStoppedVmKeepsItsReasonAndItGoesWhenTheVmRunsAgainOrIsGone() throws {
+        let reason: [String: Any] = ["exit_code": 255, "log_tail": "Failed to mount API filesystems."]
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "stopped", extra: ["stopped_reason": reason, "init_mode": "plain"]), ip: nil, now: now)
+        var seen = try XCTUnwrap(try machines.get(id: "mini", now: now).workloads.first)
+        XCTAssertEqual(seen.stoppedReason, StoppedReasonReport(exitCode: 255, logTail: "Failed to mount API filesystems."))
+        XCTAssertEqual(seen.initMode, "plain")
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "running", extra: ["stopped_reason": reason]), ip: nil, now: now)
+        seen = try XCTUnwrap(try machines.get(id: "mini", now: now).workloads.first)
+        XCTAssertNil(seen.stoppedReason, "a VM that runs again has no reason")
+        XCTAssertNil(seen.initMode)
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "stopped", extra: ["stopped_reason": reason]), ip: nil, now: now)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: nil, now: now)
+        XCTAssertTrue(try machines.get(id: "mini", now: now).workloads.isEmpty)
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "stopped"), ip: nil, now: now)
+        XCTAssertNil(try machines.get(id: "mini", now: now).workloads.first?.stoppedReason, "a deleted VM's reason is not remembered")
+    }
+
+    func testTheReasonAndTheModeAreInTheJsonOfEveryWorkloadAsNullWhenEmpty() throws {
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "stopped"), ip: nil, now: now)
+        let snake = JSONEncoder()
+        snake.keyEncodingStrategy = .convertToSnakeCase
+        let listed = try XCTUnwrap(try machines.list(now: now).first?.workloads.first)
+        let json = try JSONSerialization.jsonObject(with: snake.encode(listed)) as! [String: Any]
+        XCTAssertTrue(json["stopped_reason"] is NSNull)
+        XCTAssertTrue(json["init_mode"] is NSNull)
+        try machines.recordHeartbeat(machineId: "mini", request: try beat(state: "stopped", extra: ["stopped_reason": ["exit_code": NSNull(), "log_tail": "<b>x</b>"]]), ip: nil, now: now)
+        let again = try JSONSerialization.jsonObject(with: snake.encode(try XCTUnwrap(try machines.list(now: now).first?.workloads.first))) as! [String: Any]
+        let reason = again["stopped_reason"] as! [String: Any]
+        XCTAssertTrue(reason["exit_code"] is NSNull)
+        XCTAssertEqual(reason["log_tail"] as? String, "<b>x</b>")
+    }
+
     func testRenamingChangesTheNameButNotTheId() throws {
         try machines.rename(id: "mini", to: "studio")
         let seen = try machines.get(id: "mini", now: now)

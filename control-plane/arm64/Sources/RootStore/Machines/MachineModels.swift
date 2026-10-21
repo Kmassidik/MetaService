@@ -13,9 +13,13 @@ public struct WorkloadSummary: Encodable, Equatable {
     public let gpuMode: String
     public let address: String?
     public let bundleVersion: String?
+    /// Why the VM stopped, when it stopped by itself and the helper said why. Null otherwise.
+    public let stoppedReason: StoppedReasonReport?
+    /// "systemd" or "plain" (no systemd); null when the helper does not say.
+    public let initMode: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion
+        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -30,6 +34,8 @@ public struct WorkloadSummary: Encodable, Equatable {
         try box.encode(gpuMode, forKey: .gpuMode)
         try box.encode(address, forKey: .address)
         try box.encode(bundleVersion, forKey: .bundleVersion)
+        try box.encode(stoppedReason, forKey: .stoppedReason)
+        try box.encode(initMode, forKey: .initMode)
     }
 }
 
