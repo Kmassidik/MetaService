@@ -126,6 +126,11 @@ final class RemoteSsh: @unchecked Sendable {
         try await ssh(target, credentials, command: ["sh", "-s"], input: Data(script.utf8), timeout: timeout, reversePort: reversePort)
     }
 
+    /// Runs one command line on the other computer with `input` on its standard input and nothing else (no script is sent that way). Used for `sudo -S`, which reads its password there.
+    func run(command: String, input: Data, on target: RemoteTarget, with credentials: SshCredentials, timeout: TimeInterval) async throws -> SshResult {
+        try await ssh(target, credentials, command: [command], input: input, timeout: timeout)
+    }
+
     /// Streams a local file into a file on the other computer (made private first). The path was checked to be plain, so it is safe in the remote command.
     func send(file localPath: String, to remotePath: String, on target: RemoteTarget, with credentials: SshCredentials, timeout: TimeInterval) async throws -> SshResult {
         guard let content = FileManager.default.contents(atPath: localPath) else { throw RemoteFailure.noAnswer }

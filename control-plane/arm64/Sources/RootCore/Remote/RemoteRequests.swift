@@ -78,11 +78,10 @@ public struct InstallChoices: Equatable {
     public let sshDirectory: String?
     public let agentPort: Int?
     public let installKey: Bool
-    public let installVmTool: Bool
     public let chat: Bool
     public let settings: MachineSettings
 
-    static let fields: Set<String> = Set(["name", "box", "ssh_dir", "agent_port", "install_key", "install_vm_tool", "chat"]).union(MachineSettings.fields)
+    static let fields: Set<String> = Set(["name", "box", "ssh_dir", "agent_port", "install_key", "chat"]).union(MachineSettings.fields)
 
     init(_ object: StrictObject) throws {
         name = try object.id("name")
@@ -90,7 +89,6 @@ public struct InstallChoices: Equatable {
         sshDirectory = try Self.plainPath(object, "ssh_dir")
         agentPort = object.has("agent_port") ? try object.int("agent_port", range: 1024...65000) : nil
         installKey = object.has("install_key") ? try object.bool("install_key") : true
-        installVmTool = object.has("install_vm_tool") ? try object.bool("install_vm_tool") : false
         chat = object.has("chat") ? try object.bool("chat") : false
         settings = try MachineSettings(object)
     }
@@ -108,7 +106,6 @@ public struct InstallChoices: Equatable {
         value.sshDirectory = sshDirectory ?? value.sshDirectory
         value.agentPort = agentPort ?? value.agentPort
         value.installKey = installKey
-        value.installVmTool = installVmTool
         value.chat = chat
         return try value.validated()
     }

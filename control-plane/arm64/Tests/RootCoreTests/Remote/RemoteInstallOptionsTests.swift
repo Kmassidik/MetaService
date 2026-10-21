@@ -15,7 +15,6 @@ final class RemoteInstallOptionsTests: XCTestCase {
         XCTAssertEqual([value.agentPort, value.chatPort], [9101, 9200])
         XCTAssertEqual(value.level, .folder)
         XCTAssertTrue(value.installKey)
-        XCTAssertFalse(value.installVmTool, "the VM tool is only added when ticked")
     }
 
     func testOnlyPlainAbsolutePathsPass() {

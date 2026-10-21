@@ -21,6 +21,8 @@ public struct RemoteFacts: Equatable, Sendable {
     public var kvm: Bool?
     public var tools: Set<String> = []
     public var sudo: SudoAccess = .none
+    /// The package manager of a Linux computer, when it is one MetaService knows.
+    public var packageManager: PackageManager?
     public var port9101Free: Bool?
     /// True when what listens on the port is MetaService's own program from an earlier install, which an install can replace.
     public var port9101Ours = false
@@ -29,6 +31,8 @@ public struct RemoteFacts: Equatable, Sendable {
 
     public var isMac: Bool { os == "Darwin" }
     public var isLinux: Bool { os == "Linux" }
+    public var isWindows: Bool { os == Self.windows }
+    public static let windows = "Windows"
 
     /// The name the parent's Agent builds go by: "darwin-arm64", "linux-x86_64", "linux-arm64".
     public var agentBuild: String {
@@ -62,6 +66,9 @@ public enum RemoteProbe {
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
     for tool in container incus python3 curl tar; do command -v "$tool" >/dev/null 2>&1 && echo "tool=$tool"; done
+    for manager in apt-get:apt dnf:dnf pacman:pacman zypper:zypper apk:apk; do
+      if command -v "${manager%%:*}" >/dev/null 2>&1; then echo "pkg=${manager##*:}"; break; fi
+    done
     if sudo -n true >/dev/null 2>&1; then echo "sudo=passwordless"
     elif command -v sudo >/dev/null 2>&1; then echo "sudo=password"
     else echo "sudo=none"; fi
@@ -76,6 +83,14 @@ public enum RemoteProbe {
       else echo "port_9101=busy"; fi
     fi
     """
+
+    /// A Windows computer answers the check with its own error, not with facts: all that is known about it is who logged in.
+    public static func windows(user: String) -> RemoteFacts {
+        var facts = RemoteFacts()
+        facts.os = RemoteFacts.windows
+        facts.user = user
+        return facts
+    }
 
     private static let knownTools: Set<String> = ["container", "incus", "python3", "curl", "tar"]
     private static let longestValue = 120
@@ -110,6 +125,7 @@ public enum RemoteProbe {
         case "disk_free_gb": facts.diskFreeGb = Int(value)
         case "kvm": facts.kvm = value == "yes"
         case "tool": if knownTools.contains(value) { facts.tools.insert(value) }
+        case "pkg": facts.packageManager = PackageManager(rawValue: value)
         case "sudo": facts.sudo = SudoAccess(rawValue: value) ?? .none
         case "port_9101": facts.port9101Free = value == "free" || value == "ours"; facts.port9101Ours = value == "ours"
         default: break

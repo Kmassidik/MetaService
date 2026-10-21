@@ -16,9 +16,17 @@ public enum RemoteVerify {
 
     /// `parentURL` is where an Agent there will find the parent: its own loopback, through the SSH connection (see ParentUrl).
     public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String) -> RemoteVerification {
+        guard !facts.isWindows else { return windows(facts, fingerprint) }
         let rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts), python(facts), admin(facts), port(facts), parent(parentURL)]
         return RemoteVerification(requirements: rows, canAdd: rows.allSatisfy(\.ok), isolation: facts.sudo == .none ? ["folder"] : ["folder", "dedicated_user"],
                                   system: [facts.version, facts.chip, facts.arch].filter { !$0.isEmpty }.joined(separator: " · "))
+    }
+
+    /// Windows has no helper program and the check itself is a shell script, so there is nothing more to ask: one cross that says why.
+    private static func windows(_ facts: RemoteFacts, _ fingerprint: String) -> RemoteVerification {
+        let rows = [login(facts, fingerprint), Requirement(id: "system", label: "System", ok: false, detail: "Windows is not supported yet. MetaService's check and its helper program are made for macOS and Linux; there is no Windows helper.",
+                                                          fix: "Use a Mac or a Linux computer (x86_64 or ARM).")]
+        return RemoteVerification(requirements: rows, canAdd: false, isolation: [], system: facts.os)
     }
 
     static func parent(_ url: String) -> Requirement {
@@ -74,15 +82,14 @@ public enum RemoteVerify {
         let tool = facts.isMac ? "container" : "incus"
         let label = facts.isMac ? "Apple's container tool (makes the VMs)" : "Incus (makes the VMs)"
         let found = facts.tools.contains(tool)
-        let fix = facts.isMac ? "Install Apple's container tool from https://github.com/apple/container/releases, then check again."
-                              : "Install Incus on that computer: `sudo apt install incus` then `sudo incus admin init --minimal` (Ubuntu or Debian), or follow https://linuxcontainers.org/incus/docs/main/installing/ for another system. Then check again."
-        return Requirement(id: "vm_tool", label: label, ok: found, detail: found ? "Installed. It is used as it is; nothing about it is changed." : "Not installed. MetaService needs it to make VMs, and it does not install it for you yet.", fix: fix)
+        return Requirement(id: "vm_tool", label: label, ok: found, detail: found ? "Installed. It is used as it is; nothing about it is changed." : "Not installed. MetaService needs it to make VMs.",
+                           fix: ManualFixes.vmTool(facts), install: InstallOffers.offer(for: .vmTool, facts: facts))
     }
 
     static func python(_ facts: RemoteFacts) -> Requirement {
         let found = facts.tools.contains("python3")
         return Requirement(id: "python", label: "Python (runs the chat)", ok: found, detail: found ? "Found." : "Not installed. Without it the chat cannot run there.",
-                           fix: facts.isMac ? "Install it with `xcode-select --install`, then check again." : "Install it with `sudo apt install python3`, then check again.")
+                           fix: ManualFixes.python(facts), install: InstallOffers.offer(for: .python, facts: facts))
     }
 
     /// Having sudo is not a requirement: without it the engine lives in a folder of the login user. Both answers are fine, only the sentence differs.

@@ -23,6 +23,11 @@ public enum SshErrors {
         return methods.contains("publickey") && !methods.contains("password") && !methods.contains("keyboard-interactive")
     }
 
+    /// Windows' OpenSSH runs the check with cmd.exe or PowerShell, which both say that `sh` is "not recognized". No Mac or Linux login says that.
+    public static func looksLikeWindows(_ errors: String) -> Bool {
+        errors.lowercased().contains("is not recognized as")
+    }
+
     public static func classify(status: Int32, errors: String) -> SshErrorKind {
         let text = errors.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if text.contains("permission denied") { return .loginRefused }

@@ -80,7 +80,7 @@ def check_what_will_change_is_shown_without_a_login_or_any_change():
         expect(any("Nothing that already exists" in note for note in plan["notes"]), f"notes: {plan['notes']}")
         no_key = operator.write("POST", "/api/remote/plan", {**body, "install_key": False}).body
         expect("key" not in [step["id"] for step in no_key["steps"]], "without the key there is no key step")
-        expect(operator.write("POST", "/api/remote/plan", {**body, "install_vm_tool": True}).status == 400, "the VM tool step is not available yet")
+        expect(operator.write("POST", "/api/remote/plan", {**body, "install_vm_tool": True}).status == 400, "installing the VM tool is its own request (/api/remote/fix), not a choice of the install")
         expect(operator.write("POST", "/api/remote/plan", {**body, "box": "/a b"}).status == 400, "a path with a space")
         # Since commit 57afeac a computer reaches the parent through the SSH connection itself, so a plan no longer depends on the computer being able to reach the parent.
         expect(operator.request("GET", "/api/remote/machines").body["machines"] == [], "planning must not add anything")

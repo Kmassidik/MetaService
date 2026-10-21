@@ -26,6 +26,7 @@ struct Services {
     let sessions: SessionStore
     let machineSettings: MachineSettingsStore
     let remote: RemoteService
+    let remoteFix: RemoteFixService
     let remoteSsh: RemoteSsh
     let tunnelPorts = TunnelPorts()
     let tunnels: TunnelSupervisor
@@ -58,6 +59,7 @@ struct Services {
         machineSettings = MachineSettingsStore(database)
         remoteSsh = RemoteSsh(parts: .init(config: config, clock: clock, keys: RemoteKeyStore(database), secrets: secrets, throttle: throttle))
         remote = RemoteService(ssh: remoteSsh, config: config, audit: audit, clock: clock)
+        remoteFix = RemoteFixService(ssh: remoteSsh, config: config, audit: audit, clock: clock)
         remoteMachines = RemoteMachineStore(database)
         machineDetails = MachineDetails(machines: machines, remoteMachines: remoteMachines, bundles: bundles, commands: commands, clock: clock)
         tunnels = TunnelSupervisor(ssh: remoteSsh, remoteMachines: remoteMachines, ports: tunnelPorts, clock: clock)

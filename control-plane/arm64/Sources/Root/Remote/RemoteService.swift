@@ -86,6 +86,7 @@ final class RemoteService: @unchecked Sendable {
     /// The same read the installer does again just before it changes anything.
     static func readFacts(_ ssh: RemoteSsh, _ target: RemoteTarget, _ credentials: SshCredentials) async throws -> RemoteFacts {
         let result = try await ssh.run(RemoteProbe.script, on: target, with: credentials, timeout: loginSeconds)
+        if result.status != 0, SshErrors.looksLikeWindows(result.errors) { return RemoteProbe.windows(user: target.user) }
         guard result.status == 0 else {
             RemoteLog.say("ssh to \(target.user)@\(target.host):\(target.port) ended with status \(result.status): \(result.errors)")
             throw RemoteFailure.fromSsh(result.errors, status: result.status, auth: credentials.auth)

@@ -7,6 +7,7 @@ enum RemoteFailure: Error {
     case notAllowed, unreachable, noHostKey, hostKeyChanged, fingerprintMismatch, loginRefused, passwordNotAccepted, keyNotAccepted, noAnswer, timedOut, noSsh, tooManyTries
     case closed
     case machineExists, installRunning, notRemote, badOptions(String)
+    case fixUnavailable, missing(MissingFailure)
 
     var api: ApiFailure {
         switch self {
@@ -26,7 +27,22 @@ enum RemoteFailure: Error {
         case .installRunning: return ApiFailure(status: .conflict, code: "install_running", message: "another install is still running")
         case .notRemote: return ApiFailure(status: .notFound, code: "not_found", message: "that machine was not installed over SSH")
         case .badOptions(let message): return ApiFailure(status: .badRequest, code: "invalid_input", message: message)
+        case .fixUnavailable: return ApiFailure(status: .conflict, code: "remote_fix_unavailable", message: "MetaService cannot install that for you on this computer. Use the To fix line instead")
+        case .missing(let failure): return Self.apiFailure(failure)
         case .tooManyTries: return ApiFailure(status: .tooManyRequests, code: "remote_too_many_tries", message: "too many tries on that computer. Wait a minute: repeated logins look like an attack on the network")
+        }
+    }
+
+    /// A short fixed name for the audit log: never the text of an error, which could come from the other computer.
+    var auditName: String {
+        guard case .missing(let failure) = self else { return "\(self)" }
+        return failure.auditName
+    }
+
+    private static func apiFailure(_ failure: MissingFailure) -> ApiFailure {
+        switch failure {
+        case .stopped, .unknown: return ApiFailure(status: .badGateway, code: "remote_install_failed", message: failure.message)
+        default: return ApiFailure(status: .unprocessableContent, code: "remote_sudo_refused", message: failure.message)
         }
     }
 

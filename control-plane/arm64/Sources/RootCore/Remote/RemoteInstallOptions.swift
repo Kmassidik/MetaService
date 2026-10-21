@@ -24,7 +24,6 @@ public struct RemoteInstallOptions: Equatable, Sendable {
     public var engine: String
     public var rootURL: String
     public var installKey: Bool
-    public var installVmTool: Bool
     public var settings: MachineSettings
     public var chat: Bool
     /// The port on that computer's loopback that leads back to the parent (see ParentUrl). Nil for a computer that is this one.
@@ -40,7 +39,7 @@ public struct RemoteInstallOptions: Equatable, Sendable {
     /// The defaults for a computer whose home folder is `home`: the box and the key line go where the install of this level goes.
     public static func defaults(name: String, home: String, engine: String, rootURL: String, settings: MachineSettings = MachineSettings()) -> RemoteInstallOptions {
         RemoteInstallOptions(name: name, level: .folder, box: home + "/" + boxFolderName, sshDirectory: home + "/.ssh", agentPort: defaultAgentPort, engine: engine, rootURL: rootURL,
-                             installKey: true, installVmTool: false, settings: settings, chat: false)
+                             installKey: true, settings: settings, chat: false)
     }
 
     /// Refuses what could be unsafe or unsupported. The name is a machine id (the same rule as a local machine).
@@ -50,7 +49,6 @@ public struct RemoteInstallOptions: Equatable, Sendable {
         guard (1024...65000).contains(agentPort) else { throw RemoteInstallError.badPort("the Agent port must be 1024 to 65000") }
         guard ["apple", "incus", "simulated"].contains(engine) else { throw RemoteInstallError.notAvailable("the engine is apple, incus or simulated") }
         guard level == .folder else { throw RemoteInstallError.notAvailable("a user of its own is not available yet") }
-        guard !installVmTool else { throw RemoteInstallError.notAvailable("installing the VM tool on another computer is not available yet") }
         return self
     }
 
