@@ -144,6 +144,7 @@ export const testBrain = () => call<unknown>('POST', '/api/brain/test')
 
 export const remoteProbe = (body: { host: string; port?: number }) => call<ProbeResult>('POST', '/api/remote/probe', body)
 export const remoteVerify = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/verify', body)
+export const remoteFix = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/fix', body)
 export const parentKey = async () => (await call<{ public_key: string }>('GET', '/api/remote/key')).public_key
 export const remotePlan = (body: Record<string, unknown>) => call<PlanPreview>('POST', '/api/remote/plan', body)
 export const remoteInstall = (body: Record<string, unknown>) => call<{ id: string }>('POST', '/api/remote/installs', body)

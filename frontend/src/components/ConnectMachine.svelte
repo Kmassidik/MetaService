@@ -175,7 +175,7 @@
   {:else if step === 'result' && result}
     <p><strong>{result.system || result.host}</strong></p>
     <p class="muted">{result.facts.cpu_cores ?? '–'} cores · {formatMb(result.facts.ram_mb)} memory · {formatGb(result.facts.disk_free_gb)} free · logged in as {result.facts.user}</p>
-    <Requirements items={result.requirements} label="What that computer has" />
+    <Requirements items={result.requirements} label="What that computer has" {form} fingerprint={result.fingerprint} onChecked={(fresh) => (result = fresh)} />
     <h3 class="sub">Where MetaService would go</h3>
     <ul class="levels">{#each result.isolation as level (level)}<li>{isolationText(level)}</li>{/each}</ul>
     {#if result.can_add}

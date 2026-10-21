@@ -1,6 +1,6 @@
 // What the Connect screen asks for and sends, as plain functions so they are easy to test. No DOM, no network.
 import { relativeTime } from './format.ts'
-import type { ConnectForm, RemoteMachineInfo, VerifyResult } from './types.ts'
+import type { ConnectForm, InstallOffer, RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/
 const USER = /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/
@@ -42,6 +42,28 @@ export const probeBody = (form: ConnectForm) => ({ host: form.host.trim(), port:
 export function verifyBody(form: ConnectForm, fingerprint: string): Record<string, unknown> {
   const base = { ...probeBody(form), user: form.user, fingerprint }
   return form.useKey ? { ...base, use_key: true } : { ...base, password: form.password }
+}
+
+/** True when "Install it for me" needs a typed password: the sudo one, and with a password login the login's own too (it was forgotten after the check). */
+export const fixNeedsPassword = (form: ConnectForm, offer: InstallOffer): boolean => !form.useKey || offer.needs_password
+
+/** What the password field is called, so the person knows which password it is. */
+export const fixPasswordLabel = (form: ConnectForm): string => `Password of ${form.user} on that computer`
+
+const FIX_WHAT: Record<string, string> = {
+  vm_tool: 'Installs Incus (the tool that makes VMs) with apt, sets it up, and lets the login user use it.',
+  python: 'Installs Python 3 with apt.',
+}
+
+export const fixWhat = (offer: InstallOffer): string => FIX_WHAT[offer.part] ?? 'Installs it with apt.'
+
+/**
+ * The "Install it for me" request: the login of Connect, which part, and the password. With a password login the one typed password is both the login and sudo;
+ * with the key it is sudo only, and it is left out when sudo asks for none.
+ */
+export function fixBody(form: ConnectForm, fingerprint: string, offer: InstallOffer, typed: string): Record<string, unknown> {
+  const login = verifyBody({ ...form, password: form.useKey ? '' : typed }, fingerprint)
+  return offer.needs_password ? { ...login, fix: offer.part, sudo_password: typed } : { ...login, fix: offer.part }
 }
 
 /** True unless the computer said it takes only keys: then a password box would be a dead end. When it did not say, both ways are offered. */

@@ -185,6 +185,13 @@ export interface Requirement {
   detail: string
   /** What to do about it; only present when ok is false. */
   fix?: string
+  /** Present when the parent can install it itself: which part, and whether sudo on that computer asks for a password. */
+  install?: InstallOffer
+}
+
+export interface InstallOffer {
+  part: string
+  needs_password: boolean
 }
 
 export interface ComputerInfo {

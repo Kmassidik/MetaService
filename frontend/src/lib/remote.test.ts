@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
+import { fixBody, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
@@ -128,4 +128,29 @@ test('the key command adds the key once and refuses anything that is not a plain
   expect(command).toMatch(/chmod 600 ~\/\.ssh\/authorized_keys/)
   expect(command.split(key).length - 1).toBe(2)
   for (const bad of ['', "ssh-ed25519 AAAA'; rm -rf ~; '", 'ssh-rsa AAAA x', 'ssh-ed25519 AAAA x\nssh-ed25519 BBBB y', "ssh-ed25519 AAAA $(id)"]) expect(keyCommand(bad)).toBe(null)
+})
+
+const offer = (needs_password: boolean) => ({ part: 'vm_tool', needs_password })
+
+test('Install it for me asks for a password with a password login, and with a key only when sudo asks for one', () => {
+  expect(fixNeedsPassword(form(), offer(false))).toBe(true)
+  expect(fixNeedsPassword(form({ useKey: true }), offer(true))).toBe(true)
+  expect(fixNeedsPassword(form({ useKey: true }), offer(false))).toBe(false)
+  expect(fixPasswordLabel(form())).toBe('Password of kurnia on that computer')
+  expect(fixWhat(offer(true))).toMatch(/Incus/)
+  expect(fixWhat({ part: 'python', needs_password: true })).toMatch(/Python/)
+})
+
+test('a password login sends the one typed password as the login and as sudo', () => {
+  expect(fixBody(form({ password: '' }), 'SHA256:abc', offer(true), 'typed')).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', password: 'typed', fix: 'vm_tool', sudo_password: 'typed' })
+})
+
+test('a key login sends the key flag and the sudo password only, never a login password', () => {
+  const body = fixBody(form({ useKey: true, password: 'old' }), 'SHA256:abc', offer(true), 'typed')
+  expect(body).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', use_key: true, fix: 'vm_tool', sudo_password: 'typed' })
+  expect(JSON.stringify(body)).not.toContain('old')
+})
+
+test('a key login whose sudo asks for none sends no password at all', () => {
+  expect(fixBody(form({ useKey: true }), 'SHA256:abc', offer(false), '')).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', use_key: true, fix: 'vm_tool' })
 })

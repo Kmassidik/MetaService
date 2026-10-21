@@ -1,15 +1,28 @@
 <script lang="ts">
-  // The ✓ ✗ list of what a computer has (a ✗ also says what to do), shown before anything is installed (shown by Add a machine).
-  import type { Requirement } from '../lib/types.ts'
+  // The ✓ ✗ list of what a computer has (a ✗ also says what to do, and may offer to do it), shown before anything is installed (shown by Add a machine).
+  import InstallItForMe from './InstallItForMe.svelte'
+  import type { ConnectForm, Requirement, VerifyResult } from '../lib/types.ts'
 
-  let { items, label = 'What this computer has' }: { items: Requirement[]; label?: string } = $props()
+  interface Props {
+    items: Requirement[]
+    label?: string
+    /** With these, a ✗ that the parent can fix gets "Install it for me"; the new check replaces the list. */
+    form?: ConnectForm
+    fingerprint?: string
+    onChecked?: (result: VerifyResult) => void
+  }
+
+  let { items, label = 'What this computer has', form, fingerprint, onChecked }: Props = $props()
 </script>
 
 <ul class="checks" aria-label={label}>
   {#each items as item (item.id)}
     <li class={item.ok ? 'pass' : 'block'}>
       <span class="mark" aria-hidden="true">{item.ok ? '✓' : '✗'}</span>
-      <span>{item.label}<small>{item.detail}</small>{#if item.fix}<small class="fix">To fix: {item.fix}</small>{/if}</span>
+      <span>
+        {item.label}<small>{item.detail}</small>{#if item.fix}<small class="fix">To fix: {item.fix}</small>{/if}
+        {#if item.install && form && fingerprint && onChecked}<InstallItForMe offer={item.install} {form} {fingerprint} {onChecked} />{/if}
+      </span>
     </li>
   {/each}
 </ul>
