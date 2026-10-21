@@ -1,6 +1,7 @@
 //! Workloads as Incus instances: VMs and containers, one engine. Every call is the `incus` program with a fixed argument list;
 //! nothing a user typed can become a flag, because names and ids are checked against the id pattern and the image against the image pattern first.
 use crate::engine::Engine;
+use crate::gpu;
 use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
 use crate::preflight::{self, HostProbe, NoHostChecks};
 use crate::validate::CreateRequest;
@@ -56,6 +57,8 @@ pub struct IncusEngine {
     default_image: String,
     wait_seconds: u64,
     probe: Arc<dyn HostProbe>,
+    /// An NVIDIA card was found. Containers can use it only while the container toolkit is also there, which is looked at each time.
+    gpu_found: bool,
     /// Asked for once the program answers, then remembered.
     version: Mutex<Option<String>>,
 }
@@ -70,12 +73,18 @@ fn args(items: &[&str]) -> Vec<String> {
 
 impl IncusEngine {
     pub fn new(runner: Arc<dyn Runner>, capabilities: Capabilities, backup_dir: PathBuf, default_image: String, wait_seconds: u64) -> Self {
-        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks), version: Mutex::new(None) }
+        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks), gpu_found: false, version: Mutex::new(None) }
     }
 
     /// Lets the engine look at the host (the firewall) when it reports problems.
     pub fn with_probe(mut self, probe: Arc<dyn HostProbe>) -> Self {
         self.probe = probe;
+        self
+    }
+
+    /// Says an NVIDIA card is in this machine, so `gpu_in_container` follows whether the container toolkit is installed.
+    pub fn with_gpu_found(mut self, found: bool) -> Self {
+        self.gpu_found = found;
         self
     }
 
@@ -154,7 +163,7 @@ fn address_of(item: &Value) -> Option<String> {
 
 impl Engine for IncusEngine {
     fn capabilities(&self) -> Capabilities {
-        self.capabilities
+        Capabilities { gpu_in_container: self.gpu_found && gpu::toolkit_ready(self.probe.as_ref()), ..self.capabilities }
     }
 
     fn identity(&self) -> EngineIdentity {
@@ -334,5 +343,44 @@ mod tests {
         for junk in ["", "null", "{}", "[1,2]", "garbage"] {
             assert!(parse_list(junk).is_empty(), "{junk}");
         }
+    }
+
+    fn write_program(folder: &std::path::Path, name: &str, code: i32) {
+        use std::os::unix::fs::PermissionsExt;
+        let file = folder.join(name);
+        std::fs::write(&file, format!("#!/bin/sh\nexit {code}\n")).unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    /// A folder holding fake programs: (file name, exit code). Each one just exits with its code.
+    fn fake_programs(programs: &[(&str, i32)]) -> PathBuf {
+        let folder = std::env::temp_dir().join(format!("ms-fake-path-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&folder).unwrap();
+        programs.iter().for_each(|(name, code)| write_program(&folder, name, *code));
+        folder
+    }
+
+    fn gpu_engine(programs: &[(&str, i32)], gpu_found: bool) -> IncusEngine {
+        let (engine, _) = engine_with(Ok(String::new()));
+        engine.with_probe(Arc::new(preflight::SystemProbe::searching(fake_programs(programs)))).with_gpu_found(gpu_found)
+    }
+
+    #[test]
+    fn containers_get_the_gpu_only_when_a_card_and_a_working_toolkit_are_both_there() {
+        assert!(gpu_engine(&[("nvidia-ctk", 0)], true).capabilities().gpu_in_container);
+        assert!(gpu_engine(&[("nvidia-container-cli", 0)], true).capabilities().gpu_in_container);
+        assert!(!gpu_engine(&[], true).capabilities().gpu_in_container, "card but no toolkit");
+        assert!(!gpu_engine(&[("nvidia-ctk", 1)], true).capabilities().gpu_in_container, "a toolkit that fails");
+        assert!(!gpu_engine(&[("nvidia-ctk", 0)], false).capabilities().gpu_in_container, "toolkit but no card");
+    }
+
+    #[test]
+    fn installing_the_toolkit_later_is_noticed_without_a_restart() {
+        let folder = fake_programs(&[]);
+        let (engine, _) = engine_with(Ok(String::new()));
+        let engine = engine.with_probe(Arc::new(preflight::SystemProbe::searching(&folder))).with_gpu_found(true);
+        assert!(!engine.capabilities().gpu_in_container);
+        write_program(&folder, "nvidia-ctk", 0);
+        assert!(engine.capabilities().gpu_in_container);
     }
 }

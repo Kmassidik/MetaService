@@ -6,6 +6,7 @@ mod engine;
 mod enroll;
 mod facts;
 mod files;
+mod gpu;
 mod heartbeat;
 mod http;
 mod incus;
@@ -69,9 +70,9 @@ fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine:
     }
     let path = config.incus_path.clone().or_else(|| ["/usr/bin/incus", "/usr/local/bin/incus", "/run/current-system/sw/bin/incus"].iter().find(|p| std::path::Path::new(p).is_file()).map(|p| p.to_string()))
         .filter(|p| std::path::Path::new(p).is_file()).ok_or("the `incus` program was not found; install Incus or pass --incus-path")?;
-    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: !specs.gpu.is_empty() };
+    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false };
     let backups = config.backup_dir.clone().unwrap_or_else(|| config.state_dir.join("backups"));
-    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe))))
+    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty())))
 }
 
 fn run(config: Config) -> Result<(), String> {

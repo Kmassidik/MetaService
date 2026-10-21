@@ -1,6 +1,7 @@
 //! Everything the Agent does, on top of an Engine. HTTP and the system probes live outside of it.
 use crate::budget::SpaceBudget;
 use crate::engine::Engine;
+use crate::gpu;
 use crate::models::*;
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
@@ -98,10 +99,11 @@ impl Service {
         let for_problems = engine.clone();
         let problems = blocking(move || for_problems.problems()).await;
         let identity = blocking(move || engine.identity()).await;
+        let capabilities = self.capabilities().await;
         let engine_info = EngineInfo { name: identity.name, version: identity.version, ready: problems.is_empty() };
         Ok(Facts {
             os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: self.specs.ram_total_mb, disk_total_gb: self.specs.disk_total_gb,
-            free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities: self.engine.capabilities(), problems,
+            free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
             agent_version: self.version.clone(), engine: engine_info,
         })
     }
@@ -123,6 +125,12 @@ impl Service {
         Ok(list)
     }
 
+    /// What the engine can do right now. It looks at the host (for the GPU toolkit), so it runs off the async threads.
+    async fn capabilities(&self) -> Capabilities {
+        let engine = self.engine.clone();
+        blocking(move || engine.capabilities()).await
+    }
+
     pub fn command(&self, id: &str) -> Option<Command> {
         self.ledger.find(id)
     }
@@ -138,7 +146,11 @@ impl Service {
         let current = self.workloads().await?;
         let os_disk = self.os_disk;
         let available = blocking(os_disk).await;
-        self.budget.check(&request, &current, &self.engine.capabilities(), available).map_err(Failure::Refused)?;
+        let capabilities = self.capabilities().await;
+        if let Some(refused) = gpu::refusal(&request, !self.specs.gpu.is_empty(), &capabilities) {
+            return Err(Failure::Refused(refused));
+        }
+        self.budget.check(&request, &current, &capabilities, available).map_err(Failure::Refused)?;
         let id = new_workload_id();
         let planned = Workload { id: id.clone(), name: request.name.clone(), kind: request.kind, state: State::Provisioning, cpu: request.cpu, ram_mb: request.ram_mb, disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None };
         self.flight.lock().unwrap().inflight.insert(id.clone(), planned);
@@ -385,5 +397,30 @@ mod tests {
         let done = finished(&service, "u-3").await;
         assert_eq!(done.state, CommandState::Failed);
         assert_eq!(done.result.unwrap()["error"], "the chat could not be turned off");
+    }
+
+    fn gpu_service(gpu_in_container: bool) -> Arc<Service> {
+        let gpu = vec![Gpu { vendor: "nvidia".into(), model: "NVIDIA GeForce RTX 5090".into(), memory_mb: Some(32768) }];
+        let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: 65536, disk_total_gb: 2000, gpu };
+        let engine = Arc::new(SimulatedEngine::new(Capabilities { gpu_in_container, ..default_capabilities() }));
+        Arc::new(Service::new(engine, SpaceBudget::new(65536, 2000), specs, "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), Arc::new(Counting::default()), || None))
+    }
+
+    fn gpu_container_request(command_id: &str) -> CreateRequest {
+        CreateRequest { command_id: command_id.into(), name: "gpu-box".into(), kind: Kind::Container, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::Container, image: None }
+    }
+
+    #[tokio::test]
+    async fn a_gpu_container_without_the_toolkit_is_refused_in_plain_words() {
+        let refused = gpu_service(false).create(gpu_container_request("g-1")).await.err().expect("refused");
+        let Failure::Refused(refusal) = refused else { panic!("expected a refusal") };
+        assert_eq!(refusal.message, crate::gpu::NO_TOOLKIT_MESSAGE);
+    }
+
+    #[tokio::test]
+    async fn a_gpu_container_with_the_toolkit_is_accepted() {
+        let service = gpu_service(true);
+        service.create(gpu_container_request("g-2")).await.ok().unwrap();
+        assert_eq!(finished(&service, "g-2").await.state, CommandState::Succeeded);
     }
 }

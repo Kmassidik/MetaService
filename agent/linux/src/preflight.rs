@@ -25,11 +25,27 @@ pub trait HostProbe: Send + Sync {
     fn run(&self, program: &str, arguments: &[&str]) -> Option<ProbeOutput>;
 }
 
-pub struct SystemProbe;
+/// Runs real programs. `searching` swaps the folders the programs are looked for in (tests use it to put fake programs on a fake PATH).
+#[derive(Default)]
+pub struct SystemProbe {
+    search_path: Option<std::ffi::OsString>,
+}
+
+impl SystemProbe {
+    #[cfg(test)]
+    pub fn searching(path: impl Into<std::ffi::OsString>) -> Self {
+        SystemProbe { search_path: Some(path.into()) }
+    }
+}
 
 impl HostProbe for SystemProbe {
     fn run(&self, program: &str, arguments: &[&str]) -> Option<ProbeOutput> {
-        let mut child = Command::new(program).args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().ok()?;
+        let mut command = Command::new(program);
+        command.args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        if let Some(path) = &self.search_path {
+            command.env("PATH", path);
+        }
+        let mut child = command.spawn().ok()?;
         let deadline = Instant::now() + Duration::from_secs(PROBE_SECONDS);
         let status = loop {
             if let Some(status) = child.try_wait().ok()? { break status; }
