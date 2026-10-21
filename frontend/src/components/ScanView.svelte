@@ -2,11 +2,12 @@
   import { onMount } from 'svelte'
   import { ApiError, latestScan, scanSetup, startScan } from '../lib/api.ts'
   import { relativeTime, sourceName, sourceProblem } from '../lib/format.ts'
-  import type { Scan, ScanSetup } from '../lib/types.ts'
+  import { addedName } from '../lib/scanRows.ts'
+  import type { Machine, Scan, ScanSetup } from '../lib/types.ts'
 
   const POLL_MS = 1500
 
-  let { onConnect }: { onConnect: (host?: string) => void } = $props()
+  let { machines, onConnect }: { machines: Machine[]; onConnect: (host?: string) => void } = $props()
   let setup = $state<ScanSetup | null>(null)
   let scan = $state<Scan | null>(null)
   let failure = $state('')
@@ -118,7 +119,7 @@
           <span class="status" data-label="Status">
             {#if isGateway(row.ip)}<span class="badge">Router</span>
             {:else if isSelf(row.ip)}<span class="badge">This computer</span>
-            {:else if row.machine}<span class="badge ok">Added</span> <strong>{row.machine}</strong>
+            {:else if addedName(row, machines)}<span class="badge ok">Added</span> <strong>{addedName(row, machines)}</strong>
             {:else if row.agent_port_open}<span class="badge ok">Agent running</span>
             {:else}
               <button class="btn green sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Add {row.ip}">Add</button>

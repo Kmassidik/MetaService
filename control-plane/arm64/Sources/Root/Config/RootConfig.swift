@@ -33,7 +33,8 @@ struct RootConfig {
     var agentBinary = "../../agent/macos/.build/debug/metaservice-agent"
     /// Connecting to other computers: loopback is a legal target only when this is on (tests and demos), and the Agent builds for other systems may sit in one folder.
     var remoteAllowLoopback = false
-    var agentBuildsDirectory: String?
+    /// Where the programs for other systems are looked for (metaservice-agent-linux-x86_64 and so on). Without a setting it is state/agent-builds, so a build only needs to be put there.
+    var agentBuildsDirectory: String? = "state/agent-builds"
     /// Which engine an Agent installed on another computer is started with. Empty means the right one for its system (apple on a Mac, incus on Linux); tests and demos use "simulated".
     var remoteEngine: String?
     /// Logins the parent allows itself on one other computer in a minute. A flood of logins looks like an attack to the network, so the default is small.
@@ -66,6 +67,7 @@ enum ConfigLoader {
         }
         try applyOptions(options, to: &config)
         config.agentBinary = absolutePath(config.agentBinary)
+        config.agentBuildsDirectory = config.agentBuildsDirectory.map(absolutePath)
         return config
     }
 

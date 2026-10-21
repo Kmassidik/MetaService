@@ -13,7 +13,7 @@
 </div>
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
 {#if view === 'find'}
-  <div class="body"><ScanView {onConnect} /></div>
+  <div class="body"><ScanView {machines} {onConnect} /></div>
 {:else}
   <MachineList {machines} {now} {pinned} {onRemove} {onAdd} />
 {/if}

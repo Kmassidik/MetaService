@@ -22,6 +22,18 @@
           doCheck = false;
         };
 
+        # `nix build .#metaservice-agent-linux-x86_64` cross-builds the Rust Agent for a Linux PC (x86_64, static musl) from any machine, a Mac included.
+        # The parent finds it in its builds folder as metaservice-agent-linux-x86_64 (see docs/RUNNING.md).
+        # Rust links it statically itself (crt-static), so it runs on any Linux PC with no nix store and no libraries.
+        packages.metaservice-agent-linux-x86_64 = pkgs.pkgsCross.musl64.rustPlatform.buildRustPackage {
+          pname = "metaservice-agent";
+          version = "0.1.0";
+          src = ./agent/linux;
+          cargoLock.lockFile = ./agent/linux/Cargo.lock;
+          doCheck = false;
+          env.RUSTFLAGS = "-C target-feature=+crt-static";
+        };
+
         # `nix develop` gives every build tool, pinned by flake.lock. Swift is not here:
         # on macOS it stays the system toolchain (Xcode Command Line Tools).
         devShells.default = pkgs.mkShell {
