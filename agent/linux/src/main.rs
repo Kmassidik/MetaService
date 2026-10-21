@@ -8,6 +8,8 @@ mod facts;
 mod files;
 mod gpu;
 mod gpu_check;
+#[cfg(test)]
+mod gpu_service_tests;
 mod heartbeat;
 mod http;
 mod incus;
