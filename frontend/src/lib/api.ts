@@ -1,8 +1,9 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
+import { parseStatsReply } from './statsParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -158,3 +159,6 @@ export async function openTerminal(machine: string, workload: string): Promise<s
   if (!ticket) throw new ApiError(502, 'bad_reply', 'The Root gave no console ticket.')
   return ticket.ticket
 }
+
+/** The machine's latest reading (docs/monitor-contract.md). An offline machine answers with state offline and the last reading, or null. */
+export const getMachineStats = async (id: string): Promise<MachineStatsReply> => parseStatsReply(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/stats`))

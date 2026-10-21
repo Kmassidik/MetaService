@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatePill from './StatePill.svelte'
   import Meter from './Meter.svelte'
+  import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
@@ -32,6 +33,8 @@
       {#if machine.bundle_version}<span class:stale={flag.stale}>{flag.text}</span>{/if}
     </div>
   </div>
+
+  {#if machine.state !== 'offline'}<LiveLine machineId={machine.id} />{/if}
 
   <div class="meters">
     <Meter label="Memory" free={machine.free_ram_mb} total={machine.ram_total_mb} format={formatMb} />

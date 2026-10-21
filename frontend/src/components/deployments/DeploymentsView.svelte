@@ -30,8 +30,6 @@
   const servers = $derived(vmServers(machine))
   const host = $derived(hostFor(machine))
   const running = $derived(servers.filter((server) => server.status === 'running').length)
-  const diskPct = $derived(host.disk_total_gb ? Math.min(100, Math.round(((host.disk_alloc_gb ?? 0) / host.disk_total_gb) * 100)) : 0)
-  const ramAllocMb = $derived(servers.filter((server) => server.status === 'running').reduce((sum, server) => sum + (server.mem_mb ?? 0), 0))
   /** Every server was made from one of the machine's workloads, so this always finds it. */
   function workloadOf(server: BuildingServer): Workload {
     const found = machine.workloads.find((workload) => workload.id === server.id)
@@ -44,15 +42,6 @@
     lastView = next
   }
 </script>
-
-<div class="caps">
-  <div class="m">Disk allocated
-    <span class="bar"><i class:hi={diskPct > 85} style:width="{diskPct}%"></i></span>
-    <b>{host.disk_alloc_gb} GB</b> / {host.disk_total_gb} GB
-  </div>
-  <div class="m">{host.disk_free_gb ?? '–'} GB free now <span class="hintnote">· VMs are sparse, so free drops only as they fill</span></div>
-  <div class="m">RAM <b>{formatMb(ramAllocMb)}</b> / {formatMb(host.ram_total_mb)} · {servers.length} VM{servers.length === 1 ? '' : 's'}</div>
-</div>
 
 <div class="bar-row">
   <span class="runs">{running}/{servers.length} running</span>

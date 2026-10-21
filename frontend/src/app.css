@@ -79,14 +79,6 @@ button{font-family:inherit;cursor:pointer}
 .phead .crumb{font-family:var(--mono);font-size:11px;color:var(--m40)}
 .phead .sp{margin-left:auto;display:flex;gap:10px;align-items:center}
 .count{font-family:var(--mono);font-size:11px;background:var(--black);color:var(--white);padding:4px 9px}
-/* host capacity strip */
-.caps{display:flex;gap:22px;align-items:center;padding:12px 28px;border-bottom:1px solid var(--gray);font-family:var(--mono);font-size:11px;color:var(--m60);flex-wrap:wrap}
-.caps .m{display:flex;align-items:center;gap:8px}
-.caps b{color:var(--black);font-weight:700}
-.caps .bar{width:120px;height:7px;background:var(--gray2);border:1px solid var(--gray);overflow:hidden}
-.caps .bar i{display:block;height:100%;background:var(--green)}
-.caps .bar i.hi{background:var(--warn)}
-.caps .hintnote{color:var(--m40)}
 
 /* segmented toggle */
 .segmented{display:inline-flex;border:1px solid var(--gray)}

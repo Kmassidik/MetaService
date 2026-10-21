@@ -136,7 +136,7 @@
     </dl>
     <h3>VMs</h3>
     {#if residents.length === 0}
-      <p class="bv-none">No VMs yet — the whole building is free.</p>
+      <p class="bv-none">No VMs on this machine yet.</p>
     {:else}
       <ul class="bv-tenants">
         {#each residents as tenant (tenant.id)}

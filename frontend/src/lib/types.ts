@@ -339,3 +339,73 @@ export interface RemoteMachineInfo {
   tunnel?: { state: 'connecting' | 'connected' | 'disconnected'; since: string; local_port: number | null; failures: number }
 }
 
+
+/** One reading of a machine, as GET /api/machines/{id}/stats carries it (docs/monitor-contract.md). A number the machine could not give yet is null, never 0. */
+export interface StatsCpu {
+  core_count: number
+  total_percent: number | null
+  cores_percent: number[] | null
+  load: { one: number | null; five: number | null; fifteen: number | null }
+}
+
+export interface StatsMemory {
+  total_bytes: number
+  used_bytes: number
+  cached_bytes: number
+  free_bytes: number
+  swap_total_bytes: number
+  swap_used_bytes: number
+}
+
+export interface StatsDisk {
+  mount: string
+  name: string
+  fs: string
+  total_bytes: number
+  used_bytes: number
+  free_bytes: number
+}
+
+export interface StatsNetwork {
+  received_total_bytes: number
+  sent_total_bytes: number
+  received_bytes_per_second: number | null
+  sent_bytes_per_second: number | null
+}
+
+export interface StatsGpu {
+  name: string
+  utilization_percent: number | null
+  memory_used_bytes: number | null
+  memory_total_bytes: number | null
+  temperature_celsius: number | null
+}
+
+export interface StatsProcess {
+  pid: number
+  name: string
+  user: string
+  cpu_percent: number | null
+  memory_bytes: number
+}
+
+export interface MachineStats {
+  taken_at: string
+  measuring: boolean
+  uptime_seconds: number
+  cpu: StatsCpu
+  memory: StatsMemory
+  disks: StatsDisk[]
+  network: StatsNetwork
+  /** Left out when the machine cannot say. */
+  gpus: StatsGpu[]
+  processes: StatsProcess[]
+}
+
+export interface MachineStatsReply {
+  /** old_helper: the machine is online but its helper does not answer the stats route yet (stats is null). */
+  state: 'online' | 'offline' | 'old_helper'
+  last_seen: string | null
+  fetched_at: string | null
+  stats: MachineStats | null
+}

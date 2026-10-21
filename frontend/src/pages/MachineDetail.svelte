@@ -4,6 +4,7 @@
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
+  import Monitor from '../components/monitor/Monitor.svelte'
   import { canRunText, gpuText } from '../lib/environment.ts'
   import { archName, formatGb, formatMb, osName, relativeTime } from '../lib/format.ts'
   import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
@@ -59,6 +60,8 @@
       <button class="btn danger sm" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
     </div>
   </div>
+
+  {#key machine.id}<Monitor {machine} {now} />{/key}
 
   <div class="tabs" role="tablist">
     {#each TABS as [id, label] (id)}

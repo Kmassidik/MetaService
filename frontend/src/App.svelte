@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, uninstallBundle, workloadAction } from './lib/api.ts'
+  import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
   import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute } from './lib/routes.ts'
   import Login from './components/Login.svelte'
@@ -20,7 +21,6 @@
   import ChatLink from './components/ChatLink.svelte'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
-  const REFRESH_MS = 10_000
   const CLOCK_MS = 5_000
 
   let phase = $state<'loading' | 'signedOut' | 'ready' | 'error'>('loading')
@@ -219,7 +219,7 @@
     const onRoute = () => (route = location.hash.replace(/^#/, '') || '/')
     addEventListener('hashchange', onRoute)
     start()
-    const refreshTimer = setInterval(() => !document.hidden && refresh(), REFRESH_MS)
+    const refreshTimer = setInterval(() => !document.hidden && refresh(), LIST_POLL_MS)
     const clockTimer = setInterval(() => (now = Date.now()), CLOCK_MS)
     const wake = () => !document.hidden && refresh()
     document.addEventListener('visibilitychange', wake)
