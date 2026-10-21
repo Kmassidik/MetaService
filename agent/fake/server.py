@@ -164,6 +164,9 @@ class AgentHandler(BaseHTTPRequestHandler):
     def _is_running(self, id):
         return any(w["id"] == id and w["state"] == "running" for w in self.engine.workloads())
 
+    def gpu_check(self, id):
+        self._send(200, self.engine.gpu_check(id))
+
     def get_command(self, id):
         self._send(200, self.engine.command(id))
 
@@ -179,6 +182,7 @@ ROUTES = [
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
+    ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/gpu-check", AgentHandler.gpu_check),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/start", AgentHandler.start_workload),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/stop", AgentHandler.stop_workload),
     ("DELETE", rf"/v1/workloads/(?P<id>{ID_PATTERN})", AgentHandler.delete_workload),

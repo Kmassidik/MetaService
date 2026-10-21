@@ -67,6 +67,7 @@ def check_vms_need_kvm_and_gpu_modes_need_a_gpu(agent):
         expect(status == 409 and reply["error"]["code"] == "missing_capability", f"a VM was accepted without KVM: {status} {reply}")
     status, reply = agent.call("POST", "/v1/workloads", {"command_id": "c-g", **BODY, "gpu_mode": "container"})
     expect(status == 409 and reply["error"]["code"] == "missing_capability", f"this machine has no GPU: {status} {reply}")
+    expect("no NVIDIA GPU" in reply["error"]["message"] and "ncus" not in reply["error"]["message"], f"the refusal must be plain: {reply}")
 
 
 @with_agent
@@ -267,7 +268,78 @@ def check_turning_the_chat_off_in_a_workload_stops_it_and_keeps_the_data(agent):
         source.stop()
 
 
+GPU_CHECK = "/v1/workloads/{}/gpu-check"
+
+
+def give_the_gpu(world, workload_id):
+    """Marks a container as one that was given the GPU, the way a real launch would have: in the instance's settings."""
+    state = world.state()
+    state["instances"][f"ms-{workload_id}"]["config"]["user.metaservice.gpu_mode"] = "container"
+    json.dump(state, open(world.state_file, "w"))
+
+
+def gpu_check_in(inside, give=True):
+    agent = incus_agent(FakeIncusWorld(FAKE_INCUS_GPU_INSIDE=inside))
+    try:
+        workload_id = make(agent)["result"]["workload_id"]
+        if give:
+            give_the_gpu(agent.world, workload_id)
+        status, reply = agent.call("POST", GPU_CHECK.format(workload_id))
+        expect(status == 200, f"gpu-check gave {status} {reply}")
+        return reply, agent.world.calls()
+    finally:
+        agent.stop()
+
+
+def check_the_gpu_check_reports_nvidia_smi_when_it_answers():
+    reply, calls = gpu_check_in("nvidia-smi")
+    expect(reply["gpu_visible"] is True and reply["how"] == "nvidia-smi" and "RTX 5090" in reply["detail"], f"nvidia-smi: {reply}")
+    ran = [call for call in calls if call[0] == "exec"]
+    expect(len(ran) == 1 and ran[0][2:] == ["--", "nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"], f"one fixed exec: {ran}")
+
+
+def check_the_gpu_check_falls_back_to_the_device_files_and_says_nvidia_smi_is_missing():
+    reply, _ = gpu_check_in("device nodes")
+    expect(reply["gpu_visible"] is True and reply["how"] == "device nodes", f"device nodes: {reply}")
+    expect("/dev/nvidia0" in reply["detail"] and "580.178.04" in reply["detail"], f"evidence: {reply}")
+    expect("nvidia-smi is not installed" in reply["note"], f"the note must say what is missing: {reply}")
+
+
+def check_the_gpu_check_says_no_when_nothing_is_inside():
+    reply, _ = gpu_check_in("none")
+    expect(reply == {"gpu_visible": False, "how": "none", "detail": "", "note": "The GPU is not visible inside: there is no nvidia-smi and no NVIDIA device file."}, f"nothing: {reply}")
+
+
+def check_hostile_text_from_inside_is_cut_to_plain_printable_text():
+    reply, _ = gpu_check_in("hostile")
+    expect(reply["how"] == "nvidia-smi" and "<script>" in reply["detail"], f"the text itself is kept as text: {reply}")
+    expect(all(ord(char) >= 32 or char == "\n" for char in reply["detail"]), f"control characters survived: {reply['detail']!r}")
+
+
+def check_a_container_without_the_gpu_is_answered_without_looking_inside():
+    reply, calls = gpu_check_in("nvidia-smi", give=False)
+    expect(reply == {"gpu_visible": False, "how": "none", "detail": "", "note": "No GPU was given to this one."}, f"not given: {reply}")
+    expect(not [call for call in calls if call[0] == "exec"], f"nothing may run inside a container without the GPU: {calls}")
+
+
+@with_agent
+def check_the_gpu_check_has_the_same_guards_as_the_other_routes(agent):
+    workload_id = make(agent)["result"]["workload_id"]
+    give_the_gpu(agent.world, workload_id)
+    expect(agent.call("POST", GPU_CHECK.format(workload_id), token=None)[0] == 401, "without the token")
+    expect(agent.call("POST", GPU_CHECK.format(workload_id), token="wrong")[0] == 401, "with a wrong token")
+    expect(agent.call("POST", GPU_CHECK.format("w-none"))[0] == 404, "an unknown workload")
+    expect(agent.call("POST", GPU_CHECK.format("Bad_Id"))[0] == 404, "an id that is not an id")
+    agent.call("POST", f"/v1/workloads/{workload_id}/stop", headers={"X-Command-Id": "stop-1"})
+    wait_command(agent, "stop-1")
+    status, reply = agent.call("POST", GPU_CHECK.format(workload_id))
+    expect(status == 409 and reply["error"]["code"] == "not_running", f"a stopped container: {status} {reply}")
+
+
 CHECKS = [
+    check_the_gpu_check_reports_nvidia_smi_when_it_answers, check_the_gpu_check_falls_back_to_the_device_files_and_says_nvidia_smi_is_missing,
+    check_the_gpu_check_says_no_when_nothing_is_inside, check_hostile_text_from_inside_is_cut_to_plain_printable_text,
+    check_a_container_without_the_gpu_is_answered_without_looking_inside, check_the_gpu_check_has_the_same_guards_as_the_other_routes,
     check_create_runs_one_fixed_launch_and_the_instance_carries_the_numbers, check_vms_need_kvm_and_gpu_modes_need_a_gpu,
     check_a_failed_launch_leaves_nothing_and_frees_the_budget, check_start_and_stop_go_through_the_tool,
     check_changes_made_outside_the_agent_show_up_and_strangers_do_not, check_delete_backs_up_first_and_keeps_the_backup,

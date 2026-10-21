@@ -53,6 +53,19 @@ final class PlacementTests: XCTestCase {
         XCTAssertThrowsError(try Placement.choose([PlacementMachine(id: "new", online: true, capabilities: nil, freeRamMb: 9999, freeDiskGb: 99)], wish()))
     }
 
+    func testAGpuContainerWithoutTheToolkitIsRefusedInPlainWords() {
+        let noToolkit = Capabilities(vm: false, container: true, gpuInVm: false, gpuInContainer: false)
+        XCTAssertThrowsError(try Placement.choose([machine("rtx", caps: noToolkit, ram: 90000, disk: 900)], wish(kind: "container", gpu: "container"))) {
+            let refusal = $0 as? PlacementRefusal
+            XCTAssertEqual(refusal?.code, "missing_capability")
+            XCTAssertEqual(refusal?.message, Placement.noGpuContainerMessage)
+            XCTAssertTrue(refusal?.message.contains("NVIDIA container toolkit") ?? false)
+        }
+        XCTAssertThrowsError(try Placement.choose([machine("rtx", caps: noToolkit, ram: 90000, disk: 900)], wish(kind: "vm", gpu: "passthrough"))) {
+            XCTAssertEqual(($0 as? PlacementRefusal)?.message, Placement.noGpuVmMessage)
+        }
+    }
+
     func testRefusalsCarryTheNumbersOfTheRoomiestMachine() {
         let pool = [machine("a", ram: 4096, disk: 50), machine("b", ram: 8192, disk: 20)]
         XCTAssertThrowsError(try Placement.choose(pool, wish(ram: 16384))) {

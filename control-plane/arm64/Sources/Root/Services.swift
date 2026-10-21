@@ -34,6 +34,7 @@ struct Services {
     let remoteInstalls: RemoteInstallService
     let terminal: TerminalService
     let stats: StatsService
+    let gpuCheck: GpuCheckService
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -68,5 +69,6 @@ struct Services {
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
+        gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
     }
 }

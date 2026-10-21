@@ -10,6 +10,16 @@ BACKUP_PREFIX = "backup"
 ENGINE_NAME = "fake"
 ENGINE_VERSION = "1.0.0"
 KEPT_CHAT_DATA = "chat-data"
+NO_TOOLKIT_MESSAGE = "This machine has an NVIDIA GPU but not the NVIDIA container toolkit, so containers cannot use it yet. Install the toolkit on the machine first."
+NO_GPU_MESSAGE = "This machine has no NVIDIA GPU to share with a container."
+# What the GPU check finds inside a container, by the name a test picks in MachineSpec.gpu_inside.
+GPU_INSIDE = {
+    "nvidia-smi": {"gpu_visible": True, "how": "nvidia-smi", "detail": "NVIDIA GeForce RTX 5090, 580.178.04, 32607 MiB", "note": "The GPU is visible inside, and nvidia-smi can talk to it."},
+    "device nodes": {"gpu_visible": True, "how": "device nodes", "detail": "/dev/nvidia0, /dev/nvidiactl. NVRM version: NVIDIA UNIX x86_64 Kernel Module  580.178.04", "note": "The GPU device is there but nvidia-smi is not installed in this image."},
+    "none": {"gpu_visible": False, "how": "none", "detail": "", "note": "The GPU is not visible inside: there is no nvidia-smi and no NVIDIA device file."},
+    "hostile": {"gpu_visible": True, "how": "nvidia-smi", "detail": "<img src=x onerror=alert(1)> <script>window.pwned=1</script>", "note": "The GPU is visible inside, and nvidia-smi can talk to it."},
+}
+NOT_GIVEN = {"gpu_visible": False, "how": "none", "detail": "", "note": "No GPU was given to this one."}
 
 
 @dataclass
@@ -27,6 +37,7 @@ class MachineSpec:
     container: bool = True
     gpu_in_vm: bool = False
     gpu_in_container: bool = False
+    gpu_inside: str = "nvidia-smi"
 
 
 class Refused(Exception):
@@ -88,6 +99,16 @@ class FakeEngine:
         with self._lock:
             return [dict(w) for w in self._workloads.values()]
 
+    def gpu_check(self, workload_id):
+        """What the helper would find inside: nothing is asked of a VM or of a container that was not given the GPU."""
+        with self._lock:
+            workload = self._get(workload_id)
+            if workload["kind"] != "container" or workload["gpu_mode"] != "container":
+                return dict(NOT_GIVEN)
+            if workload["state"] != "running":
+                raise Refused("not_running", "start it first: the GPU can only be checked inside a running container", "state", 1, 0)
+            return dict(GPU_INSIDE[self.spec.gpu_inside])
+
     def command(self, command_id):
         with self._lock:
             found = self._commands.get(command_id)
@@ -119,6 +140,8 @@ class FakeEngine:
         if not allowed:
             raise Refused("missing_capability", f"this machine cannot run a {kind}", "capability", 1, 0)
         gpu_ok = {"none": True, "container": self.spec.gpu_in_container, "passthrough": self.spec.gpu_in_vm}[gpu_mode]
+        if not gpu_ok and gpu_mode == "container" and kind == "container":
+            raise Refused("missing_capability", NO_TOOLKIT_MESSAGE if self.spec.gpu else NO_GPU_MESSAGE, "capability", 1, 0)
         if not gpu_ok:
             raise Refused("missing_capability", f"gpu mode {gpu_mode} is not available here", "capability", 1, 0)
 

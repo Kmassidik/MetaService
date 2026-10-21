@@ -90,6 +90,19 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the workload is not running (code not_running) or already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/workloads/{id}/gpu-check:
+    post:
+      summary: >
+        A read-only look, from inside a running container, at whether the GPU got there. Optional, added without a version change (a helper without it answers 404). Empty body; the workload id is the only input.
+        The helper asks, inside the container and with fixed commands only: first `nvidia-smi` (when the program exists there), then the NVIDIA device files (/dev/nvidia*) and /proc/driver/nvidia/version, then nothing,
+        and says which one answered (`how`). It never assumes nvidia-smi exists in the image. A VM, or a container whose gpu_mode is not container, is answered without running anything inside it:
+        gpu_visible false and a note that no GPU was given. The text in `detail` comes from inside the workload: untrusted, cut to a few short printable lines.
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/GpuCheck' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the container is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
@@ -157,6 +170,24 @@ paths:
         '409': { description: 'the VM is not running (code not_running), the machine is not a Mac (code not_supported), or it already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: '4 consoles are open in total (code too_many_consoles)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/gpu-check:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: >
+        Root endpoint for the panel. Asks the machine's helper to look inside one workload for the GPU (see /v1/workloads/{id}/gpu-check) and passes its answer on after applying the limits again.
+        Empty body. At most 1 check per workload every 5 seconds (429 rate_limited), and the helper gets 20 seconds to answer. Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/GpuCheck' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or workload (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the workload is not running (code not_running), or the helper is too old to check (code not_supported)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'checked again too soon (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'the machine is offline or did not answer in time (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/stats:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
     get:
@@ -330,6 +361,15 @@ components:
         fetched_at: { type: string, nullable: true }
         stats:
           oneOf: [ { $ref: '#/components/schemas/Stats' }, { type: 'null' } ]
+    GpuCheck:
+      type: object
+      required: [gpu_visible, how, detail, note]
+      additionalProperties: false
+      properties:
+        gpu_visible: { type: boolean }
+        how: { type: string, enum: [nvidia-smi, device nodes, none], description: 'what answered: nvidia-smi, the NVIDIA device files, or nothing' }
+        detail: { type: string, maxLength: 1500, description: 'the card and driver nvidia-smi printed, or the device files found; may be empty' }
+        note: { type: string, minLength: 1, maxLength: 300, description: 'one plain sentence, for example: The GPU device is there but nvidia-smi is not installed in this image.' }
     TerminalTicket:
       type: object
       required: [ticket, expires_in]
@@ -403,7 +443,7 @@ components:
             vm: { type: boolean }
             container: { type: boolean }
             gpu_in_vm: { type: boolean }
-            gpu_in_container: { type: boolean }
+            gpu_in_container: { type: boolean, description: 'True only when an NVIDIA card was found AND NVIDIA''s container toolkit works on the machine, looked at again each time (so installing the toolkit needs no restart). A card without the toolkit is not a `problem`: the machine still makes VMs and containers.' }
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'

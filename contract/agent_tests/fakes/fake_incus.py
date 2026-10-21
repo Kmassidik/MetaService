@@ -52,6 +52,26 @@ def flags(rest, with_value, bare=()):
     return values, positional
 
 
+SMI_ANSWER = "NVIDIA GeForce RTX 5090, 580.178.04, 32607 MiB"
+DRIVER_FILE = "NVRM version: NVIDIA UNIX x86_64 Kernel Module  580.178.04"
+HOSTILE = "<img src=x onerror=alert(1)> \x1b[31m<script>window.pwned=1</script>"
+
+
+def answer_inside(argv):
+    """What the programs the GPU check runs print inside a container, by $FAKE_INCUS_GPU_INSIDE: nvidia-smi, device nodes, hostile or none (the default)."""
+    inside = os.environ.get("FAKE_INCUS_GPU_INSIDE", "none")
+    if argv[:1] == ["nvidia-smi"]:
+        if inside not in ("nvidia-smi", "hostile"):
+            die("nvidia-smi: executable file not found", 127)
+        print(HOSTILE if inside == "hostile" else SMI_ANSWER)
+    elif argv[:2] == ["ls", "/dev"]:
+        print("null\nzero" + ("\nnvidia0\nnvidiactl" if inside == "device nodes" else ""))
+    elif argv[:1] == ["cat"]:
+        if inside != "device nodes":
+            die("cat: no such file", 1)
+        print(DRIVER_FILE)
+
+
 if os.environ.get("FAKE_INCUS_FAIL") in (args[0], " ".join(args[:2])):
     die("injected failure")
 
@@ -126,6 +146,7 @@ elif command == "exec":
     state["instances"][name].setdefault("ran", []).append({"env": values.get("--env", []), "argv": positional[1:]})
     if os.environ.get("FAKE_INCUS_FAIL_EXEC"):
         die("injected exec failure")
+    answer_inside(positional[1:])
 else:
     die(f"unknown command {command}", 2)
 save(state)

@@ -65,10 +65,21 @@ public enum Placement {
         let open = ready.filter { !$0.atMaxVMs }
         guard !open.isEmpty else { throw refusal("machine_at_max_vms", "every ready machine already runs the most VMs it was allowed", "capability", 1, 0) }
         let capable = open.filter { canRun($0, wish) }
-        guard !capable.isEmpty else { throw refusal("missing_capability", "no machine can run a \(wish.kind) with gpu mode \(wish.gpuMode)", "capability", 1, 0) }
+        guard !capable.isEmpty else { throw refusal("missing_capability", noCapableMachineMessage(wish), "capability", 1, 0) }
         let fitting = capable.filter { $0.freeRamMb >= wish.ramMb && $0.freeDiskGb >= wish.diskGb }
         guard let best = fitting.max(by: { isBetter($1, than: $0, wish) }) else { throw shortage(capable, wish) }
         return best.id
+    }
+
+    static let noGpuContainerMessage = "No machine can share its GPU with a container: a machine needs an NVIDIA GPU and the NVIDIA container toolkit installed."
+    static let noGpuVmMessage = "A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM."
+
+    private static func noCapableMachineMessage(_ wish: PlacementWish) -> String {
+        switch (wish.gpuMode, wish.kind) {
+        case ("container", "container"): return noGpuContainerMessage
+        case ("none", _): return "no machine can run a \(wish.kind)"
+        default: return noGpuVmMessage
+        }
     }
 
     private static func canRun(_ machine: PlacementMachine, _ wish: PlacementWish) -> Bool {

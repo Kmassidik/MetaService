@@ -20,6 +20,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     RemoteInstallRoutes(services: services, guards: guards).register(on: router.group())
     TerminalRoutes(services: services, guards: guards).register(on: router.group())
     StatsRoutes(services: services, guards: guards).register(on: router.group())
+    GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
     return Application(router: router, server: .http1WebSocketUpgrade(webSocketRouter: consoleRouter(services: services, guards: guards), configuration: consoleSocketConfiguration),
                        configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))
