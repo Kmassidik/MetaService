@@ -4,6 +4,7 @@
   import VmMonitoring from '../components/vm/VmMonitoring.svelte'
   import VmAccess from '../components/vm/VmAccess.svelte'
   import VmDanger from '../components/vm/VmDanger.svelte'
+  import Owl from '../components/Owl.svelte'
   import GpuBadge from '../components/GpuBadge.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
   import { hasGpu } from '../lib/gpuChoice.ts'
@@ -43,9 +44,9 @@
 
 {#if banner}<div class="empty" role="alert">{banner}</div>{/if}
 {#if !machine}
-  <div class="empty">No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
+  <div class="empty"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else if !workload || !server}
-  <div class="empty">VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
+  <div class="empty"><Owl name="notFound" />VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
 {:else}
   <div class="phead">
     <div>

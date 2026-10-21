@@ -1,5 +1,6 @@
 <script lang="ts">
   // Step 4 while and after the install: a ring, a plain checklist of the install steps, the time, and how it ended (stopped with the reason, or done with the machine online).
+  import Owl from '../Owl.svelte'
   import ProgressRing from './ProgressRing.svelte'
   import StatusMark from './StatusMark.svelte'
   import type { MarkKind } from './StatusMark.svelte'
@@ -39,6 +40,7 @@
     <h2>{installTitle(job)}</h2>
     <p class="time" class:calm={job.state === 'done'}>{timeText}</p>
   </div>
+  {#if job.state === 'running'}<Owl name="busy" />{:else if job.state === 'done'}<Owl name="done" />{/if}
 </div>
 
 {#if job.state === 'failed'}
@@ -82,7 +84,8 @@
 </div>
 
 <style>
-  .top { display: flex; gap: 16px; align-items: center; }
+  .top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .top :global(.owl) { margin-left: auto; }
   h2 { margin: 0; font-size: 18px; line-height: 1.25; }
   .time { margin: 2px 0 0; font-family: var(--mono); font-size: 13px; color: var(--m70); }
   .time.calm { font-family: var(--sans); }

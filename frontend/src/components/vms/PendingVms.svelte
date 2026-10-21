@@ -1,5 +1,6 @@
 <script lang="ts">
   // The VMs that are being made, or could not be made. One card each: the name, the machine, three steps with the current one marked, and for a failed one the reason and a way to dismiss it.
+  import Owl from '../Owl.svelte'
   import { dismissOrder } from '../../lib/pendingStore.svelte.ts'
   import { stageSteps, stageText, type PendingVm } from '../../lib/pendingVms.ts'
   import { machineHref } from '../../lib/routes.ts'
@@ -15,6 +16,7 @@
     {#each pending as entry (entry.id)}
       <li class:failed={entry.stage === 'failed'} data-pending={entry.name}>
         <div class="head">
+          {#if entry.stage !== 'failed' && !compact}<Owl name="busy" />{/if}
           <b class="name">{entry.name}</b>
           {#if showMachine}<span class="on">on <a href={machineHref(entry.machine)}>{entry.machineName}</a></span>{/if}
           <span class="tag {entry.stage === 'failed' ? 'bad' : 'prog'}">{entry.stage === 'failed' ? stageText('failed') : `${stageText(entry.stage)}…`}</span>

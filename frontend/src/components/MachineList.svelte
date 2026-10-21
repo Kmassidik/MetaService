@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Owl from './Owl.svelte'
   import MachineRow from './MachineRow.svelte'
   import type { Machine } from '../lib/types.ts'
 
@@ -7,6 +8,7 @@
 
 {#if machines.length === 0}
   <div class="empty">
+    <Owl name="emptyMachines" />
     No machines yet. Add the first one, and it will show up here.
     <button class="btn green sm" type="button" onclick={onAdd}>＋ Add a machine</button>
   </div>

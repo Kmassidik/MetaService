@@ -1,5 +1,6 @@
 <script lang="ts">
   // All VMs: every VM and container on every machine, narrowed to one machine by the address (#/vms?machine=<id>).
+  import Owl from '../components/Owl.svelte'
   import VmTable from '../components/vms/VmTable.svelte'
   import { machineChoices } from '../lib/createVm.ts'
   import { createVmHref, vmsHref } from '../lib/routes.ts'
@@ -40,11 +41,11 @@
 {#if allRows.length === 0 && making.length > 0}
   <p class="muted waiting" role="status">The first VM is being made. It will be listed here when its machine reports it.</p>
 {:else if allRows.length === 0}
-  <div class="empty" role="status">No VMs yet. Make the first one on any of your machines.<a class="btn green sm" href={createVmHref(null)}>＋ Create VM</a></div>
+  <div class="empty" role="status"><Owl name="emptyVms" />No VMs yet. Make the first one on any of your machines.<a class="btn green sm" href={createVmHref(null)}>＋ Create VM</a></div>
 {:else if rows.length === 0 && making.length > 0}
   <p class="muted waiting" role="status">The VM is being made. It will be listed here when its machine reports it.</p>
 {:else if rows.length === 0}
-  <div class="empty" role="status">No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
+  <div class="empty" role="status"><Owl name="emptyVms" />No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
 {:else}
   <VmTable {rows} />
 {/if}

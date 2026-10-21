@@ -4,6 +4,7 @@
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
   import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsHref, createVmOpen } from './lib/routes.ts'
+  import Owl from './components/Owl.svelte'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
@@ -267,9 +268,10 @@
 </script>
 
 {#if phase === 'loading'}
-  <p class="center muted" role="status">Loading…</p>
+  <p class="center muted" role="status"><Owl name="loading" eager />Loading…</p>
 {:else if phase === 'error'}
   <main class="center">
+    <Owl name="notFound" eager />
     <p role="alert">{banner}</p>
     <button class="btn line" type="button" onclick={start}>Try again</button>
   </main>

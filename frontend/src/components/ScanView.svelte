@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { ApiError, latestScan, scanSetup, startScan } from '../lib/api.ts'
+  import Owl from './Owl.svelte'
   import { relativeTime, sourceName, sourceProblem } from '../lib/format.ts'
   import { rowStatus } from '../lib/scanRows.ts'
   import type { Machine, Scan, ScanSetup } from '../lib/types.ts'
@@ -104,7 +105,7 @@
   {:else if !scan && setup?.subnet}
     <p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p>
   {:else if scan && scan.state === 'done' && scan.results.length === 0}
-    <p class="muted">The scan found nothing on this network.</p>
+    <div class="none"><Owl name="emptyMachines" /><p class="muted">The scan found nothing on this network.</p></div>
   {:else if running}
     <p class="muted">Looking at the network…</p>
   {:else if scan?.results?.length}
@@ -134,6 +135,7 @@
 
 <style>
   .scan { display: grid; gap: 16px; }
+  .none { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
   .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
   h2 { font-size: 20px; }
   .note { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }

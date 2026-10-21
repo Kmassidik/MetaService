@@ -8,6 +8,7 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
+  import Owl from '../Owl.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
   import GpuBadge from '../GpuBadge.svelte'
   import WhyStopped from '../vm/WhyStopped.svelte'
@@ -72,7 +73,7 @@
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
 {:else if servers.length === 0}
-  <div class="empty" role="status">No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
+  <div class="empty" role="status"><Owl name="emptyVms" />No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
 {:else if view === 'cards'}
   <div class="grid">
     {#each servers as server (server.id)}

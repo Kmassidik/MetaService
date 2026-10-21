@@ -3,6 +3,7 @@
   // On a machine's own page it opens with that machine chosen and locked (`only`); everywhere else the person picks.
   import { tick, untrack } from 'svelte'
   import Dialog from '../Dialog.svelte'
+  import Owl from '../Owl.svelte'
   import VmFields from './VmFields.svelte'
   import { ApiError, createWorkload, getMachineImages, refusalText } from '../../lib/api.ts'
   import { blankForm, kindAfterPick, kindChoices, machineChoices, machineDefaults, machineOptions, startingMachine, unavailableNotes, type NewVmForm } from '../../lib/createVm.ts'
@@ -114,7 +115,7 @@
 
 <Dialog {open} title="Create VM" {onClose} closeButton>
   {#if choices.length === 0}
-    <div class="empty" role="status">No machines yet. Add one first, then make a VM on it.<a class="btn green sm" href="#/machines/find">Find machines</a></div>
+    <div class="empty" role="status"><Owl name="emptyMachines" />No machines yet. Add one first, then make a VM on it.<a class="btn green sm" href="#/machines/find">Find machines</a></div>
   {:else}
     <form onsubmit={submit} novalidate>
       <section class="step" aria-labelledby="step-machine">
