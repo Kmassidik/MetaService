@@ -21,6 +21,13 @@ export function whereProblem(form: ConnectForm): string | null {
   return null
 }
 
+/** What is wrong with the typed user name, or null. Empty is "missing", not "wrong": see userWarning. */
+export function userWarning(user: string): string | null {
+  if (user === '' || USER.test(user)) return null
+  if (/\s/.test(user)) return 'A user name cannot have spaces. Use the short login name (for example "dalang"), not the full name shown on the login screen.'
+  return 'A user name uses only letters, digits, dot, dash and underscore, and starts with a letter or underscore.'
+}
+
 /** What is missing before the login can start, or null. */
 export function loginProblem(form: ConnectForm): string | null {
   if (!USER.test(form.user)) return 'Type the user name you log in with on that computer.'

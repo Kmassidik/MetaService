@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, verifyBody, whereProblem } from './remote.ts'
+import { keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
@@ -9,6 +9,13 @@ test('a good address and port have no problem, a bad one says what to type', () 
   expect(whereProblem(form({ host: 'office-mini.local' }))).toBe(null)
   for (const host of ['', ' ', 'a b', '-oProxyCommand=x', 'a;b', 'a/b']) expect(whereProblem(form({ host })) ?? '').toMatch(/address/)
   for (const port of ['', '0', '65536', 'ssh', '22.5']) expect(whereProblem(form({ port })) ?? '').toMatch(/port/)
+})
+
+test('a user name with a space is warned about while typing, an empty or good one is not', () => {
+  expect(userWarning('dalang mac') ?? '').toMatch(/spaces/)
+  expect(userWarning('9lives') ?? '').toMatch(/letters/)
+  expect(userWarning('')).toBeNull()
+  expect(userWarning('kurnia')).toBeNull()
 })
 
 test('the login needs a user and either a password or the key', () => {

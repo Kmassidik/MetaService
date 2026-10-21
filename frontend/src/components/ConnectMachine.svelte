@@ -6,7 +6,7 @@
   import Requirements from './Requirements.svelte'
   import SecretField from './SecretField.svelte'
   import { ApiError, parentKey, remoteProbe, remoteVerify } from '../lib/api.ts'
-  import { emptyConnectForm, groupedFingerprint, isolationText, keyCommand, loginProblem, passwordAccepted, probeBody, verifyBody, whereProblem } from '../lib/remote.ts'
+  import { emptyConnectForm, groupedFingerprint, isolationText, keyCommand, loginProblem, passwordAccepted, probeBody, userWarning, verifyBody, whereProblem } from '../lib/remote.ts'
   import { formatGb, formatMb } from '../lib/format.ts'
   import type { ConnectForm, ProbeResult, VerifyResult } from '../lib/types.ts'
 
@@ -22,6 +22,7 @@
   let failure = $state('')
   const whereWrong = $derived(form.host ? whereProblem(form) : null)
   const loginWrong = $derived(loginProblem(form))
+  const userWrong = $derived(userWarning(form.user))
   const STEPS: [Step, string][] = [['where', 'Computer'], ['confirm', 'Confirm'], ['result', 'Check'], ['add', 'Add']]
 
   $effect(() => {
@@ -138,7 +139,8 @@
       <h3 class="sub">Log in to it</h3>
       <p class="muted">{form.useKey ? 'MetaService only looks at the computer; nothing is installed yet.' : 'Use the name and password you use to sign in on that computer. MetaService only looks; the password is used once and not kept.'}</p>
       <label for="connect-user">User name</label>
-      <input id="connect-user" bind:value={form.user} autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <input id="connect-user" bind:value={form.user} autocomplete="off" autocapitalize="off" spellcheck="false" aria-invalid={userWrong !== null} aria-describedby={userWrong ? 'connect-user-warning' : undefined} />
+      {#if userWrong}<p class="bad hint" id="connect-user-warning" role="alert">{userWrong}</p>{/if}
       {#if form.useKey}
         <ol class="how" aria-label="Steps to let MetaService in">
           <li><b>1</b><div>Open <strong>Terminal</strong> on that computer, signed in as <span class="mono">{form.user || 'that user'}</span>.<p class="muted">On a Mac: press ⌘ Space, type Terminal, press Enter.</p></div></li>
