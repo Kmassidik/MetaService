@@ -40,8 +40,9 @@
   const ready = $derived(picked !== undefined && !picked.disabled && form.name !== '' && workloadProblem(form) === null)
 
   $effect(() => {
+    // Opening the window, or following another address while it is open, starts it afresh; the lists refreshing every few seconds must not undo what is typed.
+    void route
     if (!open) return
-    // Only opening the window resets it: the lists refresh every few seconds and must not undo what is typed.
     untrack(() => {
       form = blankForm(machines.find((machine) => machine.id === startingMachine(route, only?.id ?? null, choices)))
       failure = ''
@@ -89,7 +90,7 @@
         <h2 id="step-machine">1 · Machine</h2>
         <label>Machine
           <select id={MACHINE_ID} bind:value={form.machine} onchange={pick} disabled={busy || only !== null}>
-            <option value="">Choose a machine</option>
+            {#if only === null}<option value="">Choose a machine</option>{/if}
             {#each options as choice (choice.id)}<option value={choice.id} disabled={choice.disabled}>{choice.label}</option>{/each}
           </select>
         </label>

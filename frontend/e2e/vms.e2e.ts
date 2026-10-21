@@ -1,5 +1,5 @@
-// End-to-end test of the VMs pages in a real browser against a real Root: the VMs dropdown in the sidebar, All VMs (the table, the Machine filter kept in the address, empty states),
-// Create VM (who can be picked and why not, the containers-only machine, the refusal, a VM made on a simulated helper), the machine page's own button still working, and a phone.
+// End-to-end test of the VMs pages in a real browser against a real Root: the VMs link in the sidebar, All VMs (the table, the Machine filter kept in the address, empty states),
+// the Create VM window (who can be picked and why not, the containers-only machine, the refusal, a VM made on a simulated helper), the machine page's own button opening the same window, and a phone.
 // Needs: the Root build (`swift build` in control-plane/arm64), the macOS helper build (`swift build` in agent/macos), a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: bun e2e/vms.e2e.ts
 import { readFileSync } from 'node:fs'
@@ -9,11 +9,11 @@ import { check, finish } from './support/check.ts'
 import { chromePath } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World } from './panel/world.ts'
-import { kindsOnAMachine, noMachinesYet, openCreate, preselectedAndValidated, refusedThenMade, thenInAllVms, theOldButtonStillWorks, whoCanBePicked } from './vms/create.ts'
+import { closeWithEscape, kindsOnAMachine, noMachinesYet, openCreate, openingAndClosing, preselectedAndValidated, refusedThenMade, thenInAllVms, theMachinePageButton, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
 import { pendingScenario } from './vms/pending.ts'
-import { vmsDropdown, vmsDropdownOnItsPages } from './vms/sidebar.ts'
+import { vmsIsOneLink, vmsLinkOnItsPages } from './vms/sidebar.ts'
 
 const DESKTOP = { width: 1280, height: 800 }
 const PHONE = { width: 400, height: 844 }
@@ -32,6 +32,7 @@ async function makeAdminAndSignIn(b: Browse, world: World): Promise<void> {
 }
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
+const fitsTheScreen = (b: Browse) => b.run(() => { const box = document.querySelector('dialog[open]')?.getBoundingClientRect(); return box !== undefined && box.left >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight })
 
 async function onAPhone(b: Browse, world: World): Promise<void> {
   await resendHeartbeats(world)
@@ -46,11 +47,17 @@ async function onAPhone(b: Browse, world: World): Promise<void> {
   await b.shot('vms-filtered-phone.png', true)
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector('#vm-create-name')
-  check('Create VM has no sideways scrolling on a phone', await noSideScroll(b))
-  await b.shot('vms-create-phone.png', true)
+  check('the Create VM window has no sideways scrolling on a phone and fits the screen', (await noSideScroll(b)) && (await fitsTheScreen(b)))
+  await b.shot('vms-create-phone.png')
+  await closeWithEscape(b)
   await openCreate(b)
   await b.page.waitForSelector('#vm-create-machine')
-  await b.shot('vms-create-offline-phone.png', true)
+  await b.shot('vms-create-offline-phone.png')
+  check('on a phone the window scrolls inside itself when the form is taller than the screen', await b.run(() => {
+    const dialog = document.querySelector<HTMLElement>('dialog[open]')
+    return dialog !== null && getComputedStyle(dialog).overflowY === 'auto'
+  }))
+  await closeWithEscape(b)
   await b.page.setViewport(DESKTOP)
 }
 
@@ -74,8 +81,8 @@ try {
   const session = await seed(world)
   await addExtraMachines(world, session)
   await page.reload({ waitUntil: 'networkidle0' })
-  await vmsDropdown(b)
-  await vmsDropdownOnItsPages(b)
+  await vmsIsOneLink(b)
+  await vmsLinkOnItsPages(b)
   await fullTable(b)
   await filtering(b)
   await openingARow(b)
@@ -84,10 +91,11 @@ try {
   await whoCanBePicked(b)
   await kindsOnAMachine(b)
   await preselectedAndValidated(b)
+  await openingAndClosing(b)
   helper = await startAgent(world)
   await refusedThenMade(b)
   await thenInAllVms(b)
-  await theOldButtonStillWorks(b)
+  await theMachinePageButton(b)
   await pendingScenario(b, world)
   await onAPhone(b, world)
 

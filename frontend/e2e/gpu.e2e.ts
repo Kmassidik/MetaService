@@ -19,7 +19,7 @@ const SHARE_LABEL = "Share the machine's GPU"
 
 const openCreate = async (b: Browse, base: string, machine: string): Promise<void> => {
   await b.page.goto(`${base}/#/vms/create`, { waitUntil: 'networkidle0' })
-  await b.until(() => document.querySelector('.phead h1')?.textContent === 'Create VM', { timeout: SHORT_WAIT_MS })
+  await b.page.waitForSelector(`dialog[open] ${PICKER}`, { timeout: SHORT_WAIT_MS })
   await b.page.select(PICKER, machine)
   await b.page.waitForSelector('#vm-create-name')
 }

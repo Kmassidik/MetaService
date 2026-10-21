@@ -39,15 +39,15 @@ async function openTheMachine(b: Browse): Promise<void> {
 
 export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
   await b.click('＋ Create a VM here')
-  await b.page.waitForSelector('dialog[open] #wl-name')
-  await b.page.type('dialog[open] #wl-name', 'Bad Name')
+  await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await b.page.type('dialog[open] #vm-create-name', 'Bad Name')
   const submitOff = await b.run(() => document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')?.disabled ?? false)
   check('a bad workload name disables Create and explains', submitOff && (await b.text()).includes('Use lowercase letters'))
-  await b.type('dialog[open] #wl-name', name)
+  await b.type('dialog[open] #vm-create-name', name)
   check("a VM made from a machine's own page can only go to that machine", await b.run(() => {
     const label = [...document.querySelectorAll<HTMLElement>('dialog[open] label')].find((entry) => entry.innerText.startsWith('Machine'))
     const select = label?.querySelector('select')
-    return select?.value === 'agent-mac' && select.options.length === 1
+    return select?.value === 'agent-mac' && select.options.length === 1 && select.disabled
   }))
   await b.click('Create')
   await b.until(() => !document.querySelector('dialog[open]'), { timeout: SHORT_WAIT_MS })
@@ -101,8 +101,8 @@ async function stopStartDelete(b: Browse): Promise<void> {
 
 async function aRequestThatFitsNowhere(b: Browse): Promise<void> {
   await b.click('＋ Create a VM here')
-  await b.page.waitForSelector('dialog[open] #wl-name')
-  await b.page.type('dialog[open] #wl-name', 'too-big')
+  await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await b.page.type('dialog[open] #vm-create-name', 'too-big')
   await b.run((megabytes) => {
     const label = [...document.querySelectorAll<HTMLElement>('dialog[open] label')].find((entry) => entry.innerText.startsWith('RAM'))
     const ram = label?.querySelector('input')

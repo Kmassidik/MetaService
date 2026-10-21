@@ -1,4 +1,4 @@
-// A VM that is being made shows as a "Creating…" card on Create VM, the machine's page and All VMs until its machine lists it, and a failed order stays with its reason until dismissed.
+// A VM that is being made shows as a "Creating…" card behind the Create VM window (All VMs, or the machine's page) and on the other pages until its machine lists it, and a failed order stays with its reason until dismissed.
 // The parent's answers about the orders are played by the test (so each stage can be looked at as long as needed); the machine and its heartbeats are real.
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
@@ -58,12 +58,13 @@ async function submitCreate(b: Browse, name: string): Promise<void> {
   await b.click('Create')
 }
 
-async function creatingOnTheCreatePage(b: Browse, stand: Stand): Promise<void> {
+async function creatingFromTheWindow(b: Browse, stand: Stand): Promise<void> {
   stand.order = newOrder('rc-e2e-1', GOOD_VM, 'queued')
   await submitCreate(b, GOOD_VM)
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
   await untilCardSays(b, GOOD_VM, 'Waiting for the machine…')
   const text = await cardText(b, GOOD_VM)
-  check('right after Create a card names the VM and its machine and says it is waiting for the machine', text.includes(GOOD_VM) && text.includes(MACHINE) && /waiting for the machine…/i.test(text) && b.page.url().includes('#/vms/create'), text)
+  check('right after Create the window closes, All VMs is behind it, and a card names the VM and its machine and says it is waiting for the machine', text.includes(GOOD_VM) && text.includes(MACHINE) && /waiting for the machine…/i.test(text) && b.page.url().endsWith('#/vms'), text)
   check('the card shows three steps with the current one marked', (await b.run(() => document.querySelectorAll('ul.pending li[data-pending] ol.steps li').length)) === 3 && (await b.run(() => document.querySelectorAll('ul.pending li[aria-current="step"], ul.pending li [aria-current="step"]').length)) === 1)
   await b.shot('pending-create-waiting.png')
   stand.order = newOrder('rc-e2e-1', GOOD_VM, 'running')
@@ -112,10 +113,11 @@ async function listedByTheMachine(b: Browse, world: World, token: string): Promi
 async function aFailedOrder(b: Browse, stand: Stand): Promise<void> {
   stand.order = newOrder('rc-e2e-2', BAD_VM, 'failed', { finished_at: new Date().toISOString(), result: { error: 'the machine could not create the workload' } })
   await submitCreate(b, BAD_VM)
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
   await untilCardSays(b, BAD_VM, 'Could not make the VM')
   const text = await cardText(b, BAD_VM)
   check('a failed order keeps its card with the helper\'s reason in a sentence and a Dismiss button', /The machine could not create the workload\./.test(text) && /Dismiss/.test(text), text)
-  check('the form keeps what was typed after a failure', (await b.run((selector) => document.querySelector<HTMLInputElement>(selector)?.value, NAME)) === BAD_VM)
+  check('the window is closed and the failed order sits on the page behind it', (await b.run(() => document.querySelector('dialog[open]') === null)) && (await hasCard(b, BAD_VM)))
   await b.shot('pending-failed.png')
   await b.page.setViewport(PHONE)
   await b.shot('pending-failed-phone.png', true)
@@ -145,7 +147,7 @@ export async function pendingScenario(b: Browse, world: World): Promise<void> {
   await page.setRequestInterception(true)
   page.on('request', handler)
   await b.page.reload({ waitUntil: 'networkidle0' })
-  await creatingOnTheCreatePage(b, stand)
+  await creatingFromTheWindow(b, stand)
   await resendHeartbeats(world)
   await onTheOtherPages(b, stand)
   await resendHeartbeats(world)

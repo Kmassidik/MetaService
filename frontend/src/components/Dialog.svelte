@@ -10,9 +10,14 @@
     if (open && !dialog.open) dialog.showModal()
     if (!open && dialog.open) dialog.close()
   })
+
+  /** The close event arrives a moment after the dialog closes. If the dialog was opened again meanwhile, the event is about the earlier closing and is ignored. */
+  function closedByPerson() {
+    if (!element?.open) onClose()
+  }
 </script>
 
-<dialog bind:this={element} onclose={onClose} class:wide aria-labelledby="dialog-title">
+<dialog bind:this={element} onclose={closedByPerson} class:wide aria-labelledby="dialog-title">
   <div class="modal-head">
     <h3 id="dialog-title">{title}</h3>
     {#if closeButton}<button class="modal-x" type="button" aria-label="Close" onclick={onClose}>✕</button>{/if}
