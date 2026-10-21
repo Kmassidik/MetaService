@@ -25,6 +25,15 @@ paths:
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/stats:
+    get:
+      summary: >
+        The machine's real state now (read only): CPU total and per core, load, memory, disks, network speed, GPU (key left out when the system cannot say), uptime, top 15 processes
+        (program name and user only, never a command line). The helper computes percentages between its own samples; the first answer after a start has measuring true and null rates.
+        Optional, added without a version change (a helper without it answers 404). Exact rules: docs/monitor-contract.md.
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Stats' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/workloads:
     get:
       summary: Local VMs and containers
@@ -148,6 +157,20 @@ paths:
         '409': { description: 'the VM is not running (code not_running), the machine is not a Mac (code not_supported), or it already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: '4 consoles are open in total (code too_many_consoles)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/stats:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The machine's latest reading. The Root keeps one shared reading per machine (the helper is called at most once per 4 seconds however many tabs ask,
+        and the reading is dropped after 30 seconds without a request) and applies the limits again before passing it on. An offline machine answers 200 with state offline and the last reading, or null.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/MachineStatsReply' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/terminal/{ticket}:
     servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
     get:
@@ -196,6 +219,117 @@ components:
     Name:
       type: string
       pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    Pct:
+      type: number
+      minimum: 0
+      maximum: 100
+    PctOrNull:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 100
+    Bytes:
+      type: integer
+      minimum: 0
+    Stats:
+      type: object
+      required: [taken_at, measuring, uptime_seconds, cpu, memory, disks, network, processes]
+      additionalProperties: false
+      properties:
+        taken_at: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' }
+        measuring: { type: boolean }
+        uptime_seconds: { type: integer, minimum: 0 }
+        cpu:
+          type: object
+          required: [core_count, total_percent, cores_percent, load]
+          additionalProperties: false
+          properties:
+            core_count: { type: integer, minimum: 1, maximum: 1024 }
+            total_percent: { $ref: '#/components/schemas/PctOrNull' }
+            cores_percent:
+              type: array
+              nullable: true
+              maxItems: 1024
+              items: { $ref: '#/components/schemas/Pct' }
+            load:
+              type: object
+              required: [one, five, fifteen]
+              additionalProperties: false
+              properties:
+                one: { type: number, nullable: true, minimum: 0 }
+                five: { type: number, nullable: true, minimum: 0 }
+                fifteen: { type: number, nullable: true, minimum: 0 }
+        memory:
+          type: object
+          required: [total_bytes, used_bytes, cached_bytes, free_bytes, swap_total_bytes, swap_used_bytes]
+          additionalProperties: false
+          properties:
+            total_bytes: { $ref: '#/components/schemas/Bytes' }
+            used_bytes: { $ref: '#/components/schemas/Bytes' }
+            cached_bytes: { $ref: '#/components/schemas/Bytes' }
+            free_bytes: { $ref: '#/components/schemas/Bytes' }
+            swap_total_bytes: { $ref: '#/components/schemas/Bytes' }
+            swap_used_bytes: { $ref: '#/components/schemas/Bytes' }
+        disks:
+          type: array
+          maxItems: 16
+          items:
+            type: object
+            required: [mount, name, fs, total_bytes, used_bytes, free_bytes]
+            additionalProperties: false
+            properties:
+              mount: { type: string, maxLength: 128 }
+              name: { type: string, maxLength: 64 }
+              fs: { type: string, maxLength: 32 }
+              total_bytes: { $ref: '#/components/schemas/Bytes' }
+              used_bytes: { $ref: '#/components/schemas/Bytes' }
+              free_bytes: { $ref: '#/components/schemas/Bytes' }
+        network:
+          type: object
+          required: [received_total_bytes, sent_total_bytes, received_bytes_per_second, sent_bytes_per_second]
+          additionalProperties: false
+          properties:
+            received_total_bytes: { $ref: '#/components/schemas/Bytes' }
+            sent_total_bytes: { $ref: '#/components/schemas/Bytes' }
+            received_bytes_per_second: { type: number, nullable: true, minimum: 0 }
+            sent_bytes_per_second: { type: number, nullable: true, minimum: 0 }
+        gpus:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: object
+            required: [name, utilization_percent, memory_used_bytes, memory_total_bytes, temperature_celsius]
+            additionalProperties: false
+            properties:
+              name: { type: string, maxLength: 64 }
+              utilization_percent: { $ref: '#/components/schemas/PctOrNull' }
+              memory_used_bytes: { type: integer, nullable: true, minimum: 0 }
+              memory_total_bytes: { type: integer, nullable: true, minimum: 0 }
+              temperature_celsius: { type: number, nullable: true }
+        processes:
+          type: array
+          maxItems: 15
+          items:
+            type: object
+            required: [pid, name, user, cpu_percent, memory_bytes]
+            additionalProperties: false
+            properties:
+              pid: { type: integer, minimum: 0 }
+              name: { type: string, maxLength: 64 }
+              user: { type: string, maxLength: 64 }
+              cpu_percent: { type: number, nullable: true, minimum: 0 }
+              memory_bytes: { $ref: '#/components/schemas/Bytes' }
+    MachineStatsReply:
+      type: object
+      required: [state, last_seen, fetched_at, stats]
+      additionalProperties: false
+      properties:
+        state: { type: string, enum: [online, offline] }
+        last_seen: { type: string, nullable: true }
+        fetched_at: { type: string, nullable: true }
+        stats:
+          oneOf: [ { $ref: '#/components/schemas/Stats' }, { type: 'null' } ]
     TerminalTicket:
       type: object
       required: [ticket, expires_in]
