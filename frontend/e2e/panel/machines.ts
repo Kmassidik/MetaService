@@ -6,7 +6,7 @@ import type { World } from './world.ts'
 
 const SHORT_WAIT_MS = 10000
 const REMOVE_WAIT_MS = 5000
-/** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row; open it holds the list, every machine and Find machines. */
+/** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row; open it holds the machine list and Find machines. */
 const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'External monitoring', 'Beszel not configured']
 const DROPDOWN_ENDS = ['Machine list', 'Find machines']
 
@@ -45,7 +45,7 @@ export async function overviewAndSidebar(b: Browse): Promise<void> {
   await b.click('Machines')
   const open = await items()
   const inside = open.slice(open.indexOf('Machines') + 1, open.indexOf('External monitoring'))
-  check('opening it shows the machine list, every machine, then Find machines', inside[0] === DROPDOWN_ENDS[0] && inside.at(-1) === DROPDOWN_ENDS[1] && inside.length === 4, JSON.stringify(open))
+  check('opening it shows the machine list then Find machines, and no machine names', JSON.stringify(inside) === JSON.stringify(DROPDOWN_ENDS), JSON.stringify(open))
   check('the Machines button says whether it is open', await b.run(() => document.querySelector('aside.side nav button')?.getAttribute('aria-expanded') === 'true'))
   await b.shot('sidebar-open.png')
   await b.click('Machines')
