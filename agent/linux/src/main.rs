@@ -12,6 +12,7 @@ mod gpu_check;
 mod gpu_service_tests;
 mod heartbeat;
 mod http;
+mod images;
 mod incus;
 mod ledger;
 mod models;

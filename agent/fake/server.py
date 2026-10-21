@@ -120,6 +120,11 @@ class AgentHandler(BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_input", "processes must be 1 or 0")
         self._send(200, self.stats.reading(with_processes))
 
+    def list_images(self):
+        if not self.engine.spec.serves_images:
+            raise ApiError(404, "not_found", "no such path")
+        self._send(200, self.engine.images())
+
     def list_workloads(self):
         self._send(200, {"workloads": self.engine.workloads()})
 
@@ -206,6 +211,7 @@ ROUTES = [
     ("GET", r"/v1/health", AgentHandler.health),
     ("GET", r"/v1/facts", AgentHandler.facts),
     ("GET", r"/v1/stats", AgentHandler.get_stats),
+    ("GET", r"/v1/images", AgentHandler.list_images),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),

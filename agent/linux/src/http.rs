@@ -54,6 +54,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/facts", get(facts))
         .route("/v1/stats", get(stats))
+        .route("/v1/images", get(images))
         .route("/v1/workloads", get(list).post(create))
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
@@ -177,6 +178,10 @@ async fn stats(State(app): State<Arc<App>>, RawQuery(query): RawQuery) -> Respon
         }
         Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
     }
+}
+
+async fn images() -> Response {
+    ok(crate::images::prepared())
 }
 
 async fn list(State(app): State<Arc<App>>) -> Response {

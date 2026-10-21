@@ -20,6 +20,8 @@ GPU_INSIDE = {
     "hostile": {"gpu_visible": True, "how": "nvidia-smi", "detail": "<img src=x onerror=alert(1)> <script>window.pwned=1</script>", "note": "The GPU is visible inside, and nvidia-smi can talk to it."},
 }
 NOT_GIVEN = {"gpu_visible": False, "how": "none", "detail": "", "note": "No GPU was given to this one."}
+# What the machine has prepared: the stock image is always there.
+BLANK_IMAGE = {"id": "blank", "ready": True, "built_at": None}
 
 
 @dataclass
@@ -38,6 +40,8 @@ class MachineSpec:
     gpu_in_vm: bool = False
     gpu_in_container: bool = False
     gpu_inside: str = "nvidia-smi"
+    images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
+    serves_images: bool = True
 
 
 class Refused(Exception):
@@ -61,6 +65,8 @@ class FakeEngine:
         self._workloads = {}
         self._commands = {}
         self.create_failure = None
+        # Every create request this helper accepted, as received, so a test can see what the parent really sent.
+        self.created_requests = []
         self._ids = itertools.count(1)
         self._lock = threading.Lock()
 
@@ -100,6 +106,10 @@ class FakeEngine:
         with self._lock:
             return [dict(w) for w in self._workloads.values()]
 
+    def images(self):
+        """The images this machine has prepared. Only catalog ids are named."""
+        return {"images": [dict(image) for image in self.spec.images]}
+
     def gpu_check(self, workload_id):
         """What the helper would find inside: nothing is asked of a VM or of a container that was not given the GPU."""
         with self._lock:
@@ -135,6 +145,7 @@ class FakeEngine:
             if existing is not None:
                 return dict(existing)
             self._check_room(body)
+            self.created_requests.append(dict(body))
             if self.create_failure is not None:
                 return self._fail(body["command_id"], "create", self.create_failure)
             workload = self._new_workload(body)
