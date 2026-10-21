@@ -16,7 +16,7 @@
 
 <label for={nameId}>Name</label>
 <input id={nameId} bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder="build-box" aria-invalid={nameProblem ? 'true' : 'false'} />
-<div class="grid">
+<div class="sizes">
   <label>Kind
     <select bind:value={form.kind}>{#each kinds as entry (entry.kind)}<option value={entry.kind} disabled={entry.disabled}>{entry.label}</option>{/each}</select>
   </label>
@@ -26,8 +26,8 @@
 </div>
 
 <style>
-  label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
-  input, select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; }
+  label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; min-width: 0; }
+  input, select { min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-weight: 400; }
   input[aria-invalid='true'] { border-color: var(--danger); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .sizes { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 </style>

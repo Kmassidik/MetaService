@@ -79,19 +79,26 @@ function heartbeat(name: string) {
   }
 }
 
+/** Invites a machine and enrolls it as an Agent would (on the Agent listener). Answers its machine token. Until it sends a heartbeat the machine shows as offline. */
+export async function enrollMachine(world: World, session: Session, name: string): Promise<string> {
+  const { base, agentBase } = world.root
+  const invite = await fetch(`${base}/api/enrollments`, { method: 'POST', headers: writeHeaders(base, session), body: JSON.stringify({ name }) })
+  const enrollmentToken = textField(await readRecord(invite, 'invite'), 'enrollment_token', 'invite')
+  const enrolled = await fetch(`${agentBase}/v1/agents/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollment_token: enrollmentToken, name }) })
+  return textField(await readRecord(enrolled, 'enroll'), 'machine_token', 'enroll')
+}
+
+/** One heartbeat from a machine, with whatever facts and VMs the test wants it to report. */
+export async function sendHeartbeat(world: World, machineToken: string, body: unknown): Promise<void> {
+  const reply = await fetch(`${world.root.agentBase}/v1/agents/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${machineToken}` }, body: JSON.stringify(body) })
+  if (!reply.ok) throw new Error(`the heartbeat was refused (${reply.status}): ${(await reply.text()).slice(0, 300)}`)
+}
+
 /** Signs in as the admin made on the first-run page, invites two machines and enrolls them as Agents would (on the Agent listener). */
 export async function seed(world: World): Promise<Session> {
-  const { base, agentBase } = world.root
-  const session = await signIn(base)
+  const session = await signIn(world.root.base)
   world.session = session
-  const jsonHeaders = { 'Content-Type': 'application/json' }
-  for (const name of SEEDED_MACHINES) {
-    const invite = await fetch(`${base}/api/enrollments`, { method: 'POST', headers: writeHeaders(base, session), body: JSON.stringify({ name }) })
-    const enrollmentToken = textField(await readRecord(invite, 'invite'), 'enrollment_token', 'invite')
-    const enrolled = await fetch(`${agentBase}/v1/agents/enroll`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ enrollment_token: enrollmentToken, name }) })
-    const machineToken = textField(await readRecord(enrolled, 'enroll'), 'machine_token', 'enroll')
-    await fetch(`${agentBase}/v1/agents/heartbeat`, { method: 'POST', headers: { ...jsonHeaders, Authorization: `Bearer ${machineToken}` }, body: JSON.stringify(heartbeat(name)) })
-  }
+  for (const name of SEEDED_MACHINES) await sendHeartbeat(world, await enrollMachine(world, session, name), heartbeat(name))
   return session
 }
 

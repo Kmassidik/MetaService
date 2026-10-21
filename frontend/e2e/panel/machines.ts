@@ -6,8 +6,8 @@ import type { World } from './world.ts'
 
 const SHORT_WAIT_MS = 10000
 const REMOVE_WAIT_MS = 5000
-/** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row; open it holds the machine list and Find machines. */
-const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'External monitoring', 'Beszel not configured']
+/** The sidebar as the MAAS panel has it. Machines and VMs are dropdowns: closed each is one row; Machines open holds the machine list and Find machines (the VMs dropdown has its own checks in vms.e2e.ts). */
+const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs', 'External monitoring', 'Beszel not configured']
 const DROPDOWN_ENDS = ['Machine list', 'Find machines']
 
 const inputField = (b: Browse, name: string) => b.page.type(`input[name=${name}]`, name === 'username' ? ADMIN.username : ADMIN.password)
@@ -41,10 +41,10 @@ export async function overviewAndSidebar(b: Browse): Promise<void> {
   check('the Overview says what needs attention, with the fix', /dgx-spark/.test(overview) && overview.includes('metaservice-agent setup --yes'))
   const items = () => b.page.$$eval('aside.side h3, aside.side nav a, aside.side nav button, aside.side .nav-unavailable', (nodes) => nodes.map((node) => node.textContent?.trim() ?? ''))
   const closed = await items()
-  check('the sidebar has the MAAS groups and names, and Machines is a closed dropdown on the Overview', JSON.stringify(closed) === JSON.stringify(SIDEBAR_CLOSED), JSON.stringify(closed))
+  check('the sidebar has the MAAS groups and names, with Machines and VMs closed dropdowns on the Overview', JSON.stringify(closed) === JSON.stringify(SIDEBAR_CLOSED), JSON.stringify(closed))
   await b.click('Machines')
   const open = await items()
-  const inside = open.slice(open.indexOf('Machines') + 1, open.indexOf('External monitoring'))
+  const inside = open.slice(open.indexOf('Machines') + 1, open.indexOf('VMs'))
   check('opening it shows the machine list then Find machines, and no machine names', JSON.stringify(inside) === JSON.stringify(DROPDOWN_ENDS), JSON.stringify(open))
   check('the Machines button says whether it is open', await b.run(() => document.querySelector('aside.side nav button')?.getAttribute('aria-expanded') === 'true'))
   await b.shot('sidebar-open.png')
