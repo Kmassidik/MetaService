@@ -25,5 +25,25 @@ export async function scanScenario(b: Browse): Promise<void> {
   const filledIn = await b.run(() => document.querySelector<HTMLInputElement>('dialog[open] #connect-host')?.value ?? '')
   check("Add on a row opens Add a machine with that row's address", /Add a machine/.test(await b.dialogText()) && filledIn === ROW_TO_ADD, filledIn)
   await b.click('Cancel')
+  await thisComputerCanBeAdded(b)
   await b.go('#/machines')
+}
+
+/** The scan's own address is the real one of the machine running the test, so the page is told that the row at .40 is this computer: it must say so and still have Add. */
+async function thisComputerCanBeAdded(b: Browse): Promise<void> {
+  await b.run((address) => {
+    const real = window.fetch.bind(window)
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const reply = await real(...args)
+      if (!String(args[0]).endsWith('/api/scan/setup')) return reply
+      const body: { own_addresses?: string[] } = await reply.json()
+      return new Response(JSON.stringify({ ...body, own_addresses: [...(body.own_addresses ?? []), address] }), { status: reply.status, headers: { 'content-type': 'application/json' } })
+    }
+  }, ROW_TO_ADD)
+  await b.go('#/machines')
+  await b.go('#/machines/find')
+  await b.page.waitForSelector(`button[aria-label="Add ${ROW_TO_ADD}"]`, { timeout: SHORT_WAIT_MS })
+  const row = await b.run((address) => [...document.querySelectorAll<HTMLElement>('[role=row]')].find((item) => item.innerText.includes(address))?.innerText ?? '', ROW_TO_ADD)
+  check('the computer MetaService runs on says "This computer" and still has an Add button', /This computer/.test(row) && /Add/.test(row), row)
+  await b.shot('scan-this-computer.png')
 }

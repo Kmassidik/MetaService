@@ -145,7 +145,7 @@ final class RemoteInstallService: @unchecked Sendable {
         let before = try await preflight(plan.options, target, credentials)
         try await replaceEarlierBox(before, plan.options, target, credentials)
         // Through the return path the Agent arrives from loopback, so the token cannot be pinned to the computer's address; it is still used once, within minutes, over that SSH connection.
-        let token = try parts.enrollments.create(machineName: plan.options.name, expectedIp: reversePort == nil ? address : nil, now: parts.clock.now).token
+        let token = try parts.enrollments.create(machineName: plan.options.name, expectedIp: parts.ssh.arrivalAddress(for: address), now: parts.clock.now).token
         let sha = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
         return ("\(verification.system). The box goes to \(plan.options.box).",
                 Context(target: target, credentials: credentials, plan: plan, before: before, fingerprint: key.fingerprint, binary: (path, content.count, sha), token: token, address: address))

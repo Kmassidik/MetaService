@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { ApiError, latestScan, scanSetup, startScan } from '../lib/api.ts'
   import { relativeTime, sourceName, sourceProblem } from '../lib/format.ts'
-  import { addedName } from '../lib/scanRows.ts'
+  import { rowStatus } from '../lib/scanRows.ts'
   import type { Machine, Scan, ScanSetup } from '../lib/types.ts'
 
   const POLL_MS = 1500
@@ -111,16 +111,17 @@
     <div class="table" role="table" aria-label="Devices found">
       <div class="head" role="row"><span>Address</span><span>Name</span><span>MAC address</span><span>Seen by</span><span>Status</span></div>
       {#each scan.results as row (row.id)}
+        {@const status = rowStatus(row, machines, { gateway: isGateway(row.ip) })}
         <div class="row" role="row">
           <span class="mono" data-label="Address">{row.ip}</span>
           <span data-label="Name">{row.hostname ?? '–'}{#if row.vendor}<span class="muted vendor">· {row.vendor}</span>{/if}</span>
           <span class="mono" data-label="MAC address">{row.mac ?? '–'}</span>
           <span class="tags" data-label="Seen by">{#each row.seen_by as source (source)}<span class="tag">{sourceName(source)}</span>{/each}</span>
           <span class="status" data-label="Status">
-            {#if isGateway(row.ip)}<span class="badge">Router</span>
-            {:else if isSelf(row.ip)}<span class="badge">This computer</span>
-            {:else if addedName(row, machines)}<span class="badge ok">Added</span> <strong>{addedName(row, machines)}</strong>
-            {:else if row.agent_port_open}<span class="badge ok">Agent running</span>
+            {#if isSelf(row.ip)}<span class="badge">This computer</span> {/if}
+            {#if status.kind === 'router'}<span class="badge">Router</span>
+            {:else if status.kind === 'added'}<span class="badge ok">Added</span> <strong>{status.name}</strong>
+            {:else if status.kind === 'agent'}<span class="badge ok">Agent running</span>
             {:else}
               <button class="btn green sm" type="button" onclick={() => onConnect(row.ip)} aria-label="Add {row.ip}">Add</button>
             {/if}

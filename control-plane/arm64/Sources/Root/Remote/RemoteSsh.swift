@@ -47,7 +47,10 @@ final class RemoteSsh: @unchecked Sendable {
     /// Where an Agent on another computer finds the parent: its own loopback, through the SSH connection (see ParentUrl).
     var parentURL: String { ParentUrl.make(port: parts.config.agentListenPort) }
 
-    func reversePort(for address: String) -> Int? { ParentUrl.reversePort(listenPort: parts.config.agentListenPort, target: address) }
+    func reversePort(for address: String) -> Int? { ParentUrl.reversePort(listenPort: parts.config.agentListenPort, target: address, ownAddresses: SubnetDetector.localAddresses()) }
+
+    /// The address an Agent's first call will come from, or nil when it comes through a return path (see ParentUrl).
+    func arrivalAddress(for address: String) -> String? { ParentUrl.arrivalAddress(target: address, ownAddresses: SubnetDetector.localAddresses()) }
 
     /// A few logins a minute on one computer: more would look like an attack on the network.
     func allowTry(_ target: RemoteTarget) throws {
