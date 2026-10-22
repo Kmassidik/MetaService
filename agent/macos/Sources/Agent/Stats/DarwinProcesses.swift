@@ -31,7 +31,7 @@ final class DarwinProcesses {
         guard proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &task, Int32(MemoryLayout<proc_taskinfo>.size)) == Int32(MemoryLayout<proc_taskinfo>.size),
               proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, Int32(MemoryLayout<proc_bsdinfo>.size)) == Int32(MemoryLayout<proc_bsdinfo>.size) else { return nil }
         let ticks = task.pti_total_user + task.pti_total_system
-        return RawProcess(pid: Int(pid), name: name(of: pid), user: user(bsd.pbi_uid), cpuNanoseconds: ticks * UInt64(timebase.numer) / UInt64(timebase.denom), memoryBytes: task.pti_resident_size)
+        return RawProcess(pid: Int(pid), name: name(of: pid), user: user(bsd.pbi_uid), cpuNanoseconds: ticks * UInt64(timebase.numer) / UInt64(timebase.denom), memoryBytes: task.pti_resident_size, threads: Int(task.pti_threadnum))
     }
 
     private func name(of pid: pid_t) -> String {

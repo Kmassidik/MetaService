@@ -28,8 +28,9 @@ public struct RawProcess: Equatable {
     public let pid: Int
     public let name, user: String
     public let cpuNanoseconds, memoryBytes: UInt64
-    public init(pid: Int, name: String, user: String, cpuNanoseconds: UInt64, memoryBytes: UInt64) {
-        self.pid = pid; self.name = name; self.user = user; self.cpuNanoseconds = cpuNanoseconds; self.memoryBytes = memoryBytes
+    public let threads: Int?
+    public init(pid: Int, name: String, user: String, cpuNanoseconds: UInt64, memoryBytes: UInt64, threads: Int? = nil) {
+        self.pid = pid; self.name = name; self.user = user; self.cpuNanoseconds = cpuNanoseconds; self.memoryBytes = memoryBytes; self.threads = threads
     }
 }
 
@@ -44,10 +45,11 @@ public struct StatsSnapshot {
     public let receivedTotalBytes, sentTotalBytes: UInt64
     /// nil: the programs were not scanned this time (the caller did not want the list).
     public let processes: [RawProcess]?
+    public let extras: StatsExtras
     public init(takenAt: Date, uptimeSeconds: Int, cores: [CoreTicks], load: [Double?], memory: MemoryReading, disks: [DiskReading],
-                receivedTotalBytes: UInt64, sentTotalBytes: UInt64, processes: [RawProcess]?) {
+                receivedTotalBytes: UInt64, sentTotalBytes: UInt64, processes: [RawProcess]?, extras: StatsExtras = StatsExtras()) {
         self.takenAt = takenAt; self.uptimeSeconds = uptimeSeconds; self.cores = cores; self.load = load; self.memory = memory; self.disks = disks
-        self.receivedTotalBytes = receivedTotalBytes; self.sentTotalBytes = sentTotalBytes; self.processes = processes
+        self.receivedTotalBytes = receivedTotalBytes; self.sentTotalBytes = sentTotalBytes; self.processes = processes; self.extras = extras
     }
 }
 
@@ -55,7 +57,7 @@ extension StatsSnapshot {
     /// The same moment with no program list.
     public func withoutProcesses() -> StatsSnapshot {
         StatsSnapshot(takenAt: takenAt, uptimeSeconds: uptimeSeconds, cores: cores, load: load, memory: memory, disks: disks,
-                      receivedTotalBytes: receivedTotalBytes, sentTotalBytes: sentTotalBytes, processes: nil)
+                      receivedTotalBytes: receivedTotalBytes, sentTotalBytes: sentTotalBytes, processes: nil, extras: extras)
     }
 }
 

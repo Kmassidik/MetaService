@@ -7,7 +7,7 @@ enum StatsMath {
         return MachineStats(
             takenAt: timestamp(now.takenAt), measuring: old == nil, uptimeSeconds: now.uptimeSeconds,
             cpu: cpu(now, old), memory: memory(now.memory), disks: now.disks.prefix(StatsSampler.maxDisks).map(disk),
-            network: network(now, old, seconds), gpus: nil, processes: processes(now, old, seconds))
+            network: network(now, old, seconds), diskIo: diskIo(now, old, seconds), gpus: nil, processes: processes(now, old, seconds))
     }
 
     static func timestamp(_ date: Date) -> String {
@@ -18,12 +18,15 @@ enum StatsMath {
 
     private static func cpu(_ now: StatsSnapshot, _ old: StatsSnapshot?) -> MachineStats.Cpu {
         let load = MachineStats.Load(one: value(now.load, 0), five: value(now.load, 1), fifteen: value(now.load, 2))
-        guard let old else { return .init(coreCount: now.cores.count, totalPercent: nil, coresPercent: nil, load: load) }
+        var answer = MachineStats.Cpu(coreCount: now.cores.count, totalPercent: nil, coresPercent: nil, load: load)
+        applyTopology(now, to: &answer)
+        guard let old else { return answer }
         let pairs = zip(now.cores, old.cores)
-        let perCore = pairs.map { percent(busy: $0.busy, $1.busy, total: $0.total, $1.total) }
         let busy = pairs.reduce(UInt64(0)) { $0 + delta($1.0.busy, $1.1.busy) }
         let total = pairs.reduce(UInt64(0)) { $0 + delta($1.0.total, $1.1.total) }
-        return .init(coreCount: now.cores.count, totalPercent: ratio(busy, total), coresPercent: perCore, load: load)
+        answer = MachineStats.Cpu(coreCount: now.cores.count, totalPercent: ratio(busy, total), coresPercent: pairs.map { percent(busy: $0.busy, $1.busy, total: $0.total, $1.total) }, load: load,
+                                  physicalCores: answer.physicalCores, coreOf: answer.coreOf, clusters: answer.clusters, breakdown: breakdown(now.extras.cpuStates, old.extras.cpuStates))
+        return answer
     }
 
     private static func value(_ list: [Double?], _ index: Int) -> Double? {
@@ -35,12 +38,12 @@ enum StatsMath {
         ratio(delta(new, old), delta(newTotal, oldTotal))
     }
 
-    private static func ratio(_ part: UInt64, _ whole: UInt64) -> Double {
+    static func ratio(_ part: UInt64, _ whole: UInt64) -> Double {
         guard whole > 0 else { return 0 }
         return round1(min(100, Double(part) / Double(whole) * 100))
     }
 
-    private static func delta(_ new: UInt64, _ old: UInt64) -> UInt64 { new >= old ? new - old : 0 }
+    static func delta(_ new: UInt64, _ old: UInt64) -> UInt64 { new >= old ? new - old : 0 }
 
     static func round1(_ number: Double) -> Double { (number * 10).rounded() / 10 }
 
@@ -59,11 +62,12 @@ enum StatsMath {
 
     private static func network(_ now: StatsSnapshot, _ old: StatsSnapshot?, _ seconds: Double?) -> MachineStats.Network {
         .init(receivedTotalBytes: now.receivedTotalBytes, sentTotalBytes: now.sentTotalBytes,
-              receivedBytesPerSecond: rate(now.receivedTotalBytes, old?.receivedTotalBytes, seconds), sentBytesPerSecond: rate(now.sentTotalBytes, old?.sentTotalBytes, seconds))
+              receivedBytesPerSecond: rate(now.receivedTotalBytes, old?.receivedTotalBytes, seconds), sentBytesPerSecond: rate(now.sentTotalBytes, old?.sentTotalBytes, seconds),
+              errorsInTotal: now.extras.networkIssues?.errorsIn, errorsOutTotal: now.extras.networkIssues?.errorsOut, dropsInTotal: now.extras.networkIssues?.dropsIn)
     }
 
     /// Bytes per second between two counters; a counter that went backwards (wrap, interface gone) is unknown, not negative.
-    private static func rate(_ new: UInt64, _ old: UInt64?, _ seconds: Double?) -> Double? {
+    static func rate(_ new: UInt64, _ old: UInt64?, _ seconds: Double?) -> Double? {
         guard let old, let seconds, seconds > 0, new >= old else { return nil }
         return round1(Double(new - old) / seconds)
     }
@@ -76,7 +80,7 @@ enum StatsMath {
         let comparable = earlierList == nil ? nil : seconds
         let listed = current.map { raw in
             MachineStats.Process(pid: raw.pid, name: String(raw.name.prefix(StatsSampler.maxTextCharacters)), user: String(raw.user.prefix(StatsSampler.maxTextCharacters)),
-                                 cpuPercent: comparable.map { cpuPercent(raw, before[raw.pid], $0) }, memoryBytes: raw.memoryBytes)
+                                 cpuPercent: comparable.map { cpuPercent(raw, before[raw.pid], $0) }, memoryBytes: raw.memoryBytes, threads: raw.threads.map { max(0, $0) })
         }
         return Array(listed.sorted(by: outranks).prefix(StatsSampler.maxProcesses))
     }
