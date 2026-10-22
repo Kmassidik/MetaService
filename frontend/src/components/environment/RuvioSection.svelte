@@ -56,7 +56,7 @@
   .what { min-width: 0; }
   .what b { font: 700 13px var(--mono); }
   .reason { margin: 2px 0 0; font-size: 12.5px; color: var(--warn); }
-  .saving { font: 11px var(--mono); color: var(--m60); }
+  .saving { display: block; margin-top: 2px; font: 11px var(--mono); color: var(--m60); }
   .switch { position: relative; flex: none; width: 46px; height: 26px; padding: 0; border: 1px solid var(--line-strong); background: var(--surface); }
   .switch .knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: var(--inverse-bg); transition: transform 0.15s; }
   .switch.on { background: var(--accent-mark); }

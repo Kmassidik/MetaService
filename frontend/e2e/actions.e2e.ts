@@ -1,4 +1,4 @@
-// The Start, Stop and Delete buttons in a real browser against a stand-in Root that answers slowly, refuses, or stays silent on command (the real Root is too quick to press twice).
+// The Start, Stop and Delete buttons, the chat bundle buttons and the Ruvio switch in a real browser against a stand-in Root that answers slowly, refuses, or stays silent on command (the real Root is too quick to press twice).
 // Needs: a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/. No Root, no helper.
 // Run: bun e2e/actions.e2e.ts
 import puppeteer from 'puppeteer-core'
@@ -6,6 +6,7 @@ import { check, finish } from './support/check.ts'
 import { browse } from './support/page.ts'
 import { chromePath } from './support/paths.ts'
 import { deleteRefusalKeepsTheDialog, deleteStaysOpenWhileWorking, keysSendOneRequest, onAPhone, refusalShowsNextToTheButton, silentRootFreesTheButton, startAndStopSendOneRequest, successLineGoesAway, watchVmRequests } from './actions/guard.ts'
+import * as bundles from './actions/bundles.ts'
 import { startStandIn } from './actions/standin.ts'
 
 const DESKTOP = { width: 1280, height: 800 }
@@ -28,6 +29,15 @@ try {
   await deleteStaysOpenWhileWorking(b, standin, watch)
   await deleteRefusalKeepsTheDialog(b, standin)
   await onAPhone(b, standin)
+  const bundleWatch = bundles.watchBundleRequests(page)
+  await bundles.fiveClicksSendOneRequest(b, standin, bundleWatch)
+  await bundles.keysSendOneRequest(b, standin, bundleWatch)
+  await bundles.refusalShowsNextToTheControl(b, standin, bundleWatch)
+  await bundles.switchSendsOneRequest(b, standin, bundleWatch)
+  await bundles.switchKeysSendOneRequest(b, standin, bundleWatch)
+  await bundles.switchGoesBackWhenRefused(b, standin, bundleWatch)
+  await bundles.successLineGoesAway(b, standin)
+  await bundles.onAPhone(b, standin)
   await silentRootFreesTheButton(b, standin, watch)
   check('no script errors', errors.length === 0, errors.join(' | '))
 } finally {

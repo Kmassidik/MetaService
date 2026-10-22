@@ -45,13 +45,13 @@ function watchVmRequests(page: Page) {
 type Watch = ReturnType<typeof watchVmRequests>
 
 /** Opens a page with the stand-in back at its start. */
-async function fresh(b: Browse, standin: StandIn, hash: string): Promise<void> {
+export async function fresh(b: Browse, standin: StandIn, hash: string): Promise<void> {
   standin.reset()
   await b.page.goto('about:blank')
   await b.page.goto(`${standin.base}/${hash}`, { waitUntil: 'networkidle0' })
 }
 
-const buttonView = (b: Browse, text: string, nth = 0): Promise<ButtonView> =>
+export const buttonView = (b: Browse, text: string, nth = 0): Promise<ButtonView> =>
   b.run((wanted, index) => {
     const scope = document.querySelector('dialog[open]') ?? document
     const button = [...scope.querySelectorAll('button')].filter((entry) => entry.textContent?.trim() === wanted && entry.getClientRects().length > 0)[index]
@@ -65,11 +65,11 @@ const buttonView = (b: Browse, text: string, nth = 0): Promise<ButtonView> =>
     }
   }, text, nth)
 
-const waitForButton = (b: Browse, text: string): Promise<unknown> =>
+export const waitForButton = (b: Browse, text: string): Promise<unknown> =>
   b.until((wanted) => [...(document.querySelector('dialog[open]') ?? document).querySelectorAll('button')].some((entry) => entry.textContent?.trim() === wanted && entry.getClientRects().length > 0), { timeout: SHORT_WAIT_MS }, text)
 
 /** Clicks the button with this text `count` times as fast as the browser can. */
-async function burst(b: Browse, text: string, count: number, nth = 0): Promise<void> {
+export async function burst(b: Browse, text: string, count: number, nth = 0): Promise<void> {
   const at = await b.run((wanted, index) => {
     const scope = document.querySelector('dialog[open]') ?? document
     const button = [...scope.querySelectorAll('button')].filter((entry) => entry.textContent?.trim() === wanted && entry.getClientRects().length > 0)[index]
@@ -84,7 +84,7 @@ async function burst(b: Browse, text: string, count: number, nth = 0): Promise<v
 
 const dialogIsOpen = (b: Browse) => b.run(() => document.querySelector('dialog[open]') !== null)
 
-async function openTable(b: Browse): Promise<void> {
+export async function openTable(b: Browse): Promise<void> {
   await b.click('Table')
   await b.page.waitForSelector('table.restable')
 }
