@@ -97,4 +97,14 @@ final class MachineSettingsPatchTests: XCTestCase {
         XCTAssertThrowsError(try patch(["labels": ["a", "a"]]))
         XCTAssertNoThrow(try patch(["labels": []]), "no labels is allowed: it clears them")
     }
+
+    func testTheSshAddressIsCheckedSavedAndCleared() throws {
+        XCTAssertEqual(try applied(["ssh_jump": "you@203.0.113.7"]).sshJump, "you@203.0.113.7")
+        XCTAssertEqual(try applied(["ssh_jump": "you@studio.example.com:2222"]).sshJump, "you@studio.example.com:2222")
+        XCTAssertNil(try applied(["ssh_jump": NSNull()], to: MachineSettings(sshJump: "you@h")).sshJump)
+        XCTAssertEqual(try applied(["notes": "x"], to: MachineSettings(sshJump: "you@h")).sshJump, "you@h", "not mentioned stays")
+        for text in Self.hostile + ["host", "you@", "you@h:99999", "you@h; id", String(repeating: "a", count: 130) + "@h"] {
+            XCTAssertThrowsError(try patch(["ssh_jump": text]), "ssh_jump: \(text.prefix(20))")
+        }
+    }
 }

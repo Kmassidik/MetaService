@@ -128,6 +128,12 @@ public enum Migrations {
               PRIMARY KEY (machine_id, workload_id)
             );
             """) }),
+        // Progress of setting up the SSH server inside a VM (idle, installing, failed), the plain reason of a failure, and when the phase began. An install can take minutes, so a phase that began long ago and never ended is read as failed.
+        (21, { try $0.exec("""
+            ALTER TABLE workload_ssh_state ADD COLUMN sshd_state TEXT NOT NULL DEFAULT 'idle';
+            ALTER TABLE workload_ssh_state ADD COLUMN sshd_message TEXT;
+            ALTER TABLE workload_ssh_state ADD COLUMN sshd_since INTEGER;
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

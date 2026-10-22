@@ -5,7 +5,7 @@ import MSCore
 /// A field that is not mentioned stays as it was; a field set to null is cleared (only the ones that can be empty).
 public struct MachineSettingsPatch {
     public static let fields: Set<String> = ["name", "labels", "notes", "allow_gpu", "ram_reserve_mb", "disk_reserve_gb", "ram_allowance_mb", "disk_allowance_gb",
-                                             "vm_max_running", "vm_cpu", "vm_ram_mb", "vm_disk_gb", "vm_image", "subdomain", "ai_model"]
+                                             "vm_max_running", "vm_cpu", "vm_ram_mb", "vm_disk_gb", "vm_image", "subdomain", "ai_model", "ssh_jump"]
 
     /// The new name of the machine, when the person changed it.
     public let name: String?
@@ -43,6 +43,7 @@ public struct MachineSettingsPatch {
         if object.has("notes") { settings.notes = try object.string("notes", maxLength: MachineSettings.maxNotes) }
         if object.has("allow_gpu") { settings.allowGpu = try object.bool("allow_gpu") }
         try change(&settings.subdomain, "subdomain") { try object.string("subdomain", pattern: MachineSettings.subdomainPattern, maxLength: MachineSettings.maxSubdomainLength, minLength: 1) }
+        try change(&settings.sshJump, "ssh_jump") { try MachineSettings.checkedJump(object.string("ssh_jump", maxLength: SshConnect.maxJumpCharacters, minLength: 1)) }
         try change(&settings.aiModel, "ai_model") { try object.string("ai_model", pattern: MachineSettings.modelPattern, maxLength: MachineSettings.maxModelLength, minLength: 1) }
     }
 

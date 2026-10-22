@@ -84,9 +84,38 @@ public struct SshKeyStore {
             """, [.int(applied ? 1 : 0), sshd.map(SQLValue.text) ?? .null, .text(machine), .text(workload), .int(revision)])
     }
 
-    /// VMs on this machine whose keys the helper does not have yet.
-    public func pendingWorkloads(machine: String) throws -> [String] {
-        try database.query("SELECT workload_id FROM workload_ssh_state WHERE machine_id = ? AND applied = 0", [.text(machine)]).map { $0.string("workload_id") }
+    /// VMs on this machine whose keys the helper does not have yet and that the heartbeat may try now: not one whose apply is running, and a failed one only after its wait.
+    public func pendingWorkloads(machine: String, now: Date) throws -> [String] {
+        let seconds = Int(now.timeIntervalSince1970)
+        return try database.query("SELECT * FROM workload_ssh_state WHERE machine_id = ? AND applied = 0", [.text(machine)])
+            .filter { Self.progress(of: $0).mayStartFromHeartbeat(at: seconds) }
+            .map { $0.string("workload_id") }
+    }
+
+    public func progress(workload: String, machine: String) throws -> SshdProgress {
+        try database.query("SELECT * FROM workload_ssh_state WHERE machine_id = ? AND workload_id = ?", [.text(machine), .text(workload)]).first.map(Self.progress(of:)) ?? .idle
+    }
+
+    /// An apply starts: the VM shows "installing" until `finishApply`. Also the "try again now" of the panel, which clears any wait.
+    public func beginApply(workload: String, machine: String, now: Date) throws {
+        try setProgress(SshdProgress(phase: .installing, message: nil, since: Int(now.timeIntervalSince1970)), workload: workload, machine: machine)
+    }
+
+    /// The apply ended: `failure` is the plain reason, or nil when it worked. A failure keeps its time, which starts the wait before the heartbeat tries again.
+    public func finishApply(workload: String, machine: String, failure: String?, now: Date) throws {
+        let since = Int(now.timeIntervalSince1970)
+        try setProgress(failure.map { SshdProgress(phase: .failed, message: $0, since: since) } ?? .idle, workload: workload, machine: machine)
+    }
+
+    private func setProgress(_ progress: SshdProgress, workload: String, machine: String) throws {
+        try database.execute("""
+            INSERT INTO workload_ssh_state (workload_id, machine_id, revision, applied, sshd_state, sshd_message, sshd_since) VALUES (?, ?, 0, 0, ?, ?, ?)
+            ON CONFLICT (machine_id, workload_id) DO UPDATE SET sshd_state = excluded.sshd_state, sshd_message = excluded.sshd_message, sshd_since = excluded.sshd_since
+            """, [.text(workload), .text(machine), .text(progress.phase.rawValue), progress.message.map(SQLValue.text) ?? .null, progress.since.map(SQLValue.int) ?? .null])
+    }
+
+    private static func progress(of row: Row) -> SshdProgress {
+        SshdProgress(phase: SshdPhase(rawValue: row.string("sshd_state")) ?? .idle, message: row.optionalString("sshd_message"), since: row.optionalInt("sshd_since"))
     }
 
     /// The VM is gone: its keys and its state go with it.

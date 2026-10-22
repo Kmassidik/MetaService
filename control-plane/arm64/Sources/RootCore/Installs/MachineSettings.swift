@@ -23,9 +23,11 @@ public struct MachineSettings: Codable, Equatable {
     public var subdomain: String?
     public var publicChat: Bool
     public var aiModel: String?
+    /// How a person reaches this machine from their laptop (`user@host[:port]`), used for the ssh command shown with SSH keys. Nil: the machine's office address is used.
+    public var sshJump: String?
 
     public static let fields: Set<String> = ["profile", "labels", "notes", "ram_reserve_mb", "disk_reserve_gb", "ram_allowance_mb", "disk_allowance_gb", "allow_gpu",
-                                             "vm_cpu", "vm_ram_mb", "vm_disk_gb", "vm_image", "vm_max_running", "subdomain", "public_chat", "ai_model"]
+                                             "vm_cpu", "vm_ram_mb", "vm_disk_gb", "vm_image", "vm_max_running", "subdomain", "public_chat", "ai_model", "ssh_jump"]
     static let labelPattern = #/^[a-z0-9][a-z0-9-]{0,29}$/#
     static let subdomainPattern = #/^[a-z0-9][a-z0-9-]{0,30}$/#
     static let imagePattern = #/^[a-z0-9][a-z0-9._:\/-]{0,127}$/#
@@ -46,7 +48,7 @@ public struct MachineSettings: Codable, Equatable {
 
     public init(profile: String = "custom", labels: [String] = [], notes: String = "", ramReserveMb: Int? = nil, diskReserveGb: Int? = nil, ramAllowanceMb: Int? = nil,
                 diskAllowanceGb: Int? = nil, allowGpu: Bool = true, vmCpu: Int? = nil, vmRamMb: Int? = nil, vmDiskGb: Int? = nil, vmImage: String? = nil,
-                vmMaxRunning: Int? = nil, subdomain: String? = nil, publicChat: Bool = false, aiModel: String? = nil) {
+                vmMaxRunning: Int? = nil, subdomain: String? = nil, publicChat: Bool = false, aiModel: String? = nil, sshJump: String? = nil) {
         self.profile = profile
         self.labels = labels
         self.notes = notes
@@ -63,6 +65,7 @@ public struct MachineSettings: Codable, Equatable {
         self.subdomain = subdomain
         self.publicChat = publicChat
         self.aiModel = aiModel
+        self.sshJump = sshJump
     }
 
     /// What the machine may be used for: with GPU use switched off, the machine does not offer its GPU to VMs or containers.
@@ -95,7 +98,14 @@ public struct MachineSettings: Codable, Equatable {
         subdomain = object.has("subdomain") ? try object.string("subdomain", pattern: Self.subdomainPattern, maxLength: Self.maxSubdomainLength, minLength: 1) : nil
         publicChat = object.has("public_chat") ? try object.bool("public_chat") : false
         aiModel = object.has("ai_model") ? try object.string("ai_model", pattern: Self.modelPattern, maxLength: Self.maxModelLength, minLength: 1) : nil
+        sshJump = object.has("ssh_jump") ? try Self.checkedJump(object.string("ssh_jump", maxLength: SshConnect.maxJumpCharacters, minLength: 1)) : nil
         try checkReserves()
+    }
+
+    /// The SSH address as typed, or a plain refusal. Checked again when the command is built.
+    static func checkedJump(_ text: String) throws -> String {
+        guard SshConnect.isValidJump(text) else { throw InputError("ssh_jump must look like user@host or user@host:port") }
+        return text
     }
 
     /// What is kept free for the system must be less than the most VMs may use.

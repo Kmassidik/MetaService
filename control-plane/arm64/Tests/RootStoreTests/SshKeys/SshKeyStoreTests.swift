@@ -99,8 +99,8 @@ final class SshKeyStoreTests: XCTestCase {
         try add(2, workload: "vm2")
         try add(3, workload: "vm3", machine: "dgx")
         try store.recordApply(workload: "vm2", machine: "mini", revision: 1, applied: true, sshd: "running")
-        XCTAssertEqual(try store.pendingWorkloads(machine: "mini"), ["vm1"])
-        XCTAssertEqual(try store.pendingWorkloads(machine: "dgx"), ["vm3"])
+        XCTAssertEqual(try store.pendingWorkloads(machine: "mini", now: now), ["vm1"])
+        XCTAssertEqual(try store.pendingWorkloads(machine: "dgx", now: now), ["vm3"])
     }
 
     func testForgettingAVmRemovesItsKeysAndStateButNotAnotherVms() throws {
@@ -118,7 +118,45 @@ final class SshKeyStoreTests: XCTestCase {
         try add(2, workload: "vm9", machine: "dgx")
         try MachineStore(database).remove(id: "mini")
         XCTAssertEqual(try store.list(workload: "vm1", machine: "mini"), [])
-        XCTAssertEqual(try store.pendingWorkloads(machine: "mini"), [])
+        XCTAssertEqual(try store.pendingWorkloads(machine: "mini", now: now), [])
         XCTAssertEqual(try store.list(workload: "vm9", machine: "dgx").count, 1)
+    }
+
+    // MARK: progress of setting up the SSH server
+
+    func testAVmNobodyTouchedIsIdleAndABeginMakesItInstalling() throws {
+        XCTAssertEqual(try store.progress(workload: "vm1", machine: "mini"), .idle)
+        try store.beginApply(workload: "vm1", machine: "mini", now: now)
+        XCTAssertEqual(try store.progress(workload: "vm1", machine: "mini"), SshdProgress(phase: .installing, message: nil, since: 1_800_000_000))
+    }
+
+    func testFinishingClearsTheInstallingPhaseOrKeepsTheReason() throws {
+        try add(1)
+        try store.beginApply(workload: "vm1", machine: "mini", now: now)
+        try store.finishApply(workload: "vm1", machine: "mini", failure: nil, now: now)
+        XCTAssertEqual(try store.progress(workload: "vm1", machine: "mini"), .idle)
+        try store.beginApply(workload: "vm1", machine: "mini", now: now)
+        try store.finishApply(workload: "vm1", machine: "mini", failure: "No internet.", now: now)
+        XCTAssertEqual(try store.progress(workload: "vm1", machine: "mini"), SshdProgress(phase: .failed, message: "No internet.", since: 1_800_000_000))
+        XCTAssertEqual(try store.snapshot(workload: "vm1", machine: "mini").lines.count, 1, "progress never touches the keys")
+    }
+
+    func testTheHeartbeatSkipsARunningApplyAndAFreshFailureButTakesAnOldOne() throws {
+        try add(1, workload: "vm1")
+        try add(2, workload: "vm2")
+        try add(3, workload: "vm3")
+        try store.beginApply(workload: "vm1", machine: "mini", now: now)
+        try store.finishApply(workload: "vm2", machine: "mini", failure: "x", now: now)
+        try store.finishApply(workload: "vm3", machine: "mini", failure: "x", now: now.addingTimeInterval(-TimeInterval(SshdProgress.retryWaitSeconds)))
+        XCTAssertEqual(try store.pendingWorkloads(machine: "mini", now: now), ["vm3"])
+        let later = now.addingTimeInterval(TimeInterval(SshdProgress.retryWaitSeconds))
+        XCTAssertEqual(Set(try store.pendingWorkloads(machine: "mini", now: later)), ["vm2", "vm3"])
+        let abandoned = now.addingTimeInterval(TimeInterval(SshdProgress.installingTimeoutSeconds + SshdProgress.retryWaitSeconds))
+        XCTAssertEqual(Set(try store.pendingWorkloads(machine: "mini", now: abandoned)), ["vm1", "vm2", "vm3"], "an apply that died is tried again")
+    }
+
+    func testBeginningAnApplyForAVmWithoutRowsCreatesAnUnappliedRow() throws {
+        try store.beginApply(workload: "vm7", machine: "mini", now: now)
+        XCTAssertEqual(try store.pendingWorkloads(machine: "mini", now: now.addingTimeInterval(TimeInterval(SshdProgress.installingTimeoutSeconds + SshdProgress.retryWaitSeconds))), ["vm7"])
     }
 }
