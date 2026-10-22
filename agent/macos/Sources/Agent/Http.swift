@@ -80,6 +80,10 @@ struct ErrorMiddleware: RouterMiddleware {
             return Json.error(.conflict, refusal.code.rawValue, refusal.message, extra: ["resource": refusal.resource.rawValue, "needed": refusal.needed, "free": refusal.free])
         } catch AgentError.notFound {
             return Json.error(.notFound, "not_found", "no such thing")
+        } catch EngineError.notFound {
+            return Json.error(.notFound, "not_found", "no such thing")
+        } catch EngineError.notRunning {
+            return Json.error(.conflict, "not_running", "the VM is not running")
         } catch let error as HTTPError {
             return Json.error(error.status, error.status == .contentTooLarge ? "too_large" : "refused", "request refused")
         } catch {

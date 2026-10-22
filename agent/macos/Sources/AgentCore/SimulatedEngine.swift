@@ -8,6 +8,10 @@ public actor SimulatedEngine: Engine {
     /// What was pushed and run, in order, so tests can look.
     public private(set) var pushed: [[String]] = []
     public private(set) var executed: [[String]] = []
+    /// Per VM, the SSH keys last applied, and what each apply ran: the program arguments and what went on standard input.
+    public private(set) var sshKeys: [String: [String]] = [:]
+    public private(set) var sshRuns: [(arguments: [String], input: Data)] = []
+    private var sshdState: SshdState = .missing
 
     public init(capabilities: Capabilities = Capabilities(vm: true, container: true, gpuInVm: false, gpuInContainer: false)) {
         self.capabilities = capabilities
@@ -57,6 +61,18 @@ public actor SimulatedEngine: Engine {
         guard store[id] != nil else { throw EngineError.notFound }
         executed.append(arguments)
         return ""
+    }
+
+    /// What every later SSH key apply reports about sshd, as the VM's image would decide it.
+    public func setSshd(_ state: SshdState) { sshdState = state }
+
+    public func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult {
+        guard let found = store[id] else { throw EngineError.notFound }
+        guard found.state == .running else { throw EngineError.notRunning }
+        let arguments = SshKeysScript.arguments(id: id)
+        sshRuns.append((arguments: arguments, input: SshKeyLines.fileContent(keys)))
+        sshKeys[id] = keys
+        return SshKeysResult(applied: keys.count, sshd: sshdState)
     }
 
     /// Tests type into a plain /bin/sh on this machine.

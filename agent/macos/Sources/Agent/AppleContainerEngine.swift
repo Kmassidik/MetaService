@@ -177,6 +177,14 @@ actor AppleContainerEngine: Engine {
         return String(decoding: try await cli.run(AppleContainer.exec(id, arguments: arguments, environment: environment), timeout: Self.slow), as: UTF8.self)
     }
 
+    func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult {
+        guard records.all()[id] != nil else { throw EngineError.notFound }
+        guard try await find(id)?.state == "running" else { throw EngineError.notRunning }
+        return try await SshKeysScript.apply(id: id, keys: keys) { arguments, input in
+            String(decoding: try await self.cli.run(arguments, timeout: Self.quick, input: input), as: UTF8.self)
+        }
+    }
+
     func attach(id: String) async throws -> [String] {
         guard records.all()[id] != nil else { throw EngineError.notFound }
         return [cli.path] + (try AppleContainer.attach(id))

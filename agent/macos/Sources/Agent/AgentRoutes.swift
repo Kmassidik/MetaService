@@ -15,6 +15,7 @@ struct AgentRoutes {
         router.post("/v1/workloads", use: create)
         router.post("/v1/workloads/{id}/start") { request, context in try await self.change(request, context, start: true) }
         router.post("/v1/workloads/{id}/stop") { request, context in try await self.change(request, context, start: false) }
+        router.put("/v1/workloads/{id}/ssh-keys", use: sshKeys)
         router.delete("/v1/workloads/{id}", use: delete)
         router.post("/v1/bundle/install", use: installBundle)
         router.post("/v1/bundle/uninstall", use: uninstallBundle)
@@ -34,6 +35,13 @@ struct AgentRoutes {
 
     private func delete(_ request: Request, context: AgentContext) async throws -> Response {
         try Self.accepted(try await service.delete(commandId: try Self.commandId(request), id: try Self.workloadId(context)))
+    }
+
+    /// The complete SSH key list for root of one VM. Answers at once with what was applied; the keys are never in a log or an error text.
+    private func sshKeys(_ request: Request, context: AgentContext) async throws -> Response {
+        let id = try Self.workloadId(context)
+        let body = try SshKeysRequest(body: try await Self.body(request))
+        return try Json.response(try await service.applySshKeys(id: id, keys: body.keys))
     }
 
     private func installBundle(_ request: Request, context: AgentContext) async throws -> Response {

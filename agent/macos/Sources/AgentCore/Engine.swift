@@ -19,6 +19,9 @@ public protocol Engine: Sendable {
     func push(id: String, hostPath: String, containerPath: String) async throws
     /// Runs one program inside the workload (no shell is added) and returns what it printed. Values go in through `environment`, never into the arguments.
     func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String
+    /// Replaces the whole list of SSH public keys that may log in as root of this one VM. The keys go in on standard input, never in arguments.
+    /// Throws `notFound` for an unknown VM and `notRunning` for one that is not running.
+    func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult
     /// The program and arguments that open an interactive shell inside the workload, to be run in a pty. The first item is the program. No shell string, no user text.
     func attach(id: String) async throws -> [String]
 }
@@ -40,6 +43,8 @@ public extension Engine {
 
 public enum EngineError: Error, Equatable {
     case notFound
+    /// The VM exists but is not running, so nothing can be run inside it.
+    case notRunning
     case failed(String)
     /// The VM was made but never came up. The text is written by the helper (it may hold the last lines the VM printed, cleaned) and is safe to show the person.
     case notReady(String)

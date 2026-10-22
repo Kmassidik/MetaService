@@ -91,6 +91,12 @@ public actor AgentService {
         try await engine.attach(id: id)
     }
 
+    /// Sets the complete list of SSH keys for root of one VM (see `Engine.applySshKeys`). The list is checked again here, whoever calls.
+    public func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult {
+        try SshKeyLines.validate(keys)
+        return try await engine.applySshKeys(id: id, keys: keys)
+    }
+
     public func command(_ id: String) throws -> Command {
         guard let found = ledger.find(id) else { throw AgentError.notFound }
         return found

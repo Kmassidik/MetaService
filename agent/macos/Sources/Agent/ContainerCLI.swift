@@ -6,7 +6,14 @@ import MSCore
 protocol ContainerCLI: Sendable {
     /// Where the program lives, for the one call that must run it in a pty instead of through `run`.
     var path: String { get }
-    func run(_ arguments: [String], timeout: TimeInterval) async throws -> Data
+    /// `input`, when given, goes to the program's standard input (never into the arguments).
+    func run(_ arguments: [String], timeout: TimeInterval, input: Data?) async throws -> Data
+}
+
+extension ContainerCLI {
+    func run(_ arguments: [String], timeout: TimeInterval) async throws -> Data {
+        try await run(arguments, timeout: timeout, input: nil)
+    }
 }
 
 struct ProcessContainerCLI: ContainerCLI {
@@ -18,9 +25,9 @@ struct ProcessContainerCLI: ContainerCLI {
         ([configured].compactMap { $0 } + (configured == nil ? searchPaths : [])).first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    func run(_ arguments: [String], timeout: TimeInterval) async throws -> Data {
+    func run(_ arguments: [String], timeout: TimeInterval, input: Data?) async throws -> Data {
         do {
-            return try await CommandRunner.run(path, arguments, timeout: timeout)
+            return try await CommandRunner.run(path, arguments, timeout: timeout, input: input)
         } catch CommandFailure.failed(let status, let errors) {
             throw EngineError.failed("container \(arguments.first ?? "") exited with \(status): \(errors.suffix(300))")
         } catch CommandFailure.timedOut {
