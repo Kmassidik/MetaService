@@ -41,11 +41,11 @@
 {#if allRows.length === 0 && making.length > 0}
   <p class="muted waiting" role="status">The first VM is being made. It will be listed here when its machine reports it.</p>
 {:else if allRows.length === 0}
-  <div class="empty" role="status"><Owl name="emptyVms" />No VMs yet. Make the first one on any of your machines.<a class="btn green sm" href={createVmHref(null)}>＋ Create VM</a></div>
+  <div class="empty stage" role="status"><Owl name="emptyVms" />No VMs yet. Make the first one on any of your machines.<a class="btn green sm" href={createVmHref(null)}>＋ Create VM</a></div>
 {:else if rows.length === 0 && making.length > 0}
   <p class="muted waiting" role="status">The VM is being made. It will be listed here when its machine reports it.</p>
 {:else if rows.length === 0}
-  <div class="empty" role="status"><Owl name="emptyVms" />No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
+  <div class="empty stage" role="status"><Owl name="emptyVms" />No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
 {:else}
   <VmTable {rows} />
 {/if}

@@ -134,7 +134,7 @@
 
 <style>
   .scan { display: grid; gap: 16px; }
-  .none { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  .none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; min-height: calc(100svh - 300px); }
   .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
   h2 { font-size: 20px; }
   .note { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }

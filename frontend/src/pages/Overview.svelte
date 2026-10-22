@@ -29,7 +29,7 @@
 </section>
 <h2 class="op-subhead">Needs attention</h2>
 {#if items.length === 0 && machines.length === 0}
-  <div class="empty" role="status"><Owl name="emptyMachines" />No machines yet. Add the first one from Machines.</div>
+  <div class="empty stage" role="status"><Owl name="emptyMachines" />No machines yet. Add the first one from Machines.</div>
 {:else if items.length === 0}
   <div class="empty" role="status">Nothing needs you right now.</div>
 {:else}

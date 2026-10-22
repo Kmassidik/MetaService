@@ -66,7 +66,7 @@
 </script>
 
 {#if !machine}
-  <div class="empty"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
+  <div class="empty stage"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else}
   <div class="phead">
     <div>

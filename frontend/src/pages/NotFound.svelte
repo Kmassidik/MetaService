@@ -6,7 +6,7 @@
 </script>
 
 <div class="phead"><h1>Page not found</h1><span class="crumb">Not found</span></div>
-<div class="empty">
+<div class="empty stage">
   <Owl name="notFound" />
   <p>There is nothing at this address: <code>{shownAddress(route)}</code></p>
   <a class="btn green" href="#/">Go to Overview</a>

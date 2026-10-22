@@ -14,6 +14,13 @@ export async function scanScenario(b: Browse): Promise<void> {
   // A scan runs only when asked for; the first time there is nothing to show yet.
   await b.until(() => document.body.innerText.includes('Nothing scanned yet'), {})
   check('before the first scan the owl is shown with the empty message', (await b.page.$$('img[data-owl=emptyMachines]')).length === 1)
+  const centre = await b.run(() => {
+    const owl = document.querySelector('img[data-owl=emptyMachines]')?.getBoundingClientRect()
+    const main = document.querySelector('main')?.getBoundingClientRect()
+    if (!owl || !main) return { across: 1, down: 1 }
+    return { across: Math.abs(owl.left + owl.width / 2 - (main.left + main.width / 2)) / main.width, down: Math.abs(owl.top + owl.height / 2 - (main.top + main.height / 2)) / main.height }
+  })
+  check('the owl sits in the middle of the page, across and down', centre.across < 0.05 && centre.down < 0.2, JSON.stringify(centre))
   await b.shot('scan-empty.png')
   await b.click('Scan now')
   await b.until(() => document.body.innerText.includes('Agent running'), { timeout: SCAN_WAIT_MS })

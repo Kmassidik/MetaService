@@ -45,9 +45,9 @@
 
 {#if banner}<div class="empty" role="alert">{banner}</div>{/if}
 {#if !machine}
-  <div class="empty"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
+  <div class="empty stage"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else if !workload || !server}
-  <div class="empty"><Owl name="notFound" />VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
+  <div class="empty stage"><Owl name="notFound" />VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
 {:else}
   <div class="phead">
     <div>

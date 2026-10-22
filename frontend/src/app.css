@@ -151,6 +151,7 @@ table.restable{width:100%;border-collapse:collapse;font-size:13px}
 .brainnote{font-size:11px;color:var(--m50);line-height:1.5;margin:8px 0 0}
 
 /* empty + toast */
+.empty.stage{min-height:calc(100svh - 260px)}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--m40);font-family:var(--mono);font-size:12px;text-align:center;padding:60px 20px}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--inverse-bg);color:var(--inverse-text);font-family:var(--mono);font-size:12px;padding:11px 18px;opacity:0;transition:.25s;z-index:80;border:1px solid var(--accent);pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
