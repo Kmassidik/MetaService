@@ -120,6 +120,7 @@
 </script>
 
 <form bind:this={formElement} onsubmit={submit} novalidate aria-label="Create VM">
+  <div class="scroll">
   <fieldset disabled={action.busy}>
     <MachinePick id={MACHINE_ID} options={machineOptions(choices, only?.id ?? null)} value={form.machine} locked={only !== null} onpick={pickMachineById} />
     <ImageCards group={IMAGE_GROUP} cards={imageCards(images)} chosen={form.bundle ?? STOCK_IMAGE} unreadable={imagesUnreadable} onpick={(id) => (form.bundle = id)} />
@@ -131,6 +132,7 @@
       <input id={NAME_ID} bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder={NAME_EXAMPLE} aria-invalid={form.name !== '' && nameProblem(form.name) !== null ? 'true' : 'false'} />
     </div>
   </fieldset>
+  </div>
   <footer>
     <p class="hint" class:bad={problem !== null}>{problem ?? SPACE_SENTENCE}</p>
     <div class="buttons">
@@ -143,7 +145,8 @@
 <style>
   /* The window's title bar and padding take this much of the screen; the form keeps the rest, scrolls its fields inside it, and leaves the footer in view. */
   form { --window-chrome: 130px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100dvh - var(--window-chrome)); }
-  fieldset { display: grid; gap: 16px; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 0; margin: -4px; padding: 4px; min-width: 0; }
+  .scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: -4px; padding: 4px; }
+  fieldset { display: grid; gap: 16px; border: 0; margin: 0; padding: 0; min-width: 0; }
   .name { display: grid; gap: 8px; }
   .name label { font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--m50); }
   .optional { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--m40); }
