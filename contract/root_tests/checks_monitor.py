@@ -349,7 +349,10 @@ def check_a_real_helper_behind_the_ssh_tunnel_answers_the_monitor_route():
         problems = spec.problems("MachineStatsReply", reply.body)
         expect(not problems, f"the reply does not fit the contract: {problems[:3]}")
         expect(reply.body["state"] == "online" and reply.body["stats"]["cpu"]["core_count"] >= 1, f"real helper: {json.dumps(reply.body)[:300]}")
-        expect(len(reply.body["stats"]["processes"]) <= MAX_PROCESSES and "gpus" not in reply.body["stats"], "a Mac has at most 15 processes and no gpus block")
+        expect(len(reply.body["stats"]["processes"]) <= MAX_PROCESSES, "a Mac has at most 15 processes")
+        gpus = reply.body["stats"].get("gpus", [])
+        expect(all(gpu.get("vendor") == "apple" for gpu in gpus), f"a Mac reports only its Apple GPU: {json.dumps(gpus)[:200]}")
+        expect(all("temperature_celsius" not in gpu or gpu["temperature_celsius"] is None for gpu in gpus), "a Mac does not report a GPU temperature (it needs root)")
 
 
 CHECKS = [value for name, value in sorted(globals().items()) if name.startswith("check_")]
