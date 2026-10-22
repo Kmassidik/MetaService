@@ -1,5 +1,6 @@
 // Checks the answer of GET /api/machines/{id}/stats before the page trusts it. A shape that is wrong throws UnreadableAnswer.
 import { UnreadableAnswer } from './machineDetail.ts'
+import { gpuExtras } from './statsGpuParse.ts'
 import { cpuExtras, networkExtras, processExtras, topExtras } from './statsExtrasParse.ts'
 import type { MachineStats, MachineStatsReply, StatsCpu, StatsDisk, StatsGpu, StatsMemory, StatsNetwork, StatsProcess } from './types.ts'
 
@@ -78,6 +79,7 @@ const network = (source: Rec): StatsNetwork => ({
 const gpu = (source: Rec): StatsGpu => ({
   name: str(source, 'name'), utilization_percent: numOrNull(source, 'utilization_percent'), memory_used_bytes: numOrNull(source, 'memory_used_bytes'),
   memory_total_bytes: numOrNull(source, 'memory_total_bytes'), temperature_celsius: numOrNull(source, 'temperature_celsius'),
+  ...gpuExtras(source),
 })
 
 const processOf = (source: Rec): StatsProcess => ({

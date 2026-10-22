@@ -1,5 +1,5 @@
 // The points the Live charts draw: the parent's last hour of readings first, then a point from the page's own polling each time one is due. Pure functions, no DOM.
-import type { MachineStats, MachineStatsReply, StatsBreakdown, StatsHistoryPoint, StatsHistoryReply } from './types.ts'
+import type { MachineStats, MachineStatsReply, StatsBreakdown, StatsGpu, StatsHistoryGpu, StatsHistoryPoint, StatsHistoryReply } from './types.ts'
 
 /** One hour at one point every ten seconds. */
 export const CHART_POINT_LIMIT = 360
@@ -7,6 +7,15 @@ export const DEFAULT_INTERVAL_SECONDS = 10
 /** A reading that comes this much early still counts as the next point (the page asks every 5 seconds, the points are 10 apart). */
 const EARLY_ALLOWANCE_SECONDS = 1
 const MS_PER_SECOND = 1000
+
+/** One GPU's numbers at one time; `index` is its place in the machine's gpus list. A number the machine did not give is null (a gap), never 0. */
+export interface LiveGpu {
+  index: number
+  use: number | null
+  memory: number | null
+  temperature: number | null
+  power: number | null
+}
 
 export interface LivePoint {
   /** Seconds since 1970. */
@@ -26,14 +35,26 @@ export interface LivePoint {
   /** Packets dropped since boot (a running total; the page shows the change). */
   drops: number | null
   processes: number | null
+  /** Only the GPUs that gave a number this time. */
+  gpus: readonly LiveGpu[]
 }
+
+const liveGpuOfHistory = (gpu: StatsHistoryGpu): LiveGpu => ({
+  index: gpu.index, use: gpu.utilization_percent ?? null, memory: gpu.memory_used_bytes ?? null, temperature: gpu.temperature_celsius ?? null, power: gpu.power_watts ?? null,
+})
+
+const liveGpuOfReading = (gpu: StatsGpu, index: number): LiveGpu => ({
+  index, use: gpu.utilization_percent, memory: gpu.memory_used_bytes, temperature: gpu.temperature_celsius, power: gpu.power_watts ?? null,
+})
+
+const hasNumber = (gpu: LiveGpu): boolean => gpu.use !== null || gpu.memory !== null || gpu.temperature !== null || gpu.power !== null
 
 export function pointFromHistory(point: StatsHistoryPoint): LivePoint {
   return {
     t: point.t, cpu: point.cpu_percent, breakdown: point.cpu_breakdown ?? null, load: point.load ?? null,
     memUsed: point.mem_used, memCached: point.mem_cached, memTotal: point.mem_total, swapUsed: point.swap_used, swapTotal: point.swap_total,
     diskRead: point.disk_read ?? null, diskWrite: point.disk_write ?? null, netIn: point.net_in_bps, netOut: point.net_out_bps,
-    drops: point.net_drops ?? null, processes: point.processes_count ?? null,
+    drops: point.net_drops ?? null, processes: point.processes_count ?? null, gpus: (point.gpus ?? []).map(liveGpuOfHistory),
   }
 }
 
@@ -63,6 +84,7 @@ export function pointFromReading(reply: MachineStatsReply, nowSeconds: number): 
     memUsed: stats.memory.used_bytes, memCached: stats.memory.cached_bytes, memTotal: stats.memory.total_bytes, swapUsed: stats.memory.swap_used_bytes, swapTotal: stats.memory.swap_total_bytes,
     diskRead: stats.disk_io?.read_bytes_per_second ?? null, diskWrite: stats.disk_io?.write_bytes_per_second ?? null,
     netIn: stats.network.received_bytes_per_second, netOut: stats.network.sent_bytes_per_second, drops: dropsOf(stats), processes: stats.process_count ?? null,
+    gpus: stats.gpus.map(liveGpuOfReading).filter(hasNumber),
   }
 }
 

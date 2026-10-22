@@ -439,12 +439,36 @@ export interface StatsNetwork {
   drops_out_total?: number
 }
 
+export type GpuVendor = 'nvidia' | 'amd' | 'apple' | 'intel' | 'unknown'
+
+/** A program holding GPU memory (NVIDIA only). */
+export interface StatsGpuProgram {
+  name: string
+  memory_bytes: number
+}
+
+/** One GPU. A number the machine cannot read is null (or, for the optional ones, left out), never 0. */
 export interface StatsGpu {
   name: string
   utilization_percent: number | null
   memory_used_bytes: number | null
   memory_total_bytes: number | null
   temperature_celsius: number | null
+  vendor?: GpuVendor
+  power_watts?: number
+  power_limit_watts?: number
+  fan_percent?: number
+  clock_mhz?: number
+  processes?: StatsGpuProgram[]
+}
+
+/** One GPU's numbers in a history point; `index` is its place in the reading's gpus list. */
+export interface StatsHistoryGpu {
+  index: number
+  utilization_percent?: number
+  memory_used_bytes?: number
+  temperature_celsius?: number
+  power_watts?: number
 }
 
 export interface StatsProcess {
@@ -489,6 +513,8 @@ export interface StatsHistoryPoint {
   disk_write?: number
   net_in_bps: number | null
   net_out_bps: number | null
+  /** Left out when the machine has no GPU with a number. */
+  gpus?: StatsHistoryGpu[]
   net_drops?: number
   processes_count?: number
 }

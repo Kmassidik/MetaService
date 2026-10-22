@@ -1,6 +1,7 @@
 // Checks the answer of GET /api/machines/{id}/stats/history. A shape that is wrong throws UnreadableAnswer; the optional numbers are left out when absent or of the wrong kind.
 import { UnreadableAnswer } from './machineDetail.ts'
 import { breakdown } from './statsExtrasParse.ts'
+import { historyGpus } from './statsGpuParse.ts'
 import type { StatsHistoryPoint, StatsHistoryReply } from './types.ts'
 
 type Rec = Record<string, unknown>
@@ -33,6 +34,7 @@ function pointOf(source: Rec): StatsHistoryPoint {
   const write = finiteNumber(source.disk_write)
   const drops = finiteNumber(source.net_drops)
   const processes = finiteNumber(source.processes_count)
+  const gpus = historyGpus(source.gpus)
   return {
     t: required(source, 't'), cpu_percent: required(source, 'cpu_percent'),
     mem_used: required(source, 'mem_used'), mem_cached: required(source, 'mem_cached'), mem_total: required(source, 'mem_total'),
@@ -44,6 +46,7 @@ function pointOf(source: Rec): StatsHistoryPoint {
     ...(write === undefined ? {} : { disk_write: write }),
     ...(drops === undefined ? {} : { net_drops: drops }),
     ...(processes === undefined ? {} : { processes_count: processes }),
+    ...(gpus === undefined ? {} : { gpus }),
   }
 }
 

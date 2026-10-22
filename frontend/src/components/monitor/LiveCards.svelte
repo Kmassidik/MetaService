@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The Live tab as a Grafana-and-btop page: the gauge row on top; then CPU with Memory, System load with Disk speed, Network with the GPU, and last the disk volumes.
+  // The Live tab as a Grafana-and-btop page: the gauge row on top; then CPU with Memory, System load with Disk speed, Network with the GPU details, the GPU charts (only for a machine with a GPU), and last the disk volumes.
   // Two columns on a wide screen, one column below 900 px. Every block is a bordered card.
   import CpuCard from './charts/CpuCard.svelte'
   import DiskIoCard from './charts/DiskIoCard.svelte'
@@ -8,6 +8,7 @@
   import MemoryCard from './charts/MemoryCard.svelte'
   import NetworkCard from './charts/NetworkCard.svelte'
   import DiskPanel from './DiskPanel.svelte'
+  import GpuCharts from './charts/GpuCharts.svelte'
   import GpuPanel from './GpuPanel.svelte'
   import type { LivePoint } from '../../lib/liveSeries.ts'
   import type { MachineStats } from '../../lib/types.ts'
@@ -30,6 +31,7 @@
     <NetworkCard {points} {intervalSeconds} />
     {#if hasGpu}<GpuPanel gpus={stats.gpus} />{/if}
   </div>
+  {#if hasGpu}<GpuCharts gpus={stats.gpus} {points} {intervalSeconds} />{/if}
   <div class="band single" data-testid="band-volumes"><DiskPanel disks={stats.disks} /></div>
 </div>
 
