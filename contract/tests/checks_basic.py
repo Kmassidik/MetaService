@@ -1,4 +1,6 @@
 """Auth, headers, read-only endpoints, and error shapes."""
+import re
+
 from contract import spec
 from contract.tests.support import expect, expect_error, expect_schema
 
@@ -60,6 +62,14 @@ def check_facts_say_which_helper_and_engine_run(ctx):
     expect(engine["ready"] == (not facts.get("problems")), f"engine ready={engine['ready']} but problems={facts.get('problems')}")
 
 
+def check_the_build_when_given_is_a_sha256_that_stays_the_same(ctx):
+    first, second = ctx.facts(), ctx.facts()
+    if "agent_build" not in first:
+        return  # an older helper may leave it out
+    expect(re.fullmatch(r"[0-9a-f]{64}", first["agent_build"]) is not None, f"agent_build is not 64 lowercase hex digits: {first['agent_build']!r}")
+    expect(first["agent_build"] == second["agent_build"], "agent_build changed between two asks: it is the file's, worked out once")
+
+
 def check_unknown_path_is_404_json(ctx):
     expect_error(ctx.get("/v1/nope"), 404, "unknown path")
     expect_error(ctx.get("/"), 404, "root path")
@@ -75,6 +85,6 @@ def check_errors_never_leak_the_token(ctx):
 
 CHECKS = [
     check_no_token_is_401_everywhere, check_wrong_token_is_401, check_wrong_token_changes_nothing,
-    check_contract_header_on_every_reply, check_health, check_facts, check_facts_say_which_helper_and_engine_run, check_unknown_path_is_404_json,
+    check_contract_header_on_every_reply, check_health, check_facts, check_facts_say_which_helper_and_engine_run, check_the_build_when_given_is_a_sha256_that_stays_the_same, check_unknown_path_is_404_json,
     check_errors_never_leak_the_token,
 ]

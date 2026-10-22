@@ -73,6 +73,25 @@ def _facts_with_a_different_helper_version():
     return broken
 
 
+def _facts_with_a_build_that_changes():
+    original = FakeEngine._facts
+    counter = iter(range(10**6))
+
+    def broken(self):
+        return {**original(self), "agent_build": f"{next(counter):064x}"}
+
+    return broken
+
+
+def _facts_with_a_build_that_is_not_hex():
+    original = FakeEngine._facts
+
+    def broken(self):
+        return {**original(self), "agent_build": "not-a-hash"}
+
+    return broken
+
+
 MUTANTS = [
     ("no input validation", spec, "problems", lambda name, instance: [], "check_create_rejects_bad_names"),
     ("any token accepted", fake_server.hmac, "compare_digest", lambda a, b: True, "check_wrong_token_is_401"),
@@ -81,6 +100,8 @@ MUTANTS = [
     ("delete without backup", FakeEngine, "delete", _delete_wrapper(), "check_delete_backs_up_first"),
     ("uninstall changes nothing", FakeEngine, "uninstall_bundle", _uninstall_that_changes_nothing(), "check_machine_uninstall_clears_the_version_in_health"),
     ("facts without the helper version", FakeEngine, "_facts", _facts_without_the_helper_version(), "check_facts"),
+    ("facts with a build that is not hex", FakeEngine, "_facts", _facts_with_a_build_that_is_not_hex(), "check_facts"),
+    ("facts with a build that changes", FakeEngine, "_facts", _facts_with_a_build_that_changes(), "check_the_build_when_given_is_a_sha256_that_stays_the_same"),
     ("facts name another helper version than health", FakeEngine, "_facts", _facts_with_a_different_helper_version(), "check_facts_say_which_helper_and_engine_run"),
 ]
 

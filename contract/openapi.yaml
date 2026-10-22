@@ -201,6 +201,25 @@ paths:
         '409': { description: 'the workload is not running (code not_running), or the helper is too old to check (code not_supported)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'checked again too soon (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline or did not answer in time (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/update-helper:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: >
+        Root endpoint for the panel. Replaces the helper program on one machine with the newest one the parent has for that kind of computer, in ONE SSH login with a fixed script: it
+        receives the program, checks its SHA-256, keeps the old program as `bin/metaservice-agent.before-<8 hex>`, stops the helper, puts the new program in, starts it, waits about 8 seconds and
+        checks that it answers; if it does not, the old program is put back and started again (`rolled_back`). The helper's `state/` folder is never touched. Empty body. At most 2 a minute
+        per machine (429 rate_limited). Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'the end of the update (`updated`, `rolled_back` or `failed`) with a sentence in plain words', content: { application/json: { schema: { $ref: '#/components/schemas/HelperUpdateResult' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'login_needed (the parent cannot log in to that computer with its key any more), no_build (the parent has no program for that system), up_to_date, or machine_busy (a VM is being made or deleted there, or an update is already running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'updated twice in the last minute (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'the computer cannot be reached, or it showed a different SSH host key than the one pinned', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/images:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
     get:
@@ -451,6 +470,13 @@ components:
             resource: { type: string, enum: [ram_mb, disk_gb, capability] }
             needed: { type: integer, minimum: 0 }
             free: { type: integer, minimum: 0 }
+    HelperUpdateResult:
+      type: object
+      required: [result, message]
+      additionalProperties: false
+      properties:
+        result: { type: string, enum: [updated, rolled_back, failed] }
+        message: { type: string, description: A fixed sentence in plain words; never text from the other computer. }
     Health:
       type: object
       required: [status, agent_version, contract_version]
@@ -494,6 +520,12 @@ components:
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'
+        agent_build:
+          description: >
+            Which build of this Agent program runs: the lowercase hex SHA-256 of the program's own file, worked out once at start. Optional, added without a version change;
+            a helper that does not say it is an older one. The Root keeps the last one per machine, returns it on `GET /api/machines` and the machine detail, and compares it with the builds it can install.
+          type: string
+          pattern: '^[0-9a-f]{64}$'
         engine:
           description: The program this Agent makes VMs with, its version when it can tell, and whether it works right now. (Contract 1.3.0)
           type: object

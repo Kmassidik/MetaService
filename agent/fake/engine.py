@@ -1,4 +1,5 @@
 """In-memory engine for the Fake Agent: pretends to be a machine with VMs and containers."""
+import hashlib
 import itertools
 import threading
 from dataclasses import dataclass, field
@@ -6,6 +7,8 @@ from dataclasses import dataclass, field
 from contract.spec import CONTRACT_VERSION
 
 DEFAULT_BUNDLE_VERSION = None
+# The build the Fake Agent reports unless told another: the SHA-256 of the text "fake-agent".
+DEFAULT_AGENT_BUILD = hashlib.sha256(b"fake-agent").hexdigest()
 BACKUP_PREFIX = "backup"
 ENGINE_NAME = "fake"
 ENGINE_VERSION = "1.0.0"
@@ -58,9 +61,11 @@ class NotFound(Exception):
 
 
 class FakeEngine:
-    def __init__(self, spec=None, agent_version="fake-1"):
+    def __init__(self, spec=None, agent_version="fake-1", agent_build=DEFAULT_AGENT_BUILD):
         self.spec = spec or MachineSpec()
         self.agent_version = agent_version
+        # The SHA-256 of the program file, as a real helper reports it. None is an older helper that does not say.
+        self.agent_build = agent_build
         self.bundle_version = DEFAULT_BUNDLE_VERSION
         self._workloads = {}
         self._commands = {}
@@ -88,6 +93,7 @@ class FakeEngine:
             },
             "agent_version": self.agent_version,
             "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},
+            **({"agent_build": self.agent_build} if self.agent_build is not None else {}),
         }
 
     def _free_ram(self):
