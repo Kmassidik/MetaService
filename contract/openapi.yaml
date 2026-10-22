@@ -121,7 +121,7 @@ paths:
       summary: >
         Sets the complete list of SSH public keys that may log in as root of ONE VM. Optional, added without a version change (a helper without it answers 404, and the Root then shows the keys as not applied).
         Idempotent full-state apply: the list in the body is exactly what must be in the VM's /root/.ssh/authorized_keys afterwards, an empty list removes every key the helper manages, and sending the same list again changes nothing.
-        The helper puts the lines in a block it marks as its own and leaves any other line in that file alone; it never touches the host machine's own authorized_keys, and it never adds a key of its own or the Root's key.
+        The helper replaces the whole of root's authorized_keys inside that VM with exactly this list (a key added by hand inside the VM is removed on the next apply); it never touches the host machine's own authorized_keys, and it never adds a key of its own or the Root's key.
         Each line is `type base64 [comment]` and the Root has already validated it; the helper still refuses a body with a line that is not exactly one such line (400) and writes nothing in that case. Key bodies are never logged.
         The VM must be running (409 not_running). `applied` is the number of keys now in the VM. `sshd` says what the helper found or did about the SSH server in the VM:
         `running` (listening), `installed` (the server is there but not running, and the helper could not start it), `missing` (there is none and the helper could not add one).
