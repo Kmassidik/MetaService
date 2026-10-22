@@ -2,7 +2,7 @@
 import { STOCK_IMAGE } from './images.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import type { Machine, WorkloadForm, WorkloadKind } from './types.ts'
-import { initialSize, MEDIUM_SIZE, type SizeKey } from './vmSize.ts'
+import { initialSize, MEDIUM_SIZE, type SizeDefaults, type SizeKey } from './vmSize.ts'
 
 /** The form's fields plus the machine it goes to ('' while none is picked) and the size card that is picked. */
 export type NewVmForm = WorkloadForm & { machine: string; size: SizeKey }
@@ -108,7 +108,7 @@ export function startingMachine(route: string, only: string | null, choices: Mac
 }
 
 /** The sizes a machine was set up to give a new VM; only the ones it has. */
-export function machineDefaults(machine: Machine | undefined): Partial<Pick<WorkloadForm, 'cpu' | 'ramGb' | 'diskGb'>> {
+export function machineDefaults(machine: Machine | undefined): SizeDefaults {
   const settings = machine?.settings
   return {
     ...(settings?.vm_cpu ? { cpu: settings.vm_cpu } : {}),
