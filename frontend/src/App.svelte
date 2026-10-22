@@ -17,10 +17,10 @@
   import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
-  import ConfirmRemove from './components/ConfirmRemove.svelte'
-  import ConfirmRemoveRemote from './components/ConfirmRemoveRemote.svelte'
+  import RemoveMachineDialog from './components/RemoveMachineDialog.svelte'
   import CreateVmDialog from './components/vms/CreateVmDialog.svelte'
-  import ConfirmDelete from './components/ConfirmDelete.svelte'
+  import ConfirmDialog from './components/ConfirmDialog.svelte'
+  import { deleteVmCopy } from './lib/confirmCopy.ts'
   import ChatLink from './components/ChatLink.svelte'
   import Terminal from './components/Terminal.svelte'
   import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
@@ -62,8 +62,7 @@
   let removing = $state<Machine | null>(null)
   let remoteInfos = $state<RemoteMachineInfo[]>([])
   const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
-  let removeBusy = $state(false)
-  let removeFailure = $state('')
+  const deleteCopy = $derived(deleting ? deleteVmCopy(deleting.machine, deleting.workload) : deleteVmCopy({ name: '' }, { name: '' }))
   const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
   const openConsoleTarget = $derived(consoleTarget())
   const consoleMachine = $derived(machines.find((machine) => machine.id === openConsoleTarget?.machine))
@@ -200,44 +199,18 @@
     }
   }
 
-  /** Deletes the VM the dialog is about. A refusal is thrown: the dialog's button shows it and the dialog stays. */
+  /** Deletes the VM the dialog is about. A refusal is thrown: the dialog shows it and stays. */
   async function confirmDelete() {
     if (!deleting) return
     await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
-    const gone = deleting.machine.id
-    deleting = null
-    if (vmId) location.hash = machineHref(gone)
+    if (vmId) location.hash = machineHref(deleting.machine.id)
     await refresh()
   }
 
-  async function confirmRemoveRemote(body: Record<string, unknown>) {
-    if (!removing) return
-    removeBusy = true
-    removeFailure = ''
-    try {
-      await remoteRemove(removing.id, body)
-      removing = null
-      await refresh()
-    } catch (error) {
-      removeFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      removeBusy = false
-    }
-  }
-
-  async function confirmRemove() {
-    if (!removing) return
-    removeBusy = true
-    removeFailure = ''
-    try {
-      await removeMachine(removing.id)
-      removing = null
-      await refresh()
-    } catch (error) {
-      removeFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      removeBusy = false
-    }
+  /** Removes a machine; `body` is the SSH login choice for a machine installed over SSH. A refusal is thrown: the dialog shows it and stays. */
+  async function confirmRemove(machine: Machine, body: Record<string, unknown> | null) {
+    await (body ? remoteRemove(machine.id, body) : removeMachine(machine.id))
+    await refresh()
   }
 
   onMount(() => {
@@ -304,12 +277,8 @@
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={startConsoleVm} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
-  <ConfirmDelete target={deleting} onCancel={() => (deleting = null)} onConfirm={confirmDelete} />
-  {#if removingRemote}
-    <ConfirmRemoveRemote machine={removing} info={removingRemote} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemoveRemote} />
-  {:else}
-    <ConfirmRemove machine={removing} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemove} />
-  {/if}
+  <ConfirmDialog open={deleting !== null} {...deleteCopy} onconfirm={confirmDelete} onClose={() => (deleting = null)} />
+  <RemoveMachineDialog machine={removing} info={removingRemote} onconfirm={confirmRemove} onClose={() => (removing = null)} />
 {/if}
 
 <style>

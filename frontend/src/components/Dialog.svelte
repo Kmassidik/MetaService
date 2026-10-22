@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
 
-  let { open, title, onClose, children, wide = false, closeButton = false, locked = false }: { open: boolean; title: string; onClose: () => void; children: Snippet; wide?: boolean; closeButton?: boolean; locked?: boolean } = $props()
+  let { open, title, onClose, children, wide = false, closeButton = false, locked = false, backdropClose = false }: { open: boolean; title: string; onClose: () => void; children: Snippet; wide?: boolean; closeButton?: boolean; locked?: boolean; backdropClose?: boolean } = $props()
   let element: HTMLDialogElement | undefined
 
   $effect(() => {
@@ -16,13 +16,18 @@
     if (locked) event.preventDefault()
   }
 
+  /** A click on the dark backdrop (the dialog element itself, not its content) closes a dialog that asked for it, unless a request is running. */
+  function closeOnBackdrop(event: MouseEvent) {
+    if (backdropClose && !locked && event.target === element) onClose()
+  }
+
   /** The close event arrives a moment after the dialog closes. If the dialog was opened again meanwhile, the event is about the earlier closing and is ignored. */
   function closedByPerson() {
     if (!element?.open) onClose()
   }
 </script>
 
-<dialog bind:this={element} onclose={closedByPerson} oncancel={keepWhileLocked} class:wide aria-labelledby="dialog-title">
+<dialog bind:this={element} onclose={closedByPerson} oncancel={keepWhileLocked} onclick={closeOnBackdrop} class:wide aria-labelledby="dialog-title">
   <div class="modal-head">
     <h3 id="dialog-title">{title}</h3>
     {#if closeButton}<button class="modal-x" type="button" aria-label="Close" onclick={onClose}>✕</button>{/if}

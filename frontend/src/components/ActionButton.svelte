@@ -5,7 +5,7 @@
   import { ActionState } from '../lib/action.svelte.ts'
   import ActionLine from './ActionLine.svelte'
 
-  type Variant = 'plain' | 'green' | 'line' | 'danger'
+  type Variant = 'plain' | 'green' | 'line' | 'danger' | 'danger-solid'
 
   interface Props {
     label: string
@@ -41,7 +41,8 @@
     class="btn"
     class:green={variant === 'green'}
     class:line={variant === 'line'}
-    class:danger={variant === 'danger'}
+    class:danger={variant === 'danger' || variant === 'danger-solid'}
+    class:solid={variant === 'danger-solid'}
     class:sm={small}
     type="button"
     {title}

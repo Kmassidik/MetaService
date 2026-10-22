@@ -104,7 +104,7 @@ async function stopStartDelete(b: Browse): Promise<void> {
   await rowButton(b, NEW_VM, 'Delete')
   await b.page.waitForSelector('dialog[open]')
   check('delete says a backup is made first', (await b.text()).includes('makes a backup of it first'))
-  await b.click('Back up and delete')
+  await b.click('Delete VM')
   await b.until(() => !document.body.innerText.includes('build-box') || /Delete\s+[\s\S]*succeeded/.test(document.body.innerText), { timeout: AGENT_WAIT_MS })
   await b.until(() => ![...document.querySelectorAll('tbody tr')].some((row) => row instanceof HTMLElement && row.innerText.includes('build-box')), { timeout: AGENT_WAIT_MS })
   check('a deleted workload disappears', true)

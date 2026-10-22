@@ -73,7 +73,7 @@ async function deleteGoesBackToTheMachine(b: Browse, vmId: string): Promise<void
   await b.page.waitForSelector('dialog[open]')
   check('Delete asks first and says a backup is made', (await b.dialogText()).includes('makes a backup of it first'))
   check('nothing is deleted before the answer', b.page.url().endsWith(vmUrlEnd(vmId)), b.page.url())
-  await b.click('Back up and delete')
+  await b.click('Delete VM')
   await b.until((end) => location.hash === end, { timeout: ACTION_WAIT_MS }, MACHINE_URL_END)
   check('after Delete the page is the machine page again', b.page.url().endsWith(MACHINE_URL_END), b.page.url())
 }
