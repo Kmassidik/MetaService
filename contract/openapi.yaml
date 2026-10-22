@@ -533,17 +533,34 @@ components:
         gpus:
           type: array
           minItems: 1
-          maxItems: 16
+          maxItems: 8
+          description: 'Optional. At most 8 GPUs; a number the helper cannot read without root is null (or, for the optional fields below, left out), never 0. The parent drops a number outside its range, it never clamps.'
           items:
             type: object
             required: [name, utilization_percent, memory_used_bytes, memory_total_bytes, temperature_celsius]
             additionalProperties: false
             properties:
               name: { type: string, maxLength: 64 }
+              vendor: { type: string, enum: [nvidia, amd, apple, intel, unknown], description: 'Optional, added without a version change. The parent turns any other text into unknown.' }
               utilization_percent: { $ref: '#/components/schemas/PctOrNull' }
               memory_used_bytes: { type: integer, nullable: true, minimum: 0 }
-              memory_total_bytes: { type: integer, nullable: true, minimum: 0 }
-              temperature_celsius: { type: number, nullable: true }
+              memory_total_bytes: { type: integer, nullable: true, minimum: 0, description: 'A Mac reports the computer''s whole memory (the GPU shares it).' }
+              temperature_celsius: { type: number, nullable: true, minimum: 1, maximum: 150 }
+              power_watts: { type: number, minimum: 0, maximum: 2000, description: 'Optional. Left out when unreadable.' }
+              power_limit_watts: { type: number, minimum: 0, maximum: 2000, description: 'Optional.' }
+              fan_percent: { type: number, minimum: 0, maximum: 100, description: 'Optional.' }
+              clock_mhz: { type: number, minimum: 1, maximum: 20000, description: 'Optional. Current core clock.' }
+              processes:
+                type: array
+                maxItems: 8
+                description: 'Optional, NVIDIA only. Programs holding GPU memory, biggest first; left out when the helper could not list them.'
+                items:
+                  type: object
+                  required: [name, memory_bytes]
+                  additionalProperties: false
+                  properties:
+                    name: { type: string, maxLength: 64 }
+                    memory_bytes: { $ref: '#/components/schemas/Bytes' }
         processes:
           type: array
           maxItems: 15
@@ -583,6 +600,21 @@ components:
         net_out_bps: { type: number, nullable: true, minimum: 0 }
         net_drops: { $ref: '#/components/schemas/Bytes', description: 'Optional. Packets dropped since boot, in and out added.' }
         processes_count: { type: integer, minimum: 0 }
+        gpus:
+          type: array
+          minItems: 1
+          maxItems: 8
+          description: 'Optional. One entry per GPU that had a number this time, `index` being its place in the reading''s gpus list. A number the helper did not give is left out (a gap), never 0. No GPU: no key.'
+          items:
+            type: object
+            required: [index]
+            additionalProperties: false
+            properties:
+              index: { type: integer, minimum: 0, maximum: 7 }
+              utilization_percent: { $ref: '#/components/schemas/Pct' }
+              memory_used_bytes: { $ref: '#/components/schemas/Bytes' }
+              temperature_celsius: { type: number, minimum: 1, maximum: 150 }
+              power_watts: { type: number, minimum: 0, maximum: 2000 }
     MachineStatsHistory:
       type: object
       required: [interval_seconds, points]

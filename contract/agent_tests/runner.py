@@ -16,7 +16,7 @@ MONITOR_CHECKS = checks_monitor.CHECKS if (not LINUX or os.path.exists("/proc/st
 # `--fake` runs only the console checks, against the Fake Agent (agent/fake) instead of a built helper.
 if FAKE:
     os.environ["MS_HELPER"] = "fake"
-    ALL_CHECKS = checks_terminal.CHECKS + checks_monitor.CHECKS + checks_images.CHECKS + checks_images.FAKE_CHECKS
+    ALL_CHECKS = checks_terminal.CHECKS + checks_monitor.CHECKS + checks_monitor.FAKE_CHECKS + checks_images.CHECKS + checks_images.FAKE_CHECKS
 else:
     ALL_CHECKS = checks_agent.CHECKS + (checks_incus.CHECKS if LINUX else checks_apple.CHECKS + checks_apple_start.CHECKS) + checks_terminal.CHECKS + MONITOR_CHECKS + checks_images.CHECKS
 

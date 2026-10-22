@@ -108,6 +108,58 @@ def check_a_missing_gpu_is_a_missing_key_never_zeros():
         expect("gpus" not in stats or (stats["gpus"] and all(g["name"] for g in stats["gpus"])), f"gpus must be absent or real: {stats.get('gpus')}")
 
 
+MAX_GPUS = 8
+GPU_VENDORS = {"nvidia", "amd", "apple", "intel", "unknown"}
+APPLE_ABSENT = ("power_watts", "power_limit_watts", "fan_percent", "clock_mhz", "processes")
+
+
+def gpu_problems(stats):
+    """What every helper's `gpus` must hold beyond the schema: at most 8, a known vendor, nothing invented (a Mac has no temperature, power, fan, clock or programs;
+    programs are NVIDIA only), memory used never above the total, and no optional number that is a 0 standing for "unreadable"."""
+    gpus = stats.get("gpus", [])
+    problems = [] if len(gpus) <= MAX_GPUS else [f"{len(gpus)} gpus, at most {MAX_GPUS}"]
+    for gpu in gpus:
+        problems.extend(one_gpu_problems(gpu))
+    return problems
+
+
+def one_gpu_problems(gpu):
+    name, vendor = gpu["name"], gpu.get("vendor")
+    problems = [] if vendor is None or vendor in GPU_VENDORS else [f"{name}: vendor {vendor!r}"]
+    if vendor == "apple":
+        problems.extend(f"{name}: a Mac cannot read {key} without root" for key in APPLE_ABSENT if key in gpu)
+        problems.extend([f"{name}: temperature {gpu['temperature_celsius']!r} on a Mac"] if gpu["temperature_celsius"] is not None else [])
+    if "processes" in gpu and vendor != "nvidia":
+        problems.append(f"{name}: programs are NVIDIA only")
+    used, total = gpu["memory_used_bytes"], gpu["memory_total_bytes"]
+    if used is not None and total is not None and used > total:
+        problems.append(f"{name}: memory used {used} above total {total}")
+    problems.extend(f"{name}: {key} is 0" for key in ("clock_mhz", "power_limit_watts") if gpu.get(key) == 0)
+    return problems
+
+
+def check_gpus_hold_to_the_contract_and_never_invent_a_number():
+    with helper() as one:
+        problems = gpu_problems(second_answer(one))
+        expect(not problems, f"gpus: {problems}")
+
+
+def fake_only_a_machine_with_gpus_of_every_maker_fits_the_contract_and_the_rules():
+    from agent.fake.stats import FakeStats
+    from contract.agent_tests.checks_terminal import FakeHelper
+    one = FakeHelper(FakeStats(gpus=["nvidia", "amd", "intel", "apple", "silent"], measuring_first=False))
+    try:
+        stats = fetch(one)
+        problems = gpu_problems(stats)
+        expect(not problems, f"gpus: {problems}")
+        expect([gpu["vendor"] for gpu in stats["gpus"]] == ["nvidia", "amd", "intel", "apple", "unknown"], f"vendors: {[gpu.get('vendor') for gpu in stats['gpus']]}")
+        expect(len(stats["gpus"][0]["processes"]) <= MAX_GPUS and "processes" not in stats["gpus"][1], "programs on the NVIDIA card only")
+        intel = stats["gpus"][2]
+        expect(intel["utilization_percent"] is None and "power_watts" not in intel and intel["clock_mhz"] > 0, f"Intel gives only what sysfs shows: {intel}")
+    finally:
+        one.stop()
+
+
 def second_answer(one):
     fetch(one)
     time.sleep(SAMPLE_GAP_SECONDS)
@@ -175,3 +227,4 @@ def check_the_number_of_running_programs_is_at_least_the_list_and_threads_are_wh
 
 
 CHECKS = [value for name, value in sorted(globals().items()) if name.startswith("check_")]
+FAKE_CHECKS = [value for name, value in sorted(globals().items()) if name.startswith("fake_only_")]

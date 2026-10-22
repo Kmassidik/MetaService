@@ -18,11 +18,11 @@ WAIT_SECONDS = 10
 class FakeHelper:
     """The Fake Agent on a free port, shaped like RunningAgent for the parts these checks use."""
 
-    def __init__(self):
+    def __init__(self, stats=None):
         from agent.fake.engine import FakeEngine
         from agent.fake.server import make_server
         self.token = secrets.token_hex(24)
-        self.server = make_server(FakeEngine(), self.token, "127.0.0.1", _free_port())
+        self.server = make_server(FakeEngine(), self.token, "127.0.0.1", _free_port(), stats)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 

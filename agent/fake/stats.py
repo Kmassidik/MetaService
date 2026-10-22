@@ -6,6 +6,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
+from agent.fake import stats_gpu
 from agent.fake.stats_extras import EXTRAS_FULL, Extras
 
 GIB = 1024 ** 3
@@ -32,11 +33,12 @@ def wants_processes(query):
 
 
 class FakeStats:
-    """One fake machine's readings. `cores` many logical CPUs (threads) on `physical` cores (default: as many, no hyper-threading), `gpu` adds one NVIDIA card,
+    """One fake machine's readings. `cores` many logical CPUs (threads) on `physical` cores (default: as many, no hyper-threading), `gpu` adds one NVIDIA card (`gpus` is a list of kinds from agent.fake.stats_gpu, one card each, for machines with several GPUs of different makers),
     `hostile` puts markup in names, `extras` says which optional numbers it sends: "full" (a Linux machine), "mac" or "none" (an older helper)."""
 
-    def __init__(self, cores=8, gpu=False, hostile=True, measuring_first=True, physical=None, extras=EXTRAS_FULL):
-        self.cores, self.gpu, self.hostile, self.measuring_first = cores, gpu, hostile, measuring_first
+    def __init__(self, cores=8, gpu=False, hostile=True, measuring_first=True, physical=None, extras=EXTRAS_FULL, gpus=()):
+        self.cores, self.hostile, self.measuring_first = cores, hostile, measuring_first
+        self.gpus = tuple(gpus) or ((stats_gpu.KIND_NVIDIA,) if gpu else ())
         self.extras = Extras(extras, cores, physical or cores)
         self.calls = 0
         self.queries = []  # the raw query text of every request, so a check can see what the parent passed on
@@ -66,8 +68,9 @@ class FakeStats:
             "processes": self._processes(tick, measuring) if with_processes else [],
             **self.extras.top(tick, measuring),
         }
-        if self.gpu:
-            reading["gpus"] = [self._gpu(tick)]
+        gpus = stats_gpu.readings(self.gpus, tick)
+        if gpus:
+            reading["gpus"] = gpus
         return reading
 
     def _wave(self, tick, core=0, low=5.0, high=95.0):
@@ -92,9 +95,6 @@ class FakeStats:
     def _network(self, tick, measuring):
         rate = None if measuring else float(120_000 + tick * 10_000)
         return {"received_total_bytes": tick * 1_000_000, "sent_total_bytes": tick * 400_000, "received_bytes_per_second": rate, "sent_bytes_per_second": None if measuring else rate / 4, **self.extras.network(tick)}
-
-    def _gpu(self, tick):
-        return {"name": "NVIDIA GeForce RTX 5090", "utilization_percent": self._wave(tick, 3), "memory_used_bytes": (4 + tick % 5) * GIB, "memory_total_bytes": 32 * GIB, "temperature_celsius": 55.0}
 
     def _processes(self, tick, measuring):
         everything = [self._process(tick, index, measuring) for index in range(PROCESS_COUNT_SENT)]
