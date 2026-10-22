@@ -9,6 +9,7 @@ import { ADMIN, createAdmin } from './support/admin.ts'
 import { check, finish } from './support/check.ts'
 import { readRecord, textField } from './support/json.ts'
 import { freePort } from './support/net.ts'
+import { owlAbsent, owlShown } from './support/owls.ts'
 import { chromePath } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
@@ -247,6 +248,8 @@ async function failedInstall(b: Browse): Promise<void> {
   const states = await b.page.$$eval('dialog[open] ol[aria-label="Install steps"] li', (items) => items.map((item) => item.getAttribute('data-state')))
   check('a failed install says where it stopped, the plain reason, and marks that step', states.join() === 'done,done,done,done,failed,pending,pending,pending,pending' && text.includes(FAIL_REASON) && /stopped after \d+:\d\d/.test(text))
   check('the failed view has the ring in words and Try again beside Close', (await b.page.$('dialog[open] [role=img][aria-label="4 of 9 install steps done"]')) !== null && !(await b.isDisabled('Try again')) && !(await b.isDisabled('Close')))
+  await owlAbsent(b, 'busy', 'the failed install view')
+  await owlAbsent(b, 'done', 'the failed install view')
   await b.shot('connect-failed.png')
   await onPhone(b, 'connect-failed-phone.png', 'the failed view')
   await b.click('Try again')
@@ -260,11 +263,15 @@ async function installAndFollow(b: Browse, box: string): Promise<void> {
   await b.click('Install')
   await waitForDialog(b, new RegExp(`Installing ${NAME}`))
   check('while it installs there is a ring, a timer and a Close button that is off', /time so far \d+:\d\d/.test(await b.dialogText()) && await b.isDisabled('Close'))
+  await owlShown(b, 'busy', 'the install progress view')
+  await onPhone(b, 'connect-installing-phone.png', 'the install progress view')
   await b.until((name) => (document.querySelector<HTMLElement>('dialog[open]')?.innerText ?? '').includes(`${name} is online`), { timeout: INSTALL_WAIT_MS }, NAME)
   const steps = await b.page.$$eval('dialog[open] ol[aria-label="Install steps"] li', (items) => items.map((item) => item.getAttribute('data-state')))
   check('the install shows every step and ends with all of them done', steps.length === ALL_INSTALL_STEPS && steps.every((state) => state === 'done'), steps.join(' '))
   check('the done view says how long it took and links to the machine\'s page', /All \d+ steps done in \d+:\d\d/.test(await b.dialogText()) && (await b.page.$(`dialog[open] a[href*="${NAME}"]`)) !== null)
+  await owlShown(b, 'done', 'the install done view')
   await b.shot('connect-installed.png')
+  await onPhone(b, 'connect-installed-phone.png', 'the install done view')
   const keyLines = readFileSync(sshd.authorized, 'utf8').split('\n').filter((line) => line.endsWith(`metaservice-${NAME}`))
   check('the box exists and the one key line was added', existsSync(join(box, 'manifest.json')) && existsSync(join(box, 'bin', 'metaservice-agent')) && keyLines.length === 1)
   check('the one-time token and the install marker are gone', !existsSync(join(box, 'state', 'enroll.token')) && !existsSync(join(box, '.partial')))

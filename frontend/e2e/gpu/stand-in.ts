@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { extname, join } from 'node:path'
 import { isRecord, type Json } from '../support/json.ts'
 
-const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
+const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 export const HOSTILE_DETAIL = '<img src=x onerror="window.__gpuxss=1"> <script>window.__gpuxss=2</script>'
 export const CARD = 'NVIDIA GeForce RTX 5090'
 export const REFUSED_CREATE = 'No machine can share its GPU with a container: a machine needs an NVIDIA GPU and the NVIDIA container toolkit installed.'

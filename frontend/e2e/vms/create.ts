@@ -2,6 +2,7 @@
 // the parent's refusal shown with the typed values kept, a VM made on the simulated helper that closes the window and shows up, the old links, Escape and the X, and the machine page's button opening it with its machine locked.
 import { check } from '../support/check.ts'
 import { imageListArrived } from '../support/images.ts'
+import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { createAVm } from '../panel/workloads.ts'
 import { CONTAINER_MACHINE, OFFLINE_MACHINE, SICK_MACHINE } from './fleet.ts'
@@ -56,6 +57,7 @@ const closed = (b: Browse) => b.until(() => document.querySelector('dialog[open]
 export async function noMachinesYet(b: Browse): Promise<void> {
   await openCreate(b)
   check('with no machines the Create VM window sends the person to Find machines', /No machines yet/.test(await b.dialogText()) && (await b.page.$('dialog[open] .empty a[href="#/machines/find"]')) !== null)
+  await owlShown(b, 'emptyMachines', 'the Create VM window with no machines')
   await b.shot('vms-create-no-machines.png')
   await b.page.click('dialog[open] .empty a[href="#/machines/find"]')
   await closed(b)

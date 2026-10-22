@@ -11,7 +11,7 @@ const CHAT_VERSION = '0.4.0'
 /** How long a stand-in install or removal takes, so the page's "turning on…" state can be seen. */
 const COMMAND_MS = 1500
 const SETTINGS_FIELDS = ['name', 'labels', 'notes', 'allow_gpu', 'ram_reserve_mb', 'disk_reserve_gb', 'ram_allowance_mb', 'disk_allowance_gb', 'vm_max_running', 'vm_cpu', 'vm_ram_mb', 'vm_disk_gb', 'vm_image', 'subdomain', 'ai_model']
-const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
+const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const TUNNEL_SINCE_MS = 90 * 60 * 1000
 
 export interface FakeParentOptions {

@@ -6,7 +6,7 @@ import { createServer } from 'node:http'
 import { extname, join } from 'node:path'
 import type { Json } from '../support/json.ts'
 
-const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
+const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const GIB = 1024 ** 3
 export const HOSTILE_NAME = '<img src=x onerror=alert(1)>'
 export const HOSTILE_USER = '<script>alert(2)</script>'

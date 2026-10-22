@@ -1,6 +1,8 @@
 // The All VMs page: the table of every VM, the Machine filter kept in the address, the empty states, a row opening the VM, and hostile text staying text.
 import { check } from '../support/check.ts'
+import { noSideScroll, owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
+import { openTab, pickView } from '../panel/machines.ts'
 import { CONTAINER_MACHINE, CONTAINER_VM, OFFLINE_MACHINE, SICK_MACHINE } from './fleet.ts'
 
 const SHORT_WAIT_MS = 10000
@@ -26,6 +28,8 @@ export async function emptyStates(b: Browse): Promise<void> {
   const shown = await b.text()
   check('with no machines at all, All VMs says there are no VMs yet and offers Create VM', /No VMs yet/.test(shown) && (await b.run(() => [...document.querySelectorAll('.empty a')].some((link) => link.textContent?.includes('Create VM')))))
   check('with no machines there is no Machine filter and the count says 0 VMs', (await filterValue(b)) === null && (await crumb(b)).endsWith('0 VMs'))
+  await owlShown(b, 'emptyVms', 'the empty All VMs page')
+  check('the empty All VMs page keeps its sentence next to the owl', /No VMs yet\. Make the first one on any of your machines\./.test(shown))
   await b.shot('vms-empty.png')
 }
 
@@ -63,7 +67,14 @@ export async function filtering(b: Browse): Promise<void> {
   await openAllVms(b, `#/vms?machine=${OFFLINE_MACHINE}`)
   await b.until(() => document.body.innerText.includes('No VMs on this machine.'), { timeout: SHORT_WAIT_MS })
   check('a machine without VMs says so, with Create VM for that machine', await b.run((machine) => [...document.querySelectorAll<HTMLAnchorElement>('.empty a')].some((link) => link.getAttribute('href') === `#/vms/create?machine=${machine}`), OFFLINE_MACHINE))
+  await owlShown(b, 'emptyVms', 'All VMs narrowed to a machine without VMs')
   await b.shot('vms-none-on-machine.png')
+  await b.go(`#/machines/details?id=${OFFLINE_MACHINE}`)
+  await openTab(b, 'VMs')
+  await pickView(b, 'Table')
+  await b.until(() => document.body.innerText.includes('No VMs on this machine yet.'), { timeout: SHORT_WAIT_MS })
+  await owlShown(b, 'emptyVms', 'the machine page VMs tab without VMs')
+  await noSideScroll(b, 'the machine page VMs tab without VMs')
 }
 
 export async function openingARow(b: Browse): Promise<void> {

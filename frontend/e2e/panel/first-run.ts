@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { ADMIN } from '../support/admin.ts'
 import { check } from '../support/check.ts'
+import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import type { World } from './world.ts'
 
@@ -31,6 +32,7 @@ async function createTheAdmin(b: Browse, world: World): Promise<void> {
   await b.page.type('input[name=password]', ADMIN.password)
   await b.page.type('input[name=confirm]', 'not the same')
   await b.until(() => /don.t match/i.test(document.body.innerText), {})
+  await owlShown(b, 'hero', 'the first-run page')
   await b.shot('first-run.png')
   check('different passwords are called out and the button is disabled', await b.run(() => document.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled ?? false))
   check('the password is hidden until the eye is pressed', (await inputType(b, 'password')) === 'password')
@@ -53,9 +55,12 @@ async function createTheAdmin(b: Browse, world: World): Promise<void> {
 
 async function theEmptyPanel(b: Browse): Promise<void> {
   const zero = await b.text()
+  await owlShown(b, 'emptyMachines', 'the empty Overview')
   check('with no machine yet the page says 0 machines and 0 VMs', /machines\s*0/i.test(zero) && /vms\s*0/i.test(zero) && /no machines yet/i.test(zero), zero.slice(0, 400))
   await b.go('#/machines')
   await b.until(() => document.body.innerText.includes('No machines yet'), { timeout: SHORT_WAIT_MS })
+  await owlShown(b, 'emptyMachines', 'the empty Machines list')
+  check('the empty Machines list keeps its sentence next to the owl', /No machines yet\. Add the first one, and it will show up here\./.test(await b.text()))
   await b.shot('zero.png', true)
   check('the sidebar has no Add a machine button', await b.run(() => !/Add a machine/.test(document.querySelector<HTMLElement>('aside.side')?.innerText ?? '')))
   await b.click('＋ Add a machine')

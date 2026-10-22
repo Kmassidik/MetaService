@@ -6,6 +6,7 @@ import { startStandIn, type StandIn } from './monitor/stand-in.ts'
 import { cardsAreBorderedAndEqualInHeight, coresAreAlwaysShown, graphsLineUp, helpButtonsToggleTheExplanations, listIsNeverFetchedOrDrawnWhileTheWindowIsClosed, oneColumnWithoutSidewaysScroll, SIZES, waitForNumbers, windowListsFifteenAndFilters, windowRefreshesWhileOpenAndStopsWhenClosed } from './monitor/live-steps.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
+import { noSideScroll, owlShown } from './support/owls.ts'
 import { wait } from './support/net.ts'
 import { browse, type Browse } from './support/page.ts'
 import { chromePath, panelDist } from './support/paths.ts'
@@ -92,6 +93,7 @@ async function oldHelper(b: Browse, world: StandIn) {
   await openMachine(b, world.base, 'oldbox')
   await b.until(() => document.body.innerText.includes('too old'), { timeout: SHORT_WAIT_MS })
   check('an old helper says it needs the update and shows no numbers', !(await b.run(() => !!document.querySelector('[data-testid=cpu-total]'))))
+  await owlShown(b, 'offline', 'the helper-needs-the-update note')
 }
 
 async function offline(page: Page, b: Browse, world: StandIn) {
@@ -101,7 +103,9 @@ async function offline(page: Page, b: Browse, world: StandIn) {
   await b.until(() => /offline, last seen/.test(document.body.innerText), { timeout: PAGE_POLL_MS + SLACK_MS })
   const grey = await b.run(() => getComputedStyle(document.querySelector('[data-testid=monitor-numbers]') ?? document.body).opacity)
   check('an offline machine says "offline, last seen" and keeps its last numbers greyed', Number(grey) < 1 && (await cpuText(b)) !== '' && !/^0%$/.test(await cpuText(b)))
+  await owlShown(b, 'offline', 'the offline note')
   await page.setViewport(SIZES.phone)
+  await noSideScroll(b, 'the offline note on a phone')
   await b.shot('monitor-offline-phone.png', true)
   await page.setViewport(SIZES.desktop)
   await b.shot('monitor-offline-desktop.png', true)
