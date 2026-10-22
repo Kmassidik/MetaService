@@ -6,6 +6,7 @@
     icon: string
   }
 
+  import OwlMark from './OwlMark.svelte'
   import { machinesMenu, type MenuItem } from '../lib/sidebar.ts'
 
   let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
@@ -31,7 +32,7 @@
 </script>
 
 <aside class="side">
-  <a class="logo" href="#/" aria-label="MetaService overview"><span class="sq"></span><b>MetaService</b></a>
+  <a class="logo" href="#/" aria-label="MetaService overview"><OwlMark /><b>MetaService</b></a>
   <nav aria-label="Panel navigation">
     {#each groups as [title, pages] (title)}
       <div>

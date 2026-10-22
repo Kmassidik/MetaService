@@ -13,6 +13,7 @@ export async function scanScenario(b: Browse): Promise<void> {
   await b.until(() => document.body.innerText.includes('Looks at'), {})
   // A scan runs only when asked for; the first time there is nothing to show yet.
   await b.until(() => document.body.innerText.includes('Nothing scanned yet'), {})
+  check('the sidebar logo is the owl, not a square', (await b.page.$$('.side .logo svg.owl-mark')).length === 1 && (await b.page.$$('.sq')).length === 0)
   check('before the first scan the owl is shown with the empty message', (await b.page.$$('img[data-owl=emptyMachines]')).length === 1)
   const centre = await b.run(() => {
     const owl = document.querySelector('img[data-owl=emptyMachines]')?.getBoundingClientRect()

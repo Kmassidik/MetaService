@@ -1,0 +1,22 @@
+<script lang="ts">
+  // The owl head used as the small logo mark (the same drawing as the browser tab icon). Drawn inline so it follows no theme and needs no request.
+  let { size = 26 }: { size?: number } = $props()
+</script>
+
+<svg class="owl-mark" viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" focusable="false">
+  <path d="M3 3l8 4.5q5-1.5 10 0L29 3l.5 15q0 11-13.5 11T2.5 18z" fill="#7A5A3A" />
+  <circle cx="10.5" cy="17" r="7" fill="#F3EBC8" />
+  <circle cx="21.5" cy="17" r="7" fill="#F3EBC8" />
+  <path d="M5 9.5l5.5 .5 5.5 5 5.5-5 5.5-.5-1.5 4-9.5 5-9.5-5z" fill="#7DB26B" />
+  <circle cx="10.5" cy="18" r="4.4" fill="#F5B73B" />
+  <circle cx="21.5" cy="18" r="4.4" fill="#F5B73B" />
+  <circle cx="10.5" cy="18" r="2.4" fill="#1B1B1B" />
+  <circle cx="21.5" cy="18" r="2.4" fill="#1B1B1B" />
+  <circle cx="9.6" cy="17" r="0.9" fill="#fff" />
+  <circle cx="20.6" cy="17" r="0.9" fill="#fff" />
+  <path d="M16 20.5l-2 3.2q2 1.8 4 0z" fill="#7DB26B" />
+</svg>
+
+<style>
+  .owl-mark { display: block; flex: none; }
+</style>

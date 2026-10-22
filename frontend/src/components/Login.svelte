@@ -42,7 +42,7 @@
 
 <div class="login">
   <Owl name="hero" eager />
-  <div class="brand"><span class="sq"></span>MetaService</div>
+  <div class="brand">MetaService</div>
   <form onsubmit={submit}>
     <h2 class="formtitle">{configured ? 'Sign in' : 'Create your admin login'}</h2>
     <span class="flabel">{configured ? 'Sign in to manage your machines, VMs and chats.' : 'First run: claim this panel with the operator setup token.'}</span>
