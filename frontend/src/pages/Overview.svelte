@@ -1,5 +1,6 @@
 <script lang="ts">
   // Overview, as in the MAAS panel: the summary cards, the services behind the panel, and what needs the operator.
+  import Owl from '../components/Owl.svelte'
   import { attentionItems, overviewCounts } from '../lib/overview.ts'
 
   import type { BrainStatus, BundleOverview, Machine } from '../lib/types.ts'
@@ -27,8 +28,10 @@
   </div>
 </section>
 <h2 class="op-subhead">Needs attention</h2>
-{#if items.length === 0}
-  <div class="empty" role="status">{machines.length === 0 ? 'No machines yet. Add the first one from Machines.' : 'Nothing needs you right now.'}</div>
+{#if items.length === 0 && machines.length === 0}
+  <div class="empty" role="status"><Owl name="emptyMachines" />No machines yet. Add the first one from Machines.</div>
+{:else if items.length === 0}
+  <div class="empty" role="status">Nothing needs you right now.</div>
 {:else}
   <section class="op-alerts" aria-label="Needs attention">
     {#each items as item (item.machine + item.message)}

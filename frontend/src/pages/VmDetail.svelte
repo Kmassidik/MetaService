@@ -4,33 +4,38 @@
   import VmMonitoring from '../components/vm/VmMonitoring.svelte'
   import VmAccess from '../components/vm/VmAccess.svelte'
   import VmDanger from '../components/vm/VmDanger.svelte'
+  import Owl from '../components/Owl.svelte'
   import GpuBadge from '../components/GpuBadge.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
   import { hasGpu } from '../lib/gpuChoice.ts'
   import { machineHref } from '../lib/routes.ts'
   import { consoleTitle, terminalAccess } from '../lib/terminalAccess.ts'
   import { openConsole } from '../lib/terminalStore.svelte.ts'
+  import { stopNote } from '../lib/stoppedReason.ts'
   import { findServer, findWorkload, headerAction, tabLabel, VM_TABS } from '../lib/vm.ts'
   import type { VmTab } from '../lib/vm.ts'
-  import type { Machine, Workload } from '../lib/types.ts'
+  import type { Command, Machine, Workload } from '../lib/types.ts'
 
   interface Props {
     machine: Machine | undefined
     workloadId: string
     pinned: string | null | undefined
     banner: string
+    /** The latest orders, to tell a stop the panel asked for from a VM that stopped on its own. */
+    commands: Command[]
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
     onInstall: (machine: Machine, workload: Workload | null) => void
   }
 
-  let { machine, workloadId, pinned, banner, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
+  let { machine, workloadId, pinned, banner, commands, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
   let tab: VmTab = $state('overview')
   const workload = $derived(machine ? findWorkload(machine, workloadId) : undefined)
   const server = $derived(machine ? findServer(machine, workloadId) : undefined)
   const access = $derived(machine && workload ? terminalAccess(machine, workload) : null)
   const action = $derived(workload ? headerAction(workload.state) : null)
+  const note = $derived(machine && workload ? stopNote(machine.id, workload, commands) : null)
 
   function copy(text: string) {
     void navigator.clipboard?.writeText(text)
@@ -39,9 +44,9 @@
 
 {#if banner}<div class="empty" role="alert">{banner}</div>{/if}
 {#if !machine}
-  <div class="empty">No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
+  <div class="empty"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else if !workload || !server}
-  <div class="empty">VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
+  <div class="empty"><Owl name="notFound" />VM not found.<a class="btn" href={machineHref(machine.id)}>← {machine.name}</a></div>
 {:else}
   <div class="phead">
     <div>
@@ -63,7 +68,7 @@
 
   <div class="tabbody">
     {#if tab === 'overview'}
-      <VmOverview {machine} {workload} {server} {pinned} onInstall={() => onInstall(machine, workload)} />
+      <VmOverview {machine} {workload} {server} {pinned} {note} onInstall={() => onInstall(machine, workload)} />
       {#if hasGpu(workload)}{#key workload.id}<VmGpu machineId={machine.id} workloadId={workload.id} />{/key}{/if}
     {:else if tab === 'monitoring'}
       <VmMonitoring state={workload.state} />

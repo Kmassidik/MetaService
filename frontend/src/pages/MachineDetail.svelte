@@ -1,5 +1,6 @@
 <script lang="ts">
   // One machine, not one VM: how it is doing right now (Live), the VMs on it, what it is and how it is set (Environment), and what has happened on it (Activity).
+  import Owl from '../components/Owl.svelte'
   import StatePill from '../components/StatePill.svelte'
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
@@ -65,7 +66,7 @@
 </script>
 
 {#if !machine}
-  <div class="empty">No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
+  <div class="empty"><Owl name="notFound" />No machine with that name. <a class="btn" href="#/machines">← Machines</a></div>
 {:else}
   <div class="phead">
     <div>

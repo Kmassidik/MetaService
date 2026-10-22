@@ -17,6 +17,7 @@ final class StaticPathTests: XCTestCase {
     func testContentTypes() {
         XCTAssertEqual(StaticPath.contentType(for: "a.js"), "text/javascript; charset=utf-8")
         XCTAssertEqual(StaticPath.contentType(for: "a.CSS"), "text/css; charset=utf-8")
+        XCTAssertEqual(StaticPath.contentType(for: "assets/owl-hero-abc.webp"), "image/webp")
         XCTAssertNil(StaticPath.contentType(for: "a.exe"))
         XCTAssertNil(StaticPath.contentType(for: "noextension"))
         XCTAssertTrue(StaticPath.isHashedAsset("assets/a.js"))

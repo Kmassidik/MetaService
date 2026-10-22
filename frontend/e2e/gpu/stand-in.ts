@@ -5,13 +5,23 @@ import { createServer } from 'node:http'
 import { extname, join } from 'node:path'
 import { isRecord, type Json } from '../support/json.ts'
 
-const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
+const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 export const HOSTILE_DETAIL = '<img src=x onerror="window.__gpuxss=1"> <script>window.__gpuxss=2</script>'
 export const CARD = 'NVIDIA GeForce RTX 5090'
 export const REFUSED_CREATE = 'No machine can share its GPU with a container: a machine needs an NVIDIA GPU and the NVIDIA container toolkit installed.'
 
 /** The containers whose GPU check is scripted, by id. */
 export const CHECK_IDS = { smi: 'g-smi', devices: 'g-dev', nothing: 'g-none', hostile: 'g-hostile', down: 'g-down', stopped: 'g-off' } as const
+
+/** The images every machine answers with: Blank, and the two that are listed but not yet available. */
+const IMAGES: Json = {
+  helper: 'answered',
+  images: [
+    { id: 'blank', title: 'Blank (plain Ubuntu)', description: 'Plain.', state: 'ready', ready: true, available: true, reason: null },
+    { id: 'openclaw', title: 'OpenClaw', description: 'OpenClaw.', state: 'planned', ready: false, available: false, reason: 'Coming soon' },
+    { id: 'hermes', title: 'Hermes', description: 'Hermes.', state: 'planned', ready: false, available: false, reason: 'Waiting' },
+  ],
+}
 
 const ANSWERS: Record<string, Json> = {
   [CHECK_IDS.smi]: { gpu_visible: true, how: 'nvidia-smi', detail: `${CARD}, 580.178.04, 32607 MiB`, note: 'The GPU is visible inside, and nvidia-smi can talk to it.' },
@@ -71,6 +81,7 @@ export function startGpuStandIn(dist: string): GpuStandIn {
       return reply({ error: { code: 'missing_capability', message: REFUSED_CREATE, resource: 'capability', needed: 1, free: 0 } }, 409)
     }
     if (path.endsWith('/gpu-check')) return gpuCheck(path)
+    if (path.endsWith('/images')) return reply(IMAGES)
     if (path.endsWith('/stats')) return reply({ state: 'old_helper', last_seen: new Date().toISOString(), fetched_at: null, stats: null })
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })

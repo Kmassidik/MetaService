@@ -2,6 +2,8 @@
 // The parent's answers about the orders are played by the test (so each stage can be looked at as long as needed); the machine and its heartbeats are real.
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
+import { imageListArrived } from '../support/images.ts'
+import { noSideScroll, owlAbsent, owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
 import { enrollMachine, resendHeartbeats, sendHeartbeat, type World } from '../panel/world.ts'
@@ -54,6 +56,7 @@ const untilCardSays = (b: Browse, name: string, words: string, timeout = SHORT_W
 async function submitCreate(b: Browse, name: string): Promise<void> {
   await openCreate(b, `#/vms/create?machine=${MACHINE}`)
   await b.page.waitForSelector(NAME)
+  await imageListArrived(b)
   await b.type(NAME, name)
   await b.click('Create')
 }
@@ -66,11 +69,14 @@ async function creatingFromTheWindow(b: Browse, stand: Stand): Promise<void> {
   const text = await cardText(b, GOOD_VM)
   check('right after Create the window closes, All VMs is behind it, and a card names the VM and its machine and says it is waiting for the machine', text.includes(GOOD_VM) && text.includes(MACHINE) && /waiting for the machine…/i.test(text) && b.page.url().endsWith('#/vms'), text)
   check('the card shows three steps with the current one marked', (await b.run(() => document.querySelectorAll('ul.pending li[data-pending] ol.steps li').length)) === 3 && (await b.run(() => document.querySelectorAll('ul.pending li[aria-current="step"], ul.pending li [aria-current="step"]').length)) === 1)
+  await owlShown(b, 'busy', 'the Creating card')
+  await owlAbsent(b, 'emptyVms', 'All VMs while the first VM is being made')
   await b.shot('pending-create-waiting.png')
   stand.order = newOrder('rc-e2e-1', GOOD_VM, 'running')
   await untilCardSays(b, GOOD_VM, 'Creating…')
   check('when the machine takes the order the current step moves to creating', (await b.run(() => document.querySelector('ul.pending li [aria-current="step"]')?.textContent?.trim() ?? '')) === 'Creating')
   await b.page.setViewport(PHONE)
+  await noSideScroll(b, 'the Creating card on a phone')
   await b.shot('pending-create-phone.png', true)
   await b.page.setViewport(DESKTOP)
 }
@@ -92,6 +98,7 @@ async function onTheOtherPages(b: Browse, stand: Stand): Promise<void> {
   await openTab(b, 'VMs')
   await pickView(b, 'Table')
   const text = await b.text()
+  await owlAbsent(b, 'emptyVms', 'the machine page while a VM is being made')
   check('while a VM is being made the machine page never says there are no VMs', !/No VMs on this machine yet\./.test(text) && /is being made/.test(text), text.slice(0, 300))
   await b.shot('pending-machine-page.png')
   await b.page.setViewport(PHONE)
@@ -118,6 +125,7 @@ async function aFailedOrder(b: Browse, stand: Stand): Promise<void> {
   const text = await cardText(b, BAD_VM)
   check('a failed order keeps its card with the helper\'s reason in a sentence and a Dismiss button', /The machine could not create the workload\./.test(text) && /Dismiss/.test(text), text)
   check('the window is closed and the failed order sits on the page behind it', (await b.run(() => document.querySelector('dialog[open]') === null)) && (await hasCard(b, BAD_VM)))
+  check('a failed order card shows no busy owl', await b.run((selector) => document.querySelector(`${selector} img[data-owl]`) === null, card(BAD_VM)))
   await b.shot('pending-failed.png')
   await b.page.setViewport(PHONE)
   await b.shot('pending-failed-phone.png', true)

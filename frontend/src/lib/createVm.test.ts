@@ -94,9 +94,9 @@ test('each machine that cannot be picked is explained in a line, with the machin
 })
 
 test('a new form has the usual defaults; a machine set up with VM sizes gives them', () => {
-  expect(blankForm(undefined)).toEqual({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '' })
+  expect(blankForm(undefined)).toEqual({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '', bundle: 'blank' })
   const sized = machine({ id: 'm', settings: { vm_cpu: 4, vm_ram_mb: 8192, vm_disk_gb: 80 } })
-  expect(blankForm(sized)).toEqual({ name: '', kind: 'vm', cpu: 4, ramGb: 8, diskGb: 80, machine: 'm' })
+  expect(blankForm(sized)).toEqual({ name: '', kind: 'vm', cpu: 4, ramGb: 8, diskGb: 80, machine: 'm', bundle: 'blank' })
   expect(machineDefaults(machine({ settings: { vm_cpu: 6 } }))).toEqual({ cpu: 6 })
   expect(machineDefaults(machine())).toEqual({})
 })

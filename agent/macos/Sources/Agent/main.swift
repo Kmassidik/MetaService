@@ -27,7 +27,8 @@ func makeEngine(_ config: AgentConfig) throws -> Engine {
     }
     try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     return AppleContainerEngine(cli: ProcessContainerCLI(path: path), records: RecordStore(path: config.stateDirectory + "/workloads.json"),
-                                backupDirectory: config.backupDirectory ?? config.stateDirectory + "/backups", defaultImage: config.defaultImage)
+                                backupDirectory: config.backupDirectory ?? config.stateDirectory + "/backups", defaultImage: config.defaultImage,
+                                readySeconds: config.readySeconds, settleSeconds: config.settleSeconds)
 }
 
 /// The command ledger lives in a file (mode 600) next to the token, so a repeated command id still means "already done" after a restart.
@@ -85,6 +86,7 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
     StatsRoutes(sampler: StatsSampler(source: DarwinStatsSource())).register(on: router)
+    ImagesRoutes().register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)
     terminal.registerPlain(on: router)
     if let root, let machineToken {

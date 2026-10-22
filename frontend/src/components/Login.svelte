@@ -1,6 +1,7 @@
 <script lang="ts">
   // Sign in and first run on one two-column page: the pitch on the left, the form on the right.
   import { ApiError, login, setupAdmin } from '../lib/api.ts'
+  import Owl from './Owl.svelte'
   import SecretField from './SecretField.svelte'
 
   let { configured, minLength = 8, onDone }: { configured: boolean; minLength?: number; onDone: () => void | Promise<void> } = $props()
@@ -66,6 +67,7 @@
     </div>
   </div>
   <div class="form-wrap">
+    <Owl name="hero" eager />
     <form onsubmit={submit}>
       <div class="mobilebrand"><span class="sq"></span>MetaService</div>
       <h2 class="formtitle">{configured ? 'Sign in' : 'Create your admin login'}</h2>

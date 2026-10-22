@@ -8,7 +8,7 @@ FAKE = "--fake" in sys.argv
 if LINUX:
     os.environ["MS_AGENT_BINARY"] = os.path.join(os.path.dirname(__file__), "..", "..", "agent", "linux", "target", "debug", "metaservice-agent")
 
-from contract.agent_tests import checks_agent, checks_apple, checks_incus, checks_monitor, checks_terminal  # noqa: E402
+from contract.agent_tests import checks_agent, checks_apple, checks_apple_start, checks_images, checks_incus, checks_monitor, checks_terminal  # noqa: E402
 
 # The Linux helper reads /proc, which this computer may not have (a Mac): then its monitor checks cannot run here.
 MONITOR_CHECKS = checks_monitor.CHECKS if (not LINUX or os.path.exists("/proc/stat")) else []
@@ -16,9 +16,9 @@ MONITOR_CHECKS = checks_monitor.CHECKS if (not LINUX or os.path.exists("/proc/st
 # `--fake` runs only the console checks, against the Fake Agent (agent/fake) instead of a built helper.
 if FAKE:
     os.environ["MS_HELPER"] = "fake"
-    ALL_CHECKS = checks_terminal.CHECKS + checks_monitor.CHECKS
+    ALL_CHECKS = checks_terminal.CHECKS + checks_monitor.CHECKS + checks_images.CHECKS + checks_images.FAKE_CHECKS
 else:
-    ALL_CHECKS = checks_agent.CHECKS + (checks_incus.CHECKS if LINUX else checks_apple.CHECKS) + checks_terminal.CHECKS + MONITOR_CHECKS
+    ALL_CHECKS = checks_agent.CHECKS + (checks_incus.CHECKS if LINUX else checks_apple.CHECKS + checks_apple_start.CHECKS) + checks_terminal.CHECKS + MONITOR_CHECKS + checks_images.CHECKS
 
 
 def main():

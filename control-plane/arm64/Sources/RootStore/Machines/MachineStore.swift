@@ -88,11 +88,12 @@ public struct MachineStore: @unchecked Sendable {
         try database.execute("DELETE FROM workloads WHERE machine_id = ?", [.text(machineId)])
         for item in reports {
             try database.execute("""
-                INSERT INTO workloads (id, machine_id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO workloads (id, machine_id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, updated_at, stopped_reason_json, init_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [.text(item.id), .text(machineId), .text(item.name), .text(item.kind), .text(item.state), .int(item.cpu), .int(item.ramMb),
                       .int(item.diskGb), .text(item.gpuMode), item.address.map(SQLValue.text) ?? .null,
-                      item.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds)])
+                      item.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
+                      try item.stoppedReason.map { .text(try json($0)) } ?? .null, item.initMode.map(SQLValue.text) ?? .null])
         }
     }
 
@@ -136,12 +137,14 @@ public struct MachineStore: @unchecked Sendable {
 
     private func workloadSummaries(machineId: String) throws -> [WorkloadSummary] {
         try database.query("""
-            SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version
+            SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, stopped_reason_json, init_mode
             FROM workloads WHERE machine_id = ? ORDER BY name
             """, [.text(machineId)]).map {
             WorkloadSummary(id: $0.string("id"), name: $0.string("name"), kind: $0.string("kind"), state: $0.string("state"),
                             cpu: $0.int("cpu"), ramMb: $0.int("ram_mb"), diskGb: $0.int("disk_gb"), gpuMode: $0.string("gpu_mode"),
-                            address: $0.optionalString("address"), bundleVersion: $0.optionalString("bundle_version"))
+                            address: $0.optionalString("address"), bundleVersion: $0.optionalString("bundle_version"),
+                            stoppedReason: $0.optionalString("stopped_reason_json").flatMap { try? decoder.decode(StoppedReasonReport.self, from: Data($0.utf8)) },
+                            initMode: $0.optionalString("init_mode"))
         }
     }
 

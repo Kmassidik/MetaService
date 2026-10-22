@@ -124,6 +124,44 @@ final class EngineFactsAndUninstallTests: XCTestCase {
         XCTAssertNil(listed.first?.bundleVersion)
     }
 
+    // MARK: a create that fails says why
+
+    private func createRequest(_ id: String) throws -> CreateWorkloadRequest {
+        try CreateWorkloadRequest(body: body(["command_id": id, "name": "demo", "kind": "vm", "cpu": 1, "ram_mb": 1024, "disk_gb": 5]))
+    }
+
+    func testAVmThatDidNotStartPassesItsReasonOnInTheFailedCommand() async throws {
+        let engine = SimulatedEngine()
+        await engine.failCreates(EngineError.notReady("The VM did not start.\nTry 1, with systemd: it stopped right after it started (exit code 255)."))
+        let agent = service(engine: engine)
+        _ = try await agent.create(try createRequest("c-why"))
+        let command = try await finished(agent, "c-why", wanting: .failed)
+        XCTAssertEqual(command.result?["error"], "The VM did not start.\nTry 1, with systemd: it stopped right after it started (exit code 255).")
+    }
+
+    func testAnyOtherCreateFailureStaysTheFixedSentence() async throws {
+        let engine = SimulatedEngine()
+        await engine.failCreates(EngineError.failed("container run exited with 1: secret detail"))
+        let agent = service(engine: engine)
+        _ = try await agent.create(try createRequest("c-plain"))
+        let command = try await finished(agent, "c-plain", wanting: .failed)
+        XCTAssertEqual(command.result?["error"], "the machine could not create the workload")
+    }
+
+    func testAWorkloadWithAReasonAndAModeCarriesThemInItsJson() throws {
+        let reason = StoppedReason(exitCode: 255, logTail: "line")
+        var workload = Workload(id: "w-1", name: "x", kind: .vm, state: .stopped, cpu: 1, ramMb: 1024, diskGb: 5, gpuMode: .none, stoppedReason: reason, initMode: .plain)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let parsed = try JSONSerialization.jsonObject(with: encoder.encode(workload)) as? [String: Any]
+        XCTAssertEqual(parsed?["stopped_reason"] as? [String: AnyHashable], ["exit_code": 255, "log_tail": "line"])
+        XCTAssertEqual(parsed?["init_mode"] as? String, "plain")
+        workload.stoppedReason = nil
+        workload.initMode = nil
+        let bare = String(decoding: try encoder.encode(workload), as: UTF8.self)
+        XCTAssertFalse(bare.contains("stopped_reason") || bare.contains("init_mode"), "both fields are left out when empty: \(bare)")
+    }
+
     private func finished(_ agent: AgentService, _ id: String, wanting: CommandState = .succeeded) async throws -> Command {
         for _ in 0..<200 {
             let command = try await agent.command(id)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import Owl from '../Owl.svelte'
   import { formatUptime, MACHINE_PAGE_POLL_MS, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
   import type { MachineStatsReply } from '../../lib/types.ts'
 
@@ -7,11 +8,14 @@
 
   /** `actions` sits at the right, after the status note. */
   let { reply, failed, now, actions }: { reply: MachineStatsReply | null; failed: boolean; now: number; actions?: Snippet } = $props()
+  /** The machine gives no live numbers: it is off, or its helper is too old. */
+  const silent = $derived(reply !== null && (needsHelperUpdate(reply) || reply.state === 'offline'))
 </script>
 
 <div class="head">
   <h2>Right now</h2>
   <div class="right">
+    {#if silent}<Owl name="offline" />{/if}
     {#if !reply}
       <span class="note" role="status">{failed ? 'Cannot reach the parent.' : 'Reading the machine…'}</span>
     {:else if needsHelperUpdate(reply)}

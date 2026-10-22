@@ -41,4 +41,6 @@ public extension Engine {
 public enum EngineError: Error, Equatable {
     case notFound
     case failed(String)
+    /// The VM was made but never came up. The text is written by the helper (it may hold the last lines the VM printed, cleaned) and is safe to show the person.
+    case notReady(String)
 }

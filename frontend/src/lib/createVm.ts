@@ -1,4 +1,5 @@
 // What the Create VM window needs to know about the machines: which can take a new VM right now and why not, which kinds each can run, and the form's starting values. Pure functions, no DOM, no network.
+import { STOCK_IMAGE } from './images.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import type { Machine, WorkloadForm, WorkloadKind } from './types.ts'
 
@@ -108,6 +109,6 @@ export function machineDefaults(machine: Machine | undefined): Partial<Pick<Work
 
 /** A form with nothing typed: the usual sizes, or the ones the machine was set up with, and a kind the machine runs. */
 export function blankForm(machine: Machine | undefined): NewVmForm {
-  const form: NewVmForm = { name: '', kind: 'vm', ...DEFAULT_SIZES, ...machineDefaults(machine), machine: machine?.id ?? '' }
+  const form: NewVmForm = { name: '', kind: 'vm', ...DEFAULT_SIZES, ...machineDefaults(machine), machine: machine?.id ?? '', bundle: STOCK_IMAGE }
   return { ...form, kind: kindAfterPick(machine ? machineChoice(machine) : undefined, form.kind) }
 }

@@ -45,6 +45,56 @@ final class RequestsTests: XCTestCase {
         XCTAssertEqual(beat.facts.gpu.first?.memoryMb, 131072)
     }
 
+    private func beat(stopped change: (inout [String: Any]) -> Void) throws -> WorkloadReport {
+        var body = Self.goodHeartbeat()
+        var workloads = body["workloads"] as! [[String: Any]]
+        workloads[0]["state"] = "stopped"
+        change(&workloads[0])
+        body["workloads"] = workloads
+        return try HeartbeatRequest(body: data(body)).workloads[0]
+    }
+
+    func testAStoppedWorkloadCarriesItsReasonAndHowItCameUp() throws {
+        let report = try beat { $0["stopped_reason"] = ["exit_code": 255, "log_tail": "Exiting PID 1...\nstatus 255"]; $0["init_mode"] = "plain" }
+        XCTAssertEqual(report.stoppedReason, StoppedReasonReport(exitCode: 255, logTail: "Exiting PID 1...\nstatus 255"))
+        XCTAssertEqual(report.initMode, "plain")
+        XCTAssertNil(try beat { $0["stopped_reason"] = ["exit_code": NSNull(), "log_tail": "x"] }.stoppedReason?.exitCode)
+        XCTAssertNil(try beat { _ in }.stoppedReason, "the field is optional")
+        XCTAssertNil(try beat { $0["stopped_reason"] = NSNull() }.stoppedReason)
+    }
+
+    func testAReasonOnAWorkloadThatIsNotStoppedIsDropped() throws {
+        var body = Self.goodHeartbeat()
+        var workloads = body["workloads"] as! [[String: Any]]
+        workloads[0]["stopped_reason"] = ["exit_code": 1, "log_tail": "old news"]
+        body["workloads"] = workloads
+        XCTAssertNil(try HeartbeatRequest(body: data(body)).workloads[0].stoppedReason, "a running workload has no reason")
+    }
+
+    func testTheReasonTextIsCleanedAndCappedAgain() throws {
+        let hostile = "\u{1B}[31m<img src=x onerror=alert(1)>\u{1B}]0;t\u{07}\u{00}\n" + (1...40).map { "line \($0)" }.joined(separator: "\n") + "\n" + String(repeating: "é", count: 5000)
+        let tail = try XCTUnwrap(try beat { $0["stopped_reason"] = ["exit_code": 1, "log_tail": hostile] }.stoppedReason?.logTail)
+        XCTAssertLessThanOrEqual(tail.utf8.count, 2048)
+        XCTAssertFalse(tail.contains("\u{1B}") || tail.contains("\u{00}") || tail.contains("\u{07}"))
+        XCTAssertLessThanOrEqual(tail.split(separator: "\n").count, 12)
+        let markup = try XCTUnwrap(try beat { $0["stopped_reason"] = ["exit_code": 1, "log_tail": "<b>x</b>"] }.stoppedReason?.logTail)
+        XCTAssertEqual(markup, "<b>x</b>", "markup is kept as the same text; the panel shows it as text")
+    }
+
+    func testBrokenReasonsAndModesAreRefused() {
+        let bad: [(String, (inout [String: Any]) -> Void)] = [
+            ("extra key", { $0["stopped_reason"] = ["exit_code": 1, "log_tail": "x", "more": 1] }),
+            ("no log tail", { $0["stopped_reason"] = ["exit_code": 1] }),
+            ("log tail number", { $0["stopped_reason"] = ["exit_code": 1, "log_tail": 5] }),
+            ("exit code text", { $0["stopped_reason"] = ["exit_code": "1", "log_tail": "x"] }),
+            ("exit code huge", { $0["stopped_reason"] = ["exit_code": 99999, "log_tail": "x"] }),
+            ("huge text", { $0["stopped_reason"] = ["exit_code": 1, "log_tail": String(repeating: "x", count: 20_001)] }),
+            ("reason as text", { $0["stopped_reason"] = "boom" }),
+            ("init mode", { $0["init_mode"] = "docker" }),
+        ]
+        for (label, change) in bad { XCTAssertThrowsError(try beat(stopped: change), label) }
+    }
+
     func testHostProblemsAreReadAndDefaultToNone() throws {
         XCTAssertEqual(try HeartbeatRequest(body: data(Self.goodHeartbeat())).facts.problems, [])
         var body = Self.goodHeartbeat()

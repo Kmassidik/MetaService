@@ -3,15 +3,19 @@
   // On a machine's own page it opens with that machine chosen and locked (`only`); everywhere else the person picks.
   import { tick, untrack } from 'svelte'
   import Dialog from '../Dialog.svelte'
+  import Owl from '../Owl.svelte'
   import VmFields from './VmFields.svelte'
-  import { ApiError, createWorkload, refusalText } from '../../lib/api.ts'
+  import { ApiError, createWorkload, getMachineImages, refusalText } from '../../lib/api.ts'
   import { blankForm, kindAfterPick, kindChoices, machineChoices, machineDefaults, machineOptions, startingMachine, unavailableNotes, type NewVmForm } from '../../lib/createVm.ts'
+  import { imageAfterChange, imageNotes, imageOptions, STOCK_IMAGE, type MachineImages } from '../../lib/images.ts'
   import { workloadBody, workloadProblem } from '../../lib/format.ts'
   import { trackCreateAnswer } from '../../lib/pendingStore.svelte.ts'
   import type { Machine } from '../../lib/types.ts'
 
   const MACHINE_ID = 'vm-create-machine'
   const NAME_ID = 'vm-create-name'
+  const IMAGE_ID = 'vm-create-image'
+  const IMAGES_UNREADABLE = 'The list of images could not be read, so only Blank is offered.'
   const UNREADABLE_ANSWER = 'The parent answered in a way this page cannot read. Look in All VMs to see whether the VM was made.'
 
   interface Props {
@@ -30,12 +34,17 @@
   let form: NewVmForm = $state(blankForm(undefined))
   let busy = $state(false)
   let failure = $state('')
+  let imageAnswer: MachineImages | null = $state(null)
+  let imagesUnreadable = $state(false)
+  let latestImageAsk = 0
   const choices = $derived(machineChoices(machines))
   const options = $derived(machineOptions(choices, only?.id ?? null))
   const notes = $derived(unavailableNotes(options))
   const picked = $derived(choices.find((choice) => choice.id === form.machine))
   const pickedMachine = $derived(machines.find((machine) => machine.id === form.machine))
   const kinds = $derived(kindChoices(picked))
+  const images = $derived(imageOptions(imageAnswer))
+  const imageLines = $derived([...imageNotes(images), ...(imagesUnreadable ? [IMAGES_UNREADABLE] : [])])
   const problem = $derived(form.name ? workloadProblem(form) : null)
   const ready = $derived(picked !== undefined && !picked.disabled && form.name !== '' && workloadProblem(form) === null)
 
@@ -50,6 +59,29 @@
       void focusFirstField()
     })
   })
+
+  // Another machine has other images ready: ask which, and keep to an image it can give.
+  $effect(() => {
+    const machine = form.machine
+    untrack(() => void loadImages(machine))
+  })
+
+  $effect(() => {
+    form.bundle = imageAfterChange(images, form.bundle ?? STOCK_IMAGE)
+  })
+
+  async function loadImages(machine: string) {
+    const ask = ++latestImageAsk
+    imageAnswer = null
+    imagesUnreadable = false
+    if (machine === '') return
+    try {
+      const answer = await getMachineImages(machine)
+      if (ask === latestImageAsk) imageAnswer = answer
+    } catch {
+      if (ask === latestImageAsk) imagesUnreadable = true
+    }
+  }
 
   /** The first field is the machine, or the name when the machine is already chosen. */
   async function focusFirstField() {
@@ -83,7 +115,7 @@
 
 <Dialog {open} title="Create VM" {onClose} closeButton>
   {#if choices.length === 0}
-    <div class="empty" role="status">No machines yet. Add one first, then make a VM on it.<a class="btn green sm" href="#/machines/find">Find machines</a></div>
+    <div class="empty" role="status"><Owl name="emptyMachines" />No machines yet. Add one first, then make a VM on it.<a class="btn green sm" href="#/machines/find">Find machines</a></div>
   {:else}
     <form onsubmit={submit} novalidate>
       <section class="step" aria-labelledby="step-machine">
@@ -100,7 +132,7 @@
         <section class="step" aria-labelledby="step-sizes">
           <h2 id="step-sizes">2 · The VM</h2>
           <fieldset disabled={busy}>
-            <VmFields bind:form nameId={NAME_ID} {kinds} nameProblem={problem} machine={pickedMachine} />
+            <VmFields bind:form nameId={NAME_ID} imageId={IMAGE_ID} {kinds} {images} imageNotes={imageLines} nameProblem={problem} machine={pickedMachine} />
           </fieldset>
           <p class="hint {problem ? 'bad' : 'muted'}">{problem ?? 'The machine checks its own space again before it makes the VM.'}</p>
         </section>

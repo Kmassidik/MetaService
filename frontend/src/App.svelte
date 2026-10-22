@@ -4,6 +4,7 @@
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
   import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsHref, createVmOpen } from './lib/routes.ts'
+  import Owl from './components/Owl.svelte'
   import Login from './components/Login.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Overview from './pages/Overview.svelte'
@@ -22,6 +23,7 @@
   import ChatLink from './components/ChatLink.svelte'
   import Terminal from './components/Terminal.svelte'
   import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
+  import { stopNote } from './lib/stoppedReason.ts'
   import { dismissedOrders, sessionOrders } from './lib/pendingStore.svelte.ts'
   import { mergeOrders, pendingVms } from './lib/pendingVms.ts'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
@@ -65,6 +67,9 @@
   let removeFailure = $state('')
   const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
   const openConsoleTarget = $derived(consoleTarget())
+  const consoleMachine = $derived(machines.find((machine) => machine.id === openConsoleTarget?.machine))
+  const consoleVm = $derived(consoleMachine?.workloads.find((workload) => workload.id === openConsoleTarget?.workload) ?? null)
+  const consoleNote = $derived(consoleMachine && consoleVm ? stopNote(consoleMachine.id, consoleVm, commands) : null)
   const making = $derived(pending.some((entry) => entry.stage !== 'failed'))
 
   $effect(() => {
@@ -263,9 +268,10 @@
 </script>
 
 {#if phase === 'loading'}
-  <p class="center muted" role="status">Loading…</p>
+  <p class="center muted" role="status"><Owl name="loading" eager />Loading…</p>
 {:else if phase === 'error'}
   <main class="center">
+    <Owl name="notFound" eager />
     <p role="alert">{banner}</p>
     <button class="btn line" type="button" onclick={start}>Try again</button>
   </main>
@@ -280,7 +286,7 @@
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
       {#if page === 'machines' && detailId && vmId}
-        <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} {commands} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines' && detailId}
         <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
@@ -301,7 +307,7 @@
   </div>
   <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
-  {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} />{/if}
+  {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={() => consoleMachine && consoleVm && act(consoleMachine, consoleVm, 'start')} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
   <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
   {#if removingRemote}

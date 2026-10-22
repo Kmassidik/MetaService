@@ -120,6 +120,11 @@ class AgentHandler(BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_input", "processes must be 1 or 0")
         self._send(200, self.stats.reading(with_processes))
 
+    def list_images(self):
+        if not self.engine.spec.serves_images:
+            raise ApiError(404, "not_found", "no such path")
+        self._send(200, self.engine.images())
+
     def list_workloads(self):
         self._send(200, {"workloads": self.engine.workloads()})
 
@@ -173,6 +178,27 @@ class AgentHandler(BaseHTTPRequestHandler):
     def gpu_check(self, id):
         self._send(200, self.engine.gpu_check(id))
 
+    def quit_by_itself(self, id):
+        """Test tool, not part of the contract: makes a VM stop on its own with a reason. Body: {"exit_code": int or null, "log_tail": text}."""
+        body = self._tool_body({"exit_code": (int, type(None)), "log_tail": str})
+        self.engine.quit_by_itself(id, body["exit_code"], body["log_tail"])
+        self._send(204)
+
+    def create_fails(self):
+        """Test tool, not part of the contract: every later create fails with this reason. Body: {"error": text or null}."""
+        self.engine.fail_creates_with(self._tool_body({"error": (str, type(None))})["error"])
+        self._send(204)
+
+    def _tool_body(self, fields):
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        try:
+            body = json.loads(self.rfile.read(min(length, MAX_BODY_BYTES)) or b"null")
+        except ValueError:
+            raise ApiError(400, "invalid_json", "body is not valid JSON") from None
+        if not isinstance(body, dict) or set(body) != set(fields) or not all(isinstance(body[key], kind) for key, kind in fields.items()):
+            raise ApiError(400, "invalid_input", "the test tool wants exactly " + ", ".join(fields))
+        return body
+
     def get_command(self, id):
         self._send(200, self.engine.command(id))
 
@@ -185,6 +211,7 @@ ROUTES = [
     ("GET", r"/v1/health", AgentHandler.health),
     ("GET", r"/v1/facts", AgentHandler.facts),
     ("GET", r"/v1/stats", AgentHandler.get_stats),
+    ("GET", r"/v1/images", AgentHandler.list_images),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
@@ -195,6 +222,8 @@ ROUTES = [
     ("POST", r"/v1/bundle/install", AgentHandler.install_bundle),
     ("POST", r"/v1/bundle/uninstall", AgentHandler.uninstall_bundle),
     ("GET", rf"/v1/commands/(?P<id>{ID_PATTERN})", AgentHandler.get_command),
+    ("POST", rf"/fake/workloads/(?P<id>{ID_PATTERN})/quit", AgentHandler.quit_by_itself),
+    ("POST", r"/fake/create-fails", AgentHandler.create_fails),
 ]
 
 

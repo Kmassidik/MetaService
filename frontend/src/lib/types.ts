@@ -56,6 +56,10 @@ export interface Workload {
   gpu_mode?: 'none' | 'container' | 'passthrough'
   address?: string | null
   bundle_version?: string | null
+  /** Only on a VM that stopped by itself: why, as the machine reported it. Null otherwise. Text from inside the VM: read it with `readStoppedReason`, never trust its shape. */
+  stopped_reason?: unknown
+  /** How the VM came up: with systemd, or plain (no systemd). Null when the machine does not say. */
+  init_mode?: 'systemd' | 'plain' | null
 }
 
 /** The program a machine uses to make VMs, as the helper reports it. `version` is null when the engine could not tell. */
@@ -290,6 +294,8 @@ export interface WorkloadForm {
   machine?: string
   /** `container` when the person chose to share the machine's GPU; left out or `none` otherwise. */
   gpuMode?: string
+  /** The catalog id of the image to start from (`blank` when none is picked); sent only when it is not `blank`. */
+  bundle?: string
 }
 
 /** Step one of Connect: the SSH host key a computer shows, to confirm before any login. */

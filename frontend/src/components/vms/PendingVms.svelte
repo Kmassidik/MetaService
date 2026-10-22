@@ -1,5 +1,6 @@
 <script lang="ts">
   // The VMs that are being made, or could not be made. One card each: the name, the machine, three steps with the current one marked, and for a failed one the reason and a way to dismiss it.
+  import Owl from '../Owl.svelte'
   import { dismissOrder } from '../../lib/pendingStore.svelte.ts'
   import { stageSteps, stageText, type PendingVm } from '../../lib/pendingVms.ts'
   import { machineHref } from '../../lib/routes.ts'
@@ -15,6 +16,7 @@
     {#each pending as entry (entry.id)}
       <li class:failed={entry.stage === 'failed'} data-pending={entry.name}>
         <div class="head">
+          {#if entry.stage !== 'failed' && !compact}<Owl name="busy" />{/if}
           <b class="name">{entry.name}</b>
           {#if showMachine}<span class="on">on <a href={machineHref(entry.machine)}>{entry.machineName}</a></span>{/if}
           <span class="tag {entry.stage === 'failed' ? 'bad' : 'prog'}">{entry.stage === 'failed' ? stageText('failed') : `${stageText(entry.stage)}…`}</span>
@@ -46,7 +48,8 @@
   .on { color: var(--m60); font-size: 13px; }
   .on a { text-decoration: underline; }
   .tag.bad { color: var(--danger); border-color: var(--danger); }
-  .reason { margin: 0; color: var(--danger-note-text); overflow-wrap: anywhere; }
+  /* A reason from a machine can hold the last lines a VM printed: keep its line breaks, wrap it, and let a very long one scroll inside the card. */
+  .reason { margin: 0; color: var(--danger-note-text); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 18em; overflow-y: auto; }
   .note { margin: 0; font-size: 13px; }
   .steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
   .steps li { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; font-family: var(--mono); font-size: 11px; color: var(--m50); padding-top: 6px; border-top: 3px solid var(--line); }

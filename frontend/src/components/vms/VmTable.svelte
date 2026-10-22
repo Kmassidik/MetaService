@@ -3,6 +3,8 @@
   import GpuBadge from '../GpuBadge.svelte'
   import StatePill from '../StatePill.svelte'
   import TerminalButton from './TerminalButton.svelte'
+  import WhyStopped from '../vm/WhyStopped.svelte'
+  import { PLAIN_MODE_TEXT } from '../../lib/stoppedReason.ts'
   import { formatGb, formatMb } from '../../lib/format.ts'
   import { machineHref, vmHref } from '../../lib/routes.ts'
   import { vmTone, type VmRow } from '../../lib/vmList.ts'
@@ -22,7 +24,13 @@
             {#if row.machineState !== 'online'}<StatePill state={row.machineState} />{/if}
           </td>
           <td class="mono" data-label="Kind">{row.kind}{#if row.gpu}<GpuBadge />{/if}</td>
-          <td data-label="State"><StatePill state={vmTone(row.state)} label={row.state} /></td>
+          <td data-label="State">
+            <div class="state">
+              <StatePill state={vmTone(row.state)} label={row.state} />
+              {#if row.note}<WhyStopped note={row.note} compact />{/if}
+              {#if row.plain}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
+            </div>
+          </td>
           <td class="mono nums" data-label="vCPU">{row.cpu}</td>
           <td class="mono nums" data-label="RAM">{formatMb(row.ramMb)}</td>
           <td class="mono nums" data-label="Disk">{formatGb(row.diskGb)}</td>
@@ -38,6 +46,8 @@
   tbody tr:hover { background: var(--surface-2); }
   tr.offline { opacity: 0.7; }
   .name, .machine { overflow-wrap: anywhere; }
+  .state { display: grid; justify-items: start; gap: 2px; max-width: 280px; }
+  .plain { font-size: 11px; color: var(--m60); }
   /* The whole row is the link to the VM; the machine link sits above it. */
   .open::after { content: ''; position: absolute; inset: 0; }
   .machine a { position: relative; z-index: 1; }

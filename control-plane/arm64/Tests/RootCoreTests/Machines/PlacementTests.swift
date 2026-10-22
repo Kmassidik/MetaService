@@ -86,8 +86,12 @@ final class PlacementTests: XCTestCase {
         }
         XCTAssertEqual(try parse().gpuMode, "none")
         XCTAssertEqual(try parse { $0["machine"] = "dgx-spark" }.machine, "dgx-spark")
+        XCTAssertEqual(try parse().bundle, "blank", "no bundle means Blank")
+        XCTAssertEqual(try parse { $0["bundle"] = "blank" }.bundle, "blank")
+        XCTAssertEqual(try parse { $0["bundle"] = "openclaw" }.bundle, "openclaw", "a listed id parses; whether it can be chosen is decided later")
+        XCTAssertEqual(try parse { $0["bundle"] = NSNull() }.bundle, "blank")
         for bad: (inout [String: Any]) -> Void in [{ $0["name"] = "Bad Name" }, { $0["kind"] = "metal" }, { $0["cpu"] = 0 }, { $0["ram_mb"] = 100 }, { $0["disk_gb"] = 0 },
-                                                   { $0["machine"] = "../x" }, { $0["image"] = "--privileged" }, { $0["x"] = 1 }, { $0["gpu_mode"] = "all" }] {
+                                                   { $0["machine"] = "../x" }, { $0["image"] = "--privileged" }, { $0["image"] = "ubuntu:24.04" }, { $0["bundle"] = "nope" }, { $0["bundle"] = "Blank" }, { $0["bundle"] = 5 }, { $0["bundle"] = "../x" }, { $0["x"] = 1 }, { $0["gpu_mode"] = "all" }] {
             XCTAssertThrowsError(try parse(bad))
         }
         XCTAssertNoThrow(try ConfirmRequest(body: Data(#"{"confirm":true}"#.utf8)))

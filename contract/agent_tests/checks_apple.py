@@ -27,9 +27,10 @@ def check_create_runs_one_fixed_command_and_remembers_the_workload():
         done = make(agent)
         workload_id = done["result"]["workload_id"]
         run = next(call for call in agent.world.calls() if call[0] == "run")
-        expect(run[:10] == ["run", "--detach", "--name", f"ms-{workload_id}", "--cpus", "2", "--memory", "2048M", "--label", f"metaservice.id={workload_id}"], f"run call: {run[:10]}")
+        expect(run[:14] == ["run", "--detach", "--name", f"ms-{workload_id}", "--cpus", "2", "--memory", "2048M", "--cap-add", "NET_ADMIN", "--cap-add", "SYS_ADMIN",
+                            "--label", f"metaservice.id={workload_id}"], f"run call: {run[:14]}")
         flat = " ".join(" ".join(call) for call in agent.world.calls())
-        expect(all(bad not in flat for bad in ("--privileged", "--cap-add", "--volume", "--publish", "demo")), "the run call has an extra flag or leaks the user's name")
+        expect(all(bad not in flat for bad in ("--privileged", "--volume", "--publish", "demo")), "the run call has an extra flag or leaks the user's name")
         listed = workloads(agent)
         expect(len(listed) == 1 and listed[0]["name"] == "demo" and listed[0]["state"] == "running" and listed[0]["address"].startswith("192.168.65."), f"listed: {listed}")
         expect(os.stat(os.path.join(agent.state, "workloads.json")).st_mode & 0o777 == 0o600, "the workload list file is not mode 600")

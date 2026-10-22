@@ -8,8 +8,11 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
+  import Owl from '../Owl.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
   import GpuBadge from '../GpuBadge.svelte'
+  import WhyStopped from '../vm/WhyStopped.svelte'
+  import { isPlainMode, PLAIN_MODE_TEXT, readStoppedReason, reasonNote } from '../../lib/stoppedReason.ts'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
@@ -43,6 +46,9 @@
     return found
   }
 
+  /** Why a VM stopped, when the machine said why: shown small under its state in the table and the cards. */
+  const noteOf = (workload: Workload) => reasonNote(readStoppedReason(workload.stopped_reason))
+
   function setView(next: ViewId) {
     view = next
     lastView = next
@@ -67,16 +73,19 @@
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
 {:else if servers.length === 0}
-  <div class="empty" role="status">No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
+  <div class="empty" role="status"><Owl name="emptyVms" />No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
 {:else if view === 'cards'}
   <div class="grid">
     {#each servers as server (server.id)}
       {@const workload = workloadOf(server)}
+      {@const note = noteOf(workload)}
       <div class="card">
         <div class="ch">
           <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
+          {#if note}<WhyStopped {note} compact />{/if}
+          {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
         </div>
         <div class="acts">
           <TerminalButton {machine} {workload} />
@@ -96,10 +105,15 @@
       <tbody>
         {#each servers as server (server.id)}
           {@const workload = workloadOf(server)}
+          {@const note = noteOf(workload)}
           <tr>
             <td class="c-name"><a href={vmHref(machine.id, server.id)}>{server.display}</a></td>
             <td class="mono muted">{server.id}</td>
-            <td><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}</td>
+            <td>
+              <span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}
+              {#if note}<WhyStopped {note} compact />{/if}
+              {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
+            </td>
             <td class="mono">{bundleFlag(workload.bundle_version, pinned).text}</td>
             <td class="mono">{workload.kind}</td>
             <td class="mono nums">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
@@ -122,5 +136,6 @@
 <style>
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
+  .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }
   .runs { margin-right: auto; font-family: var(--mono); font-size: 12px; color: var(--m50); }
 </style>

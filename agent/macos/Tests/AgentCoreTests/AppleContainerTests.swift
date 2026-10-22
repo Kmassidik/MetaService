@@ -8,13 +8,67 @@ final class AppleContainerTests: XCTestCase {
         return try CreateWorkloadRequest(body: JSONSerialization.data(withJSONObject: body))
     }
 
-    func testRunArgumentsAreOneFixedShape() throws {
+    func testTheFirstTryRunsSystemdWithTheTwoRightsItNeeds() throws {
         let args = AppleContainer.run(id: "w-abc", request: try request(), image: "docker.io/library/ubuntu:24.04")
-        XCTAssertEqual(Array(args.prefix(10)), ["run", "--detach", "--name", "ms-w-abc", "--cpus", "2", "--memory", "2048M", "--label", "metaservice.id=w-abc"])
-        XCTAssertEqual(args[10], "docker.io/library/ubuntu:24.04")
-        XCTAssertEqual(Array(args[11...12]), ["sh", "-c"])
-        XCTAssertEqual(args.last, AppleContainer.initScript)
-        XCTAssertEqual(args.count, 14, "no extra flags such as capabilities, mounts or ports")
+        XCTAssertEqual(args, ["run", "--detach", "--name", "ms-w-abc", "--cpus", "2", "--memory", "2048M", "--cap-add", "NET_ADMIN", "--cap-add", "SYS_ADMIN",
+                              "--label", "metaservice.id=w-abc", "docker.io/library/ubuntu:24.04", "sh", "-c", AppleContainer.systemdScript])
+        XCTAssertEqual(args.count, 18, "no other flags such as more capabilities, mounts or ports")
+    }
+
+    func testThePlainTryHasNoExtraRights() throws {
+        let args = AppleContainer.run(id: "w-abc", request: try request(), image: "ubuntu:24.04", mode: .plain)
+        XCTAssertEqual(args, ["run", "--detach", "--name", "ms-w-abc", "--cpus", "2", "--memory", "2048M", "--label", "metaservice.id=w-abc", "ubuntu:24.04",
+                              "sh", "-c", AppleContainer.plainScript])
+        XCTAssertFalse(args.contains("--cap-add"))
+    }
+
+    func testBothScriptsAreFixedTextWithNothingFromTheRequest() throws {
+        let other = try request { $0["name"] = "other-name"; $0["cpu"] = 4; $0["ram_mb"] = 4096 }
+        for mode in [InitMode.systemd, .plain] {
+            let first = AppleContainer.run(id: "w-abc", request: try request(), image: "ubuntu:24.04", mode: mode)
+            let second = AppleContainer.run(id: "w-zzz", request: other, image: "docker.io/library/debian:12", mode: mode)
+            XCTAssertEqual(first.last, second.last, "the script must not change with the request")
+            for word in ["demo", "other-name", "w-abc", "w-zzz", "ubuntu:24.04"] { XCTAssertFalse(first.last!.contains(word), word) }
+        }
+    }
+
+    func testTheSystemdScriptStaysAliveWhenSystemdCannotBeSet() {
+        let script = AppleContainer.systemdScript
+        XCTAssertTrue(script.contains("stay_plain()"))
+        XCTAssertTrue(script.contains("exec sleep infinity"))
+        XCTAssertTrue(script.contains("|| stay_plain \"systemd could not be installed\""))
+        XCTAssertTrue(script.contains("[ -x /sbin/init ] || stay_plain"), "never exec an init that is not there")
+        XCTAssertTrue(script.hasSuffix("echo systemd > /metaservice-init-mode\nexec /sbin/init"), "the happy path ends by handing over to systemd")
+        XCTAssertTrue(script.contains("apt-get install -y -qq --no-install-recommends systemd systemd-sysv dbus libpam-systemd"))
+        XCTAssertTrue(script.contains("tr -d - < /proc/sys/kernel/random/uuid > /etc/machine-id"))
+        XCTAssertFalse(script.contains("set -e"), "a failing step must not end the script")
+    }
+
+    func testThePlainScriptKeepsTheVmAlive() {
+        XCTAssertTrue(AppleContainer.plainScript.hasSuffix("echo plain > /metaservice-init-mode\nexec sleep infinity"))
+    }
+
+    func testBothScriptsAreValidShellText() throws {
+        for script in [AppleContainer.systemdScript, AppleContainer.plainScript] {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-n", "-c", script]
+            try process.run()
+            process.waitUntilExit()
+            XCTAssertEqual(process.terminationStatus, 0, "sh -n rejected the script")
+        }
+    }
+
+    func testReadingLogsAndTheStartProbeUseFixedArguments() {
+        XCTAssertEqual(AppleContainer.logs("w-1"), ["logs", "ms-w-1"])
+        XCTAssertEqual(AppleContainer.bootLogs("w-1"), ["logs", "--boot", "ms-w-1"])
+        XCTAssertEqual(AppleContainer.initModeProbe("w-1"), ["exec", "ms-w-1", "cat", "/metaservice-init-mode"])
+        XCTAssertEqual(AppleContainer.readySeconds, 60)
+    }
+
+    func testTheExitCodeIsReadWhereTheToolMayPutIt() {
+        let list = Data(#"[{"id":"ms-a","status":{"state":"stopped","exitCode":255}},{"id":"ms-b","status":"exited","exitCode":3},{"id":"ms-c","status":"stopped"}]"#.utf8)
+        XCTAssertEqual(ContainerJson.parse(list).map(\.exitCode), [255, 3, nil])
     }
 
     func testNoUserTextCanBecomeAFlag() throws {

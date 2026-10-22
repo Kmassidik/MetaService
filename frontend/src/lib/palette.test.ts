@@ -64,6 +64,10 @@ const PAIRS: readonly Pair[] = [
   ['--warn-line', '--surface', AA_LARGE_TEXT_AND_MARKS, 'amber outline on a card'],
   ['--line-strong', '--surface', AA_LARGE_TEXT_AND_MARKS, 'outline of a window or a selected choice'],
   ['--danger', '--surface-2', AA_LARGE_TEXT_AND_MARKS, 'red bar fill on its track'],
+  ['--m50', '--surface', AA_TEXT, 'the label of the "Why it stopped" block'],
+  ['--m70', '--surface', AA_TEXT, 'the "Why it stopped" text and its folded steps'],
+  ['--text', '--surface', AA_TEXT, 'the terminal notice'],
+  ['--m70', '--surface-2', AA_TEXT, 'the hint under the Image select'],
   ['--term-text', '--term-bg', AA_TEXT, 'terminal text'],
   ['--term-button-text', '--term-bar', AA_TEXT, 'terminal button'],
   ['--term-bad', '--term-bar', AA_TEXT, 'terminal status when it failed'],
@@ -100,4 +104,8 @@ test('the accent is the owl moss green and the announcement bar uses it', () => 
 
 test('the check can fail: a weak muted colour on the card colour is below AA', () => {
   expect(contrastRatio('#a09080', colourOf(tokens, '--surface'))).toBeLessThan(AA_TEXT)
+})
+
+test('every light surface is near white, so the owl pictures (multiplied onto them) show no box', () => {
+  for (const floor of ['--page-bg', '--surface', '--surface-2']) expect(contrastRatio(colourOf(tokens, floor), '#ffffff')).toBeLessThan(1.1)
 })

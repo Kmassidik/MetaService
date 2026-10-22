@@ -9,9 +9,61 @@ public enum AppleContainer {
     public static let stopSignal = "SIGRTMIN+3"
     public static let stopSeconds = 30
 
-    /// First boot installs systemd if the image lacks it, gives the machine an id, then hands over to systemd as PID 1.
-    /// Same recipe the MAAS operator VMs use. It is fixed text; nothing is interpolated into it.
-    public static let initScript = "[ -x /sbin/init ] || { export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq --no-install-recommends systemd systemd-sysv dbus libpam-systemd >/dev/null; }; [ -s /etc/machine-id ] || tr -d - < /proc/sys/kernel/random/uuid > /etc/machine-id; exec /sbin/init"
+    /// Where the start scripts tell the helper how the VM came up. The helper reads it back with `cat`, and only the two words in `InitMode` count.
+    public static let initModeFile = "/metaservice-init-mode"
+
+    /// The two extra rights the first try gets. systemd as the first process must mount /run and the other system folders (SYS_ADMIN) and set up the network (NET_ADMIN);
+    /// without them the VM's first process quits at once. Each VM is its own small virtual machine, so the rights stay inside that VM; they are not rights on the Mac.
+    /// The MAAS panel starts its VMs with the same two, written the same way, and that is verified on the Mac Studio.
+    public static let systemdCapabilities = ["NET_ADMIN", "SYS_ADMIN"]
+
+    /// How long the helper waits for a new VM to come up, and how long it then watches that it stays up. Whole seconds.
+    public static let readySeconds = 60
+    public static let settleSeconds = 3
+
+    /// First try: install systemd if the image lacks it, give the machine an id, then hand over to systemd as the first process.
+    /// If systemd cannot be installed the VM stays up as a plain VM instead of quitting. Fixed text; nothing is interpolated into it.
+    public static let systemdScript = """
+    # MetaService first start, with systemd. Fixed text: nothing from a request is ever put in here.
+
+    # Called when systemd cannot be set up. The VM then stays up as a plain VM, so a terminal still opens and the person can see what went wrong.
+    # The reason goes to the VM's own log (what "container logs" shows), and the word "plain" goes into the file the helper reads.
+    stay_plain() {
+      echo "metaservice: $1; this VM runs without systemd" >&2
+      echo plain > \(initModeFile)
+      exec sleep infinity
+    }
+
+    # Installs systemd the way Ubuntu and Debian images need it.
+    install_systemd() {
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq && apt-get install -y -qq --no-install-recommends systemd systemd-sysv dbus libpam-systemd >/dev/null
+    }
+
+    # Three tries, three seconds apart, because the network inside a new VM can take a moment to work.
+    install_systemd_with_retries() {
+      tries=1
+      until install_systemd; do
+        [ "$tries" -lt 3 ] || return 1
+        tries=$((tries + 1))
+        sleep 3
+      done
+    }
+
+    [ -x /sbin/init ] || install_systemd_with_retries || stay_plain "systemd could not be installed"
+    [ -x /sbin/init ] || stay_plain "this image has no /sbin/init"
+    [ -s /etc/machine-id ] || tr -d - < /proc/sys/kernel/random/uuid > /etc/machine-id
+    echo systemd > \(initModeFile)
+    exec /sbin/init
+    """
+
+    /// Second try, when systemd could not run: a first process that only keeps the VM alive. A terminal works; services such as systemd do not. Fixed text.
+    public static let plainScript = """
+    # MetaService first start, without systemd. Fixed text: nothing from a request is ever put in here.
+    # "sleep infinity" waits forever, so the VM stays up and the terminal can open. The file tells the helper which way the VM came up.
+    echo plain > \(initModeFile)
+    exec sleep infinity
+    """
 
     public static func name(for id: String) -> String { namePrefix + id }
 
@@ -19,10 +71,19 @@ public enum AppleContainer {
         name.hasPrefix(namePrefix) ? String(name.dropFirst(namePrefix.count)) : nil
     }
 
-    public static func run(id: String, request: CreateWorkloadRequest, image: String) -> [String] {
-        ["run", "--detach", "--name", name(for: id), "--cpus", String(request.cpu), "--memory", "\(request.ramMb)M",
-         "--label", "metaservice.id=\(id)", image, "sh", "-c", initScript]
+    /// The `run` arguments for one try. Names and sizes are separate arguments; the script is one of the two fixed texts above.
+    public static func run(id: String, request: CreateWorkloadRequest, image: String, mode: InitMode = .systemd) -> [String] {
+        ["run", "--detach", "--name", name(for: id), "--cpus", String(request.cpu), "--memory", "\(request.ramMb)M"]
+            + (mode == .systemd ? systemdCapabilities.flatMap { ["--cap-add", $0] } : [])
+            + ["--label", "metaservice.id=\(id)", image, "sh", "-c", mode == .systemd ? systemdScript : plainScript]
     }
+
+    /// Fixed argument lists for reading what a VM printed: its own output, and the boot log of the small VM it runs in.
+    public static func logs(_ id: String) -> [String] { ["logs", name(for: id)] }
+    public static func bootLogs(_ id: String) -> [String] { ["logs", "--boot", name(for: id)] }
+
+    /// Reads the file the start scripts wrote, to learn that the first-start script finished and how the VM came up.
+    public static func initModeProbe(_ id: String) -> [String] { exec(id, arguments: ["cat", initModeFile], environment: [:]) }
 
     public static func start(_ id: String) -> [String] { ["start", name(for: id)] }
     public static func stop(_ id: String) -> [String] { ["stop", "--signal", stopSignal, "--time", String(stopSeconds), name(for: id)] }
@@ -112,11 +173,14 @@ public struct ContainerInfo: Equatable {
     public let name: String
     public let state: String
     public let ipv4: String?
+    /// How the VM's first process ended, when the tool says so. The tool's JSON is not documented, so this is read where it is likely to be and is nil otherwise.
+    public let exitCode: Int?
 
-    public init(name: String, state: String, ipv4: String?) {
+    public init(name: String, state: String, ipv4: String?, exitCode: Int? = nil) {
         self.name = name
         self.state = state
         self.ipv4 = ipv4
+        self.exitCode = exitCode
     }
 }
 
@@ -138,7 +202,8 @@ public enum ContainerJson {
         let state = (status?["state"] as? String) ?? (item["status"] as? String) ?? "unknown"
         let networks = (status?["networks"] as? [[String: Any]]) ?? (item["networks"] as? [[String: Any]])
         let address = (networks?.first?["ipv4Address"] as? String)?.split(separator: "/").first.map(String.init)
-        return ContainerInfo(name: name, state: state, ipv4: address)
+        let exitCode = (status?["exitCode"] as? Int) ?? (item["exitCode"] as? Int)
+        return ContainerInfo(name: name, state: state, ipv4: address, exitCode: exitCode)
     }
 }
 
@@ -153,8 +218,14 @@ public struct WorkloadRecord: Codable, Equatable {
     public var gpuMode: String
     public var image: String
     public var bundleVersion: String?
+    /// True after the helper was asked to stop the VM, false after it was asked to start it (or made it). Nil in records written before this note existed.
+    public var stopRequested: Bool?
+    /// "systemd" or "plain": how the VM came up. Nil when unknown.
+    public var initMode: String?
 
-    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, image: String, bundleVersion: String? = nil) {
+    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, image: String, bundleVersion: String? = nil, stopRequested: Bool? = nil, initMode: String? = nil) {
+        self.stopRequested = stopRequested
+        self.initMode = initMode
         self.name = name
         self.kind = kind
         self.cpu = cpu

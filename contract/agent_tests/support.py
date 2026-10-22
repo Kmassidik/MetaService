@@ -113,7 +113,8 @@ class FakeContainerWorld:
         self.env = {"FAKE_CONTAINER_STATE": self.state_file, "FAKE_CONTAINER_LOG": self.log_file, **switches}
 
     def agent_args(self):
-        return ["--engine", "apple", "--container-path", str(FAKE_CONTAINER), "--backup-dir", self.backups]
+        # Short start windows, so a check does not wait a minute for a VM that never answers. A check can give its own values after these.
+        return ["--engine", "apple", "--container-path", str(FAKE_CONTAINER), "--backup-dir", self.backups, "--ready-seconds", "8", "--settle-seconds", "1"]
 
     def state(self):
         return json.load(open(self.state_file)) if os.path.exists(self.state_file) else None

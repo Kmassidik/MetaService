@@ -164,6 +164,7 @@ def check_ui_files_are_served_with_a_strict_page_policy():
     pathlib.Path(ui, "assets").mkdir()
     pathlib.Path(ui, "index.html").write_text("<!doctype html><title>x</title>")
     pathlib.Path(ui, "assets", "app-abc.js").write_text("console.log(1)")
+    pathlib.Path(ui, "assets", "owl-abc.webp").write_bytes(b"RIFF\x00\x00\x00\x00WEBP")
     pathlib.Path(ui, "secret.txt").write_text("nope")
     with running(extra_args=["--ui-dir", ui]) as root:
         page = Browser(root).request("GET", "/")
@@ -179,6 +180,8 @@ def check_ui_files_are_served_with_a_strict_page_policy():
         asset = Browser(root).request("GET", "/assets/app-abc.js")
         expect(asset.status == 200 and "immutable" in (asset.header("Cache-Control") or ""), "hashed asset is not cached long")
         expect(asset.header("Content-Type", ) .startswith("text/javascript"), "wrong script type")
+        picture = Browser(root).request("GET", "/assets/owl-abc.webp")
+        expect(picture.status == 200 and picture.header("Content-Type") == "image/webp" and "immutable" in (picture.header("Cache-Control") or ""), f"a hashed WebP picture gave {picture.status} {picture.header('Content-Type')}")
         for path in ("/secret.txt", "/assets/../secret.txt", "/assets/%2e%2e/secret.txt", "/.env", "/assets/", "/assets/nope.js"):
             reply = Browser(root).request("GET", path)
             expect(reply.status == 404 and b"nope" not in reply.raw, f"{path} gave {reply.status}")

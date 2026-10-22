@@ -5,9 +5,13 @@
   import { Terminal } from '@xterm/xterm'
   import { FitAddon } from '@xterm/addon-fit'
   import '@xterm/xterm/css/xterm.css'
+  import TerminalNotice from './TerminalNotice.svelte'
   import { ApiError, openTerminal } from '../lib/api.ts'
   import { isDead, isLive, nextState, resizeMessage, roundBox, shouldRefit, SOCKET_OPEN, statusText, statusTone, terminalSocketUrl } from '../lib/terminal.ts'
   import type { Box, TerminalEvent, TerminalState } from '../lib/terminal.ts'
+  import { NOTICE_STATUS, START_GIVE_UP_MS, START_POLL_MS, terminalNotice, type Ending } from '../lib/terminalNotice.ts'
+  import type { StopNote } from '../lib/stoppedReason.ts'
+  import type { Workload } from '../lib/types.ts'
 
   interface Props {
     machine: string
@@ -15,6 +19,14 @@
     /** The VM's name in the title. */
     name: string
     onclose: () => void
+    /** The VM as the machine list shows it now, or null when it is not in the list. */
+    vm: Workload | null
+    /** Why the VM stopped, when it is stopped. */
+    note: StopNote | null
+    /** Starts the VM (the same order as the Start button of its page). */
+    onstart: () => void
+    /** Asks the panel to read the machines again, so the state and the reason are fresh. */
+    onchanged: () => void
   }
 
   const FIRST_FIT_DELAY_MS = 50
@@ -29,19 +41,49 @@
     theme: { background: '#111111', foreground: '#e8e8e8', cursor: accentColour(), selectionBackground: accentColour(), selectionForeground: '#111111' },
   })
 
-  let { machine, workload, name, onclose }: Props = $props()
+  let { machine, workload, name, onclose, vm, note, onstart, onchanged }: Props = $props()
   let host: HTMLDivElement | undefined
   let phase: TerminalState = $state('connecting')
   let reason = $state('')
+  /** How the terminal ended, for the message in the window; null while it works. */
+  let ending: Ending | null = $state(null)
+  let openedAt = 0
+  /** True once the person pressed a key: a shell that ends soon after is then the person typing exit, not a VM that died. */
+  let typed = false
+  let starting = $state(false)
   const term = new Terminal(terminalOptions())
   const fit = new FitAddon()
   let socket: WebSocket | undefined
   let asking = false
   let disposed = false
 
-  const text = $derived(statusText(phase, reason))
-  const tone = $derived(statusTone(phase))
+  const notice = $derived(terminalNotice(ending, vm ? vm.state : null))
+  const text = $derived(notice ? NOTICE_STATUS : statusText(phase, reason))
+  const tone = $derived(notice ? '' : statusTone(phase))
   const dead = $derived(isDead(phase))
+  const canReconnect = $derived(dead && !notice?.canStart)
+
+  /** After Start, ask for the VM's state until it runs, then open the terminal again by itself. */
+  $effect(() => {
+    if (!starting) return
+    const poll = setInterval(onchanged, START_POLL_MS)
+    const giveUp = setTimeout(() => (starting = false), START_GIVE_UP_MS)
+    return () => {
+      clearInterval(poll)
+      clearTimeout(giveUp)
+    }
+  })
+
+  $effect(() => {
+    if (!starting || vm?.state !== 'running') return
+    starting = false
+    void connect()
+  })
+
+  function start() {
+    starting = true
+    onstart()
+  }
 
   function happened(event: TerminalEvent) {
     phase = nextState(phase, event)
@@ -60,6 +102,7 @@
   }
 
   function onOpen() {
+    openedAt = Date.now()
     happened('open')
     setTimeout(() => {
       if (disposed) return
@@ -81,15 +124,21 @@
     ws.onmessage = onMessage
     ws.onerror = () => happened('error')
     ws.onclose = (event) => {
+      if (disposed) return
       reason = event.reason
+      ending = { kind: 'closed', reason: event.reason, openMs: openedAt === 0 ? 0 : Date.now() - openedAt, typed }
+      openedAt = 0
       happened('close')
+      onchanged()
     }
     socket = ws
   }
 
   function failed(error: unknown) {
     reason = error instanceof ApiError ? error.message : 'Cannot reach the Root.'
+    ending = error instanceof ApiError ? { kind: 'refused', code: error.code } : null
     happened('error')
+    onchanged()
   }
 
   /** A new ticket, then a new socket. Does nothing while one is already being asked for, opening or open. */
@@ -97,6 +146,8 @@
     if (asking || (socket && isLive(socket.readyState))) return
     asking = true
     reason = ''
+    ending = null
+    typed = false
     happened('connect')
     let ticket: string
     try {
@@ -135,6 +186,7 @@
     term.loadAddon(fit)
     term.open(host)
     term.onResize(sendResize)
+    term.onKey(() => (typed = true))
     const encoder = new TextEncoder()
     // Registered once, so a Reconnect never sends a keystroke twice.
     term.onData((typed) => {
@@ -159,10 +211,11 @@
       <span class="ttitle">Terminal · {name}</span>
       <span class="tstatus {tone}">● {text}</span>
       <span class="tspace"></span>
-      {#if dead}<button class="tbtn" type="button" onclick={() => void connect()}>Reconnect</button>{/if}
+      {#if canReconnect}<button class="tbtn" type="button" onclick={() => void connect()}>Reconnect</button>{/if}
       <button class="tbtn" type="button" onclick={onclose} aria-label="Close terminal">✕ Close</button>
     </div>
-    <div class="term" bind:this={host}></div>
+    <div class="term" class:away={notice !== null} bind:this={host}></div>
+    {#if notice}<TerminalNotice {notice} {note} {starting} onstart={start} {onclose} />{/if}
   </div>
 </div>
 
@@ -178,6 +231,7 @@
   .tbtn { background: none; border: 1px solid var(--term-button-line); color: var(--term-button-text); font-family: var(--mono); font-size: 11px; padding: 5px 11px; }
   .tbtn:hover { border-color: var(--accent); color: var(--accent); }
   .term { flex: 1; min-height: 0; padding: 8px 10px; overflow: hidden; }
+  .term.away { display: none; }
   .term :global(.xterm) { height: 100%; }
   .term :global(.xterm-viewport) { overflow-y: auto; }
 </style>

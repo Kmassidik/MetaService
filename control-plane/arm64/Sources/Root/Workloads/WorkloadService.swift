@@ -16,9 +16,6 @@ final class WorkloadService: @unchecked Sendable {
     private let chatAccess: ChatAccessStore
     private let secrets: SecretBox
     private let creating = NSLock()
-    private static let pollSeconds: UInt64 = 1
-    private static let giveUpAfterSeconds = 20 * 60
-    private static let lostContactAfterPolls = 300
 
     init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox) {
         self.bundles = bundles
@@ -36,8 +33,8 @@ final class WorkloadService: @unchecked Sendable {
 
     func create(actor: String, request: CreateWorkloadOperatorRequest) async throws -> CommandRow {
         let (machine, id) = try reserve(actor: actor, request: request)
-        var body: [String: Any] = ["command_id": id, "name": request.name, "kind": request.kind, "cpu": request.cpu, "ram_mb": request.ramMb, "disk_gb": request.diskGb, "gpu_mode": request.gpuMode]
-        body["image"] = request.image ?? (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
+        let savedDefault = (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
+        let body = HelperCreateBody.make(commandId: id, request: request, machineDefaultImage: savedDefault)
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads", body: body)
     }
 
@@ -159,11 +156,11 @@ final class WorkloadService: @unchecked Sendable {
     private func follow(_ id: String, machine: String) {
         Task.detached { [self] in
             var silent = 0
-            for _ in 0..<Self.giveUpAfterSeconds {
-                try? await Task.sleep(nanoseconds: Self.pollSeconds * 1_000_000_000)
+            for _ in 0..<OrderFollowing.giveUpAfterSeconds {
+                try? await Task.sleep(nanoseconds: UInt64(OrderFollowing.pollSeconds) * 1_000_000_000)
                 guard let reply = try? await client.call(machine: machine, method: "GET", path: "/v1/commands/\(id)") else {
                     silent += 1
-                    guard silent < Self.lostContactAfterPolls else { return lost(id, "lost contact with the machine") }
+                    guard silent < OrderFollowing.lostContactAfterPolls else { return lost(id, "lost contact with the machine") }
                     continue
                 }
                 silent = 0
@@ -177,7 +174,7 @@ final class WorkloadService: @unchecked Sendable {
     private func done(_ id: String, _ state: String, _ result: [String: Any]?) {
         var text = (result ?? [:]).compactMapValues { $0 as? String }
         keepChatKey(id, &text)
-        try? finish(id, state: state, result: text)
+        try? finish(id, state: state, result: HelperFailureText.cleanResult(text))
     }
 
     /// A finished install hands over the chat's access key. It goes into the sealed key store and never into the command record.

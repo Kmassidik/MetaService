@@ -39,6 +39,14 @@ paths:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Stats' } } } }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/images:
+    get:
+      summary: >
+        Which ready-made images this machine has prepared (read only). Optional, added without a version change (a helper without it answers 404, and the Root then treats the machine as
+        having only the stock `blank` image). Only catalog ids are named; `blank` is the stock image and is always listed ready. `built_at` is null for it.
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/HelperImages' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/workloads:
     get:
       summary: Local VMs and containers
@@ -193,6 +201,32 @@ paths:
         '409': { description: 'the workload is not running (code not_running), or the helper is too old to check (code not_supported)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'checked again too soon (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline or did not answer in time (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/images:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The parent's catalog of ready-made images: id, title, description, state (`ready` can be chosen, `planned` is listed but cannot yet) and a one-line reason
+        for a planned one. Pinned versions and checksums never leave the parent. Optional, added without a version change.
+      security: []
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/ImageCatalog' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/images:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The catalog joined with what this machine has prepared: each entry has `ready` (prepared on the machine), `available` (can be chosen now: the catalog says
+        `ready` and the machine has it) and `reason`. `helper` says who answered: `answered`, `old_helper` (the helper has no /v1/images, only `blank`) or `unreachable` (offline, or an answer that could
+        not be read; only `blank`). `blank` is ready and available on every machine. Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/MachineImages' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/stats:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
     get:
@@ -501,6 +535,25 @@ components:
         gpu_mode: { type: string, enum: [none, container, passthrough] }
         address: { type: string, nullable: true }
         bundle_version: { type: string, nullable: true }
+        stopped_reason: { $ref: '#/components/schemas/StoppedReason' }
+        init_mode:
+          type: string
+          enum: [systemd, plain]
+          description: >
+            Optional. How a VM came up: with systemd, or plain (a process that only keeps it alive: a terminal works, services such as systemd do not).
+            Left out when the helper does not know.
+    StoppedReason:
+      type: object
+      nullable: true
+      required: [exit_code, log_tail]
+      additionalProperties: false
+      description: >
+        Optional, only on a workload that is stopped (or failed) and that the helper did not stop on request. Why it stopped, as the helper found it.
+        `log_tail` is text from inside the VM: at most 12 lines and 2048 bytes, escape sequences and control characters removed. It is data, never markup.
+        The Root cleans and caps it again, keeps it with the workload, and drops it as soon as the workload runs again or is gone.
+      properties:
+        exit_code: { type: integer, nullable: true, minimum: -1000, maximum: 1000 }
+        log_tail: { type: string, maxLength: 20000 }
     WorkloadList:
       type: object
       required: [workloads]
@@ -522,6 +575,67 @@ components:
         disk_gb: { type: integer, minimum: 1, maximum: 100000 }
         gpu_mode: { type: string, enum: [none, container, passthrough], default: none }
         image: { type: string, pattern: '^[a-z0-9][a-z0-9._:/-]{0,127}$' }
+        bundle: { $ref: '#/components/schemas/ImageId' }
+    ImageId:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,31}$'
+      description: >
+        A catalog id (`blank`, `openclaw`, `hermes`). Optional on create, added without a version change; absent means `blank`. The Root only sends it for an image that is ready and not `blank`,
+        and never forwards a name from the browser: `image` comes from the machine's own saved default. Helpers refuse unknown fields, so a helper has to be updated before any image other than `blank` is ready.
+    HelperImages:
+      type: object
+      required: [images]
+      additionalProperties: false
+      properties:
+        images:
+          type: array
+          maxItems: 16
+          items:
+            type: object
+            required: [id, ready, built_at]
+            additionalProperties: false
+            properties:
+              id: { $ref: '#/components/schemas/ImageId' }
+              ready: { type: boolean }
+              built_at: { type: string, maxLength: 64, nullable: true, description: when it was built (ISO 8601), null for the stock image }
+    ImageCatalog:
+      type: object
+      required: [images]
+      additionalProperties: false
+      properties:
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ImageEntry' }
+    ImageEntry:
+      type: object
+      required: [id, title, description, state, reason]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/ImageId' }
+        title: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, minLength: 1, maxLength: 300 }
+        state: { type: string, enum: [ready, planned] }
+        reason: { type: string, nullable: true, maxLength: 300, description: why a planned image cannot be chosen yet; null for a ready one }
+    MachineImages:
+      type: object
+      required: [helper, images]
+      additionalProperties: false
+      properties:
+        helper: { type: string, enum: [answered, old_helper, unreachable] }
+        images:
+          type: array
+          items:
+            type: object
+            required: [id, title, description, state, ready, available, reason]
+            additionalProperties: false
+            properties:
+              id: { $ref: '#/components/schemas/ImageId' }
+              title: { type: string, minLength: 1, maxLength: 100 }
+              description: { type: string, minLength: 1, maxLength: 300 }
+              state: { type: string, enum: [ready, planned] }
+              ready: { type: boolean }
+              available: { type: boolean }
+              reason: { type: string, nullable: true, maxLength: 300 }
     BundleInstall:
       type: object
       required: [command_id, version, sha256]

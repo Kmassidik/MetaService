@@ -26,6 +26,7 @@ public enum StaticPath {
         case "css": return "text/css; charset=utf-8"
         case "svg": return "image/svg+xml"
         case "png": return "image/png"
+        case "webp": return "image/webp"
         case "ico": return "image/x-icon"
         case "json", "webmanifest": return "application/json"
         case "woff2": return "font/woff2"
