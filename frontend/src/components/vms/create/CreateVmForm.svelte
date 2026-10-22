@@ -141,14 +141,15 @@
 </form>
 
 <style>
-  form { display: grid; gap: 14px; }
-  fieldset { display: grid; gap: 16px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  /* The window's title bar and padding take this much of the screen; the form keeps the rest, scrolls its fields inside it, and leaves the footer in view. */
+  form { --window-chrome: 130px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100dvh - var(--window-chrome)); }
+  fieldset { display: grid; gap: 16px; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 0; margin: -4px; padding: 4px; min-width: 0; }
   .name { display: grid; gap: 8px; }
   .name label { font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--m50); }
   .optional { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--m40); }
   .name input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 400 14px var(--mono); min-width: 0; }
   .name input[aria-invalid='true'] { border-color: var(--danger); }
-  footer { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 0 -22px -20px; padding: 14px 22px; border-top: 1px solid var(--line); background: var(--surface); }
+  footer { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; flex: none; padding-top: 14px; border-top: 1px solid var(--line); }
   .hint { flex: 1 1 200px; margin: 0; font: 10px/1.5 var(--mono); color: var(--m40); }
   .hint.bad { color: var(--danger); }
   .buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }

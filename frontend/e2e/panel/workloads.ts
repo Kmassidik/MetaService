@@ -1,6 +1,6 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
 import { check } from '../support/check.ts'
-import { imageListArrived } from '../support/images.ts'
+import { NAME, PICKER, SIZE_GROUP, createDisabled, createFormCount, imageListArrived, pickCard, setField } from '../support/createVm.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
 import { vmPageScenario } from './vm-page.ts'
@@ -9,7 +9,7 @@ import { startAgent, type World } from './world.ts'
 const SHORT_WAIT_MS = 10000
 const ROW_WAIT_MS = 15000
 const AGENT_WAIT_MS = 20000
-const TOO_MUCH_RAM_MB = '500'
+const TOO_MUCH_RAM_GB = '500'
 const NEW_VM = 'build-box'
 
 /** Presses a button in the row of one VM, on a machine's VMs tab. */
@@ -40,18 +40,18 @@ async function openTheMachine(b: Browse): Promise<void> {
 
 export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
   await b.click('＋ Create a VM here')
-  await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await b.page.waitForSelector(`dialog[open] ${NAME}`)
   await imageListArrived(b)
-  await b.page.type('dialog[open] #vm-create-name', 'Bad Name')
-  const submitOff = await b.run(() => document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')?.disabled ?? false)
-  check('a bad workload name disables Create and explains', submitOff && (await b.text()).includes('Use lowercase letters'))
-  await b.type('dialog[open] #vm-create-name', name)
-  check("a VM made from a machine's own page can only go to that machine", await b.run(() => {
-    const label = [...document.querySelectorAll<HTMLElement>('dialog[open] label')].find((entry) => entry.innerText.startsWith('Machine'))
-    const select = label?.querySelector('select')
+  const count = await createFormCount(b)
+  check("the machine page's button opens exactly one Create VM window", count.forms === 1 && count.openDialogs === 1 && count.nameBoxes === 1, JSON.stringify(count))
+  await b.page.type(`dialog[open] ${NAME}`, 'Bad Name')
+  check('a bad workload name disables Create and explains', (await createDisabled(b)) && (await b.text()).includes('Use lowercase letters'))
+  await b.type(`dialog[open] ${NAME}`, name)
+  check("a VM made from a machine's own page can only go to that machine", await b.run((selector) => {
+    const select = document.querySelector<HTMLSelectElement>(selector)
     return select?.value === 'agent-mac' && select.options.length === 1 && select.disabled
-  }))
-  await b.click('Create')
+  }, PICKER))
+  await b.click('Create VM')
   await b.until(() => !document.querySelector('dialog[open]'), { timeout: SHORT_WAIT_MS })
 }
 
@@ -112,19 +112,14 @@ async function stopStartDelete(b: Browse): Promise<void> {
 
 async function aRequestThatFitsNowhere(b: Browse): Promise<void> {
   await b.click('＋ Create a VM here')
-  await b.page.waitForSelector('dialog[open] #vm-create-name')
+  await b.page.waitForSelector(`dialog[open] ${NAME}`)
   await imageListArrived(b)
-  await b.page.type('dialog[open] #vm-create-name', 'too-big')
-  await b.run((megabytes) => {
-    const label = [...document.querySelectorAll<HTMLElement>('dialog[open] label')].find((entry) => entry.innerText.startsWith('RAM'))
-    const ram = label?.querySelector('input')
-    if (!ram) throw new Error('no RAM field')
-    ram.value = megabytes
-    ram.dispatchEvent(new Event('input', { bubbles: true }))
-  }, TOO_MUCH_RAM_MB)
-  await b.click('Create')
-  await b.page.waitForSelector('dialog[open] [role=alert]', { timeout: SHORT_WAIT_MS })
-  const refusal = await b.page.$eval('dialog[open] [role=alert]', (alert) => alert instanceof HTMLElement ? alert.innerText : '')
+  await b.page.type(`dialog[open] ${NAME}`, 'too-big')
+  await pickCard(b, SIZE_GROUP, 'custom')
+  await setField(b, 'RAM', TOO_MUCH_RAM_GB)
+  await b.click('Create VM')
+  await b.page.waitForSelector('dialog[open] .aline.bad', { timeout: SHORT_WAIT_MS })
+  const refusal = await b.page.$eval('dialog[open] .aline.bad', (line) => (line instanceof HTMLElement ? line.innerText : ''))
   check('a request that fits nowhere shows the numbers', refusal.includes('needs 512000 MB RAM'), refusal)
   await b.click('Cancel')
 }

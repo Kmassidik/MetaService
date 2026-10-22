@@ -2,7 +2,7 @@
 // The parent's answers about the orders are played by the test (so each stage can be looked at as long as needed); the machine and its heartbeats are real.
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
-import { imageListArrived } from '../support/images.ts'
+import { NAME, imageListArrived } from '../support/createVm.ts'
 import { noSideScroll, owlAbsent, owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
@@ -18,7 +18,6 @@ const LIST_WAIT_MS = 25000
 const PENDING_MAX_PX = 60
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
-const NAME = '#vm-create-name'
 
 interface Order {
   id: string
@@ -58,7 +57,7 @@ async function submitCreate(b: Browse, name: string): Promise<void> {
   await b.page.waitForSelector(NAME)
   await imageListArrived(b)
   await b.type(NAME, name)
-  await b.click('Create')
+  await b.click('Create VM')
 }
 
 async function creatingFromTheWindow(b: Browse, stand: Stand): Promise<void> {

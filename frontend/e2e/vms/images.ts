@@ -1,15 +1,14 @@
-// The Image choice in the Create VM window: Blank selectable and OpenClaw and Hermes disabled with their reasons (on a machine whose helper answers and on one that does not),
+// The IMAGE cards in the Create VM window: Blank selectable and OpenClaw and Hermes greyed out with their reasons (on a machine whose helper answers and on one that does not),
 // an image title and reason that are hostile text stay text, a parent answer that cannot be read leaves Blank only with a plain note, a phone has no sideways scrolling,
 // and a VM created with Blank is asked for exactly as before (no bundle in the request).
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
+import { IMAGE_GROUP, cards, pickCard, pickedCard, summary } from '../support/createVm.ts'
 import type { Browse } from '../support/page.ts'
 import { XSS } from '../panel/world.ts'
 import { closeWithEscape, openCreate } from './create.ts'
 
 const SHORT_WAIT_MS = 10000
-const IMAGE = '#vm-create-image'
-const PICKER = '#vm-create-machine'
 const OFFLINE_HELPER_MACHINE = 'mac-mini'
 const HELPER_MACHINE = 'agent-mac'
 const COMING_SOON = 'Coming soon: needs the image to be prepared on the machine'
@@ -21,15 +20,11 @@ const BAD_GATEWAY = 502
 const OK = 200
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
-
-interface Option { value: string; text: string; disabled: boolean; selected: boolean }
-
-const options = (b: Browse): Promise<Option[]> =>
-  b.page.$$eval(`${IMAGE} option`, (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [{ value: option.value, text: option.textContent?.trim() ?? '', disabled: option.disabled, selected: option.selected }] : [])))
-
-const summary = (list: Option[]): string[] => list.map((option) => `${option.value}:${option.disabled ? 'off' : 'on'}${option.selected ? ':picked' : ''}`)
+const BLANK_ONLY = ['blank:on:picked']
+const ALL_THREE = ['blank:on:picked', 'openclaw:off', 'hermes:off']
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
+const imageCount = (b: Browse, count: number) => b.until((group, wanted) => document.querySelectorAll(`dialog[open] input[name="${group}"]`).length === wanted, { timeout: SHORT_WAIT_MS }, IMAGE_GROUP, count)
 
 /** Remembers the body of every request that asks the parent to create a VM, from now on. */
 export function recordCreateBodies(page: Page): string[] {
@@ -58,42 +53,39 @@ async function whileAnswering(b: Browse, status: number, body: unknown, work: ()
 
 const openOn = async (b: Browse, machine: string): Promise<void> => {
   await openCreate(b, `#/vms/create?machine=${machine}`)
-  await b.page.waitForSelector(IMAGE, { timeout: SHORT_WAIT_MS })
+  await b.page.waitForSelector(`input[name="${IMAGE_GROUP}"]`, { timeout: SHORT_WAIT_MS })
 }
 
-const imageAnswered = (b: Browse) => b.until(() => document.querySelectorAll('#vm-create-image option').length > 0, { timeout: SHORT_WAIT_MS })
-
-/** On a machine whose helper does not answer, and on one whose helper does: Blank is picked and OpenClaw and Hermes are disabled with their reasons. */
+/** On a machine whose helper does not answer, and on one whose helper does: Blank is picked and OpenClaw and Hermes are greyed out with their reasons. */
 export async function imageSelect(b: Browse): Promise<void> {
   for (const machine of [OFFLINE_HELPER_MACHINE, HELPER_MACHINE]) {
     await openOn(b, machine)
-    await b.until(() => document.querySelectorAll('#vm-create-image option').length === 3, { timeout: SHORT_WAIT_MS })
-    const list = await options(b)
-    check(`${machine}: Blank is picked and selectable, OpenClaw and Hermes are shown disabled`, JSON.stringify(summary(list)) === JSON.stringify(['blank:on:picked', 'openclaw:off', 'hermes:off']), JSON.stringify(summary(list)))
-    check(`${machine}: the options say what they are`, list[0]?.text === 'Blank (plain Ubuntu)' && list[1]?.text === 'OpenClaw (not available yet)' && list[2]?.text === 'Hermes (not available yet)', JSON.stringify(list.map((option) => option.text)))
-    const text = await b.dialogText()
-    check(`${machine}: each disabled image says why, in plain words, under the select`, text.includes(`OpenClaw - ${COMING_SOON}`) && text.includes(`Hermes - ${WAITING_FOR_PIN}`))
-    check(`${machine}: the picked image's description is shown`, text.includes('Ubuntu 24.04 with the usual server tools. Nothing else.'))
-    check(`${machine}: the Image select has a label`, await b.run((selector) => document.querySelector<HTMLSelectElement>(selector)?.labels?.length === 1, IMAGE))
+    await imageCount(b, 3)
+    const list = await cards(b, IMAGE_GROUP)
+    check(`${machine}: Blank is picked and selectable, OpenClaw and Hermes are shown greyed out`, JSON.stringify(summary(list)) === JSON.stringify(ALL_THREE), JSON.stringify(summary(list)))
+    check(`${machine}: the cards say what they are`, list[0]?.text.includes('Blank (plain Ubuntu)') === true && list[1]?.text.includes('OpenClaw') === true && list[2]?.text.includes('Hermes') === true, JSON.stringify(list.map((card) => card.text)))
+    check(`${machine}: each greyed-out image gives its reason as its caption, linked to the card, and is aria-disabled`, list[1]?.described.includes(COMING_SOON) === true && list[2]?.described.includes(WAITING_FOR_PIN) === true && list[1]?.ariaDisabled === true && list[2]?.ariaDisabled === true, JSON.stringify(list.map((card) => card.described)))
+    check(`${machine}: the picked image's description is shown`, list[0]?.described.includes('Ubuntu 24.04 with the usual server tools. Nothing else.') === true)
+    await pickCard(b, IMAGE_GROUP, 'openclaw')
+    check(`${machine}: clicking a greyed-out card does not select it`, (await pickedCard(b, IMAGE_GROUP)) === 'blank')
     if (machine === HELPER_MACHINE) await b.shot('vms-create-image-desktop.png')
     await closeWithEscape(b)
   }
 }
 
-/** Another machine in the same window starts again from Blank, and the choice cannot be a disabled image. */
+/** Another machine in the same window starts again from Blank, and the choice cannot be a greyed-out image. */
 export async function imageFollowsTheMachine(b: Browse): Promise<void> {
   await openCreate(b)
-  await b.page.waitForSelector(PICKER)
-  await b.page.select(PICKER, OFFLINE_HELPER_MACHINE)
-  await b.page.waitForSelector(IMAGE)
-  await imageAnswered(b)
-  await b.page.select(PICKER, HELPER_MACHINE)
-  await b.until(() => document.querySelectorAll('#vm-create-image option').length === 3, { timeout: SHORT_WAIT_MS })
-  check('after another machine is picked the image is Blank again', JSON.stringify(summary(await options(b))) === JSON.stringify(['blank:on:picked', 'openclaw:off', 'hermes:off']))
+  await b.page.waitForSelector('#vm-create-machine')
+  await b.page.select('#vm-create-machine', OFFLINE_HELPER_MACHINE)
+  await b.page.waitForSelector(`input[name="${IMAGE_GROUP}"]`)
+  await b.page.select('#vm-create-machine', HELPER_MACHINE)
+  await imageCount(b, 3)
+  check('after another machine is picked the image is Blank again', JSON.stringify(summary(await cards(b, IMAGE_GROUP))) === JSON.stringify(ALL_THREE))
   await closeWithEscape(b)
 }
 
-/** An image title, description and reason that are hostile text stay text; nothing in them runs, and the disabled image still cannot be picked. */
+/** An image title, description and reason that are hostile text stay text; nothing in them runs, and the greyed-out image still cannot be picked. */
 export async function hostileImageText(b: Browse): Promise<void> {
   const answer = {
     helper: 'answered',
@@ -104,11 +96,11 @@ export async function hostileImageText(b: Browse): Promise<void> {
   }
   await whileAnswering(b, OK, answer, async () => {
     await openOn(b, HELPER_MACHINE)
-    await b.until(() => document.querySelectorAll('#vm-create-image option').length === 2, { timeout: SHORT_WAIT_MS })
+    await imageCount(b, 2)
     const text = await b.dialogText()
-    check('a hostile image title and reason are written out as text', text.includes(`${XSS} - ${XSS}`))
+    check('a hostile image title and reason are written out as text', text.includes(XSS))
     check('and nothing in them ran or became an element', (await b.run(() => window.__xss)) === undefined && (await b.page.$('dialog[open] img')) === null)
-    check('a hostile image is as disabled as any other planned one', JSON.stringify(summary(await options(b))) === JSON.stringify(['blank:on:picked', 'openclaw:off']))
+    check('a hostile image is as greyed out as any other planned one', JSON.stringify(summary(await cards(b, IMAGE_GROUP))) === JSON.stringify(['blank:on:picked', 'openclaw:off']))
     await closeWithEscape(b)
   })
 }
@@ -120,23 +112,24 @@ export async function imageListFails(b: Browse): Promise<void> {
     await whileAnswering(b, reply.status, reply.body, async () => {
       await openOn(b, HELPER_MACHINE)
       await b.until((note) => document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: SHORT_WAIT_MS }, IMAGES_UNREADABLE)
-      check(`when the list answers ${reply.status} ${JSON.stringify(reply.body).slice(0, 30)} only Blank is offered`, JSON.stringify(summary(await options(b))) === JSON.stringify(['blank:on:picked']))
+      check(`when the list answers ${reply.status} ${JSON.stringify(reply.body).slice(0, 30)} only Blank is offered`, JSON.stringify(summary(await cards(b, IMAGE_GROUP))) === JSON.stringify(BLANK_ONLY))
       await closeWithEscape(b)
     })
   }
 }
 
-/** The window on a phone: no sideways scrolling, the whole window on the screen. */
+/** The window on a phone: image cards in one column, no sideways scrolling, the whole window on the screen. */
 export async function imageOnAPhone(b: Browse): Promise<void> {
   await b.page.setViewport(PHONE)
   await openOn(b, HELPER_MACHINE)
-  await b.until(() => document.querySelectorAll('#vm-create-image option').length === 3, { timeout: SHORT_WAIT_MS })
-  check('with the Image select the window has no sideways scrolling on a phone', await noSideScroll(b))
-  check('the Image select and its lines stay inside the window on a phone', await b.run(() => {
+  await imageCount(b, 3)
+  check('with the Image cards the window has no sideways scrolling on a phone', await noSideScroll(b))
+  check('the three image cards are stacked in one column inside the window on a phone', await b.run((group) => {
     const dialog = document.querySelector('dialog[open]')?.getBoundingClientRect()
-    const select = document.querySelector('#vm-create-image')?.getBoundingClientRect()
-    return dialog !== undefined && select !== undefined && select.left >= dialog.left && select.right <= dialog.right && dialog.right <= window.innerWidth
-  }))
+    const boxes = [...document.querySelectorAll(`dialog[open] input[name="${group}"]`)].flatMap((input) => input.closest('label')?.getBoundingClientRect() ?? [])
+    const stacked = boxes.length === 3 && boxes.every((box) => box.left === boxes[0]?.left) && boxes.every((box, index) => index === 0 || box.top > (boxes[index - 1]?.top ?? 0))
+    return dialog !== undefined && stacked && boxes.every((box) => box.left >= dialog.left && box.right <= dialog.right) && dialog.right <= window.innerWidth
+  }, IMAGE_GROUP))
   await b.shot('vms-create-image-phone.png')
   await closeWithEscape(b)
   await b.page.setViewport(DESKTOP)

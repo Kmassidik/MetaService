@@ -1,7 +1,7 @@
-// The Create VM window (over All VMs): which machines can be picked and why not, the VM kind switched off on a containers-only machine, the same validation as the old dialog,
+// The Create VM window (over All VMs): which machines can be picked and why not, the Container card greyed out on a containers-only machine, the same validation as before,
 // the parent's refusal shown with the typed values kept, a VM made on the simulated helper that closes the window and shows up, the old links, Escape and the X, and the machine page's button opening it with its machine locked.
 import { check } from '../support/check.ts'
-import { imageListArrived } from '../support/images.ts'
+import { CREATE_FORM, NAME, PICKER, RUNTIME_GROUP, SIZE_GROUP, cards, createDisabled, fieldValue, imageListArrived, pickCard, pickedCard, pickerValue, setField, summary } from '../support/createVm.ts'
 import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { createAVm } from '../panel/workloads.ts'
@@ -11,31 +11,13 @@ import { crumb, filterValue, heading, openAllVms } from './list.ts'
 const SHORT_WAIT_MS = 10000
 const HELPER_WAIT_MS = 30000
 const MADE_WAIT_MS = 40000
-const PICKER = '#vm-create-machine'
-const NAME = '#vm-create-name'
 const TOO_MUCH_RAM_GB = '500'
 const REFUSED_VM = 'too-big'
 const MADE_VM = 'from-page'
 const DIALOG_VM = 'dialog-box'
 const HELPER_MACHINE = 'agent-mac'
-const FOCUS_TRAP_TABS = 12
-
-interface Choice { value: string; text: string; disabled: boolean }
-
-const choices = (b: Browse): Promise<Choice[]> => b.page.$$eval(`${PICKER} option`, (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [{ value: option.value, text: option.textContent?.trim() ?? '', disabled: option.disabled }] : [])))
-const pickerValue = (b: Browse) => b.run((selector) => document.querySelector<HTMLSelectElement>(selector)?.value ?? null, PICKER)
-const createDisabled = (b: Browse) => b.run(() => [...document.querySelectorAll('dialog[open] form button[type=submit]')].every((button) => button instanceof HTMLButtonElement && button.disabled))
-
-/** Sets one of the size fields by its label, the way a person would (the page is told by an input event). */
-const setField = (b: Browse, label: string, value: string) =>
-  b.run((wanted, text) => {
-    const field = [...document.querySelectorAll<HTMLElement>('dialog[open] form label')].find((entry) => entry.innerText.startsWith(wanted))?.querySelector('input')
-    if (!field) throw new Error(`no field ${wanted}`)
-    field.value = text
-    field.dispatchEvent(new Event('input', { bubbles: true }))
-  }, label, value)
-
-const fieldValue = (b: Browse, label: string) => b.run((wanted) => [...document.querySelectorAll<HTMLElement>('dialog[open] form label')].find((entry) => entry.innerText.startsWith(wanted))?.querySelector('input')?.value ?? null, label)
+const FOCUS_TRAP_TABS = 14
+const FAILURE_LINE = 'dialog[open] .aline.bad'
 
 /** Opens the window through an old Create VM address; All VMs is the page behind it. */
 export async function openCreate(b: Browse, hash = '#/vms/create'): Promise<void> {
@@ -53,6 +35,7 @@ export async function closeWithEscape(b: Browse): Promise<void> {
   await addressIs(b, '#/vms')
 }
 const closed = (b: Browse) => b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
+const optionsOf = (b: Browse) => b.page.$$eval(`${PICKER} option`, (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [{ value: option.value, text: option.textContent?.trim() ?? '', disabled: option.disabled }] : [])))
 
 export async function noMachinesYet(b: Browse): Promise<void> {
   await openCreate(b)
@@ -67,14 +50,13 @@ export async function noMachinesYet(b: Browse): Promise<void> {
 export async function whoCanBePicked(b: Browse): Promise<void> {
   await openCreate(b)
   await b.page.waitForSelector(PICKER)
-  const list = await choices(b)
-  const summary = list.map((entry) => `${entry.text}${entry.disabled ? ' [off]' : ''}`)
+  const summaryOfOptions = (await optionsOf(b)).map((entry) => `${entry.text}${entry.disabled ? ' [off]' : ''}`)
   const expected = ['Choose a machine', `${CONTAINER_MACHINE} (containers only)`, 'dgx-spark (needs setup) [off]', 'mac-mini', `${OFFLINE_MACHINE} (offline) [off]`, `${SICK_MACHINE} (needs setup) [off]`]
-  check('every machine is listed by name; the offline one and the one needing setup are disabled with their reason; containers-only stays pickable', JSON.stringify(summary) === JSON.stringify(expected), JSON.stringify(summary))
+  check('every machine is listed by name; the offline one and the one needing setup are disabled with their reason; containers-only stays pickable', JSON.stringify(summaryOfOptions) === JSON.stringify(expected), JSON.stringify(summaryOfOptions))
   const body = await b.dialogText()
   check('the reasons are also written out under the dropdown, with the machine\'s own words', body.includes(`${OFFLINE_MACHINE}: offline`) && body.includes('dgx-spark: needs setup (VMs cannot get an IPv4 address'))
   check('a hostile problem text from a machine is shown as text, not run', body.includes(`${SICK_MACHINE}: needs setup (<img src=x`) && (await b.run(() => window.__xss)) === undefined && (await b.page.$('img[src="x"]')) === null)
-  check('nothing is preselected and step 2 waits for a machine', (await pickerValue(b)) === '' && (await b.page.$(NAME)) === null && /1 · machine/i.test(await b.dialogText()))
+  check('nothing is preselected when several machines can take a VM, and Create waits for a machine', (await pickerValue(b)) === '' && (await createDisabled(b)))
   check('the machine dropdown is a real select with a label, and it has the focus when the window opens', await b.run((selector) => {
     const select = document.querySelector<HTMLSelectElement>(selector)
     return select !== null && select.labels?.length === 1 && document.activeElement === select
@@ -82,29 +64,37 @@ export async function whoCanBePicked(b: Browse): Promise<void> {
   await b.shot('vms-create-offline-disabled.png')
 }
 
+/** On the containers-only machine: VM is greyed out with its reason and Container is picked; the machine has 6 GB free, so Large is greyed out with that. */
 export async function kindsOnAMachine(b: Browse): Promise<void> {
   await b.page.select(PICKER, CONTAINER_MACHINE)
   await b.page.waitForSelector(NAME)
-  const kinds = await b.page.$$eval('dialog[open] form select:not(#vm-create-machine):not(#vm-create-image) option', (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [`${option.value}:${option.disabled}`] : [])))
-  const kind = await b.run(() => document.querySelector<HTMLSelectElement>('dialog[open] form select:not(#vm-create-machine):not(#vm-create-image)')?.value)
-  check('on a containers-only machine the VM kind is disabled and Container is chosen', JSON.stringify(kinds) === JSON.stringify(['vm:true', 'container:false']) && kind === 'container', JSON.stringify(kinds) + kind)
+  const runtimes = await cards(b, RUNTIME_GROUP)
+  check('on a containers-only machine the VM card is greyed out and Container is picked', JSON.stringify(summary(runtimes)) === JSON.stringify(['container:on:picked', 'vm:off']), JSON.stringify(summary(runtimes)))
+  const vm = runtimes.find((card) => card.value === 'vm')
+  check('the greyed-out VM card is aria-disabled and its reason is linked to it', vm?.ariaDisabled === true && vm.described.includes('This machine runs containers only'), JSON.stringify(vm))
+  const sizes = await cards(b, SIZE_GROUP)
+  check('with 6 GB free, Small and Medium can be picked, Large is greyed out, Medium is picked', JSON.stringify(summary(sizes)) === JSON.stringify(['small:on', 'medium:on:picked', 'large:off', 'custom:on']), JSON.stringify(summary(sizes)))
+  check('the greyed-out size says why', sizes.find((card) => card.value === 'large')?.described.includes('This machine has 6 GB free') === true)
   await b.shot('vms-create-containers-only.png')
 }
 
 export async function preselectedAndValidated(b: Browse): Promise<void> {
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector(NAME)
-  check('coming from a machine (?machine=) preselects it, shows step 2 and puts the cursor in the name', (await pickerValue(b)) === 'mac-mini' && (await b.run(() => document.activeElement?.id)) === 'vm-create-name')
+  check('coming from a machine (?machine=) preselects it and puts the cursor in the first control', (await pickerValue(b)) === 'mac-mini' && (await b.run((selector) => document.activeElement === document.querySelector(selector), PICKER)))
+  check('with no defaults on the machine the window starts on Medium, Blank and a name box that may stay empty', (await pickedCard(b, SIZE_GROUP)) === 'medium' && !(await createDisabled(b)))
   await openCreate(b, `#/vms/create?machine=${OFFLINE_MACHINE}`)
   await b.page.waitForSelector(PICKER)
-  check('an offline machine in the address is not preselected', (await pickerValue(b)) === '' && (await b.page.$(NAME)) === null)
+  check('an offline machine in the address is not preselected', (await pickerValue(b)) === '' && (await createDisabled(b)))
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector(NAME)
   await b.page.type(NAME, 'Bad Name')
-  check('a bad name explains itself and switches Create off, as in the dialog', (await createDisabled(b)) && (await b.text()).includes('Use lowercase letters'))
-  await setField(b, 'CPU', '65')
+  check('a bad name explains itself and switches Create off', (await createDisabled(b)) && (await b.dialogText()).includes('Use lowercase letters'))
   await b.type(NAME, 'fine-name')
-  check('a CPU above the limit is refused with the limit', (await createDisabled(b)) && (await b.text()).includes('CPU must be between 1 and 64'))
+  await pickCard(b, SIZE_GROUP, 'custom')
+  check('Custom opens the three boxes, filled with what was picked', (await fieldValue(b, 'CPU')) === '2' && (await fieldValue(b, 'RAM')) === '4' && (await fieldValue(b, 'Disk')) === '40')
+  await setField(b, 'CPU', '65')
+  check('a CPU above the limit is refused with the limit', (await createDisabled(b)) && (await b.dialogText()).includes('CPU must be between 1 and 64'))
   await setField(b, 'CPU', '2')
   check('a good form can be sent', !(await createDisabled(b)))
   await b.shot('vms-create-filled.png')
@@ -118,7 +108,7 @@ export async function openingAndClosing(b: Browse): Promise<void> {
     return button !== null && /Create VM/.test(button.innerText) && button.getBoundingClientRect().right > window.innerWidth - 80
   }))
   await b.page.click('.phead .sp a.btn.green')
-  await b.page.waitForSelector('dialog[open] form')
+  await b.page.waitForSelector(CREATE_FORM)
   check('the button opens the window over All VMs, with the machine dropdown focused', (await b.dialogText()).includes('Create VM') && (await b.run((selector) => document.activeElement === document.querySelector(selector), PICKER)))
   await b.page.keyboard.press('Escape')
   await closed(b)
@@ -145,16 +135,17 @@ export async function refusedThenMade(b: Browse): Promise<void> {
   await b.page.waitForSelector(NAME)
   await imageListArrived(b)
   await b.type(NAME, REFUSED_VM)
+  await pickCard(b, SIZE_GROUP, 'custom')
   await setField(b, 'RAM', TOO_MUCH_RAM_GB)
-  await b.click('Create')
-  await b.page.waitForSelector('dialog[open] form [role=alert]', { timeout: SHORT_WAIT_MS })
-  const refusal = await b.page.$eval('dialog[open] form [role=alert]', (alert) => (alert instanceof HTMLElement ? alert.innerText : ''))
-  check('a request that fits nowhere shows the parent\'s numbers', refusal.includes('needs 512000 MB RAM'), refusal)
+  await b.click('Create VM')
+  await b.page.waitForSelector(FAILURE_LINE, { timeout: SHORT_WAIT_MS })
+  const refusal = await b.page.$eval(FAILURE_LINE, (line) => (line instanceof HTMLElement ? line.innerText : ''))
+  check('a request that fits nowhere shows the parent\'s numbers inside the window', refusal.includes('needs 512000 MB RAM'), refusal)
   check('the typed values are kept after a refusal', (await b.run((selector) => document.querySelector<HTMLInputElement>(selector)?.value, NAME)) === REFUSED_VM && (await fieldValue(b, 'RAM')) === TOO_MUCH_RAM_GB && (await pickerValue(b)) === HELPER_MACHINE)
   await b.shot('vms-create-refusal.png', true)
   await setField(b, 'RAM', '1')
   await b.type(NAME, MADE_VM)
-  await b.click('Create')
+  await b.click('Create VM')
   await closed(b)
   check('after Create the window closes and the address is plain All VMs', (await addressIs(b, '#/vms')) && (await heading(b)) === 'All VMs')
   await b.until((name) => document.body.innerText.includes(name), { timeout: MADE_WAIT_MS }, MADE_VM)

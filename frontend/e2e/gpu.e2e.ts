@@ -6,13 +6,15 @@ import puppeteer from 'puppeteer-core'
 import { CARD, CHECK_IDS, HOSTILE_DETAIL, REFUSED_CREATE, startGpuStandIn, type GpuStandIn } from './gpu/stand-in.ts'
 import { check, finish } from './support/check.ts'
 import { chromePath, panelDist } from './support/paths.ts'
-import { imageListArrived } from './support/images.ts'
+import { RUNTIME_GROUP, imageListArrived, pickCard } from './support/createVm.ts'
+import { wait } from './support/net.ts'
 import { browse, type Browse } from './support/page.ts'
 
 const SHORT_WAIT_MS = 10000
+const SENT_TRIES = 50
+const SENT_PAUSE_MS = 200
 const SIZES = { desktop: { width: 1280, height: 1000 }, phone: { width: 400, height: 900 } }
 const PICKER = '#vm-create-machine'
-const KIND = '.sizes select'
 const GPU_RADIOS = 'fieldset[aria-label=GPU] input[type=radio]'
 const VM_TEXT = 'A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.'
 const TOOLKIT_TEXT = 'This machine needs the NVIDIA container toolkit first'
@@ -26,8 +28,13 @@ const openCreate = async (b: Browse, base: string, machine: string): Promise<voi
   await imageListArrived(b)
 }
 
+/** Waits until the stand-in parent has been asked to create this many VMs. */
+async function untilSent(world: GpuStandIn, count: number): Promise<void> {
+  for (let tries = 0; tries < SENT_TRIES && world.created.length < count; tries++) await wait(SENT_PAUSE_MS)
+}
+
 const pickKind = async (b: Browse, kind: string): Promise<void> => {
-  await b.page.select(KIND, kind)
+  await pickCard(b, RUNTIME_GROUP, kind)
   await b.run(() => new Promise((done) => requestAnimationFrame(done)))
 }
 
@@ -80,7 +87,7 @@ async function whatTheFormSends(b: Browse, world: GpuStandIn): Promise<void> {
   await openCreate(b, world.base, 'rtx-pc')
   await b.type('#vm-create-name', 'gpu-job')
   await b.page.click(`${GPU_RADIOS}[value=container]`)
-  await b.click('Create')
+  await b.click('Create VM')
   await b.until((text) => document.body.innerText.includes(text), { timeout: SHORT_WAIT_MS }, REFUSED_CREATE.slice(0, 40))
   const sent = world.created.at(-1)
   check('choosing Share sends gpu_mode container for a container on that machine', sent?.gpu_mode === 'container' && sent.kind === 'container' && sent.machine === 'rtx-pc' && sent.name === 'gpu-job', JSON.stringify(sent))
@@ -88,9 +95,9 @@ async function whatTheFormSends(b: Browse, world: GpuStandIn): Promise<void> {
   await b.shot('gpu-create-refused.png')
 
   await b.page.click(`${GPU_RADIOS}[value=none]`)
-  await b.click('Create')
-  await b.until((count) => document.querySelectorAll('[role=alert]').length > 0 && count >= 0, { timeout: SHORT_WAIT_MS }, world.created.length)
-  await b.until(() => true, { timeout: 500 })
+  await b.click('Create VM')
+  await untilSent(world, 2)
+  await b.until(() => !document.querySelector('form[aria-label="Create VM"] [aria-busy=true]'), { timeout: SHORT_WAIT_MS })
   const plain = world.created.at(-1)
   check('No GPU sends no gpu_mode at all', world.created.length === 2 && plain !== undefined && !('gpu_mode' in plain), JSON.stringify(plain))
 
@@ -99,7 +106,7 @@ async function whatTheFormSends(b: Browse, world: GpuStandIn): Promise<void> {
   await b.page.click(`${GPU_RADIOS}[value=container]`)
   await pickKind(b, 'vm')
   await b.type('#vm-create-name', 'vm-after')
-  await b.click('Create')
+  await b.click('Create VM')
   await b.until((count) => count > 0, { timeout: SHORT_WAIT_MS }, world.created.length - 2)
   const vm = world.created.at(-1)
   check('a VM never asks for the GPU, even after Share was chosen and the kind was changed', vm?.kind === 'vm' && !('gpu_mode' in vm), JSON.stringify(vm))
