@@ -69,7 +69,7 @@ async function onTheMachinePage(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const row = await facts(b, 'tbody tr', VM)
-  check('the table view has an enabled Terminal button for a running VM on a Mac', row.found && !row.disabled && row.label === 'Terminal', JSON.stringify(row))
+  check('the table view has an enabled Terminal button for a running VM on a Mac', row.found && !row.disabled && row.label === `Terminal ${VM}`, JSON.stringify(row))
   await press(b, 'tbody tr', VM)
   await openAndUse(b, 'machine-page')
   check('the terminal opens over the machine page, which stays where it was', b.page.url().endsWith(`#/machines/details?id=${MACHINE}`) && /VMs \(\d+\)/.test(await b.text()), b.page.url())
