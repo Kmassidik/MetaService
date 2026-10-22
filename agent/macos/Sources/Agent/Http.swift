@@ -78,6 +78,8 @@ struct ErrorMiddleware: RouterMiddleware {
             return Json.error(.badRequest, "invalid_input", error.message)
         } catch let refusal as Refusal {
             return Json.error(.conflict, refusal.code.rawValue, refusal.message, extra: ["resource": refusal.resource.rawValue, "needed": refusal.needed, "free": refusal.free])
+        } catch let failure as SshdFailure {
+            return Json.error(.badGateway, SshdFailure.errorCode, failure.message)
         } catch AgentError.notFound {
             return Json.error(.notFound, "not_found", "no such thing")
         } catch EngineError.notFound {

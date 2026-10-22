@@ -1,6 +1,6 @@
 import Foundation
 
-/// Whether a login server is in the VM. The helper only reports it; installing or starting sshd is a question of the VM's image.
+/// Whether a login server is in the VM. The plain call only reports it; with `install_sshd` the helper installs and starts it (see `SshdInstallScript`).
 public enum SshdState: String, Codable, Equatable, Sendable {
     case running, installed, missing
 }
@@ -8,10 +8,13 @@ public enum SshdState: String, Codable, Equatable, Sendable {
 public struct SshKeysResult: Encodable, Equatable {
     public let applied: Int
     public let sshd: SshdState
+    /// Present only when the call asked for the SSH server to be installed: true when this call installed the package.
+    public let installed: Bool?
 
-    public init(applied: Int, sshd: SshdState) {
+    public init(applied: Int, sshd: SshdState, installed: Bool? = nil) {
         self.applied = applied
         self.sshd = sshd
+        self.installed = installed
     }
 }
 

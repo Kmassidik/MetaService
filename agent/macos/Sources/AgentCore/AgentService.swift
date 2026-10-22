@@ -92,9 +92,14 @@ public actor AgentService {
     }
 
     /// Sets the complete list of SSH keys for root of one VM (see `Engine.applySshKeys`). The list is checked again here, whoever calls.
-    public func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult {
+    /// With `installSshd` the keys are written first, then the SSH server is installed and started; a failure there throws `SshdFailure` and the keys stay written.
+    public func applySshKeys(id: String, keys: [String], installSshd: Bool = false) async throws -> SshKeysResult {
         try SshKeyLines.validate(keys)
-        return try await engine.applySshKeys(id: id, keys: keys)
+        let written = try await engine.applySshKeys(id: id, keys: keys)
+        guard installSshd else { return written }
+        let report = try await engine.installSshd(id: id)
+        if let failure = report.failure { throw failure }
+        return SshKeysResult(applied: written.applied, sshd: report.sshd, installed: report.installed)
     }
 
     public func command(_ id: String) throws -> Command {

@@ -12,6 +12,9 @@ public actor SimulatedEngine: Engine {
     public private(set) var sshKeys: [String: [String]] = [:]
     public private(set) var sshRuns: [(arguments: [String], input: Data)] = []
     private var sshdState: SshdState = .missing
+    private var installFailure: SshdFailure?
+    /// What each install of the SSH server ran: the program arguments.
+    public private(set) var sshInstallRuns: [[String]] = []
 
     public init(capabilities: Capabilities = Capabilities(vm: true, container: true, gpuInVm: false, gpuInContainer: false)) {
         self.capabilities = capabilities
@@ -65,6 +68,19 @@ public actor SimulatedEngine: Engine {
 
     /// What every later SSH key apply reports about sshd, as the VM's image would decide it.
     public func setSshd(_ state: SshdState) { sshdState = state }
+
+    /// Makes every later install of a missing SSH server fail with this reason (nil: installs work again).
+    public func failSshdInstalls(_ failure: SshdFailure?) { installFailure = failure }
+
+    public func installSshd(id: String) async throws -> SshdInstallReport {
+        guard let found = store[id] else { throw EngineError.notFound }
+        guard found.state == .running else { throw EngineError.notRunning }
+        sshInstallRuns.append(SshdInstallScript.arguments(id: id))
+        let missing = sshdState == .missing
+        if missing, let installFailure { return SshdInstallReport(sshd: sshdState, installed: false, failure: installFailure) }
+        sshdState = .running
+        return SshdInstallReport(sshd: .running, installed: missing, failure: nil)
+    }
 
     public func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult {
         guard let found = store[id] else { throw EngineError.notFound }

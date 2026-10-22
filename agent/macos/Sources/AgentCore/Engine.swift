@@ -22,6 +22,9 @@ public protocol Engine: Sendable {
     /// Replaces the whole list of SSH public keys that may log in as root of this one VM. The keys go in on standard input, never in arguments.
     /// Throws `notFound` for an unknown VM and `notRunning` for one that is not running.
     func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult
+    /// Installs (when missing), locks to keys only, and starts the SSH server inside one running VM, with a fixed script and no request data. The keys were written before.
+    /// Throws `SshdFailure` when the server could not be made to listen, `notFound` for an unknown VM and `notRunning` for one that is not running.
+    func installSshd(id: String) async throws -> SshdInstallReport
     /// The program and arguments that open an interactive shell inside the workload, to be run in a pty. The first item is the program. No shell string, no user text.
     func attach(id: String) async throws -> [String]
 }

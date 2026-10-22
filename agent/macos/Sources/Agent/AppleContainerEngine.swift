@@ -22,6 +22,8 @@ actor AppleContainerEngine: Engine {
     private var reasons: [String: StoppedReason] = [:]
     private static let quick: TimeInterval = 30
     private static let slow: TimeInterval = 900
+    /// The most an install of the SSH server inside a VM may take (it downloads a package).
+    private static let installTimeout: TimeInterval = 300
 
     init(cli: ContainerCLI, records: RecordStore, backupDirectory: String, defaultImage: String = AppleContainer.defaultImage, waitSeconds: Int = 90,
          readySeconds: Int = AppleContainer.readySeconds, settleSeconds: Int = AppleContainer.settleSeconds) {
@@ -182,6 +184,14 @@ actor AppleContainerEngine: Engine {
         guard try await find(id)?.state == "running" else { throw EngineError.notRunning }
         return try await SshKeysScript.apply(id: id, keys: keys) { arguments, input in
             String(decoding: try await self.cli.run(arguments, timeout: Self.quick, input: input), as: UTF8.self)
+        }
+    }
+
+    func installSshd(id: String) async throws -> SshdInstallReport {
+        guard records.all()[id] != nil else { throw EngineError.notFound }
+        guard try await find(id)?.state == "running" else { throw EngineError.notRunning }
+        return try await SshdInstallScript.install(id: id) { arguments in
+            String(decoding: try await self.cli.run(arguments, timeout: Self.installTimeout), as: UTF8.self)
         }
     }
 

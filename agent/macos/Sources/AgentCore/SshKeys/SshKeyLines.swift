@@ -28,14 +28,18 @@ public enum SshKeyLines {
     }
 }
 
-/// The body of `PUT /v1/workloads/{id}/ssh-keys`.
+/// The body of `PUT /v1/workloads/{id}/ssh-keys`: the keys, and whether to also install and start the SSH server inside the VM (default false).
 public struct SshKeysRequest: Equatable {
     public let keys: [String]
+    public let installSshd: Bool
+
+    private static let installField = "install_sshd"
 
     private static let anyText = #/[\s\S]*/#
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["keys"])
+        let object = try StrictObject(data: body, allowed: ["keys", Self.installField])
+        installSshd = try object.keys.contains(Self.installField) ? object.bool(Self.installField) : false
         keys = try object.strings("keys", maxCount: SshKeyLines.maxKeys, pattern: Self.anyText, maxLength: SshKeyLines.maxLineLength)
         try SshKeyLines.validate(keys)
     }

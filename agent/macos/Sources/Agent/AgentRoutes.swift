@@ -41,7 +41,7 @@ struct AgentRoutes {
     private func sshKeys(_ request: Request, context: AgentContext) async throws -> Response {
         let id = try Self.workloadId(context)
         let body = try SshKeysRequest(body: try await Self.body(request))
-        return try Json.response(try await service.applySshKeys(id: id, keys: body.keys))
+        return try Json.response(try await service.applySshKeys(id: id, keys: body.keys, installSshd: body.installSshd))
     }
 
     private func installBundle(_ request: Request, context: AgentContext) async throws -> Response {
