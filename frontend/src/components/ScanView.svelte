@@ -103,11 +103,11 @@
   {#if scan?.state === 'failed'}
     <p class="note bad">The scan could not use any source. Check the notes above.</p>
   {:else if !scan && setup?.subnet}
-    <p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p>
+    <div class="none"><Owl name="emptyMachines" /><p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p></div>
   {:else if scan && scan.state === 'done' && scan.results.length === 0}
     <div class="none"><Owl name="emptyMachines" /><p class="muted">The scan found nothing on this network.</p></div>
   {:else if running}
-    <p class="muted">Looking at the network…</p>
+    <div class="none"><Owl name="loading" /><p class="muted">Looking at the network…</p></div>
   {:else if scan?.results?.length}
     <div class="table" role="table" aria-label="Devices found">
       <div class="head" role="row"><span>Address</span><span>Name</span><span>MAC address</span><span>Seen by</span><span>Status</span></div>

@@ -60,7 +60,7 @@ export async function chartsAreFullWithHistory(b: Browse, world: StandIn, id: st
   const names = drawn.map((chart) => chart.name).join('|')
   const expected = optional === 'none' ? 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Network speed' : 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Disk speed|chart-Network speed'
   check(`${id}: the charts are CPU, memory, load, ${optional === 'none' ? '' : 'disk speed, '}network`, names === expected, names)
-  check(`${id}: every chart has lines on first load, time labels, a y axis, a legend and "per 10 seconds"`, drawn.every((chart) => chart.lines >= 1 && chart.xLabels >= 2 && chart.yLabels >= 2 && chart.legend >= 1 && chart.caption.includes('per 10 seconds') && chart.summary >= 2), JSON.stringify(drawn))
+  check(`${id}: every chart has lines on first load, time labels, a y axis, a legend and "per 10 seconds"`, drawn.every((chart) => chart.lines >= 1 && chart.xLabels >= 2 && chart.yLabels >= 2 && chart.legend >= 1 && chart.caption.includes('per 10 seconds') && chart.summary >= 1 && chart.summary === chart.legend), JSON.stringify(drawn))
   const legend = await b.run(() => Object.fromEntries([...document.querySelectorAll<HTMLElement>('[data-testid^=legend-]')].map((cell) => [cell.dataset.testid ?? '', cell.innerText])))
   check(`${id}: legend values are real numbers, not zeros or blanks`, [optional === 'none' ? 'legend-total' : 'legend-user', 'legend-1m', 'legend-in', 'legend-used'].every((key) => /\d/.test(legend[key] ?? '')), JSON.stringify(legend))
 }
