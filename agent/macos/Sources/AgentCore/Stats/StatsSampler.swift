@@ -4,6 +4,7 @@ import Foundation
 public final class StatsSampler: @unchecked Sendable {
     public static let maxProcesses = 15
     public static let maxDisks = 16
+    public static let maxGpus = 8
     public static let maxTextCharacters = 64
     public static let maxMountCharacters = 128
     public static let maxFsCharacters = 32

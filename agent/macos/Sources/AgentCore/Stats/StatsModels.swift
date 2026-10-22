@@ -28,6 +28,8 @@ public struct MachineStats: Equatable {
     }
     public struct Gpu: Equatable {
         public let name: String
+        /// "nvidia", "amd", "apple", "intel" or "unknown". A Mac says "apple" (use and memory only: temperature, power and clock need root).
+        public let vendor: String
         public let utilizationPercent: Double?
         public let memoryUsedBytes, memoryTotalBytes: UInt64?
         public let temperatureCelsius: Double?
@@ -45,7 +47,7 @@ public struct MachineStats: Equatable {
     public var diskIo: DiskIo?
     /// How many programs run, all users. Left out when the system does not say.
     public var processCount: Int?
-    /// Left out (nil) when the system cannot say. A Mac never says without root.
+    /// Left out (nil) when there is no GPU the system can read.
     public let gpus: [Gpu]?
     public let processes: [Process]
 }
@@ -91,10 +93,10 @@ extension MachineStats.Process: Encodable {
 }
 
 extension MachineStats.Gpu: Encodable {
-    private enum Keys: String, CodingKey { case name, utilizationPercent, memoryUsedBytes, memoryTotalBytes, temperatureCelsius }
+    private enum Keys: String, CodingKey { case name, vendor, utilizationPercent, memoryUsedBytes, memoryTotalBytes, temperatureCelsius }
     public func encode(to encoder: Encoder) throws {
         var box = encoder.container(keyedBy: Keys.self)
-        try box.encode(name, forKey: .name); try box.encode(utilizationPercent, forKey: .utilizationPercent)
+        try box.encode(name, forKey: .name); try box.encode(vendor, forKey: .vendor); try box.encode(utilizationPercent, forKey: .utilizationPercent)
         try box.encode(memoryUsedBytes, forKey: .memoryUsedBytes); try box.encode(memoryTotalBytes, forKey: .memoryTotalBytes)
         try box.encode(temperatureCelsius, forKey: .temperatureCelsius)
     }

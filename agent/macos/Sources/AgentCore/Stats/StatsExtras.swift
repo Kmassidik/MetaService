@@ -39,7 +39,9 @@ public struct StatsExtras: Equatable {
     public var diskTotals: DiskTotals?
     /// How many programs run, all users (the list in the answer holds only the busiest).
     public var processCount: Int?
-    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil) {
-        self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount
+    /// The graphics chips the registry shows. Empty when it shows none.
+    public var gpus: [GpuReading]
+    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil, gpus: [GpuReading] = []) {
+        self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount; self.gpus = gpus
     }
 }
