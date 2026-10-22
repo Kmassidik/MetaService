@@ -3,10 +3,10 @@ import argparse
 import pathlib
 import sys
 
-from contract.tests import checks_basic, checks_bundle, checks_workloads
+from contract.tests import checks_basic, checks_bundle, checks_ssh_keys, checks_workloads
 from contract.tests.support import CheckFailed, Client, Context
 
-ALL_CHECKS = checks_basic.CHECKS + checks_workloads.CHECKS + checks_bundle.CHECKS
+ALL_CHECKS = checks_basic.CHECKS + checks_workloads.CHECKS + checks_bundle.CHECKS + checks_ssh_keys.CHECKS
 
 
 def run_checks(base_url, token, out=sys.stdout, bundle=None):

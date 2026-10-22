@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from agent.fake.engine import NotFound, Refused
+from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
 from contract import spec, wsproto
@@ -15,6 +16,18 @@ MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
 ID_PATTERN = r"[a-z0-9][a-z0-9-]{0,62}"
 JSON_TYPE = "application/json"
+SECRET_BODY_MESSAGE = "the body must be {\"keys\": [up to 20 key lines]}"
+
+
+# Only these refusals carry the numbers behind them (the Refusal schema); any other 409 is a plain Error.
+ROOM_REFUSALS = ("not_enough_room", "missing_capability")
+
+
+def refusal_error(refused):
+    plain = {"code": refused.code, "message": refused.message}
+    if refused.code not in ROOM_REFUSALS:
+        return plain
+    return {**plain, "resource": refused.resource, "needed": refused.needed, "free": refused.free}
 
 
 class ApiError(Exception):
@@ -55,8 +68,7 @@ class AgentHandler(BaseHTTPRequestHandler):
         except ApiError as error:
             self._send(error.status, {"error": {"code": error.code, "message": error.message}})
         except Refused as refused:
-            self._send(409, {"error": {"code": refused.code, "message": refused.message, "resource": refused.resource,
-                                       "needed": refused.needed, "free": refused.free}})
+            self._send(409, {"error": refusal_error(refused)})
         except NotFound:
             self._send(404, {"error": {"code": "not_found", "message": "no such thing"}})
         except Exception:  # noqa: BLE001 - last resort: a clean 500 that reveals nothing
@@ -76,7 +88,8 @@ class AgentHandler(BaseHTTPRequestHandler):
                 return handler, match.groupdict()
         raise ApiError(404, "not_found", "no such path")
 
-    def _body(self, schema_name):
+    def _body(self, schema_name, secret=False):
+        """The checked JSON body. With `secret`, a refusal never repeats what the body held (a schema message quotes the value)."""
         length = int(self.headers.get("Content-Length", "0") or 0)
         if length > MAX_BODY_BYTES:
             self.rfile.read(min(length, MAX_DRAIN_BYTES))
@@ -87,7 +100,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_json", "body is not valid JSON") from None
         found = spec.problems(schema_name, body)
         if found:
-            raise ApiError(400, "invalid_input", "; ".join(found))
+            raise ApiError(400, "invalid_input", SECRET_BODY_MESSAGE if secret else "; ".join(found))
         return body
 
     def _command_id(self):
@@ -182,7 +195,9 @@ class AgentHandler(BaseHTTPRequestHandler):
         self._send(200, self.engine.gpu_check(id))
 
     def put_ssh_keys(self, id):
-        body = self._body("SshKeysApply")
+        body = self._body("SshKeysApply", secret=True)
+        if not all(is_valid_key(line) for line in body["keys"]):
+            raise ApiError(400, "invalid_input", "each key must be a key type, base64 and an optional comment")
         self._send(200, self.engine.apply_ssh_keys(id, body["keys"]))
 
     def show_ssh_keys(self, id):
