@@ -1,15 +1,17 @@
 <script lang="ts">
-  // The SSH keys of one VM: the list, a red confirm before a key is removed, a block to add one, the status lines the parent's answer calls for, and the line to log in with.
-  // Only the fingerprint of a key is shown, never the key itself. The list is read each time the dialog opens.
+  // The SSH keys of one VM: the list, a red confirm before a key is removed, a block to add one, the status lines the parent's answer calls for, and the SSH setup block (progress, Try again, the command to log in).
+  // Only the fingerprint of a key is shown, never the key itself. The list is read each time the dialog opens, and again every few seconds while the helper sets SSH up.
   import ConfirmDialog from '../ConfirmDialog.svelte'
   import Dialog from '../Dialog.svelte'
   import IconButton from '../IconButton.svelte'
   import ActionLine from '../ActionLine.svelte'
-  import CopyAddress from './CopyAddress.svelte'
   import SshKeyAdd from './SshKeyAdd.svelte'
-  import { addSshKey, listSshKeys, removeSshKey } from '../../lib/api.ts'
+  import SshSetupBlock from './SshSetupBlock.svelte'
+  import { addSshKey, listSshKeys, removeSshKey, retrySshSetup } from '../../lib/api.ts'
   import { removeSshKeyCopy } from '../../lib/confirmCopy.ts'
-  import { addedText, CONNECT_NOTE, connectionLine, statusLines } from '../../lib/sshKeys.ts'
+  import { environmentHref } from '../../lib/routes.ts'
+  import { addedText, statusLines } from '../../lib/sshKeys.ts'
+  import { setupBlock, shouldPoll, SSH_POLL_MS } from '../../lib/sshSetup.ts'
   import { VM_ICONS } from './vmIcons.ts'
   import type { Machine, SshKey, SshKeyList, Workload } from '../../lib/types.ts'
 
@@ -20,21 +22,25 @@
     onClose: () => void
   }
 
+  const CHECK_FAILED = 'Could not check the progress. Trying again…'
   const READ_FAILED = 'The keys could not be read. Close this and open it again.'
 
   let { machine, workload, open, onClose }: Props = $props()
   let list = $state<SshKeyList | null>(null)
   let readFailure = $state('')
   let removing = $state<SshKey | null>(null)
+  let checkFailed = $state(false)
   const lines = $derived(list ? statusLines(list, workload.state) : [])
-  const connect = $derived(connectionLine(workload.address))
+  const block = $derived(setupBlock(list, workload.state))
+  const polling = $derived(shouldPoll(list))
   const copy = $derived(removeSshKeyCopy(workload))
 
   async function load() {
     list = null
     readFailure = ''
+    checkFailed = false
     try {
-      list = await listSshKeys(machine.id, workload.id)
+      take(await listSshKeys(machine.id, workload.id))
     } catch (error) {
       readFailure = error instanceof Error && error.message ? error.message : READ_FAILED
     }
@@ -44,8 +50,47 @@
     if (open) void load()
   })
 
+  /** Every answer that replaces the list counts; a progress check that was sent before one of them must not undo it. */
+  let listVersion = 0
+  const take = (next: SshKeyList) => {
+    listVersion += 1
+    list = next
+  }
+
+  /** One progress check. A failed check keeps what is shown and says so; the next one runs on schedule. */
+  async function check() {
+    const sentAt = listVersion
+    try {
+      const next = await listSshKeys(machine.id, workload.id)
+      if (sentAt === listVersion) take(next)
+      checkFailed = false
+    } catch {
+      checkFailed = true
+    }
+  }
+
+  // While the helper installs, ask again every few seconds, one request at a time; closing the dialog or a finished setup stops it.
+  $effect(() => {
+    if (!open || !polling) return
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      await check()
+      if (!stopped) timer = setTimeout(tick, SSH_POLL_MS)
+    }
+    timer = setTimeout(tick, SSH_POLL_MS)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+    }
+  })
+
   async function removeChosen() {
-    if (removing) list = await removeSshKey(machine.id, workload.id, removing.id)
+    if (removing) take(await removeSshKey(machine.id, workload.id, removing.id))
+  }
+
+  async function retry() {
+    take(await retrySshSetup(machine.id, workload.id))
   }
 </script>
 
@@ -72,14 +117,11 @@
       </ul>
     {/if}
     {#each lines as line (line)}<p class="status">{line}</p>{/each}
-    <SshKeyAdd send={(publicKey) => addSshKey(machine.id, workload.id, publicKey)} onAdded={(next) => (list = next)} />
+    {#if checkFailed}<p class="hint" role="status">{CHECK_FAILED}</p>{/if}
+    <SshKeyAdd send={(publicKey) => addSshKey(machine.id, workload.id, publicKey)} onAdded={take} />
   {/if}
-  {#if connect}
-    <div class="connect">
-      <span class="lbl">Log in</span>
-      <span class="cmd"><code>{connect}</code><CopyAddress address={connect} label="Copy command" subject={workload.name} /></span>
-      <p class="hint">{CONNECT_NOTE}</p>
-    </div>
+  {#if list}
+    <SshSetupBlock {block} address={workload.address} subject={workload.name} environmentHref={environmentHref(machine.id)} onRetry={retry} onLeave={onClose} />
   {/if}
   <div class="row"><button class="btn line" type="button" onclick={onClose}>Close</button></div>
 </Dialog>
@@ -108,9 +150,5 @@
   .comment { font-size: 13px; overflow-wrap: anywhere; }
   .print { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; background: none; padding: 0; }
   .when { font-size: 11px; color: var(--m50); }
-  .connect { display: grid; gap: 6px; }
-  .lbl { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--m50); }
-  .cmd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .cmd code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); padding: 6px 8px; overflow-wrap: anywhere; }
   .row { display: flex; justify-content: flex-end; }
 </style>
