@@ -1,6 +1,7 @@
 // Signing in, the Overview, the sidebar, and the Machines list: its problems, hostile text, and removing a machine.
 import { ADMIN } from '../support/admin.ts'
 import { check } from '../support/check.ts'
+import { loginIsOneCentered } from '../support/loginLayout.ts'
 import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import type { World } from './world.ts'
@@ -18,6 +19,7 @@ export async function signInWithAWrongThenTheRightPassword(b: Browse, world: Wor
   const gate = await b.text()
   check('the first thing shown is the sign-in page, with no machines and no Google', /sign in to manage/i.test(gate) && !gate.includes('dgx-spark') && !/google/i.test(gate))
   await owlShown(b, 'hero', 'the sign-in page')
+  await loginIsOneCentered(b, 'the sign-in page')
   await b.shot('login.png')
   await inputField(b, 'username')
   await b.page.type('input[name=password]', 'a wrong password')

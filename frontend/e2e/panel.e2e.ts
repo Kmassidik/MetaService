@@ -4,6 +4,7 @@
 // Run: bun e2e/panel.e2e.ts
 import puppeteer from 'puppeteer-core'
 import { check, finish } from './support/check.ts'
+import { loginIsOneCentered } from './support/loginLayout.ts'
 import { noSideScroll, owlShown } from './support/owls.ts'
 import { chromePath } from './support/paths.ts'
 import { browse } from './support/page.ts'
@@ -55,6 +56,7 @@ try {
   await b.until(() => /sign in to manage/i.test(document.body.innerText), { timeout: SIGN_OUT_WAIT_MS })
   check('signing out returns to the sign-in page and shows nothing', !(await b.text()).includes('dgx-spark'))
   await owlShown(b, 'hero', 'the sign-in page on a phone')
+  await loginIsOneCentered(b, 'the sign-in page on a phone')
   await noSideScroll(b, 'the sign-in page on a phone')
   await b.shot('owl-login-phone.png')
   check('no script errors and no policy violations', errors.length === 0 && (await b.run(() => window.violation)) === undefined, errors.join(' | '))

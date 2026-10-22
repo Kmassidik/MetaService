@@ -21,9 +21,6 @@
   --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
   /* shadows and the dim layer behind a window */
   --scrim: rgba(35,27,21,.6); --shadow-window: 0 20px 60px rgba(35,27,21,.4); --shadow-card: 0 18px 40px -24px rgba(35,27,21,.35); --pane-line: rgba(35,27,21,.18);
-  /* the dark panel of the sign-in page */
-  --pitch-bg: #231b15; --pitch-text: #fbf7ea; --pitch-soft: rgba(251,247,234,.72); --pitch-dim: rgba(251,247,234,.64); --pitch-faint: rgba(251,247,234,.36);
-  --pitch-dot: rgba(251,247,234,.06); --pitch-glow: rgba(125,178,107,.22);
   /* the terminal window: dark */
   --term-bg: #111; --term-bar: #1a1a1a; --term-line: #000; --term-text: #e8e8e8; --term-button-line: #3a3a3a; --term-button-text: #cfcfcf; --term-bad: #ff6b6b;
 }

@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { ADMIN } from '../support/admin.ts'
 import { check } from '../support/check.ts'
+import { loginIsOneCentered } from '../support/loginLayout.ts'
 import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import type { World } from './world.ts'
@@ -33,6 +34,7 @@ async function createTheAdmin(b: Browse, world: World): Promise<void> {
   await b.page.type('input[name=confirm]', 'not the same')
   await b.until(() => /don.t match/i.test(document.body.innerText), {})
   await owlShown(b, 'hero', 'the first-run page')
+  await loginIsOneCentered(b, 'the first-run page')
   await b.shot('first-run.png')
   check('different passwords are called out and the button is disabled', await b.run(() => document.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled ?? false))
   check('the password is hidden until the eye is pressed', (await inputType(b, 'password')) === 'password')

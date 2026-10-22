@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Sign in and first run on one two-column page: the pitch on the left, the form on the right.
+  // Sign in and first run on one centered column: the owl, the name, then the form card.
   import { ApiError, login, setupAdmin } from '../lib/api.ts'
   import Owl from './Owl.svelte'
   import SecretField from './SecretField.svelte'
@@ -41,50 +41,23 @@
 </script>
 
 <div class="login">
-  <div class="pitch">
-    <div class="brand"><span class="sq"></span>MetaService</div>
-    <div>
-      <h1>One panel for <span class="hl">every machine</span>.</h1>
-      <p class="lede">Add your machines, create VMs and containers on them, and open the chat on each one. Macs and Linux, one place.</p>
-    </div>
-    <svg class="diagram" viewBox="0 0 520 150" role="img" aria-label="One parent connected to four machines">
-      <g stroke="var(--pitch-faint)" stroke-width="1.5" fill="none">
-        <path d="M260 40 L70 110" /><path d="M260 40 L195 110" /><path d="M260 40 L325 110" /><path d="M260 40 L450 110" />
-      </g>
-      <g stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="3 5"><path d="M260 40 L195 110" /><path d="M260 40 L325 110" /></g>
-      <rect x="226" y="14" width="68" height="40" fill="var(--pitch-bg)" stroke="var(--accent)" stroke-width="1.5" />
-      <text x="260" y="39" text-anchor="middle" fill="var(--pitch-text)" font-family="monospace" font-size="12" font-weight="700">PARENT</text>
-      {#each [70, 195, 325, 450] as x, index (x)}
-        <rect x={x - 34} y="96" width="68" height="36" fill="var(--pitch-bg)" stroke="var(--pitch-dim)" stroke-width="1.5" />
-        <rect x={x - 26} y="104" width="6" height="6" fill={index < 3 ? 'var(--accent)' : 'var(--pitch-faint)'} />
-        <text x={x + 4} y="119" text-anchor="middle" fill="var(--pitch-soft)" font-family="monospace" font-size="11">machine</text>
-      {/each}
-    </svg>
-    <div class="facts">
-      <span><b>Private</b>Over SSH tunnels</span>
-      <span><b>Isolated</b>Only adds, never edits</span>
-      <span><b>Yours</b>Runs on your network</span>
-    </div>
-  </div>
-  <div class="form-wrap">
-    <Owl name="hero" eager />
-    <form onsubmit={submit}>
-      <div class="mobilebrand"><span class="sq"></span>MetaService</div>
-      <h2 class="formtitle">{configured ? 'Sign in' : 'Create your admin login'}</h2>
-      <span class="flabel">{configured ? 'Sign in to manage your machines, VMs and chats.' : 'First run: claim this panel with the operator setup token.'}</span>
-      {#if failure}<div class="err" role="alert">{failure}</div>{/if}
-      <label class="field"><span>Username</span><input name="username" autocomplete="username" required bind:value={username} /></label>
-      <SecretField label="Password" name="password" autocomplete={configured ? 'current-password' : 'new-password'} placeholder={configured ? '' : `at least ${minLength} characters`} bind:value={password} />
-      {#if !configured}
-        <SecretField label="Confirm password" name="confirm" autocomplete="new-password" bind:value={confirm} />
-        <SecretField label="Setup token" name="setup_token" placeholder="provided by the operator" bind:value={setupToken} />
-        <p class="note">A one-time operator token is required to claim this panel. It is ROOT_SETUP_TOKEN in the control plane's .env file.</p>
-        <div class="hintline {hint.tone}" role="status">{hint.text}</div>
-      {/if}
-      <button class="btn green" type="submit" disabled={busy || !ready}>{busy ? 'Please wait…' : configured ? 'Sign in' : 'Create admin & sign in'}</button>
-      <p class="formfoot">Operator access only</p>
-    </form>
-  </div>
+  <Owl name="hero" eager />
+  <div class="brand"><span class="sq"></span>MetaService</div>
+  <form onsubmit={submit}>
+    <h2 class="formtitle">{configured ? 'Sign in' : 'Create your admin login'}</h2>
+    <span class="flabel">{configured ? 'Sign in to manage your machines, VMs and chats.' : 'First run: claim this panel with the operator setup token.'}</span>
+    {#if failure}<div class="err" role="alert">{failure}</div>{/if}
+    <label class="field"><span>Username</span><input name="username" autocomplete="username" required bind:value={username} /></label>
+    <SecretField label="Password" name="password" autocomplete={configured ? 'current-password' : 'new-password'} placeholder={configured ? '' : `at least ${minLength} characters`} bind:value={password} />
+    {#if !configured}
+      <SecretField label="Confirm password" name="confirm" autocomplete="new-password" bind:value={confirm} />
+      <SecretField label="Setup token" name="setup_token" placeholder="provided by the operator" bind:value={setupToken} />
+      <p class="note">A one-time operator token is required to claim this panel. It is ROOT_SETUP_TOKEN in the control plane's .env file.</p>
+      <div class="hintline {hint.tone}" role="status">{hint.text}</div>
+    {/if}
+    <button class="btn green" type="submit" disabled={busy || !ready}>{busy ? 'Please wait…' : configured ? 'Sign in' : 'Create admin & sign in'}</button>
+    <p class="formfoot">Operator access only</p>
+  </form>
 </div>
 
 <style>
