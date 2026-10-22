@@ -58,7 +58,7 @@ export function nameProblem(name: string): string | null {
   return null
 }
 
-const SOURCE_LABELS: Record<string, string> = { router: 'Router', nmap: 'nmap', agent_probe: 'Agent check', arp: 'ARP table' }
+const SOURCE_LABELS: Record<string, string> = { router: 'Router', nmap: 'Network scan', agent_probe: 'Agent check', arp: 'Network' }
 const SOURCE_PROBLEMS: Record<string, string> = {
   not_configured: 'not set up',
   missing: 'not installed',

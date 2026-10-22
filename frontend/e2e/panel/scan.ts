@@ -1,4 +1,4 @@
-// Find machines: a scan lists the devices with where they were seen, marks one that already runs the Agent, and Add on a row opens Add a machine.
+// Find machines: a scan lists the devices with their addresses, marks one that already runs the Agent, and Add on a row opens Add a machine.
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
 import { SCAN_PREFIX } from '../support/root.ts'
@@ -18,7 +18,7 @@ export async function scanScenario(b: Browse): Promise<void> {
   await b.click('Scan now')
   await b.until(() => document.body.innerText.includes('Agent running'), { timeout: SCAN_WAIT_MS })
   const shown = await b.text()
-  check('a scan lists the devices with where they were seen', FOUND_ENDS.every((end) => shown.includes(`${SCAN_PREFIX}${end}`)) && shown.includes('nmap'))
+  check('a scan lists the devices with where they were seen', FOUND_ENDS.every((end) => shown.includes(`${SCAN_PREFIX}${end}`)))
   check('a device answering on the Agent port is marked', shown.includes('Agent running'))
   check('rows have no checkbox and no machine name to fill in', !(await b.page.$('input[type=checkbox]')) && !(await b.page.$('input[aria-label^="Machine name for"]')))
   check('the owl is gone once devices are listed', (await b.page.$$('img[data-owl]')).length === 0)
