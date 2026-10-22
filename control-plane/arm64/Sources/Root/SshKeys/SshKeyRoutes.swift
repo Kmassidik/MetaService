@@ -17,6 +17,14 @@ struct SshKeyRoutes {
         group.get("/api/machines/{id}/workloads/{workload}/ssh-keys", use: list)
         group.post("/api/machines/{id}/workloads/{workload}/ssh-keys", use: add)
         group.delete("/api/machines/{id}/workloads/{workload}/ssh-keys/{key}", use: remove)
+        group.post("/api/machines/{id}/workloads/{workload}/ssh-keys/retry", use: retry)
+    }
+
+    private func retry(_ request: Request, context: RootContext) async throws -> Response {
+        let caller = try guards.operatorWrite(request)
+        try guards.limit("ssh-keys-change", per: context, max: Self.changesPerMinute, seconds: 60)
+        let (machine, workload) = try vm(context)
+        return try Json.response(try services.sshKeys.retry(actor: caller.name, machine: machine, workload: workload))
     }
 
     private func list(_ request: Request, context: RootContext) async throws -> Response {
@@ -31,7 +39,7 @@ struct SshKeyRoutes {
         try guards.limit("ssh-keys-change", per: context, max: Self.changesPerMinute, seconds: 60)
         let (machine, workload) = try vm(context)
         let pasted = try PastedKey(body: try await guards.body(request)).text
-        return try Json.response(try await services.sshKeys.add(actor: caller.name, machine: machine, workload: workload, publicKey: pasted), status: .created)
+        return try Json.response(try services.sshKeys.add(actor: caller.name, machine: machine, workload: workload, publicKey: pasted), status: .created)
     }
 
     private func remove(_ request: Request, context: RootContext) async throws -> Response {
@@ -39,7 +47,7 @@ struct SshKeyRoutes {
         try guards.limit("ssh-keys-change", per: context, max: Self.changesPerMinute, seconds: 60)
         let (machine, workload) = try vm(context)
         guard let key = context.parameters.get("key"), Ids.isValid(key) else { throw ApiFailure.notFound }
-        return try Json.response(try await services.sshKeys.remove(actor: caller.name, machine: machine, workload: workload, id: key))
+        return try Json.response(try services.sshKeys.remove(actor: caller.name, machine: machine, workload: workload, id: key))
     }
 
     private func vm(_ context: RootContext) throws -> (machine: String, workload: String) {

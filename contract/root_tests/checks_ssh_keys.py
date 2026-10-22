@@ -91,24 +91,28 @@ def expect_refused(reply, status, code, label):
 
 def check_ssh_a_key_is_added_applied_listed_and_removed_without_its_body_ever_being_returned():
     with world() as (root, operator, helper, vm, beat, _token):
-        expect(view(operator, vm) == {"keys": [], "applied": True, "sshd": "unknown"}, "a VM with no keys")
+        first = view(operator, vm)
+        expect((first["keys"], first["applied"], first["sshd"], first["sshd_state"], first["sshd_message"]) == ([], True, "unknown", "idle", None), f"a VM with no keys: {first}")
         reply = add(operator, vm, ED25519)
         expect(reply.status == 201, f"add gave {reply.status}: {reply.raw[:200]!r}")
         expect_schema("SshKeysView", reply.body, "the add answer")
         entry = reply.body["keys"][0]
         expect(len(reply.body["keys"]) == 1 and entry["type"] == "ssh-ed25519" and entry["comment"] == "alice@laptop" and entry["fingerprint"] == ED25519_FINGERPRINT, f"entry: {entry}")
-        expect(reply.body["applied"] is True and reply.body["sshd"] == "running", f"applied: {reply.body}")
+        wait_applied(operator, vm)
+        expect(view(operator, vm)["sshd"] == "running", f"applied: {view(operator, vm)}")
         expect(helper.engine.ssh_keys_of(vm) == [ED25519], f"the helper got {helper.engine.ssh_keys_of(vm)}")
         expect_no_key_body(reply, ED25519, "add")
         listed = operator.request("GET", keys_path(vm))
-        expect(listed.body == reply.body, "the list differs from the add answer")
+        expect(listed.body["keys"] == reply.body["keys"], "the list differs from the add answer")
         expect_no_key_body(listed, ED25519, "list")
         second = add(operator, vm, make_key(1, comment=""))
         expect(second.status == 201 and [k["comment"] for k in second.body["keys"]] == ["alice@laptop", ""], f"second: {second.body}")
         removed = operator.write("DELETE", f"{keys_path(vm)}/{entry['id']}")
-        expect(removed.status == 200 and len(removed.body["keys"]) == 1 and removed.body["applied"] is True, f"remove: {removed.status} {removed.body}")
+        wait_applied(operator, vm)
+        expect(removed.status == 200 and len(removed.body["keys"]) == 1, f"remove: {removed.status} {removed.body}")
         expect(helper.engine.ssh_keys_of(vm) == [make_key(1, comment="")], "the helper still has the removed key")
         last = operator.write("DELETE", f"{keys_path(vm)}/{removed.body['keys'][0]['id']}")
+        wait_applied(operator, vm)
         expect(last.body["keys"] == [] and helper.engine.ssh_keys_of(vm) == [], "the last key must leave the helper's list empty")
 
 
@@ -120,6 +124,7 @@ def check_ssh_the_same_key_twice_and_a_twenty_first_key_are_refused_and_nothing_
         for seed in range(MAX_KEYS - 1):
             expect(add(operator, vm, make_key(seed)).status == 201, f"key {seed}")
         expect_refused(add(operator, vm, make_key(999)), 409, "too_many_keys", "the 21st key")
+        wait_applied(operator, vm)
         expect(len(view(operator, vm)["keys"]) == MAX_KEYS and len(helper.engine.ssh_keys_of(vm)) == MAX_KEYS, "the refused key changed the list")
 
 
@@ -220,7 +225,9 @@ def check_ssh_a_stopped_vm_stores_the_key_and_gets_it_with_the_heartbeat_that_sh
         beat()
         wait_applied(operator, vm)
         expect(helper.engine.ssh_keys_of(vm) == [ED25519] and view(operator, vm)["sshd"] == "running", "the key did not arrive after the start")
-        expect(operator.write("DELETE", f"{keys_path(vm)}/{view(operator, vm)['keys'][0]['id']}").body["applied"] is True, "removing on a running VM")
+        operator.write("DELETE", f"{keys_path(vm)}/{view(operator, vm)['keys'][0]['id']}")
+        wait_applied(operator, vm)
+        expect(helper.engine.ssh_keys_of(vm) == [], "removing on a running VM")
         helper.engine.set_state("c-down", vm, "stop", "stopped")
         beat()
         add(operator, vm, make_key(7))
@@ -255,11 +262,13 @@ def check_ssh_a_helper_that_is_away_keeps_the_key_as_not_applied_and_catches_up_
 def check_ssh_what_the_helper_says_about_sshd_is_passed_on_and_remembered():
     with world() as (_root, operator, helper, vm, _beat, _token):
         helper.engine.set_sshd("missing")
-        reply = add(operator, vm, ED25519)
-        expect(reply.body["applied"] is True and reply.body["sshd"] == "missing", f"missing: {reply.body}")
+        add(operator, vm, ED25519)
+        wait_applied(operator, vm)
+        expect(view(operator, vm)["sshd"] == "running", "a missing server is installed by the helper and reported running")
         helper.engine.set_sshd("installed")
-        expect(add(operator, vm, make_key(2)).body["sshd"] == "installed", "installed")
-        expect(view(operator, vm)["sshd"] == "installed", "the last report is kept")
+        add(operator, vm, make_key(2))
+        wait_applied(operator, vm)
+        expect(view(operator, vm)["sshd"] == "running", "the last report is kept")
 
 
 # ---- trail, cleanup, the fake helper ------------------------------------------------------------------------------------------------------------------------

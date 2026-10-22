@@ -270,6 +270,21 @@ paths:
         '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 'no such machine, VM or key (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/ssh-keys/retry:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: Root endpoint for the panel (operator write). Applies the keys and sets up the SSH server now, without waiting for the heartbeat or the minute after a failure. Answers the same shape as the list, normally with sshd_state installing. 409 not_running when the VM is stopped.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/update-helper:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
     post:
@@ -682,12 +697,24 @@ components:
         added_at: { type: integer, description: 'seconds since 1970' }
     SshKeysView:
       type: object
-      required: [keys, applied, sshd]
+      required: [keys, applied, sshd, sshd_state, sshd_message, connect]
       additionalProperties: false
       properties:
         keys: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/SshKeyEntry' } }
         applied: { type: boolean, description: 'the last apply to the VM worked and nothing has changed since' }
         sshd: { type: string, enum: [running, installed, missing, unknown], description: 'what the helper last reported about the SSH server in the VM; unknown when it never has' }
+        sshd_state: { type: string, enum: [idle, installing, failed], description: 'setting up the SSH server inside the VM; installing older than 6 minutes is read as failed' }
+        sshd_message: { type: string, nullable: true, maxLength: 300, description: 'plain reason, only while failed' }
+        connect: { $ref: '#/components/schemas/SshConnect' }
+    SshConnect:
+      type: object
+      required: [jump, jump_is_default, vm_address, command]
+      additionalProperties: false
+      properties:
+        jump: { type: string, nullable: true, maxLength: 120, description: 'the machine as user@host[:port]: the machine setting ssh_jump, or the address it was added with; null when neither exists' }
+        jump_is_default: { type: boolean, description: 'true when jump comes from the address the machine was added with' }
+        vm_address: { type: string, nullable: true, description: 'the VM address, only when it looks like an IP address or host name' }
+        command: { type: string, nullable: true, pattern: '^ssh -J [A-Za-z0-9._-]+@[A-Za-z0-9.-]+(:[0-9]{1,5})? root@[A-Za-z0-9.:-]+$', description: 'ssh -J jump root@vm_address; null when either part is missing' }
     TerminalTicket:
       type: object
       required: [ticket, expires_in]
