@@ -30,6 +30,9 @@ pub struct Stats {
     pub network: Network,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disk_io: Option<DiskIo>,
+    /// How many programs run (the list below holds only the busiest). Left out when /proc cannot be listed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gpus: Option<Vec<GpuStats>>,
     pub processes: Vec<Process>,

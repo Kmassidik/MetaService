@@ -17,6 +17,11 @@ final class DarwinProcesses {
         pids().compactMap(process)
     }
 
+    /// How many programs run, all users: the system lists every number even where it refuses the details.
+    func count() -> Int {
+        pids().count
+    }
+
     private func pids() -> [pid_t] {
         let bytes = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
         guard bytes > 0 else { return [] }

@@ -42,6 +42,12 @@ pub fn scan(proc_dir: &Path) -> Vec<Seen> {
     }).collect()
 }
 
+/// How many programs run: the numbered folders of /proc. None when /proc cannot be listed.
+pub fn count(proc_dir: &Path) -> Option<usize> {
+    let entries = std::fs::read_dir(proc_dir).ok()?;
+    Some(entries.flatten().filter(|entry| entry.file_name().to_str().is_some_and(|name| name.parse::<u32>().is_ok())).count())
+}
+
 /// `pid (name) S ...`: the name may hold spaces and brackets, so it ends at the LAST closing bracket.
 pub fn parse_stat(text: &str) -> Option<(String, u64)> {
     let open = text.find('(')?;

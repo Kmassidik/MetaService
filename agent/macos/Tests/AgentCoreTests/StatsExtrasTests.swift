@@ -93,6 +93,13 @@ final class StatsExtrasTests: XCTestCase {
         XCTAssertFalse(text.contains("drops_out"))
     }
 
+    func testTheNumberOfRunningProgramsIsSentWhenKnownAndLeftOutWhenNot() throws {
+        let known = try twoAnswers(snapshot(extras: StatsExtras(processCount: 412)), snapshot(at: 5)).0
+        XCTAssertEqual(known.processCount, 412)
+        XCTAssertTrue(try json(known).contains("\"process_count\":412"))
+        XCTAssertFalse(try json(try twoAnswers(snapshot(), snapshot(at: 5)).0).contains("process_count"))
+    }
+
     func testProcessThreadCountIsSentWhenKnown() throws {
         let listed = [RawProcess(pid: 1, name: "a", user: "u", cpuNanoseconds: 0, memoryBytes: 1, threads: 9), RawProcess(pid: 2, name: "b", user: "u", cpuNanoseconds: 0, memoryBytes: 0)]
         let stats = try twoAnswers(snapshot(processes: listed), snapshot(at: 5)).0

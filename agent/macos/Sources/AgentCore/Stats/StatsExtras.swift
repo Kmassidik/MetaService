@@ -37,7 +37,9 @@ public struct StatsExtras: Equatable {
     public var topology: CpuTopology?
     public var networkIssues: NetworkIssues?
     public var diskTotals: DiskTotals?
-    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil) {
-        self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals
+    /// How many programs run, all users (the list in the answer holds only the busiest).
+    public var processCount: Int?
+    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil) {
+        self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount
     }
 }

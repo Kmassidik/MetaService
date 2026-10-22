@@ -231,6 +231,15 @@ fn frequency_and_temperature_are_left_out_when_the_system_does_not_say() {
 }
 
 #[test]
+fn the_number_of_running_programs_is_counted_even_without_the_list() {
+    let tree = Tree::new();
+    tree.process(11, "worker", 5, 1000, 10);
+    let stats = tree.sampler().take(Instant::now(), 0, false).unwrap();
+    assert_eq!(stats.process_count, Some(2));
+    assert!(stats.processes.is_empty());
+}
+
+#[test]
 fn the_thread_count_of_a_program_is_sent_when_the_system_says() {
     let tree = Tree::new();
     tree.put("proc/10/status", "Name:\tx\nUid:\t100\t100\nVmRSS:\t2048 kB\nThreads:\t7\n");

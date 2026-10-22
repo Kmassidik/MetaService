@@ -70,6 +70,7 @@ impl Sampler {
             disks: disks::read(&self.read("proc/mounts")?, self.environment.size_of),
             network: network_section(&counters, before, seconds),
             disk_io: disk_io(disk_counters, before, seconds),
+            process_count: processes::count(&self.environment.root.join("proc")),
             gpus: None,
             processes: self.listed(seen.as_deref(), before, seconds, &users),
         };

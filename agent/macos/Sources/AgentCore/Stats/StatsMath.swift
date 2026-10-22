@@ -7,7 +7,7 @@ enum StatsMath {
         return MachineStats(
             takenAt: timestamp(now.takenAt), measuring: old == nil, uptimeSeconds: now.uptimeSeconds,
             cpu: cpu(now, old), memory: memory(now.memory), disks: now.disks.prefix(StatsSampler.maxDisks).map(disk),
-            network: network(now, old, seconds), diskIo: diskIo(now, old, seconds), gpus: nil, processes: processes(now, old, seconds))
+            network: network(now, old, seconds), diskIo: diskIo(now, old, seconds), processCount: now.extras.processCount.map { max(0, $0) }, gpus: nil, processes: processes(now, old, seconds))
     }
 
     static func timestamp(_ date: Date) -> String {
