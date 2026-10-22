@@ -7,7 +7,8 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public static let maxProcesses = 15
     public static let maxCores = 1024
     public static let maxDisks = 16
-    public static let maxGpus = 16
+    public static let maxGpus = 8
+    public static let maxGpuPrograms = 8
     public static let maxTextCharacters = 64
     public static let maxMountCharacters = 128
     public static let maxFsCharacters = 32
@@ -112,6 +113,13 @@ public struct MachineStats: Codable, Equatable, Sendable {
         public var memoryUsedBytes: Int?
         public var memoryTotalBytes: Int?
         public var temperatureCelsius: Double?
+        /// Optional extras: a helper that cannot read them leaves them out, and they stay out of the answer too (never 0).
+        public var vendor: String?
+        public var powerWatts: Double?
+        public var powerLimitWatts: Double?
+        public var fanPercent: Double?
+        public var clockMhz: Double?
+        public var processes: [GpuProgram]?
 
         public func encode(to encoder: Encoder) throws {
             var box = encoder.container(keyedBy: CodingKeys.self)
@@ -120,6 +128,12 @@ public struct MachineStats: Codable, Equatable, Sendable {
             try box.encode(memoryUsedBytes, forKey: .memoryUsedBytes)
             try box.encode(memoryTotalBytes, forKey: .memoryTotalBytes)
             try box.encode(temperatureCelsius, forKey: .temperatureCelsius)
+            try box.encodeIfPresent(vendor, forKey: .vendor)
+            try box.encodeIfPresent(powerWatts, forKey: .powerWatts)
+            try box.encodeIfPresent(powerLimitWatts, forKey: .powerLimitWatts)
+            try box.encodeIfPresent(fanPercent, forKey: .fanPercent)
+            try box.encodeIfPresent(clockMhz, forKey: .clockMhz)
+            try box.encodeIfPresent(processes, forKey: .processes)
         }
     }
 

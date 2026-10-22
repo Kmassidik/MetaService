@@ -34,11 +34,6 @@ extension MachineStats {
         return kept
     }
 
-    private static func limitedGpus(_ gpus: [Gpu]?) -> [Gpu]? {
-        guard let gpus, !gpus.isEmpty else { return nil }
-        return gpus.prefix(maxGpus).map { $0.limited() }
-    }
-
     static func cut(_ text: String, _ characters: Int) -> String { String(text.prefix(characters)) }
     static func percent(_ value: Double?) -> Double? { value.map { $0.isFinite ? min(max($0, 0), 100) : 0 } }
     static func rate(_ value: Double?) -> Double? { value.map { $0.isFinite ? max($0, 0) : 0 } }
@@ -48,6 +43,7 @@ extension MachineStats {
     static func processCountOrNil(_ value: Int) -> Int? { (0...maxProcessCount).contains(value) ? value : nil }
     static func countOrNil(_ value: Int) -> Int? { (0...maxCounter).contains(value) ? value : nil }
     static func rateOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } }
+    static func rangeOrNil(_ value: Double?, _ range: ClosedRange<Double>) -> Double? { value.flatMap { $0.isFinite && range.contains($0) ? $0 : nil } }
     static func percentOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && (0...100).contains($0) ? $0 : nil } }
 }
 
@@ -83,13 +79,6 @@ extension MachineStats.Network {
               receivedBytesPerSecond: MachineStats.rate(receivedBytesPerSecond), sentBytesPerSecond: MachineStats.rate(sentBytesPerSecond),
               errorsInTotal: errorsInTotal.flatMap(MachineStats.countOrNil), errorsOutTotal: errorsOutTotal.flatMap(MachineStats.countOrNil),
               dropsInTotal: dropsInTotal.flatMap(MachineStats.countOrNil), dropsOutTotal: dropsOutTotal.flatMap(MachineStats.countOrNil))
-    }
-}
-
-extension MachineStats.Gpu {
-    fileprivate func limited() -> MachineStats.Gpu {
-        .init(name: MachineStats.cut(name, MachineStats.maxTextCharacters), utilizationPercent: MachineStats.percent(utilizationPercent),
-              memoryUsedBytes: memoryUsedBytes.map(MachineStats.bytes), memoryTotalBytes: memoryTotalBytes.map(MachineStats.bytes), temperatureCelsius: temperatureCelsius)
     }
 }
 
