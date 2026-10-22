@@ -12,7 +12,7 @@
 </section>
 
 <style>
-  .block { max-width: 820px; margin-bottom: 32px; }
+  .block { margin-bottom: 32px; }
   .subhead { margin: 0 0 10px; font: 700 13px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
   .intro { margin: 0 0 14px; font-size: 13px; color: var(--m70); }
 </style>

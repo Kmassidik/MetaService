@@ -7,15 +7,17 @@
   import LimitsSection from './LimitsSection.svelte'
   import VmDefaultsSection from './VmDefaultsSection.svelte'
   import NamesSection from './NamesSection.svelte'
+  import SaveBar from './SaveBar.svelte'
+  import { ActionState } from '../../lib/action.svelte.ts'
   import { ApiError, machineExtras, updateHelper, updateMachineSettings } from '../../lib/api.ts'
   import { ruvioView, softwareRows } from '../../lib/environment.ts'
+  import { isDirty, undoneForm } from '../../lib/environmentDirty.ts'
   import { formErrors, formFromMachine, patchFor, sameForm } from '../../lib/environmentForm.ts'
-import { failureView, helperView, outcomeView, type OutcomeView } from '../../lib/helperUpdate.ts'
+  import { failureView, helperView, outcomeView, type OutcomeView } from '../../lib/helperUpdate.ts'
   import type { MachineExtras } from '../../lib/machineDetail.ts'
   import type { Machine, RemoteMachineInfo } from '../../lib/types.ts'
 
   const POLL_WHILE_GOING_MS = 2000
-  const SAVED_TEXT = 'Saved. The changes apply to new VMs only.'
 
   interface Props {
     machine: Machine
@@ -40,17 +42,17 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
   let loadFailure = $state('')
   let form = $state(untrack(() => formFromMachine(machine)))
   let loadedFrom = $state(untrack(() => formFromMachine(machine)))
-  let saving = $state(false)
-  let saveFailure = $state('')
-  let saved = $state(false)
+  const saveAction = new ActionState()
   let updating = $state(false)
   let updateOutcome: OutcomeView | null = $state(null)
   let asked = 0
 
   const full = $derived<Machine>({ ...machine, ...(extras ?? {}) })
   const errors = $derived(formErrors(form))
-  const dirty = $derived(!sameForm(form, loadedFrom))
-  const canSave = $derived(dirty && Object.keys(errors).length === 0 && !saving)
+  const dirty = $derived(isDirty(form, loadedFrom))
+  const canSave = $derived(dirty && Object.keys(errors).length === 0 && !saveAction.busy)
+  /** Unsaved changes, or the answer to the last Save for its moment on screen. */
+  const showBar = $derived(dirty || saveAction.status !== 'idle')
   const view = $derived(ruvioView(full.ruvio, chatsBuilt, machine.state !== 'offline'))
   const rows = $derived(softwareRows(full, remote, newestHelper, now))
   const helper = $derived(helperView(full))
@@ -87,22 +89,25 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
     return () => clearTimeout(timer)
   })
 
+  /** Sends the changed fields. Throws the parent's refusal, which the Save button shows beside itself. */
   async function save() {
-    if (!canSave) return
-    saving = true
-    saveFailure = ''
-    saved = false
     try {
       await updateMachineSettings(machine.id, patchFor(form, machine))
-      loadedFrom = { ...form }
-      saved = true
-      onChanged()
-      await load()
     } catch (error) {
-      saveFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      saving = false
+      throw error instanceof ApiError ? error : new Error('Something went wrong.')
     }
+    loadedFrom = { ...form }
+    onChanged()
+    await load()
+  }
+
+  const undo = () => { form = undoneForm(loadedFrom) }
+
+  const saveIfAllowed = () => { if (canSave) void saveAction.run(save) }
+
+  function submit(event: SubmitEvent) {
+    event.preventDefault()
+    saveIfAllowed()
   }
 
   /** Replaces the helper program with the newest one. The answer is told in words; the machine is read again, and its next report carries the new build. */
@@ -131,30 +136,34 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
   }
 </script>
 
-<MachineFacts {machine} {now} />
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
-{#if loaded}
-  <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
-  <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
-{:else}
-  <p class="loading" role="status">Loading…</p>
-{/if}
-<form onsubmit={(event) => { event.preventDefault(); save() }} novalidate>
-  <LimitsSection bind:form {errors} />
-  <VmDefaultsSection bind:form {errors} />
-  <NamesSection bind:form {errors} />
-  <div class="savebar">
-    <button class="btn green" type="submit" disabled={!canSave}>{saving ? 'Saving…' : 'Save'}</button>
-    <span class="apply">Changes apply to new VMs only.</span>
+<div class="env">
+  <div class="col">
+    <MachineFacts {machine} {now} />
+    {#if loaded}
+      <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
+      <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
+    {:else}
+      <p class="loading" role="status">Loading…</p>
+    {/if}
   </div>
-  {#if saveFailure}<p class="failure" role="alert">{saveFailure}</p>{/if}
-  {#if saved && !dirty}<p class="done" role="status">{SAVED_TEXT}</p>{/if}
-</form>
+  <form class="col" aria-label="Settings" onsubmit={submit} novalidate>
+    <LimitsSection bind:form {errors} />
+    <VmDefaultsSection bind:form {errors} />
+    <NamesSection bind:form {errors} />
+    <!-- Lets Enter in a field save, as the visible Save button is in the bar below. -->
+    <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
+  </form>
+  {#if showBar}<SaveBar action={saveAction} {canSave} onSave={save} onUndo={undo} />{/if}
+</div>
 
 <style>
-  .savebar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 820px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .env { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 820px; }
+  .col { min-width: 0; }
   .loading { margin: 0 0 24px; color: var(--m50); font: 12px var(--mono); }
-  .apply { font-size: 12.5px; color: var(--m60); }
-  .failure { max-width: 820px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--danger-note-line); border-left: 4px solid var(--danger-note-bar); background: var(--danger-note-bg); color: var(--danger-note-text); font-size: 13px; overflow-wrap: anywhere; }
-  .done { max-width: 820px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--ok-note-line); border-left: 4px solid var(--ok); background: var(--ok-note-bg); color: var(--ok-note-text); font-size: 13px; }
+  .failure { max-width: 820px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--danger-note-line); border-left: 4px solid var(--danger-note-bar); background: var(--danger-note-bg); color: var(--danger-note-text); font-size: 13px; overflow-wrap: anywhere; }
+  /* Wide screen: what the machine is on the left, what you can change on the right, both starting at the same top edge. */
+  @media (min-width: 1100px) {
+    .env { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: 32px; align-items: start; max-width: none; }
+  }
 </style>

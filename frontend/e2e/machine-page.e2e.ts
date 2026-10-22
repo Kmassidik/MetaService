@@ -3,6 +3,7 @@
 // Needs: a built panel (set PANEL_DIST to its folder; `bunx vite build --outDir <dir>`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/machine-page.e2e.ts
 import puppeteer, { type Page } from 'puppeteer-core'
+import { barFollowsChanges, phoneOneColumn, rapidSave, twoColumns } from './machine/environment.ts'
 import { startFakeParent } from './machine/fake-parent.ts'
 import { SHORT_WAIT_MS, changeField, expectNoSideScroll, fieldError, fieldValue, openMachine, openTab, pressSwitch, saveDisabled, softwareValue, switchState, untilSwitch } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
@@ -82,8 +83,9 @@ async function ruvioOnAndOff(b: Browse, commands: string[]) {
   check('the page says chat data stays when Ruvio is off', (await b.text()).includes('keeps its chat data'))
 }
 
-async function saving(b: Browse, patches: unknown[]) {
-  check('Save is off while nothing changed', await saveDisabled(b))
+async function saving(page: Page, b: Browse, patches: unknown[]) {
+  await twoColumns(page, b)
+  await barFollowsChanges(b)
   await changeField(b, 'vmCpu', '65')
   check('a CPU above the parent\'s limit is refused in the page, with its range', ((await fieldError(b, 'vmCpu')) ?? '').includes('between 1 and 64') && (await saveDisabled(b)))
   await changeField(b, 'vmCpu', '4')
@@ -97,18 +99,17 @@ async function saving(b: Browse, patches: unknown[]) {
   await changeField(b, 'subdomain', 'studio')
   await changeField(b, 'labels', 'lab, gpu')
   await b.shot('machine-environment-edited-desktop-light.png', true)
-  await b.click('Save')
-  await b.until(() => /Saved\./.test(document.body.innerText), { timeout: SHORT_WAIT_MS })
+  await rapidSave(b, patches)
   check('Save sends only the fields that changed, with the parent\'s names', JSON.stringify(patches[0]) === JSON.stringify({ labels: ['lab', 'gpu'], ram_reserve_mb: 2048, ram_allowance_mb: 4096, vm_cpu: 4, vm_ram_mb: 4096, subdomain: 'studio' }), JSON.stringify(patches[0]))
-  check('after Save the page says the changes apply to new VMs only', (await b.text()).includes('The changes apply to new VMs only.'))
   await openTab(b, 'Activity')
   await openTab(b, 'Environment')
   check('the saved values are still there after leaving and coming back', (await fieldValue(b, 'vmCpu')) === '4' && (await fieldValue(b, 'subdomain')) === 'studio' && (await fieldValue(b, 'labels')) === 'lab, gpu')
   await changeField(b, 'name', 'mac-mini')
   await b.click('Save')
-  await b.until(() => !!document.querySelector('form [role=alert]'), { timeout: SHORT_WAIT_MS })
-  check('the parent\'s refusal text is shown when it refuses', (await b.text()).includes('another machine already has that name'))
+  await b.until(() => !!document.querySelector('[aria-label="Save bar"] .aline.bad'), { timeout: SHORT_WAIT_MS })
+  check('the parent\'s refusal text is shown in the save bar when it refuses', (await b.text()).includes('another machine already has that name'))
   check('the form stays as typed after a refusal, ready to fix', (await fieldValue(b, 'name')) === 'mac-mini' && !(await saveDisabled(b)))
+  await phoneOneColumn(page, b)
 }
 
 async function pictures(page: Page, b: Browse, base: string) {
@@ -164,7 +165,7 @@ try {
   await openMachine(b, parent.base, 'mac-studio')
   await openTab(b, 'Environment')
   await b.until(() => !!document.querySelector('button[role=switch]'), { timeout: SHORT_WAIT_MS })
-  await saving(b, parent.patches)
+  await saving(page, b, parent.patches)
   await noChatBuilt(page, b, bare.base)
   check('no script errors', errors.length === 0, errors.join(' | '))
 } finally {
