@@ -14,9 +14,9 @@ struct SshKeyRoutes {
     private static let maxPastedCharacters = 4096
 
     func register(on group: RouterGroup<RootContext>) {
-        group.get("/api/machines/{machine}/workloads/{workload}/ssh-keys", use: list)
-        group.post("/api/machines/{machine}/workloads/{workload}/ssh-keys", use: add)
-        group.delete("/api/machines/{machine}/workloads/{workload}/ssh-keys/{key}", use: remove)
+        group.get("/api/machines/{id}/workloads/{workload}/ssh-keys", use: list)
+        group.post("/api/machines/{id}/workloads/{workload}/ssh-keys", use: add)
+        group.delete("/api/machines/{id}/workloads/{workload}/ssh-keys/{key}", use: remove)
     }
 
     private func list(_ request: Request, context: RootContext) async throws -> Response {
@@ -43,7 +43,7 @@ struct SshKeyRoutes {
     }
 
     private func vm(_ context: RootContext) throws -> (machine: String, workload: String) {
-        guard let machine = context.parameters.get("machine"), let workload = context.parameters.get("workload"), Ids.isValid(machine), Ids.isValid(workload) else { throw ApiFailure.notFound }
+        guard let machine = context.parameters.get("id"), let workload = context.parameters.get("workload"), Ids.isValid(machine), Ids.isValid(workload) else { throw ApiFailure.notFound }
         return (machine, workload)
     }
 

@@ -45,6 +45,8 @@ class MachineSpec:
     gpu_inside: str = "nvidia-smi"
     images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
     serves_images: bool = True
+    # What the helper says about the SSH server in a VM after it wrote the keys: running, installed (not running) or missing (the helper had to add it, or could not).
+    sshd: str = "running"
 
 
 class Refused(Exception):
@@ -70,6 +72,10 @@ class FakeEngine:
         self._workloads = {}
         self._commands = {}
         self.create_failure = None
+        # Per VM, the complete list of authorized_keys lines the parent last sent, as received.
+        self._ssh_keys = {}
+        # How many times the parent applied keys, so a test can tell "once" from "again".
+        self.ssh_applies = 0
         # Every create request this helper accepted, as received, so a test can see what the parent really sent.
         self.created_requests = []
         self._ids = itertools.count(1)
@@ -126,6 +132,12 @@ class FakeEngine:
                 raise Refused("not_running", "start it first: the GPU can only be checked inside a running container", "state", 1, 0)
             return dict(GPU_INSIDE[self.spec.gpu_inside])
 
+    def ssh_keys_of(self, workload_id):
+        """The keys now in the VM's root authorized_keys (what the last apply left there)."""
+        with self._lock:
+            self._get(workload_id)
+            return list(self._ssh_keys.get(workload_id, []))
+
     def command(self, command_id):
         with self._lock:
             found = self._commands.get(command_id)
@@ -139,6 +151,21 @@ class FakeEngine:
         with self._lock:
             workload = self._get(workload_id)
             workload.update(state="stopped", stopped_reason={"exit_code": exit_code, "log_tail": log_tail})
+
+    def set_sshd(self, state):
+        """What every later apply reports about the VM's SSH server (running, installed or missing)."""
+        with self._lock:
+            self.spec.sshd = state
+
+    def apply_ssh_keys(self, workload_id, keys):
+        """Replaces the whole list in a running VM (an empty list removes every managed key) and says how many are there and what sshd is doing."""
+        with self._lock:
+            workload = self._get(workload_id)
+            if workload["state"] != "running":
+                raise Refused("not_running", "the VM is not running: start it first", "state", 1, 0)
+            self._ssh_keys[workload_id] = list(keys)
+            self.ssh_applies += 1
+            return {"applied": len(keys), "sshd": self.spec.sshd}
 
     def fail_creates_with(self, message):
         """Every later create fails with this plain-words reason (None: creates work again)."""
@@ -200,6 +227,7 @@ class FakeEngine:
                 return dict(existing)
             self._get(workload_id)
             del self._workloads[workload_id]
+            self._ssh_keys.pop(workload_id, None)
             backup = f"{BACKUP_PREFIX}-{workload_id}"
             return self._finish(command_id, "delete", workload_id, {"backup_id": backup})
 

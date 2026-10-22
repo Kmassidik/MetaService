@@ -116,6 +116,23 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the container is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/workloads/{id}/ssh-keys:
+    put:
+      summary: >
+        Sets the complete list of SSH public keys that may log in as root of ONE VM. Optional, added without a version change (a helper without it answers 404, and the Root then shows the keys as not applied).
+        Idempotent full-state apply: the list in the body is exactly what must be in the VM's /root/.ssh/authorized_keys afterwards, an empty list removes every key the helper manages, and sending the same list again changes nothing.
+        The helper puts the lines in a block it marks as its own and leaves any other line in that file alone; it never touches the host machine's own authorized_keys, and it never adds a key of its own or the Root's key.
+        Each line is `type base64 [comment]` and the Root has already validated it; the helper still refuses a body with a line that is not exactly one such line (400) and writes nothing in that case. Key bodies are never logged.
+        The VM must be running (409 not_running). `applied` is the number of keys now in the VM. `sshd` says what the helper found or did about the SSH server in the VM:
+        `running` (listening), `installed` (the server is there but not running, and the helper could not start it), `missing` (there is none and the helper could not add one).
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysApply' } } } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysApplied' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
@@ -201,6 +218,57 @@ paths:
         '409': { description: 'the workload is not running (code not_running), or the helper is too old to check (code not_supported)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'checked again too soon (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline or did not answer in time (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/ssh-keys:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The SSH public keys given for one VM (type, SHA-256 fingerprint and comment; never the key itself), whether the machine's helper has the current list (`applied`),
+        and what the helper last said about the VM's SSH server (`sshd`: running, installed, missing, or unknown when it never said). Optional, added without a version change. At most 120 reads a minute.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      summary: >
+        Root endpoint for the panel (operator write: session, Host, Origin and CSRF checked). Adds one SSH public key to a VM; the user can then log in as root of that VM only. Body { "public_key": "ssh-ed25519 AAAA... comment" }.
+        The Root checks the key strictly and refuses, in plain words (code invalid_input), anything that is not exactly one line `type base64 [comment]`: key options (command=, from=, restrict ...), a line break or control character, a type other than
+        ssh-ed25519, ecdsa-sha2-nistp256/384/521, ssh-rsa or sk-ssh-ed25519@openssh.com, a key whose bytes do not match its type, an RSA key under 2048 bits, a comment with other characters than letters, digits and . _ @ + : - or over 64 characters, more than 800 characters in all. Nothing is cleaned up silently.
+        At most 20 keys per VM. If the VM is running the Root sends the full list to the helper at once; if the VM is stopped, or the helper cannot be reached or says no, the key is still stored and `applied` is false, and the Root applies it by itself
+        with a heartbeat that shows the VM running. At most 30 changes a minute.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeyAdd' } } } }
+      responses:
+        '201': { description: created, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysView' } } } }
+        '400': { description: 'the key is not acceptable (code invalid_input, message in plain words)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'this key is already on the VM (code duplicate_key), or the VM has 20 keys (code too_many_keys)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/ssh-keys/{key}:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    delete:
+      summary: Root endpoint for the panel (operator write). Removes one key from a VM and applies the new list the same way as adding does. Answers the same shape as the list.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+        - { name: key, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SshKeysView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine, VM or key (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/update-helper:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
     post:
@@ -544,6 +612,47 @@ components:
         how: { type: string, enum: [nvidia-smi, device nodes, none], description: 'what answered: nvidia-smi, the NVIDIA device files, or nothing' }
         detail: { type: string, maxLength: 1500, description: 'the card and driver nvidia-smi printed, or the device files found; may be empty' }
         note: { type: string, minLength: 1, maxLength: 300, description: 'one plain sentence, for example: The GPU device is there but nvidia-smi is not installed in this image.' }
+    SshKeysApply:
+      type: object
+      required: [keys]
+      additionalProperties: false
+      properties:
+        keys:
+          type: array
+          maxItems: 20
+          description: 'the complete list of authorized_keys lines for root of the VM, in the order they were added'
+          items: { type: string, minLength: 1, maxLength: 800, pattern: '^[^\r\n\x00]+$', description: 'one line: type, base64, optional comment (already validated by the Root)' }
+    SshKeysApplied:
+      type: object
+      required: [applied, sshd]
+      additionalProperties: false
+      properties:
+        applied: { type: integer, minimum: 0, maximum: 20, description: 'how many keys are in the VM now' }
+        sshd: { type: string, enum: [running, installed, missing] }
+    SshKeyAdd:
+      type: object
+      required: [public_key]
+      additionalProperties: false
+      properties:
+        public_key: { type: string, minLength: 1, maxLength: 4096, description: 'one SSH public key line; the Root refuses anything but a plain key of an allowed type' }
+    SshKeyEntry:
+      type: object
+      required: [id, type, fingerprint, comment, added_at]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        type: { type: string, enum: [ssh-ed25519, ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521, ssh-rsa, sk-ssh-ed25519@openssh.com] }
+        fingerprint: { type: string, pattern: '^SHA256:[A-Za-z0-9+/]{43}$', description: 'as `ssh-keygen -lf` prints it' }
+        comment: { type: string, maxLength: 64, description: 'may be empty' }
+        added_at: { type: integer, description: 'seconds since 1970' }
+    SshKeysView:
+      type: object
+      required: [keys, applied, sshd]
+      additionalProperties: false
+      properties:
+        keys: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/SshKeyEntry' } }
+        applied: { type: boolean, description: 'the last apply to the VM worked and nothing has changed since' }
+        sshd: { type: string, enum: [running, installed, missing, unknown], description: 'what the helper last reported about the SSH server in the VM; unknown when it never has' }
     TerminalTicket:
       type: object
       required: [ticket, expires_in]

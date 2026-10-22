@@ -41,6 +41,9 @@ class AgentHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._serve("POST")
 
+    def do_PUT(self):
+        self._serve("PUT")
+
     def do_DELETE(self):
         self._serve("DELETE")
 
@@ -178,6 +181,22 @@ class AgentHandler(BaseHTTPRequestHandler):
     def gpu_check(self, id):
         self._send(200, self.engine.gpu_check(id))
 
+    def put_ssh_keys(self, id):
+        body = self._body("SshKeysApply")
+        self._send(200, self.engine.apply_ssh_keys(id, body["keys"]))
+
+    def show_ssh_keys(self, id):
+        """Test tool, not part of the contract: the keys now in the VM."""
+        self._send(200, {"keys": self.engine.ssh_keys_of(id)})
+
+    def set_sshd(self):
+        """Test tool, not part of the contract: what later applies report about sshd. Body: {"state": "running" | "installed" | "missing"}."""
+        state = self._tool_body({"state": str})["state"]
+        if state not in ("running", "installed", "missing"):
+            raise ApiError(400, "invalid_input", "state must be running, installed or missing")
+        self.engine.set_sshd(state)
+        self._send(204)
+
     def quit_by_itself(self, id):
         """Test tool, not part of the contract: makes a VM stop on its own with a reason. Body: {"exit_code": int or null, "log_tail": text}."""
         body = self._tool_body({"exit_code": (int, type(None)), "log_tail": str})
@@ -216,6 +235,7 @@ ROUTES = [
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/gpu-check", AgentHandler.gpu_check),
+    ("PUT", rf"/v1/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.put_ssh_keys),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/start", AgentHandler.start_workload),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/stop", AgentHandler.stop_workload),
     ("DELETE", rf"/v1/workloads/(?P<id>{ID_PATTERN})", AgentHandler.delete_workload),
@@ -224,6 +244,8 @@ ROUTES = [
     ("GET", rf"/v1/commands/(?P<id>{ID_PATTERN})", AgentHandler.get_command),
     ("POST", rf"/fake/workloads/(?P<id>{ID_PATTERN})/quit", AgentHandler.quit_by_itself),
     ("POST", r"/fake/create-fails", AgentHandler.create_fails),
+    ("GET", rf"/fake/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.show_ssh_keys),
+    ("POST", r"/fake/ssh-sshd", AgentHandler.set_sshd),
 ]
 
 
