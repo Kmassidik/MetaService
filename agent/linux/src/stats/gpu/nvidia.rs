@@ -21,6 +21,9 @@ const POLL: Duration = Duration::from_millis(20);
 const MAX_WATTS: f64 = 2000.0;
 const MAX_MHZ: f64 = 20000.0;
 const MAX_PERCENT: f64 = 100.0;
+/// Outside this range a temperature is a broken sensor (0 means "no value").
+const MIN_CELSIUS: f64 = 1.0;
+const MAX_CELSIUS: f64 = 150.0;
 /// A fresh program file can briefly be "busy" while another thread forks; asking again a moment later works.
 const BUSY_RETRIES: u32 = 100;
 const BUSY_WAIT: Duration = Duration::from_millis(10);
@@ -93,7 +96,7 @@ fn parse_line(line: &str) -> Option<Card> {
         utilization_percent: number(fields[1], MAX_PERCENT),
         memory_used_bytes: mib(fields[2]),
         memory_total_bytes: mib(fields[3]),
-        temperature_celsius: fields[4].parse::<f64>().ok().filter(|v| v.is_finite()).map(one_decimal),
+        temperature_celsius: fields[4].parse::<f64>().ok().filter(|v| (MIN_CELSIUS..=MAX_CELSIUS).contains(v)).map(one_decimal),
         power_watts: number(fields[5], MAX_WATTS),
         power_limit_watts: number(fields[6], MAX_WATTS),
         fan_percent: number(fields[7], MAX_PERCENT),
@@ -140,6 +143,8 @@ mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 
+    /// A loaded computer (a build running beside the tests) can take seconds to start a fresh script; the tests that expect an answer wait for it.
+    const PATIENT: Duration = Duration::from_secs(30);
     const CARD_ANSWER: &str = "NVIDIA GeForce RTX 5090, 40, 2048, 32768, 55, 310.25, 575.00, 30, 2400, GPU-aaa\n\
         NVIDIA Thing, [N/A], [N/A], 8192, [Not Supported], [N/A], [N/A], [N/A], [N/A], GPU-bbb\n";
     const PROGRAM_ANSWER: &str = "GPU-aaa, /usr/bin/python3, 1024\nGPU-aaa, /opt/llama/server, 4096\nGPU-bbb, [N/A], 10\nGPU-bbb, worker, [N/A]\n";
@@ -173,9 +178,10 @@ mod tests {
 
     #[test]
     fn out_of_range_numbers_become_null() {
-        let cards = parse("Odd, 140, 1, 2, 3, 5000, -4, 250, 0, GPU-x\n");
+        let cards = parse("Odd, 140, 1, 2, 900, 5000, -4, 250, 0, GPU-x\n");
         let odd = &cards[0].gpu;
         assert_eq!((odd.utilization_percent, odd.power_watts, odd.power_limit_watts, odd.fan_percent, odd.clock_mhz), (None, None, None, None, None));
+        assert_eq!(odd.temperature_celsius, None);
     }
 
     #[test]
@@ -198,7 +204,7 @@ mod tests {
         let program = script(
             "case \"$1\" in\n--query-gpu*) echo 'Fake GPU, 10, 100, 200, 30, 50, 100, 20, 1500, GPU-1'; echo 'Quiet GPU, 1, 1, 2, 30, 5, 10, 20, 100, GPU-2';;\n--query-compute-apps*) echo 'GPU-1, /bin/job, 7';;\nesac",
         );
-        let gpus = query(&program, QUERY_TIMEOUT).unwrap();
+        let gpus = query(&program, PATIENT).unwrap();
         assert_eq!(gpus[0].name, "Fake GPU");
         assert_eq!(gpus[0].processes, Some(vec![GpuProgram { name: "job".into(), memory_bytes: 7 * BYTES_PER_MIB }]));
         assert_eq!(gpus[1].processes, Some(Vec::new()), "the call worked and this card has none");
@@ -207,15 +213,15 @@ mod tests {
     #[test]
     fn a_failing_second_call_only_means_no_program_list() {
         let program = script("case \"$1\" in\n--query-gpu*) echo 'Fake GPU, 10, 100, 200, 30, 50, 100, 20, 1500, GPU-1';;\n*) exit 3;;\nesac");
-        let gpus = query(&program, QUERY_TIMEOUT).unwrap();
+        let gpus = query(&program, PATIENT).unwrap();
         assert_eq!((gpus[0].name.as_str(), gpus[0].processes.is_none()), ("Fake GPU", true));
     }
 
     #[test]
     fn no_readings_when_the_program_is_missing_fails_or_is_slow() {
         assert!(query("/no/such/nvidia-smi", QUERY_TIMEOUT).is_none());
-        assert!(query(&script("exit 9"), QUERY_TIMEOUT).is_none());
-        assert!(query(&script("echo nonsense"), QUERY_TIMEOUT).is_none());
+        assert!(query(&script("exit 9"), PATIENT).is_none());
+        assert!(query(&script("echo nonsense"), PATIENT).is_none());
         let started = Instant::now();
         assert!(query(&script("sleep 5"), Duration::from_millis(200)).is_none());
         assert!(started.elapsed() < Duration::from_secs(3));
