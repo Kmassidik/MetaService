@@ -3,7 +3,8 @@ use serde::Serialize;
 
 pub const MAX_PROCESSES: usize = 15;
 pub const MAX_DISKS: usize = 16;
-pub const MAX_GPUS: usize = 16;
+pub const MAX_GPUS: usize = 8;
+pub const MAX_GPU_PROGRAMS: usize = 8;
 pub const MAX_CORES: usize = 1024;
 pub const MAX_NAME_CHARS: usize = 64;
 pub const MAX_MOUNT_CHARS: usize = 128;
@@ -124,10 +125,35 @@ pub struct Network {
 #[derive(Debug, Serialize, PartialEq)]
 pub struct GpuStats {
     pub name: String,
+    pub vendor: &'static str,
     pub utilization_percent: Option<f64>,
     pub memory_used_bytes: Option<u64>,
     pub memory_total_bytes: Option<u64>,
     pub temperature_celsius: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power_watts: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power_limit_watts: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fan_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_mhz: Option<f64>,
+    /// NVIDIA only: the programs holding GPU memory, biggest first. Left out when the second call fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processes: Option<Vec<GpuProgram>>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct GpuProgram {
+    pub name: String,
+    pub memory_bytes: u64,
+}
+
+impl GpuStats {
+    /// A reading with only the name and vendor known: every number is null until a reader fills it.
+    pub fn named(name: String, vendor: &'static str) -> Self {
+        GpuStats { name, vendor, utilization_percent: None, memory_used_bytes: None, memory_total_bytes: None, temperature_celsius: None, power_watts: None, power_limit_watts: None, fan_percent: None, clock_mhz: None, processes: None }
+    }
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
