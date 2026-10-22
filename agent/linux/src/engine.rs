@@ -1,4 +1,5 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
+use crate::ssh_keys::{KeyList, Sshd};
 use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
 use crate::validate::CreateRequest;
 use std::collections::HashMap;
@@ -24,6 +25,8 @@ pub trait Engine: Send + Sync {
     fn push(&self, id: &str, host_path: &str, container_path: &str) -> Result<(), EngineError>;
     /// Runs one program inside the workload and returns what it printed. Values go in through `environment`, never into the arguments.
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError>;
+    /// Replaces the whole list of SSH public keys that may log in as root of this one workload and says whether sshd is there. The keys go in on standard input, never in arguments.
+    fn apply_ssh_keys(&self, id: &str, keys: &KeyList) -> Result<Sshd, EngineError>;
     /// Like `exec` with no environment, for a quick look inside that must not hang: the engine gives it a short time limit.
     fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
         self.exec(id, arguments, &[])
@@ -34,13 +37,28 @@ pub trait Engine: Send + Sync {
 pub struct SimulatedEngine {
     capabilities: Capabilities,
     store: Mutex<HashMap<String, Workload>>,
+    /// Per workload, the SSH key file last written, and the sshd state every apply reports (set by tests).
+    ssh_keys: Mutex<HashMap<String, Vec<u8>>>,
+    sshd: Mutex<Sshd>,
 }
 
 pub const SIMULATED_ENGINE: &str = "simulated";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
-        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()) }
+        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing) }
+    }
+
+    /// What every later apply reports about sshd, as the workload's image would decide it.
+    #[cfg(test)]
+    pub fn set_sshd(&self, state: Sshd) {
+        *self.sshd.lock().unwrap() = state;
+    }
+
+    /// The file content last written for a workload (what went on standard input).
+    #[cfg(test)]
+    pub fn written_ssh_keys(&self, id: &str) -> Option<Vec<u8>> {
+        self.ssh_keys.lock().unwrap().get(id).cloned()
     }
 
     fn change(&self, id: &str, edit: impl FnOnce(&mut Workload)) -> Result<(), EngineError> {
@@ -91,6 +109,12 @@ impl Engine for SimulatedEngine {
 
     fn push(&self, id: &str, _host_path: &str, _container_path: &str) -> Result<(), EngineError> {
         self.change(id, |_| {})
+    }
+
+    fn apply_ssh_keys(&self, id: &str, keys: &KeyList) -> Result<Sshd, EngineError> {
+        self.change(id, |_| {})?;
+        self.ssh_keys.lock().unwrap().insert(id.to_string(), keys.file_content());
+        Ok(*self.sshd.lock().unwrap())
     }
 
     fn exec(&self, id: &str, _arguments: &[String], _environment: &[(String, String)]) -> Result<String, EngineError> {

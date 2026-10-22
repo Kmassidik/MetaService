@@ -124,6 +124,10 @@ mod tests {
     struct FakeIncus(Result<String, ()>);
 
     impl Runner for FakeIncus {
+        fn run_with_input(&self, arguments: &[String], _input: &[u8], timeout: Duration) -> Result<String, EngineError> {
+            self.run(arguments, timeout)
+        }
+
         fn run(&self, _arguments: &[String], _timeout: Duration) -> Result<String, EngineError> {
             self.0.clone().map_err(|_| EngineError::Failed("incus broke".into()))
         }

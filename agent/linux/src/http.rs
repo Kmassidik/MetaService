@@ -1,6 +1,7 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::service::{Failure, Service};
+use crate::ssh_keys::KeyList;
 use crate::stats::{wants_processes, Monitor};
 use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
@@ -8,7 +9,7 @@ use axum::extract::{ConnectInfo, Path, RawQuery, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use rand::Rng;
 use serde_json::json;
@@ -59,6 +60,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
         .route("/v1/workloads/:id/gpu-check", post(gpu_check))
+        .route("/v1/workloads/:id/ssh-keys", put(ssh_keys))
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
@@ -220,6 +222,18 @@ async fn gpu_check(State(app): State<Arc<App>>, Path(id): Path<String>) -> Respo
         return failure(Failure::NotFound);
     }
     app.service.gpu_check(&id).await.map(ok).unwrap_or_else(failure)
+}
+
+/// The complete SSH key list for root of one workload. The body is checked again here; the keys never reach a log, an error text or a command line.
+async fn ssh_keys(State(app): State<Arc<App>>, Path(id): Path<String>, request: Request) -> Response {
+    if !is_id(&id) {
+        return failure(Failure::NotFound);
+    }
+    let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
+    match KeyList::parse(&body) {
+        Ok(keys) => app.service.apply_ssh_keys(&id, keys).await.map(ok).unwrap_or_else(failure),
+        Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
+    }
 }
 
 async fn remove(State(app): State<Arc<App>>, Path(id): Path<String>, headers: HeaderMap) -> Response {
