@@ -17,6 +17,15 @@ pub struct Seen {
     pub uid: Option<u32>,
     pub cpu_ticks: u64,
     pub memory_bytes: u64,
+    pub threads: Option<u32>,
+}
+
+/// What /proc/<pid>/status says: the real user number, resident memory (0 for a kernel thread) and the thread count.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Status {
+    pub uid: Option<u32>,
+    pub memory_bytes: u64,
+    pub threads: Option<u32>,
 }
 
 /// pid to CPU ticks, kept from the earlier sample.
@@ -28,8 +37,8 @@ pub fn scan(proc_dir: &Path) -> Vec<Seen> {
         let pid: u32 = entry.file_name().to_str()?.parse().ok()?;
         let stat = std::fs::read_to_string(entry.path().join("stat")).ok()?;
         let (name, cpu_ticks) = parse_stat(&stat)?;
-        let (uid, memory_bytes) = std::fs::read_to_string(entry.path().join("status")).map(|s| parse_status(&s)).unwrap_or((None, 0));
-        Some(Seen { pid, name, uid, cpu_ticks, memory_bytes })
+        let status = std::fs::read_to_string(entry.path().join("status")).map(|s| parse_status(&s)).unwrap_or_default();
+        Some(Seen { pid, name, uid: status.uid, cpu_ticks, memory_bytes: status.memory_bytes, threads: status.threads })
     }).collect()
 }
 
@@ -43,18 +52,19 @@ pub fn parse_stat(text: &str) -> Option<(String, u64)> {
     Some((text.get(open + 1..close)?.to_string(), user.saturating_add(system)))
 }
 
-/// (real user number, resident memory in bytes). A kernel thread has no VmRSS line: 0.
-pub fn parse_status(text: &str) -> (Option<u32>, u64) {
-    let mut uid = None;
-    let mut memory = 0;
+pub fn parse_status(text: &str) -> Status {
+    let mut status = Status::default();
     for line in text.lines() {
-        match line.split_once(':') {
-            Some(("Uid", rest)) => uid = rest.split_whitespace().next().and_then(|n| n.parse().ok()),
-            Some(("VmRSS", rest)) => memory = rest.split_whitespace().next().and_then(|n| n.parse::<u64>().ok()).unwrap_or(0) * BYTES_PER_KB,
+        let Some((key, rest)) = line.split_once(':') else { continue };
+        let first = rest.split_whitespace().next();
+        match key {
+            "Uid" => status.uid = first.and_then(|n| n.parse().ok()),
+            "VmRSS" => status.memory_bytes = first.and_then(|n| n.parse::<u64>().ok()).unwrap_or(0) * BYTES_PER_KB,
+            "Threads" => status.threads = first.and_then(|n| n.parse().ok()),
             _ => {}
         }
     }
-    (uid, memory)
+    status
 }
 
 /// uid to user name from an /etc/passwd text.
@@ -75,6 +85,7 @@ pub fn top(seen: Vec<Seen>, earlier: Option<&Earlier>, seconds: f64, ticks_per_s
         cpu_percent: earlier.map(|before| cpu_percent(before.get(&p.pid).copied(), p.cpu_ticks, seconds, ticks_per_second)),
         name: cut(&p.name, MAX_NAME_CHARS),
         memory_bytes: p.memory_bytes,
+        threads: p.threads,
     }).collect();
     all.sort_by(|a, b| b.cpu_percent.unwrap_or(0.0).total_cmp(&a.cpu_percent.unwrap_or(0.0)).then(b.memory_bytes.cmp(&a.memory_bytes)).then(a.pid.cmp(&b.pid)));
     all.truncate(MAX_PROCESSES);
@@ -101,7 +112,7 @@ mod tests {
     use super::*;
 
     fn seen(pid: u32, ticks: u64, memory: u64) -> Seen {
-        Seen { pid, name: format!("p{pid}"), uid: Some(0), cpu_ticks: ticks, memory_bytes: memory }
+        Seen { pid, name: format!("p{pid}"), uid: Some(0), cpu_ticks: ticks, memory_bytes: memory, threads: None }
     }
 
     #[test]
@@ -113,8 +124,9 @@ mod tests {
 
     #[test]
     fn status_gives_user_number_and_resident_memory() {
-        assert_eq!(parse_status("Name:\tx\nUid:\t1000\t1000\t1000\t1000\nVmRSS:\t   2048 kB\n"), (Some(1000), 2048 * 1024));
-        assert_eq!(parse_status("Name:\tkthreadd\nUid:\t0\t0\t0\t0\n"), (Some(0), 0));
+        let status = parse_status("Name:\tx\nUid:\t1000\t1000\t1000\t1000\nVmRSS:\t   2048 kB\nThreads:\t12\n");
+        assert_eq!(status, Status { uid: Some(1000), memory_bytes: 2048 * 1024, threads: Some(12) });
+        assert_eq!(parse_status("Name:\tkthreadd\nUid:\t0\t0\t0\t0\n"), Status { uid: Some(0), memory_bytes: 0, threads: None });
     }
 
     #[test]

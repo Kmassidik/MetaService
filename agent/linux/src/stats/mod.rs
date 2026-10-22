@@ -1,6 +1,7 @@
 //! `GET /v1/stats`: the machine's real state now. Read only. Rules: docs/monitor-contract.md.
 mod clock;
 mod cpu;
+mod diskio;
 mod disks;
 mod gpu;
 mod memory;
@@ -11,6 +12,8 @@ mod request;
 mod sampler;
 #[cfg(test)]
 mod tests;
+mod thermal;
+mod topology;
 
 use sampler::{Environment, Sampler};
 use std::path::PathBuf;
