@@ -108,8 +108,67 @@ def check_ssh_keys_never_appear_in_listings(ctx):
         _no_key_text(ctx.get(path), path)
 
 
+def _fake_switch(ctx, path, body):
+    """True when the target is the Fake Agent (it has the test switches); a real helper answers 404 and is never asked to install anything."""
+    return ctx.post(path, body).status == 204
+
+
+def _stored_keys(ctx, workload_id):
+    reply = ctx.get(f"/fake/workloads/{workload_id}/ssh-keys")
+    expect(reply.status == 200, f"reading the stored keys gave {reply.status}")
+    return reply.body["keys"]
+
+
+def check_ssh_keys_install_sshd_must_be_a_boolean(ctx):
+    workload_id, _ = ctx.create_small()
+    for value in ("yes", 1, None, ["true"]):
+        reply = _put(ctx, workload_id, {"keys": KEY_LINES, "install_sshd": value})
+        expect_error(reply, 400, f"install_sshd {value!r}")
+        _no_key_text(reply, f"install_sshd {value!r}")
+
+
+def check_ssh_keys_install_sshd_false_is_the_plain_call(ctx):
+    workload_id, _ = ctx.create_small()
+    reply = _put(ctx, workload_id, {"keys": KEY_LINES, "install_sshd": False})
+    expect(reply.status == 200, f"install_sshd false gave {reply.status}: {reply.body}")
+    expect_schema("SshKeysApplied", reply.body, "install_sshd false")
+    expect("installed" not in reply.body, f"the plain call must not say installed: {reply.body}")
+
+
+def check_ssh_keys_install_sshd_installs_once(ctx):
+    workload_id, _ = ctx.create_small()
+    if not _fake_switch(ctx, "/fake/ssh-sshd", {"state": "missing"}):
+        return
+    _fake_switch(ctx, "/fake/ssh-install", {"mode": "works"})
+    first = _put(ctx, workload_id, {"keys": KEY_LINES, "install_sshd": True})
+    expect(first.status == 200, f"install gave {first.status}: {first.body}")
+    expect_schema("SshKeysApplied", first.body, "install")
+    expect(first.body == {"applied": len(KEY_LINES), "sshd": "running", "installed": True}, f"wrong answer {first.body}")
+    second = _put(ctx, workload_id, {"keys": KEY_LINES, "install_sshd": True})
+    expect(second.body == {"applied": len(KEY_LINES), "sshd": "running", "installed": False}, f"the second call installed again: {second.body}")
+    _no_key_text(first, "install")
+    _no_key_text(second, "second install")
+
+
+def check_ssh_keys_failed_install_is_502_and_keeps_the_keys(ctx):
+    workload_id, _ = ctx.create_small()
+    if not _fake_switch(ctx, "/fake/ssh-sshd", {"state": "missing"}):
+        return
+    _fake_switch(ctx, "/fake/ssh-install", {"mode": "fails"})
+    reply = _put(ctx, workload_id, {"keys": KEY_LINES, "install_sshd": True})
+    _fake_switch(ctx, "/fake/ssh-install", {"mode": "works"})
+    _fake_switch(ctx, "/fake/ssh-sshd", {"state": "running"})
+    expect_error(reply, 502, "a failed install")
+    expect(reply.body["error"]["code"] == "sshd_install_failed", f"wrong code {reply.body}")
+    expect(reply.body["error"]["message"], "the failure has no plain message")
+    expect(_stored_keys(ctx, workload_id) == KEY_LINES, "a failed install lost the keys")
+    _no_key_text(reply, "failed install")
+
+
 CHECKS = [
     check_ssh_keys_need_the_token, check_ssh_keys_unknown_vm_is_404, check_ssh_keys_bad_bodies_are_400,
     check_ssh_keys_bad_body_changes_nothing, check_ssh_keys_stopped_vm_is_409_not_running,
     check_ssh_keys_apply_counts_the_keys, check_ssh_keys_apply_is_idempotent, check_ssh_keys_never_appear_in_listings,
+    check_ssh_keys_install_sshd_must_be_a_boolean, check_ssh_keys_install_sshd_false_is_the_plain_call,
+    check_ssh_keys_install_sshd_installs_once, check_ssh_keys_failed_install_is_502_and_keeps_the_keys,
 ]

@@ -2,6 +2,7 @@
 import hashlib
 import itertools
 import threading
+import time
 from dataclasses import dataclass, field
 
 from contract.spec import CONTRACT_VERSION
@@ -62,6 +63,12 @@ class NotFound(Exception):
     pass
 
 
+class SshdInstallFailed(Exception):
+    """The SSH server could not be installed in the VM; the keys were still written."""
+
+    MESSAGE = "The VM could not download the SSH server. Check that the VM has internet access."
+
+
 class FakeEngine:
     def __init__(self, spec=None, agent_version="fake-1", agent_build=DEFAULT_AGENT_BUILD):
         self.spec = spec or MachineSpec()
@@ -76,6 +83,9 @@ class FakeEngine:
         self._ssh_keys = {}
         # How many times the parent applied keys, so a test can tell "once" from "again".
         self.ssh_applies = 0
+        # The test switch for the install step: "works" or "fails", and how long the step takes.
+        self.ssh_install_mode = "works"
+        self.ssh_install_delay = 0.0
         # Every create request this helper accepted, as received, so a test can see what the parent really sent.
         self.created_requests = []
         self._ids = itertools.count(1)
@@ -157,15 +167,34 @@ class FakeEngine:
         with self._lock:
             self.spec.sshd = state
 
-    def apply_ssh_keys(self, workload_id, keys):
-        """Replaces the whole list in a running VM (an empty list removes every managed key) and says how many are there and what sshd is doing."""
+    def set_ssh_install(self, mode, delay_seconds):
+        """How a later install_sshd call goes: mode "works" or "fails", and how many seconds the install step waits."""
+        with self._lock:
+            self.ssh_install_mode = mode
+            self.ssh_install_delay = float(delay_seconds)
+
+    def apply_ssh_keys(self, workload_id, keys, install_sshd=False):
+        """Replaces the whole list in a running VM (an empty list removes every managed key) and says how many are there and what sshd is doing.
+        With install_sshd the keys are stored first, then a missing or stopped SSH server is installed and started (or the install fails)."""
         with self._lock:
             workload = self._get(workload_id)
             if workload["state"] != "running":
                 raise Refused("not_running", "the VM is not running: start it first", "state", 1, 0)
             self._ssh_keys[workload_id] = list(keys)
             self.ssh_applies += 1
-            return {"applied": len(keys), "sshd": self.spec.sshd}
+            if not install_sshd:
+                return {"applied": len(keys), "sshd": self.spec.sshd}
+            before, delay = self.spec.sshd, self.ssh_install_delay
+        if before == "missing":
+            time.sleep(delay)
+        return self._finish_ssh_install(len(keys), before)
+
+    def _finish_ssh_install(self, applied, before):
+        with self._lock:
+            if before == "missing" and self.ssh_install_mode == "fails":
+                raise SshdInstallFailed(SshdInstallFailed.MESSAGE)
+            self.spec.sshd = "running"
+            return {"applied": applied, "sshd": "running", "installed": before == "missing"}
 
     def fail_creates_with(self, message):
         """Every later create fails with this plain-words reason (None: creates work again)."""

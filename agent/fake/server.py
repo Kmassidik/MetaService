@@ -6,7 +6,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-from agent.fake.engine import NotFound, Refused
+from agent.fake.engine import NotFound, Refused, SshdInstallFailed
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
@@ -14,6 +14,7 @@ from contract import spec, wsproto
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
+MAX_INSTALL_DELAY_SECONDS = 10
 ID_PATTERN = r"[a-z0-9][a-z0-9-]{0,62}"
 JSON_TYPE = "application/json"
 SECRET_BODY_MESSAGE = "the body must be {\"keys\": [up to 20 key lines]}"
@@ -198,7 +199,10 @@ class AgentHandler(BaseHTTPRequestHandler):
         body = self._body("SshKeysApply", secret=True)
         if not all(is_valid_key(line) for line in body["keys"]):
             raise ApiError(400, "invalid_input", "each key must be a key type, base64 and an optional comment")
-        self._send(200, self.engine.apply_ssh_keys(id, body["keys"]))
+        try:
+            self._send(200, self.engine.apply_ssh_keys(id, body["keys"], body.get("install_sshd", False)))
+        except SshdInstallFailed as failed:
+            raise ApiError(502, "sshd_install_failed", str(failed)) from None
 
     def show_ssh_keys(self, id):
         """Test tool, not part of the contract: the keys now in the VM."""
@@ -212,6 +216,15 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.engine.set_sshd(state)
         self._send(204)
 
+    def set_ssh_install(self):
+        """Test tool, not part of the contract: how install_sshd goes. Body: {"mode": "works" | "fails", "delay_seconds": 0 to 10 (default 0)}."""
+        body = self._tool_body_with_optional({"mode": str}, {"delay_seconds": (int, float)})
+        delay = body.get("delay_seconds", 0)
+        if body["mode"] not in ("works", "fails") or isinstance(delay, bool) or not 0 <= delay <= MAX_INSTALL_DELAY_SECONDS:
+            raise ApiError(400, "invalid_input", f"mode must be works or fails and delay_seconds 0 to {MAX_INSTALL_DELAY_SECONDS}")
+        self.engine.set_ssh_install(body["mode"], delay)
+        self._send(204)
+
     def quit_by_itself(self, id):
         """Test tool, not part of the contract: makes a VM stop on its own with a reason. Body: {"exit_code": int or null, "log_tail": text}."""
         body = self._tool_body({"exit_code": (int, type(None)), "log_tail": str})
@@ -222,6 +235,19 @@ class AgentHandler(BaseHTTPRequestHandler):
         """Test tool, not part of the contract: every later create fails with this reason. Body: {"error": text or null}."""
         self.engine.fail_creates_with(self._tool_body({"error": (str, type(None))})["error"])
         self._send(204)
+
+    def _tool_body_with_optional(self, required, optional):
+        """Like _tool_body, but the fields in `optional` may be left out."""
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        try:
+            body = json.loads(self.rfile.read(min(length, MAX_BODY_BYTES)) or b"null")
+        except ValueError:
+            raise ApiError(400, "invalid_json", "body is not valid JSON") from None
+        kinds = {**required, **optional}
+        valid = isinstance(body, dict) and set(required) <= set(body) <= set(kinds) and all(isinstance(body[key], kinds[key]) for key in body)
+        if not valid:
+            raise ApiError(400, "invalid_input", "the test tool wants " + ", ".join(required) + " and maybe " + ", ".join(optional))
+        return body
 
     def _tool_body(self, fields):
         length = int(self.headers.get("Content-Length", "0") or 0)
@@ -261,6 +287,7 @@ ROUTES = [
     ("POST", r"/fake/create-fails", AgentHandler.create_fails),
     ("GET", rf"/fake/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.show_ssh_keys),
     ("POST", r"/fake/ssh-sshd", AgentHandler.set_sshd),
+    ("POST", r"/fake/ssh-install", AgentHandler.set_ssh_install),
 ]
 
 

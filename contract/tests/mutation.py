@@ -10,7 +10,7 @@ import threading
 from contextlib import contextmanager
 
 from agent.fake import server as fake_server
-from agent.fake.engine import FakeEngine
+from agent.fake.engine import FakeEngine, SshdInstallFailed
 from contract import spec
 from contract.tests.runner import run_checks
 
@@ -95,15 +95,28 @@ def _facts_with_a_build_that_is_not_hex():
 def _ssh_keys_that_count_wrong():
     original = FakeEngine.apply_ssh_keys
 
-    def broken(self, workload_id, keys):
-        answer = original(self, workload_id, keys)
+    def broken(self, workload_id, keys, install_sshd=False):
+        answer = original(self, workload_id, keys, install_sshd)
         return {**answer, "applied": answer["applied"] + 1}
 
     return broken
 
 
+def _ssh_install_that_loses_the_keys():
+    original = FakeEngine.apply_ssh_keys
+
+    def broken(self, workload_id, keys, install_sshd=False):
+        try:
+            return original(self, workload_id, keys, install_sshd)
+        except SshdInstallFailed:
+            self._ssh_keys[workload_id] = []
+            raise
+
+    return broken
+
+
 def _ssh_keys_applied_to_a_stopped_vm():
-    def broken(self, workload_id, keys):
+    def broken(self, workload_id, keys, install_sshd=False):
         self._get(workload_id)
         return {"applied": len(keys), "sshd": self.spec.sshd}
 
@@ -123,6 +136,7 @@ MUTANTS = [
     ("facts name another helper version than health", FakeEngine, "_facts", _facts_with_a_different_helper_version(), "check_facts_say_which_helper_and_engine_run"),
     ("ssh keys without a check of each line", fake_server, "is_valid_key", lambda line: True, "check_ssh_keys_bad_bodies_are_400"),
     ("ssh keys applied to a stopped VM", FakeEngine, "apply_ssh_keys", _ssh_keys_applied_to_a_stopped_vm(), "check_ssh_keys_stopped_vm_is_409_not_running"),
+    ("ssh install failure loses the keys", FakeEngine, "apply_ssh_keys", _ssh_install_that_loses_the_keys(), "check_ssh_keys_failed_install_is_502_and_keeps_the_keys"),
     ("ssh keys counted wrong", FakeEngine, "apply_ssh_keys", _ssh_keys_that_count_wrong(), "check_ssh_keys_apply_counts_the_keys"),
 ]
 
