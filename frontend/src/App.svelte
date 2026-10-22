@@ -168,30 +168,29 @@
     await act(consoleMachine, consoleVm, 'start')
   }
 
-  async function tryAction(work: () => Promise<unknown>) {
-    try {
-      await work()
-      await refresh()
-    } catch (error) {
-      banner = error instanceof ApiError ? error.message : 'Something went wrong.'
-    }
+  // The chat bundle calls below throw a refusal (for example "no chat is built on the parent"): the control that asked shows it next to itself.
+  async function pin(version: string) {
+    await pinBundle(version)
+    await refresh()
   }
 
-  const pin = (version: string) => tryAction(() => pinBundle(version))
-  const rollback = () => tryAction(() => rollbackBundle())
-  const install = (machine: Machine, workload: Workload | null) => tryAction(() => installBundle(machine.id, workload?.id))
+  async function rollback() {
+    await rollbackBundle()
+    await refresh()
+  }
+
+  async function install(machine: Machine, workload: Workload | null) {
+    await installBundle(machine.id, workload?.id)
+    await refresh()
+  }
+
+  /** Ruvio on or off for a machine. */
+  async function setRuvio(machine: Machine, on: boolean) {
+    await (on ? installBundle(machine.id) : uninstallBundle(machine.id))
+    await refresh()
+  }
+
   const newestHelper = $derived(newestVersion(machines.map((machine) => machine.agent_version)))
-
-  /** Ruvio on or off for a machine. Answers the parent's refusal text (for example "no chat is built on the parent"), or null when it went through. */
-  async function setRuvio(machine: Machine, on: boolean): Promise<string | null> {
-    try {
-      await (on ? installBundle(machine.id) : uninstallBundle(machine.id))
-      await refresh()
-      return null
-    } catch (error) {
-      return error instanceof ApiError ? error.message : 'Something went wrong.'
-    }
-  }
 
   async function openChat(machine: Machine, workload: Workload | null) {
     try {

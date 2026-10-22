@@ -3,6 +3,7 @@
   // A second click, Enter or Space while it runs sends nothing.
   import { lineOf } from '../lib/action.ts'
   import { ActionState } from '../lib/action.svelte.ts'
+  import ActionLine from './ActionLine.svelte'
 
   type Variant = 'plain' | 'green' | 'line' | 'danger'
 
@@ -48,12 +49,9 @@
     aria-busy={current.busy}
     onclick={press}
   >{#if current.busy}<span class="btn-spin" aria-hidden="true"></span>{asked.busy}{:else}{label}{/if}</button>
-  <span class="aline" class:bad={current.status === 'failed'} class:hide={line === ''} role="status" aria-live="polite">{line}</span>
+  <ActionLine {line} failed={current.status === 'failed'} />
 </span>
 
 <style>
   .abtn { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; }
-  .aline { font-family: var(--mono); font-size: 11px; color: var(--m60); overflow-wrap: anywhere; max-width: 280px; }
-  .aline.bad { color: var(--danger); }
-  .aline.hide { display: none; }
 </style>

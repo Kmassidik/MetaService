@@ -1,5 +1,6 @@
 <script lang="ts">
   // The Overview tab of a VM: the same rows as the MAAS detail page, then the chat buttons.
+  import ActionButton from '../ActionButton.svelte'
   import WhyStopped from './WhyStopped.svelte'
   import { isPlainMode, PLAIN_MODE_TEXT, type StopNote } from '../../lib/stoppedReason.ts'
   import { vmFacts } from '../../lib/vm.ts'
@@ -13,7 +14,7 @@
     pinned: string | null | undefined
     /** Why a stopped VM stopped; null when it is not stopped. */
     note: StopNote | null
-    onInstall: () => void
+    onInstall: () => Promise<unknown>
   }
 
   let { machine, workload, server, pinned, note, onInstall }: Props = $props()
@@ -28,7 +29,7 @@
 {#if note}<div class="extra"><WhyStopped {note} /></div>{/if}
 {#if isPlainMode(workload)}<p class="extra plain">{PLAIN_MODE_TEXT}</p>{/if}
 {#if workload.state === 'running'}
-  <div class="chatbar"><button class="btn line sm" type="button" onclick={onInstall}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button></div>
+  <div class="chatbar"><ActionButton variant="line" small label={workload.bundle_version ? 'Reinstall chat' : 'Install chat'} busyLabel="Installing…" doneLabel="Installed" onrun={onInstall} /></div>
 {/if}
 
 <style>

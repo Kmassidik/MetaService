@@ -25,8 +25,8 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
     newestHelper: string | null
     /** How many chat versions the parent has built. */
     chatsBuilt: number
-    /** Turns Ruvio on or off. Answers the parent's refusal text, or null when it went through. */
-    onRuvio: (machine: Machine, on: boolean) => Promise<string | null>
+    /** Turns Ruvio on or off. Throws the parent's refusal. */
+    onRuvio: (machine: Machine, on: boolean) => Promise<unknown>
     onOpenChat: (machine: Machine, workload: null) => void
     /** Something changed on the parent: read the machines again. */
     onChanged: () => void
@@ -43,7 +43,6 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
   let saving = $state(false)
   let saveFailure = $state('')
   let saved = $state(false)
-  let ruvioFailure = $state('')
   let updating = $state(false)
   let updateOutcome: OutcomeView | null = $state(null)
   let asked = 0
@@ -122,9 +121,13 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
     await load()
   }
 
+  /** The machine is read again either way, so the switch shows what is true; a refusal is thrown to the control that asked. */
   async function switchRuvio(on: boolean) {
-    ruvioFailure = (await onRuvio(machine, on)) ?? ''
-    await load()
+    try {
+      await onRuvio(machine, on)
+    } finally {
+      await load()
+    }
   }
 </script>
 
@@ -132,7 +135,7 @@ import { failureView, helperView, outcomeView, type OutcomeView } from '../../li
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
 {#if loaded}
   <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
-  <RuvioSection ruvio={full.ruvio} {view} failure={ruvioFailure} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
+  <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
 {:else}
   <p class="loading" role="status">Loading…</p>
 {/if}

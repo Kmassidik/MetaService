@@ -28,7 +28,7 @@
     onCreate: () => void
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
-    onInstall: (machine: Machine, workload: Workload | null) => void
+    onInstall: (machine: Machine, workload: Workload | null) => Promise<unknown>
     onOpenChat: (machine: Machine, workload: Workload | null) => void
   }
 
@@ -58,6 +58,10 @@
 
 {#snippet startButton(workload: Workload)}
   <ActionButton variant="line" small label="Start" busyLabel="Starting…" doneLabel="Started" onrun={() => onAct(machine, workload, 'start')} />
+{/snippet}
+
+{#snippet installButton(workload: Workload)}
+  <ActionButton variant="line" small label={workload.bundle_version ? 'Reinstall chat' : 'Install chat'} busyLabel="Installing…" doneLabel="Installed" onrun={() => onInstall(machine, workload)} />
 {/snippet}
 
 {#snippet stopButton(workload: Workload)}
@@ -100,7 +104,7 @@
           <TerminalButton {machine} {workload} />
           {#if server.status === 'stopped'}{@render startButton(workload)}{/if}
           {#if server.status === 'running'}{@render stopButton(workload)}
-            <button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
+            {@render installButton(workload)}{/if}
           {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
           <button class="btn danger sm del" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
         </div>
@@ -129,7 +133,7 @@
             <td class="mono muted">{workload.address ?? '—'}</td>
             <td class="row-act">
               <TerminalButton {machine} {workload} />
-              {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
+              {#if server.status === 'running'}{@render installButton(workload)}{/if}
               {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
               {#if server.status === 'running'}{@render stopButton(workload)}{/if}
               {#if server.status === 'stopped'}{@render startButton(workload)}{/if}

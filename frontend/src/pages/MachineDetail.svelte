@@ -31,9 +31,9 @@
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
-    onInstall: (machine: Machine, workload: Workload | null) => void
+    onInstall: (machine: Machine, workload: Workload | null) => Promise<unknown>
     /** Ruvio on or off for the machine. Answers the parent's refusal text, or null when it went through. */
-    onRuvio: (machine: Machine, on: boolean) => Promise<string | null>
+    onRuvio: (machine: Machine, on: boolean) => Promise<unknown>
     /** Something changed on the parent (settings saved, Ruvio switched): read the machines again. */
     onChanged: () => void
   }

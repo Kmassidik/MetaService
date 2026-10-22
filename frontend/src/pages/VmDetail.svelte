@@ -27,7 +27,7 @@
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
-    onInstall: (machine: Machine, workload: Workload | null) => void
+    onInstall: (machine: Machine, workload: Workload | null) => Promise<unknown>
   }
 
   let { machine, workloadId, pinned, banner, commands, onAct, onDelete, onOpenChat, onInstall }: Props = $props()
