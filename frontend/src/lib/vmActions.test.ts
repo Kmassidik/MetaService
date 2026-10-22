@@ -2,24 +2,24 @@ import { describe, expect, test } from 'bun:test'
 import { vmActionFacts, vmActions } from './vmActions.ts'
 
 describe('the action buttons of a VM row', () => {
-  test('a running VM with no chat: Terminal, Stop, Install chat, then Delete alone and last', () => {
-    expect(vmActions({ state: 'running', chatInstalled: false })).toEqual({ main: ['terminal', 'stop', 'install-chat'], danger: ['delete'] })
+  test('a running VM with no chat: Terminal, SSH keys, Stop, Install chat, then Delete alone and last', () => {
+    expect(vmActions({ state: 'running', chatInstalled: false })).toEqual({ main: ['terminal', 'ssh-keys', 'stop', 'install-chat'], danger: ['delete'] })
   })
 
   test('a running VM with a chat adds Open chat between Stop and Install chat', () => {
-    expect(vmActions({ state: 'running', chatInstalled: true }).main).toEqual(['terminal', 'stop', 'open-chat', 'install-chat'])
+    expect(vmActions({ state: 'running', chatInstalled: true }).main).toEqual(['terminal', 'ssh-keys', 'stop', 'open-chat', 'install-chat'])
   })
 
   test('a stopped VM offers Start, and no Install chat', () => {
-    expect(vmActions({ state: 'stopped', chatInstalled: false }).main).toEqual(['terminal', 'start'])
+    expect(vmActions({ state: 'stopped', chatInstalled: false }).main).toEqual(['terminal', 'ssh-keys', 'start'])
   })
 
   test('a stopped VM with a chat still offers Open chat', () => {
-    expect(vmActions({ state: 'stopped', chatInstalled: true }).main).toEqual(['terminal', 'start', 'open-chat'])
+    expect(vmActions({ state: 'stopped', chatInstalled: true }).main).toEqual(['terminal', 'ssh-keys', 'start', 'open-chat'])
   })
 
-  test('a VM being made has Terminal (switched off by its own rules) and Delete only', () => {
-    expect(vmActions({ state: 'creating', chatInstalled: false })).toEqual({ main: ['terminal'], danger: ['delete'] })
+  test('a VM being made has Terminal (switched off by its own rules), SSH keys and Delete only', () => {
+    expect(vmActions({ state: 'creating', chatInstalled: false })).toEqual({ main: ['terminal', 'ssh-keys'], danger: ['delete'] })
   })
 
   test('Delete is never in the main group and never missing', () => {

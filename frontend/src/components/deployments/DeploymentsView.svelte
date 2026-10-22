@@ -113,7 +113,7 @@
             <td class="mono" data-label="Ruvio">{bundleFlag(workload.bundle_version, pinned).text}</td>
             <td class="mono" data-label="Type">{workload.kind}</td>
             <td class="mono nums" data-label="Size">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
-            <td class="mono muted" data-label="Address"><span class="addr">{workload.address ?? '—'}{#if workload.address}<CopyAddress address={workload.address} />{/if}</span></td>
+            <td class="mono muted" data-label="Address"><span class="addr">{workload.address ?? '—'}{#if workload.address}<CopyAddress address={workload.address} subject={workload.name} />{/if}</span></td>
             <td data-label="Actions"><VmActions {machine} {workload} {handlers} /></td>
           </tr>
         {/each}

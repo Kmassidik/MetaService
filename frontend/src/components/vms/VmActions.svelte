@@ -1,8 +1,9 @@
 <script lang="ts">
-  // The action buttons of one VM as icons: Terminal, Start or Stop, Open chat, Install chat, then Delete alone at the end.
+  // The action buttons of one VM as icons: Terminal, SSH keys, Start or Stop, Open chat, Install chat, then Delete alone at the end.
   // Start, Stop and Install chat each run one request at a time (ActionState): a second press while one runs sends nothing, and the result shows in a small line below.
   import ActionLine from '../ActionLine.svelte'
   import IconButton from '../IconButton.svelte'
+  import SshKeysDialog from './SshKeysDialog.svelte'
   import { lineOf } from '../../lib/action.ts'
   import { ActionState } from '../../lib/action.svelte.ts'
   import { consoleTitle, terminalAccess } from '../../lib/terminalAccess.ts'
@@ -35,6 +36,7 @@
   }
 
   let { machine, workload, handlers }: Props = $props()
+  let keysOpen = $state(false)
   const runs: Record<GuardedId, ActionState> = { start: new ActionState(), stop: new ActionState(), 'install-chat': new ActionState() }
   /** The press that spoke last, and the words of its success line: the button may change meaning while it runs (Start becomes Stop), but the line must say what was asked. */
   let asked = $state<{ id: GuardedId | null; done: string }>({ id: null, done: '' })
@@ -63,6 +65,7 @@
       disabled: !access.allowed,
       onclick: () => openConsole({ machine: machine.id, workload: workload.id, name: consoleTitle(workload) }),
     },
+    'ssh-keys': { label: 'SSH keys', text: 'Keys', icon: VM_ICONS.key, onclick: () => (keysOpen = true) },
     start: guarded('start', 'Start', 'Start', VM_ICONS.start, { busy: 'Starting…', done: 'Started' }, () => handlers.onAct(machine, workload, 'start')),
     stop: guarded('stop', 'Stop', 'Stop', VM_ICONS.stop, { busy: 'Stopping…', done: 'Stopped' }, () => handlers.onAct(machine, workload, 'stop')),
     'open-chat': { label: 'Open chat', text: 'Chat', icon: VM_ICONS.chat, onclick: () => handlers.onOpenChat(machine, workload) },
@@ -72,7 +75,7 @@
 </script>
 
 {#snippet icon(id: VmActionId)}
-  <IconButton {...buttons[id]} variant={id === 'delete' ? 'danger' : 'normal'} />
+  <IconButton {...buttons[id]} subject={workload.name} variant={id === 'delete' ? 'danger' : 'normal'} />
 {/snippet}
 
 <div class="vm-acts">
@@ -81,6 +84,7 @@
     <span class="group apart">{#each layout.danger as id (id)}{@render icon(id)}{/each}</span>
   </div>
   <ActionLine {line} failed={current?.status === 'failed'} />
+  {#if keysOpen}<SshKeysDialog {machine} {workload} open={keysOpen} onClose={() => (keysOpen = false)} />{/if}
 </div>
 
 <style>

@@ -1,14 +1,17 @@
 <script lang="ts">
   // The Access tab. MAAS teaches SSH through a Cloudflare name and a web terminal; MetaService has no Cloudflare name, so only what it knows is shown: the VM's address and its chat. The web terminal is the button in the page header.
-  import type { Workload } from '../../lib/types.ts'
+  import SshKeysDialog from '../vms/SshKeysDialog.svelte'
+  import type { Machine, Workload } from '../../lib/types.ts'
 
   interface Props {
+    machine: Machine
     workload: Workload
     onCopy: (text: string) => void
     onOpenChat: () => void
   }
 
-  let { workload, onCopy, onOpenChat }: Props = $props()
+  let { machine, workload, onCopy, onOpenChat }: Props = $props()
+  let keysOpen = $state(false)
 </script>
 
 <div class="access">
@@ -19,6 +22,10 @@
   {:else}
     <p class="hint">No address yet.</p>
   {/if}
+  <p class="lbl">SSH keys</p>
+  <p class="hint">Public keys that can log in to this VM.</p>
+  <button class="btn sm" type="button" onclick={() => (keysOpen = true)}>Manage SSH keys</button>
+  {#if keysOpen}<SshKeysDialog {machine} {workload} open={keysOpen} onClose={() => (keysOpen = false)} />{/if}
   {#if workload.bundle_version}
     <p class="lbl">Ruvio</p>
     <p class="hint">The chat runs inside this VM.</p>

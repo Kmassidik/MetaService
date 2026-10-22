@@ -2,7 +2,7 @@
 import { RUNNING_STATE, STOPPED_STATE } from './vm.ts'
 import type { Machine, Workload } from './types.ts'
 
-export type VmActionId = 'terminal' | 'start' | 'stop' | 'open-chat' | 'install-chat' | 'delete'
+export type VmActionId = 'terminal' | 'ssh-keys' | 'start' | 'stop' | 'open-chat' | 'install-chat' | 'delete'
 
 export interface VmActionFacts {
   state: string
@@ -25,6 +25,7 @@ interface Rule {
 /** The order of this list is the order on screen. */
 const RULES: Rule[] = [
   { id: 'terminal', group: 'main', shown: () => true },
+  { id: 'ssh-keys', group: 'main', shown: () => true },
   { id: 'start', group: 'main', shown: (facts) => facts.state === STOPPED_STATE },
   { id: 'stop', group: 'main', shown: (facts) => facts.state === RUNNING_STATE },
   { id: 'open-chat', group: 'main', shown: (facts) => facts.chatInstalled },

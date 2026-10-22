@@ -74,7 +74,7 @@
     {:else if tab === 'monitoring'}
       <VmMonitoring state={workload.state} />
     {:else if tab === 'access'}
-      <VmAccess {workload} onCopy={copy} onOpenChat={() => onOpenChat(machine, workload)} />
+      <VmAccess {machine} {workload}onCopy={copy} onOpenChat={() => onOpenChat(machine, workload)} />
     {:else}
       <VmDanger onDelete={() => onDelete(machine, workload)} />
     {/if}

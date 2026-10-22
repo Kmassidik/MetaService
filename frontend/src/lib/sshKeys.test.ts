@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { addedText, addRefusalText, checkPastedKey, connectionLine, MAX_SSH_KEYS, parseSshKeyList, statusLines } from './sshKeys.ts'
 
-const KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexample me@laptop'
+import type { SshKeyList } from './types.ts'
+
+const KEY ='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexample me@laptop'
 
 describe('checking a pasted key', () => {
   test('surrounding spaces and line breaks are trimmed before sending', () => {
@@ -55,7 +57,7 @@ describe('status lines under the list', () => {
 })
 
 describe('reading the answer', () => {
-  const body = { keys: [{ id: 'k1', type: 'ssh-ed25519', fingerprint: 'SHA256:abc', comment: 'me@laptop', added_at: 1_700_000_000 }], applied: true, sshd: 'running' }
+  const body: SshKeyList = { keys: [{ id: 'k1', type: 'ssh-ed25519', fingerprint: 'SHA256:abc', comment: 'me@laptop', added_at: 1_700_000_000 }], applied: true, sshd: 'running' }
 
   test('a good answer is read as it is', () => {
     expect(parseSshKeyList(body)).toEqual(body)

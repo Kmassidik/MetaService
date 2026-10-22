@@ -1,9 +1,11 @@
 <script lang="ts">
-  // A small icon-only button with a line icon in the sidebar's style. Its name is the aria-label; the same words appear as a tooltip on hover and on keyboard focus.
+  // A small icon-only button with a line icon in the sidebar's style. Its spoken name is the aria-label (the label, then the subject); the label alone shows as a tooltip on hover and on keyboard focus.
   // The tooltip is fixed-positioned from the button's own spot, so a table's overflow cannot clip it and it adds no sideways scrolling.
   // On a phone there is no hover: the short `text` stays beside the icon instead.
   interface Props {
     label: string
+    /** What the button is about, for example the VM's name. Added to the spoken name only, so a screen reader can tell rows apart; the tooltip stays the short label. */
+    subject?: string | undefined
     /** SVG path data on a 24 x 24 grid; several sub-paths may be joined in one string. */
     icon: string
     onclick: () => void
@@ -15,10 +17,10 @@
     text?: string
   }
 
-  let { label, icon, onclick, variant = 'normal', disabled = false, busy = false, text }: Props = $props()
+  let { label, subject, icon, onclick, variant = 'normal', disabled = false, busy = false, text }: Props = $props()
 </script>
 
-<button class="ib" class:danger={variant === 'danger'} type="button" aria-label={label} data-tip={label} aria-busy={busy} {disabled} {onclick}>
+<button class="ib" class:danger={variant === 'danger'} type="button" aria-label={subject ? `${label} ${subject}` : label} data-tip={label} aria-busy={busy} {disabled} {onclick}>
   {#if busy}<span class="btn-spin" aria-hidden="true"></span>{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>{/if}
   {#if text}<span class="word">{text}</span>{/if}
 </button>
