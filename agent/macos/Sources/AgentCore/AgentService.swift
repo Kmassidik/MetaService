@@ -42,6 +42,7 @@ public actor AgentService {
     private var budget: SpaceBudget
     private let specs: MachineSpecs
     private let agentVersion: String
+    private let agentBuild: String?
     private let osAvailableDiskGb: @Sendable () -> Int?
     private let ledger: CommandLedger
     private var inflight: [String: Workload] = [:]
@@ -52,7 +53,7 @@ public actor AgentService {
     /// Called when something about the workloads changed, so the Root can hear about it without waiting for the next heartbeat.
     public nonisolated(unsafe) var onChange: (@Sendable () -> Void)?
 
-    public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, ledger: CommandLedger = CommandLedger(), installer: BundleInstalling? = nil,
+    public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, agentBuild: String? = nil, ledger: CommandLedger = CommandLedger(), installer: BundleInstalling? = nil,
                 consoles: ConsoleRegistry = ConsoleRegistry(), osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
         self.consoles = consoles
         self.installer = installer
@@ -60,6 +61,7 @@ public actor AgentService {
         self.budget = budget
         self.specs = specs
         self.agentVersion = agentVersion
+        self.agentBuild = agentBuild
         self.ledger = ledger
         self.osAvailableDiskGb = osAvailableDiskGb
     }
@@ -74,7 +76,7 @@ public actor AgentService {
         let all = try await workloads()
         let engineInfo = EngineInfo(identity: await engine.identity(), ready: engine.problems.isEmpty)
         return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities,
-                     problems: engine.problems, agentVersion: agentVersion, engine: engineInfo)
+                     problems: engine.problems, agentVersion: agentVersion, engine: engineInfo, agentBuild: agentBuild)
     }
 
     public func workloads() async throws -> [Workload] {

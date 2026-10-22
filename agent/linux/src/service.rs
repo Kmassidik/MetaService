@@ -54,6 +54,7 @@ pub struct Service {
     budget: SpaceBudget,
     specs: Specs,
     version: String,
+    build: Option<String>,
     ledger: Arc<crate::ledger::Ledger>,
     installer: Arc<dyn BundleInstalling>,
     os_disk: fn() -> Option<u64>,
@@ -73,7 +74,13 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
 
 impl Service {
     pub fn new(engine: Arc<dyn Engine>, budget: SpaceBudget, specs: Specs, version: &str, ledger: Arc<crate::ledger::Ledger>, installer: Arc<dyn BundleInstalling>, os_disk: fn() -> Option<u64>) -> Self {
-        Service { engine, budget, specs, version: version.into(), ledger, installer, os_disk, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()), on_change: Mutex::new(None) }
+        Service { engine, budget, specs, version: version.into(), build: None, ledger, installer, os_disk, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()), on_change: Mutex::new(None) }
+    }
+
+    /// Says which build of the program this is (see build.rs); it goes into the facts.
+    pub fn with_build(mut self, build: Option<String>) -> Self {
+        self.build = build;
+        self
     }
 
     /// Called when something about the workloads changed, so the Root can hear about it without waiting for the next heartbeat.
@@ -105,7 +112,7 @@ impl Service {
         Ok(Facts {
             os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: self.specs.ram_total_mb, disk_total_gb: self.specs.disk_total_gb,
             free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
-            agent_version: self.version.clone(), engine: engine_info,
+            agent_version: self.version.clone(), engine: engine_info, agent_build: self.build.clone(),
         })
     }
 
@@ -385,6 +392,17 @@ mod tests {
         assert_eq!(facts.engine, EngineInfo { name: "simulated".into(), version: None, ready: true });
         let json = serde_json::to_value(&facts).unwrap();
         assert!(json["engine"]["version"].is_null(), "an unknown version is sent as null");
+    }
+
+    #[tokio::test]
+    async fn the_facts_carry_the_build_only_when_there_is_one() {
+        let silent = service(Arc::new(Counting::default()));
+        let json = serde_json::to_value(silent.facts().await.ok().unwrap()).unwrap();
+        assert!(json.get("agent_build").is_none(), "a helper that does not know its build says nothing");
+        let build = "ab".repeat(32);
+        let known = Arc::try_unwrap(service(Arc::new(Counting::default()))).ok().unwrap().with_build(Some(build.clone()));
+        let json = serde_json::to_value(known.facts().await.ok().unwrap()).unwrap();
+        assert_eq!(json["agent_build"], build);
     }
 
     #[tokio::test]

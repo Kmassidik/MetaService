@@ -107,6 +107,9 @@ pub struct Facts {
     pub problems: Vec<Problem>,
     pub agent_version: String,
     pub engine: EngineInfo,
+    /// The SHA-256 of this program's file (see build.rs). Left out of the facts when it is not known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_build: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

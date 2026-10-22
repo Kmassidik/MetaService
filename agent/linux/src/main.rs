@@ -1,6 +1,7 @@
 //! MetaService Agent for Linux. Runs workloads on this machine for the Root, through Incus.
-mod bundle;
 mod budget;
+mod build;
+mod bundle;
 mod config;
 mod engine;
 mod enroll;
@@ -97,7 +98,7 @@ fn run(config: Config) -> Result<(), String> {
     let installer = bundle::BundleInstaller::new(config.clone(), engine.clone(), root.clone(), machine_token.clone(), supervisor.clone());
     installer.resume();
     let ledger = Arc::new(ledger::Ledger::new(2000, Some(config.state_dir.join("commands.json"))));
-    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::available_disk_gb));
+    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::available_disk_gb).with_build(build::running()));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     if let (Some(root), Some(token)) = (root, machine_token) {
         let heartbeat = heartbeat::Heartbeat::new(root, token, config.port, config.heartbeat_seconds);

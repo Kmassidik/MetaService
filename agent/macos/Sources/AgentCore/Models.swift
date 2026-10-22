@@ -93,9 +93,11 @@ public struct Facts: Encodable, Equatable {
     public let problems: [HostProblem]
     public let agentVersion: String
     public let engine: EngineInfo
+    /// The SHA-256 of this program's file (see AgentBuild). Left out of the facts when it is not known.
+    public let agentBuild: String?
 
     enum CodingKeys: String, CodingKey {
-        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems, agentVersion, engine
+        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems, agentVersion, engine, agentBuild
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -112,9 +114,11 @@ public struct Facts: Encodable, Equatable {
         try box.encode(problems, forKey: .problems)
         try box.encode(agentVersion, forKey: .agentVersion)
         try box.encode(engine, forKey: .engine)
+        try box.encodeIfPresent(agentBuild, forKey: .agentBuild)
     }
 
-    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities, problems: [HostProblem] = [], agentVersion: String, engine: EngineInfo) {
+    public init(specs: MachineSpecs, freeRamMb: Int, freeDiskGb: Int, capabilities: Capabilities, problems: [HostProblem] = [], agentVersion: String, engine: EngineInfo, agentBuild: String? = nil) {
+        self.agentBuild = agentBuild
         self.agentVersion = agentVersion
         self.engine = engine
         self.problems = problems
