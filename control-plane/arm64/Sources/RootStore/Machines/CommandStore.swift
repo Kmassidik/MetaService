@@ -84,6 +84,12 @@ public struct CommandStore {
         return BundleCommandKind(rawValue: last.type)
     }
 
+    /// True while a create or a delete of a VM is queued or running on the machine. A helper is not replaced then.
+    public func hasUnfinishedOrder(machine: String) throws -> Bool {
+        let rows = try database.query("SELECT 1 AS found FROM commands WHERE machine_id = ? AND type IN ('create', 'delete') AND state IN ('queued', 'running') LIMIT 1", [.text(machine)])
+        return !rows.isEmpty
+    }
+
     /// RAM and disk already promised to creates that have not finished, so two quick requests cannot both take the same room.
     public func promised(machine: String) throws -> (ramMb: Int, diskGb: Int) {
         let rows = try database.query("SELECT params_json FROM commands WHERE machine_id = ? AND type = 'create' AND state IN ('queued', 'running')", [.text(machine)])

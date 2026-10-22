@@ -114,6 +114,8 @@ public enum Migrations {
             ALTER TABLE workloads ADD COLUMN stopped_reason_json TEXT;
             ALTER TABLE workloads ADD COLUMN init_mode TEXT;
             """) }),
+        // Which build of the helper program a machine runs (the SHA-256 of its file, as the helper reports it), replaced with every heartbeat. Null for a helper that does not say.
+        (19, { try $0.exec("ALTER TABLE machines ADD COLUMN agent_build TEXT;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

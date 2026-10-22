@@ -53,8 +53,10 @@ public struct FactsReport: Equatable {
     /// Which helper program runs and which engine it uses. Helpers older than contract 1.3.0 do not say, so both can be nil.
     public let agentVersion: String?
     public let engine: EngineReport?
+    /// The SHA-256 of the helper's own program file (see AgentBuild). Helpers that do not say it give nil.
+    public let agentBuild: String?
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build"]
     static let maxGpus = 16
     static let maxProblems = 20
     private static let codePattern = #/^[a-z0-9_]{1,64}$/#
@@ -74,6 +76,7 @@ public struct FactsReport: Equatable {
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
         agentVersion = try ReportedVersion.optional(object, "agent_version")
         engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil
+        agentBuild = try AgentBuild.optional(object, "agent_build")
     }
 
     private static func problem(_ item: StrictObject) throws -> HostProblem {

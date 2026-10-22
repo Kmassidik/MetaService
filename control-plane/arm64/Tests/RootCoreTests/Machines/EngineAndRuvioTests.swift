@@ -28,6 +28,22 @@ final class EngineAndRuvioTests: XCTestCase {
         XCTAssertEqual(try HeartbeatRequest(body: data(heartbeat(engine: ["name": "incus", "version": NSNull(), "ready": false]))).facts.engine?.version, nil)
     }
 
+    func testTheHelperBuildIsReadWhenItIsSixtyFourLowercaseHexDigitsAndRefusedOtherwise() throws {
+        func beat(_ build: Any) -> [String: Any] {
+            var body = heartbeat()
+            var facts = body["facts"] as! [String: Any]
+            facts["agent_build"] = build
+            body["facts"] = facts
+            return body
+        }
+        let good = String(repeating: "0f", count: 32)
+        XCTAssertEqual(try HeartbeatRequest(body: data(beat(good))).facts.agentBuild, good)
+        XCTAssertNil(try HeartbeatRequest(body: data(heartbeat())).facts.agentBuild)
+        XCTAssertNil(try HeartbeatRequest(body: data(beat(NSNull()))).facts.agentBuild)
+        let bad: [Any] = ["", "abc", good.uppercased(), good + "0", String(good.dropLast()), 5, ["a"], "<script>" + String(repeating: "a", count: 56)] + MachineSettingsPatchTests.hostile
+        for item in bad { XCTAssertThrowsError(try HeartbeatRequest(body: data(beat(item))), "\(item)") }
+    }
+
     func testTheEngineAlwaysSendsItsVersionEvenWhenItIsNull() throws {
         let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(EngineReport(name: "incus", version: nil, ready: true))) as! [String: Any]
         XCTAssertTrue(json["version"] is NSNull)

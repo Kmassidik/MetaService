@@ -11,8 +11,10 @@ struct MachineDetail: Encodable {
     let agentPort: Int?
     /// Null until the machine has reported once.
     let ruvio: RuvioStatus?
+    /// Whether a newer helper program can be put on this machine.
+    let update: HelperUpdate
 
-    private enum ExtraKeys: String, CodingKey { case box, agentPort, ruvio }
+    private enum ExtraKeys: String, CodingKey { case box, agentPort, ruvio, update }
 
     func encode(to encoder: Encoder) throws {
         try machine.encode(to: encoder)
@@ -20,6 +22,7 @@ struct MachineDetail: Encodable {
         try extra.encode(box, forKey: .box)
         try extra.encode(agentPort, forKey: .agentPort)
         try extra.encode(ruvio, forKey: .ruvio)
+        try extra.encode(update, forKey: .update)
     }
 }
 
@@ -29,12 +32,13 @@ struct MachineDetails {
     let remoteMachines: RemoteMachineStore
     let bundles: BundleStore
     let commands: CommandStore
+    let updates: HelperUpdates
     let clock: Clock
 
     func get(id: String) throws -> MachineDetail {
         let machine = try machines.get(id: id, now: clock.now)
         let installedOverSsh = try remoteMachines.get(id)
-        return MachineDetail(machine: machine, box: installedOverSsh?.box, agentPort: installedOverSsh?.agentPort, ruvio: try ruvio(of: machine))
+        return MachineDetail(machine: machine, box: installedOverSsh?.box, agentPort: installedOverSsh?.agentPort, ruvio: try ruvio(of: machine), update: updates.status(of: machine))
     }
 
     private func ruvio(of machine: MachineSummary) throws -> RuvioStatus? {

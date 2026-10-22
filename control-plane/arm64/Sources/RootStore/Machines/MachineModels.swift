@@ -55,6 +55,8 @@ public struct MachineSummary: Encodable, Equatable {
     public let settings: MachineSettings?
     public let problems: [HostProblem]
     public let agentVersion: String?
+    /// The SHA-256 of the helper's program file as the helper reported it; null for a helper that does not say.
+    public let agentBuild: String?
     public let engine: EngineReport?
     public let bundleVersion: String?
     public let state: String
@@ -63,7 +65,7 @@ public struct MachineSummary: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, ip, os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb
-        case gpu, capabilities, settings, problems, agentVersion, engine, bundleVersion, state, lastSeen, workloads
+        case gpu, capabilities, settings, problems, agentVersion, agentBuild, engine, bundleVersion, state, lastSeen, workloads
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -83,6 +85,7 @@ public struct MachineSummary: Encodable, Equatable {
         try box.encode(settings, forKey: .settings)
         try box.encode(problems, forKey: .problems)
         try box.encode(agentVersion, forKey: .agentVersion)
+        try box.encode(agentBuild, forKey: .agentBuild)
         try box.encode(engine, forKey: .engine)
         try box.encode(bundleVersion, forKey: .bundleVersion)
         try box.encode(state, forKey: .state)

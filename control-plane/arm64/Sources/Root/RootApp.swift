@@ -22,6 +22,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     StatsRoutes(services: services, guards: guards).register(on: router.group())
     GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     ImagesRoutes(services: services, guards: guards).register(on: router.group())
+    HelperUpdateRoutes(services: services, guards: guards).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
     return Application(router: router, server: .http1WebSocketUpgrade(webSocketRouter: consoleRouter(services: services, guards: guards), configuration: consoleSocketConfiguration),
                        configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))

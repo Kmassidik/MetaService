@@ -26,7 +26,9 @@ struct OperatorRoutes {
 
     func listMachines(_ request: Request, context: RootContext) async throws -> Response {
         _ = try guards.operatorRead(request)
-        return try Json.response(MachineList(machines: try services.machines.list(now: services.clock.now)))
+        let offers = services.helperUpdates.offers()
+        let machines = try services.machines.list(now: services.clock.now).map { MachineListed(machine: $0, update: services.helperUpdates.status(of: $0, offers: offers)) }
+        return try Json.response(MachineList(machines: machines))
     }
 
     func getMachine(_ request: Request, context: RootContext) async throws -> Response {
@@ -85,7 +87,7 @@ private struct SessionReply: Encodable {
 }
 
 private struct MachineList: Encodable {
-    let machines: [MachineSummary]
+    let machines: [MachineListed]
 }
 
 private struct EnrollmentReply: Encodable {

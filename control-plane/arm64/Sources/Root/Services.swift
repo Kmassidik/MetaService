@@ -36,6 +36,8 @@ struct Services {
     let stats: StatsService
     let gpuCheck: GpuCheckService
     let images: ImagesService
+    let helperUpdates: HelperUpdates
+    let helperUpdate: HelperUpdateService
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -64,7 +66,8 @@ struct Services {
         remote = RemoteService(ssh: remoteSsh, config: config, audit: audit, clock: clock)
         remoteFix = RemoteFixService(ssh: remoteSsh, config: config, audit: audit, clock: clock)
         remoteMachines = RemoteMachineStore(database)
-        machineDetails = MachineDetails(machines: machines, remoteMachines: remoteMachines, bundles: bundles, commands: commands, clock: clock)
+        helperUpdates = HelperUpdates(config: config, hashes: BuildHashCache())
+        machineDetails = MachineDetails(machines: machines, remoteMachines: remoteMachines, bundles: bundles, commands: commands, updates: helperUpdates, clock: clock)
         tunnels = TunnelSupervisor(ssh: remoteSsh, remoteMachines: remoteMachines, ports: tunnelPorts, clock: clock)
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
@@ -72,5 +75,6 @@ struct Services {
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
+        helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))
     }
 }

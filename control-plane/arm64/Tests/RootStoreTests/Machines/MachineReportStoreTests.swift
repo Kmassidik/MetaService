@@ -31,6 +31,30 @@ final class MachineReportStoreTests: XCTestCase {
         XCTAssertEqual(seen.engine, EngineReport(name: "apple-container", version: "1.5.0", ready: true))
     }
 
+    private let build = String(repeating: "ab", count: 32)
+
+    private func heartbeat(build: String?) throws -> HeartbeatRequest {
+        var facts: [String: Any] = ["os": "macos", "arch": "arm64", "cpu_cores": 10, "ram_total_mb": 65536, "disk_total_gb": 1000, "free_ram_mb": 50000, "free_disk_gb": 800,
+                                    "gpu": [], "capabilities": ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]]
+        facts["agent_build"] = build
+        return try HeartbeatRequest(body: JSONSerialization.data(withJSONObject: ["facts": facts, "workloads": []]))
+    }
+
+    func testTheHelperBuildIsKeptAsReportedAndIsInTheListToo() throws {
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(build: build), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).agentBuild, build)
+        XCTAssertEqual(try machines.list(now: now).first?.agentBuild, build)
+    }
+
+    func testTheBuildIsReplacedByTheNextHeartbeatAndClearedWhenItIsNotSaid() throws {
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(build: build), ip: nil, now: now)
+        let newer = String(repeating: "cd", count: 32)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(build: newer), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).agentBuild, newer)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(build: nil), ip: nil, now: now)
+        XCTAssertNil(try machines.get(id: "mini", now: now).agentBuild, "an older helper that does not say it must not keep the last answer")
+    }
+
     func testBeforeAnyHeartbeatNothingIsInventedAboutTheHelperOrTheEngine() throws {
         let seen = try machines.get(id: "mini", now: now)
         XCTAssertNil(seen.agentVersion)

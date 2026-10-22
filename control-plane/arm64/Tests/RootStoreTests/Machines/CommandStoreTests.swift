@@ -25,6 +25,23 @@ final class CommandStoreTests: XCTestCase {
         XCTAssertNil(try commands.get("rc-2"))
     }
 
+    func testOnlyAnUnfinishedCreateOrDeleteMakesTheMachineBusy() throws {
+        let commands = CommandStore(database)
+        XCTAssertFalse(try commands.hasUnfinishedOrder(machine: "mini"))
+        try commands.create(id: "s", machine: "mini", workloadId: "w-1", type: "stop", params: [:], actor: "k", now: now)
+        try commands.create(id: "b", machine: "mini", workloadId: nil, type: "bundle_install", params: [:], actor: "k", now: now)
+        XCTAssertFalse(try commands.hasUnfinishedOrder(machine: "mini"), "a stop or a chat install does not block an update")
+        try commands.create(id: "d", machine: "mini", workloadId: "w-1", type: "delete", params: [:], actor: "k", now: now)
+        XCTAssertTrue(try commands.hasUnfinishedOrder(machine: "mini"))
+        XCTAssertFalse(try commands.hasUnfinishedOrder(machine: "other"))
+        try commands.update(id: "d", state: "running", result: nil, now: now)
+        XCTAssertTrue(try commands.hasUnfinishedOrder(machine: "mini"))
+        try commands.update(id: "d", state: "failed", result: nil, now: now)
+        XCTAssertFalse(try commands.hasUnfinishedOrder(machine: "mini"))
+        try commands.create(id: "c", machine: "mini", workloadId: nil, type: "create", params: [:], actor: "k", now: now)
+        XCTAssertTrue(try commands.hasUnfinishedOrder(machine: "mini"))
+    }
+
     func testPromisedRoomCountsOnlyUnfinishedCreates() throws {
         let commands = CommandStore(database)
         try commands.create(id: "a", machine: "mini", workloadId: nil, type: "create", params: ["ram_mb": "1000", "disk_gb": "10"], actor: "k", now: now)
