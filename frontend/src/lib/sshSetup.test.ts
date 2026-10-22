@@ -6,7 +6,8 @@ import type { SshConnect, SshKeyList } from './types.ts'
 const COMMAND = 'ssh -J you@203.0.113.7 root@10.0.0.1'
 const CONNECT: SshConnect = { jump: 'you@203.0.113.7', jumpIsDefault: false, vmAddress: '10.0.0.1', command: COMMAND }
 
-const list = (extra: Partial<SshKeyList> = {}): SshKeyList => ({ keys: [], applied: true, sshd: 'running', sshdState: 'idle', sshdMessage: null, connect: CONNECT, ...extra })
+const KEY = { id: 'k1', type: 'ssh-ed25519', fingerprint: 'SHA256:abc', comment: 'me@laptop', added_at: 1_700_000_000 }
+const list = (extra: Partial<SshKeyList> = {}): SshKeyList => ({ keys: [KEY], applied: true, sshd: 'running', sshdState: 'idle', sshdMessage: null, connect: CONNECT, ...extra })
 
 describe('reading the new fields', () => {
   test('a full answer is read as it is', () => {
@@ -58,6 +59,10 @@ describe('which block shows', () => {
     expect(setupBlock(list({ sshd: 'installed' }), 'running')).toEqual({ kind: 'none' })
     expect(setupBlock(list({ sshd: 'missing' }), 'running')).toEqual({ kind: 'none' })
     expect(setupBlock(list(), 'stopped')).toEqual({ kind: 'none' })
+  })
+
+  test('ready needs at least one key: with none there is nothing that can log in', () => {
+    expect(setupBlock(list({ keys: [] }), 'running')).toEqual({ kind: 'none' })
   })
 
   test('the office address is flagged so the dialog can say where it comes from', () => {

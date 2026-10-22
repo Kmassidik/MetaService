@@ -51,7 +51,7 @@ export function parseSetup(body: Fields): Pick<SshKeyList, 'sshdState' | 'sshdMe
 /** The dialog asks again only while the helper is installing. */
 export const shouldPoll = (list: Pick<SshKeyList, 'sshdState'> | null): boolean => list?.sshdState === 'installing'
 
-const isReady = (list: SshKeyList): boolean => list.applied && list.sshd === 'running' && list.sshdState === 'idle'
+const isReady = (list: SshKeyList): boolean => list.keys.length > 0 && list.applied && list.sshd === 'running' && list.sshdState === 'idle'
 
 function readyBlock(connect: SshConnect): SetupBlock {
   if (connect.command !== null) return { kind: 'ready', command: connect.command, jumpIsDefault: connect.jumpIsDefault }
