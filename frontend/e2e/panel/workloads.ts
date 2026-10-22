@@ -76,6 +76,15 @@ async function theThreeViews(b: Browse): Promise<void> {
   const building = await b.text()
   check('the VMs tab opens as the building view with the VM as an apartment, and no allocated-disk headline (the monitor above says what is real)',
     !/Disk allocated/.test(building) && /1\/1 running/.test(building) && await b.run(() => [...document.querySelectorAll('.bv-apt')].some((apartment) => /build-box/.test(apartment.getAttribute('aria-label') ?? ''))))
+  const edges = await b.run(() => {
+    const left = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().left ?? -1
+    const right = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().right ?? -1
+    const top = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().top ?? -1
+    return { barLeft: left('.runs'), buildingLeft: left('.bv-building'), buttonRight: right('.bar-row .btn.green'), sideRight: right('.bv-side'), buildingTop: top('.bv-building'), sideTop: top('.bv-side'), buildingRight: right('.bv-building'), sideLeft: left('.bv-side') }
+  })
+  const aligned = (one: number, other: number) => Math.abs(one - other) <= 1
+  check('the building lines up with the toolbar: same left edge, the card ends where New VM ends, both start at the same height',
+    aligned(edges.barLeft, edges.buildingLeft) && aligned(edges.buttonRight, edges.sideRight) && aligned(edges.buildingTop, edges.sideTop) && edges.sideLeft - edges.buildingRight >= 16, JSON.stringify(edges))
   await pickView(b, 'Cards')
   await b.until(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && card.innerText.includes('build-box')), { timeout: SHORT_WAIT_MS })
   check('the Cards view shows the VM with its actions', await b.run(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && /build-box/.test(card.innerText) && /Stop/.test(card.innerText))))
