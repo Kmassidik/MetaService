@@ -20,6 +20,9 @@ mod models;
 mod preflight;
 mod service;
 mod setup;
+mod ssh_install;
+#[cfg(test)]
+mod ssh_install_tests;
 mod ssh_keys;
 #[cfg(test)]
 mod ssh_keys_tests;

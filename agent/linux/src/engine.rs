@@ -1,4 +1,5 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
+use crate::ssh_install::{InstallReport, SshdFailure};
 use crate::ssh_keys::{KeyList, Sshd};
 use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
 use crate::validate::CreateRequest;
@@ -27,6 +28,8 @@ pub trait Engine: Send + Sync {
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError>;
     /// Replaces the whole list of SSH public keys that may log in as root of this one workload and says whether sshd is there. The keys go in on standard input, never in arguments.
     fn apply_ssh_keys(&self, id: &str, keys: &KeyList) -> Result<Sshd, EngineError>;
+    /// Installs (when missing), locks to keys only, and starts the SSH server inside the workload, with a fixed script and no request data. The keys were written before.
+    fn install_sshd(&self, id: &str) -> Result<InstallReport, EngineError>;
     /// Like `exec` with no environment, for a quick look inside that must not hang: the engine gives it a short time limit.
     fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
         self.exec(id, arguments, &[])
@@ -40,13 +43,23 @@ pub struct SimulatedEngine {
     /// Per workload, the SSH key file last written, and the sshd state every apply reports (set by tests).
     ssh_keys: Mutex<HashMap<String, Vec<u8>>>,
     sshd: Mutex<Sshd>,
+    /// How an install of the SSH server goes (set by tests), and how many times one was asked for.
+    install: Mutex<SimulatedInstall>,
+    installs: Mutex<usize>,
+}
+
+/// What a simulated install of the SSH server does when the server is missing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SimulatedInstall {
+    Works,
+    Fails(SshdFailure),
 }
 
 pub const SIMULATED_ENGINE: &str = "simulated";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
-        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing) }
+        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0) }
     }
 
     /// What every later apply reports about sshd, as the workload's image would decide it.
@@ -57,6 +70,16 @@ impl SimulatedEngine {
 
     /// The file content last written for a workload (what went on standard input).
     #[cfg(test)]
+    /// How a later install of the SSH server goes when it is missing.
+    pub fn set_install(&self, mode: SimulatedInstall) {
+        *self.install.lock().unwrap() = mode;
+    }
+
+    /// How many installs were asked for.
+    pub fn install_calls(&self) -> usize {
+        *self.installs.lock().unwrap()
+    }
+
     pub fn written_ssh_keys(&self, id: &str) -> Option<Vec<u8>> {
         self.ssh_keys.lock().unwrap().get(id).cloned()
     }
@@ -115,6 +138,18 @@ impl Engine for SimulatedEngine {
         self.change(id, |_| {})?;
         self.ssh_keys.lock().unwrap().insert(id.to_string(), keys.file_content());
         Ok(*self.sshd.lock().unwrap())
+    }
+
+    fn install_sshd(&self, id: &str) -> Result<InstallReport, EngineError> {
+        self.change(id, |_| {})?;
+        *self.installs.lock().unwrap() += 1;
+        let mut sshd = self.sshd.lock().unwrap();
+        let missing = *sshd == Sshd::Missing;
+        if let (true, SimulatedInstall::Fails(failure)) = (missing, *self.install.lock().unwrap()) {
+            return Ok(InstallReport { sshd: *sshd, installed: false, failure: Some(failure) });
+        }
+        *sshd = Sshd::Running;
+        Ok(InstallReport { sshd: Sshd::Running, installed: missing, failure: None })
     }
 
     fn exec(&self, id: &str, _arguments: &[String], _environment: &[(String, String)]) -> Result<String, EngineError> {

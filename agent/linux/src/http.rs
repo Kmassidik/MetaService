@@ -1,7 +1,8 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::service::{Failure, Service};
-use crate::ssh_keys::KeyList;
+use crate::ssh_install;
+use crate::ssh_keys::SshRequest;
 use crate::stats::{wants_processes, Monitor};
 use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
@@ -118,6 +119,7 @@ fn failure(failure: Failure) -> Response {
         Failure::Refused(r) => refusal(&r),
         Failure::NotFound => error(StatusCode::NOT_FOUND, "not_found", "no such thing"),
         Failure::Engine(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
+        Failure::Sshd(reason) => error(StatusCode::BAD_GATEWAY, ssh_install::ERROR_CODE, reason.message()),
     }
 }
 
@@ -230,8 +232,8 @@ async fn ssh_keys(State(app): State<Arc<App>>, Path(id): Path<String>, request: 
         return failure(Failure::NotFound);
     }
     let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
-    match KeyList::parse(&body) {
-        Ok(keys) => app.service.apply_ssh_keys(&id, keys).await.map(ok).unwrap_or_else(failure),
+    match SshRequest::parse(&body) {
+        Ok(request) => app.service.apply_ssh_keys(&id, request).await.map(ok).unwrap_or_else(failure),
         Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
     }
 }

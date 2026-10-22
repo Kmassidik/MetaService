@@ -13,6 +13,7 @@ const MAX_BASE64_PADDING: usize = 3;
 /// The only key types a line may start with. Nothing may come before the type, so no `command=` or other option can be smuggled in.
 const KEY_TYPES: [&str; 6] = ["ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-rsa", "sk-ssh-ed25519@openssh.com"];
 const FIELD_KEYS: &str = "keys";
+const FIELD_INSTALL_SSHD: &str = "install_sshd";
 /// What the report line starts with; the state word follows it.
 pub const REPORT_PREFIX: &str = "sshd=";
 
@@ -47,9 +48,37 @@ pub enum Sshd {
 pub struct Applied {
     pub applied: usize,
     pub sshd: Sshd,
+    /// Present only when the call asked for the SSH server to be installed: true when this call installed the package.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed: Option<bool>,
 }
 
-/// A list of keys that passed every rule. The only way to make one is `from_lines` or `parse`, so whatever holds one holds a checked list.
+/// The request body: the checked keys and whether the helper should also install and start the SSH server inside the VM (default false).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SshRequest {
+    pub keys: KeyList,
+    pub install_sshd: bool,
+}
+
+impl SshRequest {
+    /// Reads the request body: an object with `keys` (a list of strings) and optionally `install_sshd` (true or false). Any other field is refused.
+    pub fn parse(body: &[u8]) -> Result<SshRequest, String> {
+        let Ok(Value::Object(object)) = serde_json::from_slice::<Value>(body) else { return Err("body must be a JSON object".into()) };
+        if let Some(extra) = object.keys().find(|name| ![FIELD_KEYS, FIELD_INSTALL_SSHD].contains(&name.as_str())) {
+            return Err(format!("unknown field {extra}"));
+        }
+        let install_sshd = match object.get(FIELD_INSTALL_SSHD) {
+            None => false,
+            Some(Value::Bool(flag)) => *flag,
+            Some(_) => return Err("install_sshd must be true or false".into()),
+        };
+        let Some(Value::Array(items)) = object.get(FIELD_KEYS) else { return Err("keys must be a list".into()) };
+        let lines: Option<Vec<String>> = items.iter().map(|item| item.as_str().map(str::to_string)).collect();
+        Ok(SshRequest { keys: KeyList::from_lines(lines.ok_or("keys must be a list of strings")?)?, install_sshd })
+    }
+}
+
+/// A list of keys that passed every rule. The only way to make one is `from_lines` (or `SshRequest::parse`), so whatever holds one holds a checked list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyList(Vec<String>);
 
@@ -63,17 +92,6 @@ impl KeyList {
             Some(index) => Err(format!("keys/{index} is not a valid single-line SSH public key")),
             None => Ok(KeyList(lines)),
         }
-    }
-
-    /// Reads the request body: an object with one field, `keys`, a list of strings.
-    pub fn parse(body: &[u8]) -> Result<KeyList, String> {
-        let Ok(Value::Object(object)) = serde_json::from_slice::<Value>(body) else { return Err("body must be a JSON object".into()) };
-        if let Some(extra) = object.keys().find(|name| name.as_str() != FIELD_KEYS) {
-            return Err(format!("unknown field {extra}"));
-        }
-        let Some(Value::Array(items)) = object.get(FIELD_KEYS) else { return Err("keys must be a list".into()) };
-        let lines: Option<Vec<String>> = items.iter().map(|item| item.as_str().map(str::to_string)).collect();
-        KeyList::from_lines(lines.ok_or("keys must be a list of strings")?)
     }
 
     pub fn count(&self) -> usize {
@@ -177,7 +195,7 @@ mod tests {
     #[test]
     fn the_body_is_read_strictly() {
         let key = format!("ssh-ed25519 {BLOB} a");
-        let body = |text: String| KeyList::parse(text.as_bytes());
+        let body = |text: String| SshRequest::parse(text.as_bytes()).map(|request| request.keys);
         assert_eq!(body(format!(r#"{{"keys":["{key}"]}}"#)).unwrap().count(), 1);
         assert_eq!(body(r#"{"keys":[]}"#.into()).unwrap().count(), 0);
         for bad in [r#"{}"#.to_string(), r#"{"keys":"x"}"#.into(), r#"{"keys":[5]}"#.into(), r#"{"keys":[],"extra":1}"#.into(), "not json".into(), "[]".into(),

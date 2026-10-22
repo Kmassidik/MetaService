@@ -4,7 +4,8 @@ use crate::engine::Engine;
 use crate::gpu;
 use crate::gpu_check::{self, GpuCheck};
 use crate::models::*;
-use crate::ssh_keys::{Applied, KeyList};
+use crate::ssh_install::{self, SshdFailure};
+use crate::ssh_keys::{Applied, SshRequest};
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
@@ -25,6 +26,8 @@ pub enum Failure {
     Refused(Refusal),
     NotFound,
     Engine(#[allow(dead_code)] String),
+    /// The SSH server could not be made to listen inside the VM (the keys were still written).
+    Sshd(SshdFailure),
 }
 
 impl From<EngineError> for Failure {
@@ -156,16 +159,14 @@ impl Service {
     }
 
     /// Sets the complete list of SSH keys for root of one workload and reports sshd. The workload must exist (404) and be running (409 `not_running`).
-    pub async fn apply_ssh_keys(&self, id: &str, keys: KeyList) -> Result<Applied, Failure> {
+    pub async fn apply_ssh_keys(&self, id: &str, request: SshRequest) -> Result<Applied, Failure> {
         let found = self.workloads().await?.into_iter().find(|w| w.id == id).ok_or(Failure::NotFound)?;
         if found.state != State::Running {
             return Err(Failure::Refused(Refusal { code: "not_running", message: "start it first: SSH keys can only be set inside a running workload".into(), resource: "state", needed: 1, free: 0 }));
         }
         let engine = self.engine.clone();
         let target = id.to_string();
-        let applied = keys.count();
-        let sshd = blocking(move || engine.apply_ssh_keys(&target, &keys)).await?;
-        Ok(Applied { applied, sshd })
+        blocking(move || ssh_install::apply(engine.as_ref(), &target, &request)).await
     }
 
     pub fn command(&self, id: &str) -> Option<Command> {

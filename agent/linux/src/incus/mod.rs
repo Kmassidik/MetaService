@@ -7,6 +7,7 @@ use crate::engine::Engine;
 use crate::gpu;
 use crate::models::{Capabilities, EngineError, EngineIdentity, Kind, Problem, State, Workload};
 use crate::preflight::{self, HostProbe, NoHostChecks};
+use crate::ssh_install::{self, InstallReport};
 use crate::ssh_keys::{self, KeyList, Sshd};
 use crate::validate::CreateRequest;
 use std::path::PathBuf;
@@ -22,6 +23,8 @@ const BUNDLE_VERSION_KEY: &str = "user.metaservice.bundle_version";
 const STOP_SECONDS: &str = "30";
 const QUICK: Duration = Duration::from_secs(30);
 const SLOW: Duration = Duration::from_secs(900);
+/// The most an install of the SSH server inside a VM may take (it downloads a package).
+const INSTALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct IncusEngine {
     runner: Arc<dyn Runner>,
@@ -169,6 +172,12 @@ impl Engine for IncusEngine {
         self.require(id)?;
         let report = self.runner.run_with_input(&ssh_keys::incus_call(&name_of(id)), &keys.file_content(), QUICK)?;
         ssh_keys::parse_state(&report).ok_or_else(|| EngineError::Failed("the workload did not report whether sshd is there".into()))
+    }
+
+    fn install_sshd(&self, id: &str) -> Result<InstallReport, EngineError> {
+        self.require(id)?;
+        let report = self.runner.run(&ssh_install::incus_call(&name_of(id)), INSTALL_TIMEOUT)?;
+        ssh_install::parse_report(&report).ok_or_else(|| EngineError::Failed("the workload did not report what happened to the SSH server".into()))
     }
 
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError> {

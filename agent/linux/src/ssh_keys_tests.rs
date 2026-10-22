@@ -6,7 +6,7 @@ use crate::http::{router, App};
 use crate::incus::{IncusEngine, ProcessRunner, Runner};
 use crate::models::*;
 use crate::service::{BundleInstalling, Failure, Service};
-use crate::ssh_keys::{self, KeyList, Sshd};
+use crate::ssh_keys::{self, KeyList, SshRequest, Sshd};
 use crate::validate::{BundleRequest, CreateRequest};
 use axum::body::Body;
 use axum::extract::ConnectInfo;
@@ -20,8 +20,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower::ServiceExt;
 
-const TOKEN: &str = "test-token";
-const KEY: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE01 alice@laptop";
+pub(crate) const TOKEN: &str = "test-token";
+pub(crate) const KEY: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE01 alice@laptop";
 const TIME_LIMIT: Duration = Duration::from_secs(5);
 
 struct NoChat;
@@ -44,7 +44,7 @@ fn specs() -> Specs {
     Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: 65536, disk_total_gb: 2000, gpu: Vec::new() }
 }
 
-fn service_over(engine: Arc<dyn Engine>) -> Arc<Service> {
+pub(crate) fn service_over(engine: Arc<dyn Engine>) -> Arc<Service> {
     Arc::new(Service::new(engine, SpaceBudget::new(65536, 2000), specs(), "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), Arc::new(NoChat), || None))
 }
 
@@ -53,15 +53,15 @@ fn vm_request(command_id: &str) -> CreateRequest {
 }
 
 /// A simulated machine with one running VM called `w-1`.
-fn machine() -> (Arc<SimulatedEngine>, Arc<Service>) {
+pub(crate) fn machine() -> (Arc<SimulatedEngine>, Arc<Service>) {
     let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
     engine.create("w-1", &vm_request("c-1")).ok().unwrap();
     let service = service_over(engine.clone());
     (engine, service)
 }
 
-fn keys(lines: &[&str]) -> KeyList {
-    KeyList::from_lines(lines.iter().map(|line| line.to_string()).collect()).unwrap()
+pub(crate) fn keys(lines: &[&str]) -> SshRequest {
+    SshRequest { keys: KeyList::from_lines(lines.iter().map(|line| line.to_string()).collect()).unwrap(), install_sshd: false }
 }
 
 // ---- service
@@ -95,7 +95,7 @@ async fn a_stopped_workload_is_refused_with_not_running_and_nothing_is_written()
 
 // ---- route
 
-async fn send(service: &Arc<Service>, method: &str, path: &str, body: &str, token: &str) -> (StatusCode, Value) {
+pub(crate) async fn send(service: &Arc<Service>, method: &str, path: &str, body: &str, token: &str) -> (StatusCode, Value) {
     let app = router(App::new(service.clone(), TOKEN.into(), 10));
     let mut request = Request::builder().method(method).uri(path).header("authorization", format!("Bearer {token}")).body(Body::from(body.to_string())).unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
@@ -105,7 +105,7 @@ async fn send(service: &Arc<Service>, method: &str, path: &str, body: &str, toke
     (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
 }
 
-fn body_of(lines: &[&str]) -> String {
+pub(crate) fn body_of(lines: &[&str]) -> String {
     json!({ "keys": lines }).to_string()
 }
 
