@@ -5,11 +5,12 @@ import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
 import { parseMachineImages, type MachineImages } from './images.ts'
 import { LONG_REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, TIMEOUT_MESSAGE } from './timeouts.ts'
+import { parseSshKeyList } from './sshKeys.ts'
 import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -153,6 +154,19 @@ export function workloadAction(machine: string, workload: string, action: Worklo
   const body = action === 'delete' ? { confirm: true } : undefined
   return call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/${action}`, body)
 }
+
+const sshKeysPath = (machine: string, workload: string) => `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/ssh-keys`
+
+/** The SSH-keys routes answer with the whole list; an answer in another shape is an error, not an empty list. */
+async function sshKeyAnswer(method: Method, path: string, body?: unknown): Promise<SshKeyList> {
+  const list = parseSshKeyList(await call<unknown>(method, path, body))
+  if (!list) throw new ApiError(502, 'bad_reply', 'The Root gave an answer the panel cannot read.')
+  return list
+}
+
+export const listSshKeys = (machine: string, workload: string) => sshKeyAnswer('GET', sshKeysPath(machine, workload))
+export const addSshKey = (machine: string, workload: string, publicKey: string) => sshKeyAnswer('POST', sshKeysPath(machine, workload), { public_key: publicKey })
+export const removeSshKey = (machine: string, workload: string, keyId: string) => sshKeyAnswer('DELETE', `${sshKeysPath(machine, workload)}/${encodeURIComponent(keyId)}`)
 
 /** The numbers behind a refusal, when the Root gave them. */
 export function refusalText(error: ApiError): string {

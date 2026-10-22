@@ -24,6 +24,17 @@ export function deleteVmCopy(machine: Pick<Machine, 'name'>, workload: Pick<Work
   }
 }
 
+export function removeSshKeyCopy(workload: Pick<Workload, 'name'>): ConfirmCopy {
+  return {
+    title: 'Remove this key?',
+    what: `This key can no longer log in to ${workload.name}.`,
+    consequence: 'It is removed from the VM straight away if the VM is running.',
+    confirmLabel: 'Remove key',
+    busyLabel: 'Removing…',
+    doneLabel: 'Removed',
+  }
+}
+
 export function removeMachineCopy(machine: Pick<Machine, 'name'>): ConfirmCopy {
   return {
     title: 'Remove this machine?',

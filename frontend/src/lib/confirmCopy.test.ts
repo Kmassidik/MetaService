@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { deleteVmCopy, removeMachineCopy, removeRemoteMachineCopy } from './confirmCopy.ts'
+import { deleteVmCopy, removeMachineCopy, removeRemoteMachineCopy, removeSshKeyCopy } from './confirmCopy.ts'
 
 describe('confirm dialog words', () => {
   test('Delete VM names the VM and its machine and says a backup is made first', () => {
@@ -14,6 +14,13 @@ describe('confirm dialog words', () => {
     expect(copy.what).toContain('mac-mini')
     expect(copy.consequence).toContain('VMs keep running')
     expect(copy.confirmLabel).toBe('Remove machine')
+  })
+
+  test('Remove key names the VM and says the key goes straight away', () => {
+    const copy = removeSshKeyCopy({ name: 'vm1' })
+    expect(copy.what).toBe('This key can no longer log in to vm1.')
+    expect(copy.consequence).toBe('It is removed from the VM straight away if the VM is running.')
+    expect(copy.confirmLabel).toBe('Remove key')
   })
 
   test('removing a machine installed over SSH says where it was installed and keeps the same red verb', () => {

@@ -25,9 +25,11 @@ const wholeField = (fields: Fields, key: string): { [name: string]: number } => 
   return typeof value === 'number' && Number.isInteger(value) ? { [key]: value } : {}
 }
 
-/** The `error` object of an answer body, or undefined when the body has none. */
+/** The `error` of an answer body: an object with fields, or (some routes) plain words. Undefined when the body has none. */
 export function parseErrorDetail(body: unknown): ErrorDetail | undefined {
-  if (!isFields(body) || !isFields(body.error)) return undefined
+  if (!isFields(body)) return undefined
+  if (typeof body.error === 'string' && body.error !== '') return { message: body.error }
+  if (!isFields(body.error)) return undefined
   const fields = body.error
   return {
     ...textField(fields, 'code'),

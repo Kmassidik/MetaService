@@ -498,6 +498,25 @@ export interface StatsHistoryReply {
   points: StatsHistoryPoint[]
 }
 
+/** One public key allowed to log in to a VM. `added_at` is Unix seconds. */
+export interface SshKey {
+  id: string
+  type: string
+  fingerprint: string
+  comment: string
+  added_at: number
+}
+
+/** Whether an SSH server was found inside the VM: `unknown` means it never reported. */
+export type SshdState = 'running' | 'installed' | 'missing' | 'unknown'
+
+/** The answer of every SSH-keys call. `applied` false means the list is saved but not written into the VM yet. */
+export interface SshKeyList {
+  keys: SshKey[]
+  applied: boolean
+  sshd: SshdState
+}
+
 export interface MachineStatsReply {
   /** old_helper: the machine is online but its helper does not answer the stats route yet (stats is null). */
   state: 'online' | 'offline' | 'old_helper'
