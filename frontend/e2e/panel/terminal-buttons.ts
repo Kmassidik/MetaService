@@ -19,18 +19,18 @@ const CLOSE_SETTLE_MS = 1500
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 
-interface ButtonFacts { found: boolean; disabled: boolean; text: string; title: string }
+interface ButtonFacts { found: boolean; disabled: boolean; label: string }
 
 /** A Terminal button inside the row, card or list item that holds this VM's name. */
 const FIND_BUTTON = (scope: string, vm: string) => {
   const holder = [...document.querySelectorAll<HTMLElement>(scope)].find((entry) => entry.innerText.includes(vm))
-  const button = holder?.querySelector<HTMLButtonElement>('button[aria-label^="Terminal for"]')
-  return { found: button !== undefined && button !== null, disabled: button?.disabled ?? false, text: button?.innerText.replace(/\s+/g, ' ').trim() ?? '', title: button?.closest('span')?.getAttribute('title') ?? '' }
+  const button = holder?.querySelector<HTMLButtonElement>('button[aria-label^="Terminal"]')
+  return { found: button !== undefined && button !== null, disabled: button?.disabled ?? false, label: button?.getAttribute('aria-label') ?? '' }
 }
 
 const facts = (b: Browse, scope: string, vm: string): Promise<ButtonFacts> => b.run(FIND_BUTTON, scope, vm)
 const press = (b: Browse, scope: string, vm: string) =>
-  b.run((where, name) => [...document.querySelectorAll<HTMLElement>(where)].find((entry) => entry.innerText.includes(name))?.querySelector<HTMLButtonElement>('button[aria-label^="Terminal for"]')?.click(), scope, vm)
+  b.run((where, name) => [...document.querySelectorAll<HTMLElement>(where)].find((entry) => entry.innerText.includes(name))?.querySelector<HTMLButtonElement>('button[aria-label^="Terminal"]')?.click(), scope, vm)
 
 async function addAStoppedMac(world: World): Promise<void> {
   if (!world.session) throw new Error('seed the world first')
@@ -69,7 +69,7 @@ async function onTheMachinePage(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const row = await facts(b, 'tbody tr', VM)
-  check('the table view has an enabled Terminal button for a running VM on a Mac', row.found && !row.disabled && row.text === '▸ Terminal', JSON.stringify(row))
+  check('the table view has an enabled Terminal button for a running VM on a Mac', row.found && !row.disabled && row.label === 'Terminal', JSON.stringify(row))
   await press(b, 'tbody tr', VM)
   await openAndUse(b, 'machine-page')
   check('the terminal opens over the machine page, which stays where it was', b.page.url().endsWith(`#/machines/details?id=${MACHINE}`) && /VMs \(\d+\)/.test(await b.text()), b.page.url())
@@ -94,9 +94,9 @@ async function disabledOnes(b: Browse): Promise<void> {
   const rows = 'table[aria-label="VMs"] tbody tr'
   await b.until((name) => document.body.innerText.includes(name), { timeout: LIST_WAIT_MS }, STOPPED_VM)
   const stopped = await facts(b, rows, STOPPED_VM)
-  check('a stopped VM has a Terminal button that is off and says "VM is stopped"', stopped.found && stopped.disabled && /VM is stopped/.test(stopped.text) && /Start the VM first/.test(stopped.title), JSON.stringify(stopped))
+  check('a stopped VM has a Terminal button that is off and says "VM is stopped"', stopped.found && stopped.disabled && /VM is stopped/.test(stopped.label), JSON.stringify(stopped))
   const notMac = await facts(b, rows, NON_MAC_VM)
-  check('a VM on a machine that is not a Mac has a Terminal button that is off and says "Mac machines only for now"', notMac.found && notMac.disabled && /Mac machines only for now/.test(notMac.text) && /only available on Mac machines/.test(notMac.title), JSON.stringify(notMac))
+  check('a VM on a machine that is not a Mac has a Terminal button that is off and says "Mac machines only for now"', notMac.found && notMac.disabled && /Mac machines only for now/.test(notMac.label), JSON.stringify(notMac))
   await b.shot('terminal-buttons-all-vms.png')
   await b.page.setViewport(PHONE)
   await b.until(() => document.documentElement.scrollWidth <= window.innerWidth, { timeout: SHORT_WAIT_MS })
@@ -109,7 +109,7 @@ async function disabledOnes(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const onMachinePage = await facts(b, 'tbody tr', NON_MAC_VM)
-  check('on the machine page of a non-Mac machine the Terminal button is off with its reason', onMachinePage.found && onMachinePage.disabled && /Mac machines only for now/.test(onMachinePage.text), JSON.stringify(onMachinePage))
+  check('on the machine page of a non-Mac machine the Terminal button is off with its reason', onMachinePage.found && onMachinePage.disabled && /Mac machines only for now/.test(onMachinePage.label), JSON.stringify(onMachinePage))
   await b.shot('terminal-buttons-machine-page.png')
   await b.page.setViewport(PHONE)
   await b.shot('terminal-buttons-machine-page-phone.png', true)

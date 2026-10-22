@@ -43,7 +43,7 @@ function machine(id: string, workloads: Json[], ruvio: Json): Json {
   }
 }
 
-const vm = (id: string, state: string, bundleVersion: string | null = null): Json => ({ id, name: id, kind: 'vm', state, cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'none', bundle_version: bundleVersion })
+const vm = (id: string, state: string, bundleVersion: string | null = null): Json => ({ id, name: id, kind: 'vm', state, cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'none', address: `10.0.0.${id.replace(/\D/g, '')}`, bundle_version: bundleVersion })
 
 /** studio: vm1 has no chat (Install chat) and Ruvio on the machine is old (Update to 0.4.0). mini: vm4 has an old chat (Reinstall chat) and Ruvio is off. */
 const fleet = (): Json[] => [

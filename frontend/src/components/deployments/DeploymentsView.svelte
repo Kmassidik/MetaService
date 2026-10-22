@@ -7,16 +7,18 @@
 
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
-  import ActionButton from '../ActionButton.svelte'
   import Building from '../Building.svelte'
   import Owl from '../Owl.svelte'
+  import CopyAddress from '../vms/CopyAddress.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
+  import VmActions from '../vms/VmActions.svelte'
   import GpuBadge from '../GpuBadge.svelte'
   import WhyStopped from '../vm/WhyStopped.svelte'
   import { isPlainMode, PLAIN_MODE_TEXT, readStoppedReason, reasonNote } from '../../lib/stoppedReason.ts'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
+  import type { VmActionHandlers } from '../../lib/vmActions.ts'
   import type { BuildingServer } from '../../lib/building.ts'
   import type { Machine, Workload } from '../../lib/types.ts'
 
@@ -33,6 +35,7 @@
   }
 
   let { machine, pinned, making, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
+  const handlers: VmActionHandlers = $derived({ onAct, onInstall, onOpenChat, onDelete })
   const MAKING_TEXT = 'The first VM is being made. It will be listed here when the machine reports it.'
   const NONE_TEXT = 'No VMs on this machine yet.'
   const VIEWS: [ViewId, string][] = [['building', 'Building'], ['table', 'Table'], ['cards', 'Cards']]
@@ -55,18 +58,6 @@
     lastView = next
   }
 </script>
-
-{#snippet startButton(workload: Workload)}
-  <ActionButton variant="line" small label="Start" busyLabel="Starting…" doneLabel="Started" onrun={() => onAct(machine, workload, 'start')} />
-{/snippet}
-
-{#snippet installButton(workload: Workload)}
-  <ActionButton variant="line" small label={workload.bundle_version ? 'Reinstall chat' : 'Install chat'} busyLabel="Installing…" doneLabel="Installed" onrun={() => onInstall(machine, workload)} />
-{/snippet}
-
-{#snippet stopButton(workload: Workload)}
-  <ActionButton variant="line" small label="Stop" busyLabel="Stopping…" doneLabel="Stopped" onrun={() => onAct(machine, workload, 'stop')} />
-{/snippet}
 
 {#snippet actions(vmId: string)}
   {@const workload = machine.workloads.find((entry) => entry.id === vmId)}
@@ -100,45 +91,30 @@
           {#if note}<WhyStopped {note} compact />{/if}
           {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
         </div>
-        <div class="acts">
-          <TerminalButton {machine} {workload} />
-          {#if server.status === 'stopped'}{@render startButton(workload)}{/if}
-          {#if server.status === 'running'}{@render stopButton(workload)}
-            {@render installButton(workload)}{/if}
-          {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-          <button class="btn danger sm del" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
-        </div>
+        <div class="acts"><VmActions {machine} {workload} {handlers} /></div>
       </div>
     {/each}
   </div>
 {:else}
   <div class="tablewrap">
-    <table class="restable">
-      <thead><tr><th>Name</th><th>ID</th><th>Status</th><th>Ruvio</th><th>Type</th><th>Size</th><th>Address</th><th></th></tr></thead>
+    <table class="restable stack">
+      <thead><tr><th>Name</th><th>Status</th><th>Ruvio</th><th>Type</th><th>Size</th><th>Address</th><th></th></tr></thead>
       <tbody>
         {#each servers as server (server.id)}
           {@const workload = workloadOf(server)}
           {@const note = noteOf(workload)}
           <tr>
-            <td class="c-name"><a href={vmHref(machine.id, server.id)}>{server.display}</a></td>
-            <td class="mono muted">{server.id}</td>
-            <td>
+            <td class="c-name" data-label="Name"><a href={vmHref(machine.id, server.id)}>{server.display}</a><small class="vm-id mono">{server.id}</small></td>
+            <td data-label="Status">
               <span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}
               {#if note}<WhyStopped {note} compact />{/if}
               {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
             </td>
-            <td class="mono">{bundleFlag(workload.bundle_version, pinned).text}</td>
-            <td class="mono">{workload.kind}</td>
-            <td class="mono nums">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
-            <td class="mono muted">{workload.address ?? '—'}</td>
-            <td class="row-act">
-              <TerminalButton {machine} {workload} />
-              {#if server.status === 'running'}{@render installButton(workload)}{/if}
-              {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-              {#if server.status === 'running'}{@render stopButton(workload)}{/if}
-              {#if server.status === 'stopped'}{@render startButton(workload)}{/if}
-              <button class="btn danger sm" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
-            </td>
+            <td class="mono" data-label="Ruvio">{bundleFlag(workload.bundle_version, pinned).text}</td>
+            <td class="mono" data-label="Type">{workload.kind}</td>
+            <td class="mono nums" data-label="Size">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
+            <td class="mono muted" data-label="Address"><span class="addr">{workload.address ?? '—'}{#if workload.address}<CopyAddress address={workload.address} />{/if}</span></td>
+            <td data-label="Actions"><VmActions {machine} {workload} {handlers} /></td>
           </tr>
         {/each}
       </tbody>
@@ -150,5 +126,7 @@
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
   .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }
+  .vm-id { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--m50); }
+  .addr { display: inline-flex; align-items: center; gap: 8px; }
   .runs { margin-right: auto; font-family: var(--mono); font-size: 12px; color: var(--m50); }
 </style>

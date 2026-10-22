@@ -7,9 +7,10 @@
   import PendingVms from '../components/vms/PendingVms.svelte'
   import { pendingFor, type PendingVm } from '../lib/pendingVms.ts'
   import { filterRows, vmFilterFromRoute, vmRows, vmsHeader } from '../lib/vmList.ts'
+  import type { VmActionHandlers } from '../lib/vmActions.ts'
   import type { Machine } from '../lib/types.ts'
 
-  let { machines, route, banner, pending }: { machines: Machine[]; route: string; banner: string; pending: PendingVm[] } = $props()
+  let { machines, route, banner, pending, handlers }: { machines: Machine[]; route: string; banner: string; pending: PendingVm[]; handlers: VmActionHandlers } = $props()
   const allRows = $derived(vmRows(machines))
   const chosen = $derived(vmFilterFromRoute(route, machines))
   const rows = $derived(filterRows(allRows, chosen))
@@ -47,7 +48,7 @@
 {:else if rows.length === 0}
   <div class="empty stage" role="status"><Owl name="emptyVms" />No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
 {:else}
-  <VmTable {rows} />
+  <VmTable {rows} {machines} {handlers} />
 {/if}
 
 <style>

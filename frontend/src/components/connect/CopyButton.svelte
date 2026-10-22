@@ -1,5 +1,7 @@
 <script lang="ts">
   // A small Copy button for a command or the host key. It says "Copied" for a moment, or that it could not copy.
+  import { copyText } from '../../lib/clipboard.ts'
+
   const RESET_MS = 2000
 
   let { text, label = 'Copy', describe }: { text: string; label?: string; describe: string } = $props()
@@ -10,12 +12,7 @@
   const shown = $derived(outcome === 'idle' ? label : SAID[outcome])
 
   async function copy() {
-    try {
-      await navigator.clipboard.writeText(text)
-      outcome = 'copied'
-    } catch {
-      outcome = 'failed'
-    }
+    outcome = (await copyText(text)) ? 'copied' : 'failed'
     setTimeout(() => (outcome = 'idle'), RESET_MS)
   }
 </script>

@@ -8,6 +8,7 @@ import { chromePath } from './support/paths.ts'
 import { deleteRefusalKeepsTheDialog, deleteStaysOpenWhileWorking, keysSendOneRequest, onAPhone, refusalShowsNextToTheButton, silentRootFreesTheButton, startAndStopSendOneRequest, successLineGoesAway, watchVmRequests } from './actions/guard.ts'
 import * as bundles from './actions/bundles.ts'
 import { everyDestructiveButtonAsksFirst, watchWrites } from './actions/confirm.ts'
+import { iconButtonsLookAndWork } from './actions/icons.ts'
 import { startStandIn } from './actions/standin.ts'
 
 const DESKTOP = { width: 1280, height: 800 }
@@ -31,6 +32,7 @@ try {
   await deleteRefusalKeepsTheDialog(b, standin)
   await onAPhone(b, standin)
   await everyDestructiveButtonAsksFirst(b, standin, watchWrites(page))
+  await iconButtonsLookAndWork(b, standin)
   const bundleWatch = bundles.watchBundleRequests(page)
   await bundles.fiveClicksSendOneRequest(b, standin, bundleWatch)
   await bundles.keysSendOneRequest(b, standin, bundleWatch)

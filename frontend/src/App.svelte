@@ -21,6 +21,7 @@
   import CreateVmDialog from './components/vms/CreateVmDialog.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import { deleteVmCopy } from './lib/confirmCopy.ts'
+  import type { VmActionHandlers } from './lib/vmActions.ts'
   import ChatLink from './components/ChatLink.svelte'
   import Terminal from './components/Terminal.svelte'
   import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
@@ -62,6 +63,7 @@
   let removing = $state<Machine | null>(null)
   let remoteInfos = $state<RemoteMachineInfo[]>([])
   const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
+  const vmHandlers: VmActionHandlers = { onAct: act, onInstall: install, onOpenChat: openChat, onDelete: (machine, workload) => (deleting = { machine, workload }) }
   const deleteCopy = $derived(deleting ? deleteVmCopy(deleting.machine, deleting.workload) : deleteVmCopy({ name: '' }, { name: '' }))
   const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
   const openConsoleTarget = $derived(consoleTarget())
@@ -258,7 +260,7 @@
       {:else if page === 'machines'}
         <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
       {:else if page === 'vms'}
-        <VmsList {machines} {route} {banner} {pending} />
+        <VmsList {machines} {route} {banner} {pending} handlers={vmHandlers} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'health'}

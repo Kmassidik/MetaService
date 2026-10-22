@@ -14,7 +14,7 @@ export const heading = (b: Browse) => b.run(() => document.querySelector('.phead
 export const crumb = (b: Browse) => b.run(() => document.querySelector('.phead .crumb')?.textContent?.trim() ?? '')
 export const filterValue = (b: Browse) => b.run((selector) => document.querySelector<HTMLSelectElement>(selector)?.value ?? null, FILTER)
 
-/** Each row of the table as its cells' text: name, machine, kind, state, vCPU, RAM, disk. */
+/** Each row of the table as its cells' text: name and its ID under it, machine, kind, state, vCPU, RAM, disk, and the icon buttons (no text on a desktop). */
 export const tableRows = (b: Browse) =>
   b.page.$$eval(TABLE_ROWS, (rows) => rows.map((row) => [...row.querySelectorAll('td')].map((cell) => (cell instanceof HTMLElement ? cell.innerText : '').trim().replace(/\s+/g, ' '))))
 
@@ -37,9 +37,9 @@ export async function fullTable(b: Browse): Promise<void> {
   await openAllVms(b)
   await b.page.waitForSelector(TABLE_ROWS)
   const rows = await tableRows(b)
-  const names = rows.map((cells) => `${cells[1]}/${cells[0]}`)
+  const names = rows.map((cells) => `${cells[1]}/${cells[0]?.split(' ')[0]}`)
   check('All VMs lists the VMs of every machine, sorted by machine name then VM name', JSON.stringify(names) === JSON.stringify([`${CONTAINER_MACHINE}/${CONTAINER_VM}`, 'dgx-spark/demo', 'mac-mini/demo']), JSON.stringify(names))
-  check('a row shows name, machine, kind, state, vCPU, RAM and disk', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb', '▸ terminal']), JSON.stringify(rows[2]))
+  check('a row shows name with its ID under it, machine, kind, state, vCPU, RAM and disk, and only icons for actions', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo wl-1', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb', '']), JSON.stringify(rows[2]))
   check('a container is listed as a container, with its own sizes', rows[0]?.[2] === 'container' && rows[0][5] === '512 MB' && rows[0][6] === '5 GB')
   check('the header counts the VMs and the machines they are on', (await crumb(b)) === 'Infrastructure › 3 VMs on 3 machines', await crumb(b))
   check('the table shows no script from machine data', (await b.run(() => window.__xss)) === undefined && (await b.page.$('img[src="x"]')) === null)

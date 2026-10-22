@@ -2,13 +2,12 @@
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
-import type { Machine, MachineState, WorkloadKind } from './types.ts'
+import type { Machine, MachineState, Workload, WorkloadKind } from './types.ts'
 
 export interface VmRow {
   machineId: string
   machineName: string
   machineState: MachineState
-  machineOs: string
   id: string
   name: string
   kind: WorkloadKind
@@ -40,7 +39,6 @@ export function vmRows(machines: Machine[]): VmRow[] {
       machineId: machine.id,
       machineName: machine.name,
       machineState: machine.state,
-      machineOs: machine.os,
       id: workload.id,
       name: workload.name,
       kind: workload.kind,
@@ -78,4 +76,11 @@ export function vmsHeader(rows: VmRow[]): string {
 export function vmTone(state: string): MachineState | '' {
   if (state === 'running') return 'online'
   return IN_PROGRESS.has(state) ? 'busy' : ''
+}
+
+/** The machine and the VM a row was made from, so its buttons can act on them. Null only when the machines changed since the row was made. */
+export function findVm(machines: Machine[], row: Pick<VmRow, 'machineId' | 'id'>): { machine: Machine; workload: Workload } | null {
+  const machine = machines.find((entry) => entry.id === row.machineId)
+  const workload = machine?.workloads.find((entry) => entry.id === row.id)
+  return machine && workload ? { machine, workload } : null
 }

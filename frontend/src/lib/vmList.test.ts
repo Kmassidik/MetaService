@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
 import { machine, workload } from './testing.ts'
-import { filterRows, vmFilterFromRoute, vmRows, vmsHeader, vmTone } from './vmList.ts'
+import { filterRows, findVm, vmFilterFromRoute, vmRows, vmsHeader, vmTone } from './vmList.ts'
 
 const fleet = [
   machine({ id: 'zeta', name: 'zeta', workloads: [workload({ id: 'w-2', name: 'beta' }), workload({ id: 'w-1', name: 'alpha', kind: 'container', state: 'stopped' })] }),
@@ -14,7 +14,7 @@ test('every VM of every machine is one row, sorted by machine name then VM name'
 
 test('a row carries what the table shows, and its machine\'s state', () => {
   const row = vmRows(fleet)[0]
-  expect(row).toMatchObject({ machineId: 'alpha-box', machineState: 'offline', machineOs: 'macos', id: 'w-9', kind: 'vm', state: 'running', cpu: 4, ramMb: 8192, diskGb: 100 })
+  expect(row).toMatchObject({ machineId: 'alpha-box', machineState: 'offline', id: 'w-9', kind: 'vm', state: 'running', cpu: 4, ramMb: 8192, diskGb: 100 })
 })
 
 test('a row carries the reason a stopped VM gave, read again, and whether it runs without systemd', () => {
@@ -51,4 +51,12 @@ test('the header counts VMs and the machines they are on', () => {
 
 test('a VM state gets the colour the rest of the panel gives it', () => {
   expect(['running', 'creating', 'starting', 'provisioning', 'stopped', 'weird'].map(vmTone)).toEqual(['online', 'busy', 'busy', 'busy', '', ''])
+})
+
+test('a row finds its machine and VM again, and nothing when they are gone', () => {
+  const found = findVm(fleet, { machineId: 'zeta', id: 'w-1' })
+  expect(found?.machine.id).toBe('zeta')
+  expect(found?.workload.name).toBe('alpha')
+  expect(findVm(fleet, { machineId: 'zeta', id: 'w-404' })).toBeNull()
+  expect(findVm(fleet, { machineId: 'gone', id: 'w-1' })).toBeNull()
 })

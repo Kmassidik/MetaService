@@ -126,7 +126,7 @@ export async function refusalShowsNextToTheControl(b: Browse, standin: StandIn, 
     watch.clear()
     standin.behaviour.refuseWith = REFUSAL
     await burst(b, control.idle, 1)
-    await b.until(() => document.querySelector('.abtn .aline.bad') !== null, { timeout: SHORT_WAIT_MS })
+    await b.until(() => document.querySelector('.aline.bad') !== null, { timeout: SHORT_WAIT_MS })
     const view = await buttonView(b, control.idle)
     check(`${control.name}: a refusal shows the reason next to the button and the button works again`, view.found && !view.disabled && view.ariaBusy === 'false' && view.line === REFUSAL, JSON.stringify(view))
     if (control.name === 'Pin') await b.shot('actions-pin-failed.png')
@@ -211,7 +211,7 @@ export async function onAPhone(b: Browse, standin: StandIn): Promise<void> {
   standin.behaviour.refuseWith = REFUSAL
   await waitForButton(b, 'Pin')
   await burst(b, 'Pin', 1)
-  await b.until(() => document.querySelector('.abtn .aline.bad') !== null, { timeout: SHORT_WAIT_MS })
+  await b.until(() => document.querySelector('.aline.bad') !== null, { timeout: SHORT_WAIT_MS })
   check('phone: the failed Pin line fits the screen', await noSideScroll(b))
   await b.shot('actions-pin-failed-phone.png')
   await openSwitch(b, standin)
