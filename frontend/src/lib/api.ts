@@ -1,12 +1,13 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
+import { parseUpdateResult } from './helperUpdate.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
 import { parseMachineImages, type MachineImages } from './images.ts'
 import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -112,6 +113,7 @@ export const listMachines = async () => (await call<{ machines: Machine[] }>('GE
 /** What only one machine's own answer carries: helper version, engine, helper folder and port, and where Ruvio stands. */
 export const machineExtras = async (id: string): Promise<MachineExtras> => parseMachineExtras(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}`))
 /** Changes the settings of a machine after it was added. Send only what changes; the parent refuses anything else with its reason. */
+export const updateHelper = async (id: string): Promise<HelperUpdateResult> => parseUpdateResult(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/update-helper`))
 export const updateMachineSettings = (id: string, patch: MachineSettingsPatch) => call<unknown>('PATCH', `/api/machines/${encodeURIComponent(id)}/settings`, patch)
 export const removeMachine = (id: string) => callNoBody('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 

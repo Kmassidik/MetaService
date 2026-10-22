@@ -1,9 +1,20 @@
 <script lang="ts">
   // What is installed on the machine: the helper, the engine that makes VMs, and the tunnel the parent keeps to it. A value nobody reported says so.
   import Section from './Section.svelte'
+  import HelperRow from './HelperRow.svelte'
   import { NOT_REPORTED, type SoftwareRow } from '../../lib/environment.ts'
+  import type { HelperView, OutcomeView } from '../../lib/helperUpdate.ts'
 
-  let { rows, newest = null, title = 'Software' }: { rows: SoftwareRow[]; newest?: string | null; title?: string } = $props()
+  let { rows, newest = null, title = 'Software', helper = null, updating = false, outcome = null, onUpdate = () => {} }: {
+    rows: SoftwareRow[]
+    newest?: string | null
+    title?: string
+    /** The Helper row and its button; left out where a machine has no helper to update. */
+    helper?: HelperView | null
+    updating?: boolean
+    outcome?: OutcomeView | null
+    onUpdate?: () => void
+  } = $props()
 </script>
 
 <Section {title}>
@@ -17,6 +28,7 @@
         </dd>
       </div>
     {/each}
+    {#if helper}<HelperRow {helper} {updating} {outcome} {onUpdate} />{/if}
   </dl>
 </Section>
 

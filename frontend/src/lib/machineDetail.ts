@@ -1,8 +1,16 @@
 // The parts of GET /api/machines/{id} that the machine list does not carry, checked before the page trusts them.
-import type { Engine, Ruvio, RuvioState } from './types.ts'
+import { parseHelperUpdate } from './helperUpdate.ts'
+import { isFields as isRecord, optionalText as optionalString, UnreadableAnswer } from './unreadable.ts'
+import type { Engine, HelperUpdateInfo, Ruvio, RuvioState } from './types.ts'
+
+export { UnreadableAnswer }
 
 export interface MachineExtras {
   agent_version: string | null
+  /** The SHA-256 of the helper's program file; null for a helper that does not say. */
+  agent_build: string | null
+  /** Whether a newer helper can be put on this machine; absent when the parent is too old to say. */
+  update?: HelperUpdateInfo
   engine: Engine | null
   box: string | null
   agent_port: number | null
@@ -11,20 +19,7 @@ export interface MachineExtras {
 
 const RUVIO_STATES: readonly RuvioState[] = ['unavailable', 'off', 'on', 'outdated', 'installing', 'removing']
 
-export class UnreadableAnswer extends Error {}
-
-type Record_ = Record<string, unknown>
-
-const isRecord = (value: unknown): value is Record_ => typeof value === 'object' && value !== null && !Array.isArray(value)
-
-function optionalString(source: Record_, key: string): string | null {
-  const value = source[key]
-  if (value === null || value === undefined) return null
-  if (typeof value === 'string') return value
-  throw new UnreadableAnswer(`${key} is not text`)
-}
-
-function optionalCount(source: Record_, key: string): number | null {
+function optionalCount(source: Record<string, unknown>, key: string): number | null {
   const value = source[key]
   if (value === null || value === undefined) return null
   if (typeof value === 'number' && Number.isInteger(value)) return value
@@ -45,11 +40,19 @@ function parseRuvio(value: unknown): Ruvio | null {
   return { installed: optionalString(value, 'installed'), pinned: optionalString(value, 'pinned'), state }
 }
 
+/** `{ update }` when the parent sent one, nothing otherwise, so the key is not set to undefined. */
+function updateField(data: Record<string, unknown>): { update?: HelperUpdateInfo } {
+  const update = parseHelperUpdate(data.update ?? undefined)
+  return update ? { update } : {}
+}
+
 /** The extras of a machine's page, or an UnreadableAnswer naming what was wrong. A value the parent left out is null. */
 export function parseMachineExtras(data: unknown): MachineExtras {
   if (!isRecord(data)) throw new UnreadableAnswer('the machine is not an object')
   return {
     agent_version: optionalString(data, 'agent_version'),
+    agent_build: optionalString(data, 'agent_build'),
+    ...updateField(data),
     engine: parseEngine(data.engine),
     box: optionalString(data, 'box'),
     agent_port: optionalCount(data, 'agent_port'),

@@ -83,6 +83,23 @@ export interface Ruvio {
   state: RuvioState
 }
 
+/** Whether the parent can replace a machine's helper program with a different one, as GET /api/machines says it. */
+export interface HelperUpdateInfo {
+  available: boolean
+  /** The build (SHA-256) the helper reported; null for an older helper that does not say. */
+  current_build: string | null
+  /** The build the parent can put there; null when it has none for this kind of computer. */
+  newest_build: string | null
+  /** Why there is nothing to offer, in plain words. */
+  reason: string | null
+}
+
+/** The answer of POST /api/machines/{id}/update-helper. */
+export interface HelperUpdateResult {
+  result: 'updated' | 'rolled_back' | 'failed'
+  message: string
+}
+
 export interface Machine {
   id: string
   name: string
@@ -104,6 +121,10 @@ export interface Machine {
   workloads: Workload[]
   /** The helper's version; null until the helper reports it. */
   agent_version?: string | null
+  /** The SHA-256 of the helper's program file; null until the helper reports it (an older helper never does). */
+  agent_build?: string | null
+  /** Whether a different helper program is on offer for this machine. */
+  update?: HelperUpdateInfo
   /** Null until the helper reports it. */
   engine?: Engine | null
   /** Only in GET /api/machines/{id}. The helper's folder on the machine; null when the parent did not install it over SSH. */

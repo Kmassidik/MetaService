@@ -3,6 +3,7 @@
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
+  import { listTag } from '../lib/helperUpdate.ts'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
   import type { Machine } from '../lib/types.ts'
@@ -14,6 +15,7 @@
   const chip = $derived(machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch))
   const vmCount = $derived(machine.workloads.length)
   const settings = $derived(machine.settings)
+  const updateTag = $derived(listTag(machine))
 </script>
 
 <article class="card" class:offline={machine.state === 'offline'}>
@@ -23,6 +25,7 @@
       {#if isParent}<span class="tag run">Parent</span>{/if}
       <StatePill state={machine.state} />
       {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
+      {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
     </div>
     <div class="where">{machine.ip ?? 'address unknown'}{#if settings} · {profileLabel(settings.profile)}{/if}</div>
     {#if settings?.labels?.length}<div class="labels">{#each settings.labels as label (label)}<span class="tag">{label}</span>{/each}</div>{/if}

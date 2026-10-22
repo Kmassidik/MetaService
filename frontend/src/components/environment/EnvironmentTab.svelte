@@ -7,9 +7,10 @@
   import LimitsSection from './LimitsSection.svelte'
   import VmDefaultsSection from './VmDefaultsSection.svelte'
   import NamesSection from './NamesSection.svelte'
-  import { ApiError, machineExtras, updateMachineSettings } from '../../lib/api.ts'
+  import { ApiError, machineExtras, updateHelper, updateMachineSettings } from '../../lib/api.ts'
   import { ruvioView, softwareRows } from '../../lib/environment.ts'
   import { formErrors, formFromMachine, patchFor, sameForm } from '../../lib/environmentForm.ts'
+import { failureView, helperView, outcomeView, type OutcomeView } from '../../lib/helperUpdate.ts'
   import type { MachineExtras } from '../../lib/machineDetail.ts'
   import type { Machine, RemoteMachineInfo } from '../../lib/types.ts'
 
@@ -43,6 +44,8 @@
   let saveFailure = $state('')
   let saved = $state(false)
   let ruvioFailure = $state('')
+  let updating = $state(false)
+  let updateOutcome: OutcomeView | null = $state(null)
   let asked = 0
 
   const full = $derived<Machine>({ ...machine, ...(extras ?? {}) })
@@ -51,6 +54,7 @@
   const canSave = $derived(dirty && Object.keys(errors).length === 0 && !saving)
   const view = $derived(ruvioView(full.ruvio, chatsBuilt, machine.state !== 'offline'))
   const rows = $derived(softwareRows(full, remote, newestHelper, now))
+  const helper = $derived(helperView(full))
 
   /** Reads the parts of the machine that only its own page carries. Only the newest answer counts. */
   async function load() {
@@ -102,6 +106,22 @@
     }
   }
 
+  /** Replaces the helper program with the newest one. The answer is told in words; the machine is read again, and its next report carries the new build. */
+  async function updateHelperNow() {
+    if (updating) return
+    updating = true
+    updateOutcome = null
+    try {
+      updateOutcome = outcomeView(await updateHelper(machine.id))
+    } catch (error) {
+      updateOutcome = error instanceof ApiError ? failureView(error.code, error.message) : failureView('error', 'Something went wrong.')
+    } finally {
+      updating = false
+    }
+    onChanged()
+    await load()
+  }
+
   async function switchRuvio(on: boolean) {
     ruvioFailure = (await onRuvio(machine, on)) ?? ''
     await load()
@@ -111,7 +131,7 @@
 <MachineFacts {machine} {now} />
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
 {#if loaded}
-  <SoftwareSection {rows} newest={newestHelper} />
+  <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
   <RuvioSection ruvio={full.ruvio} {view} failure={ruvioFailure} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
 {:else}
   <p class="loading" role="status">Loading…</p>
