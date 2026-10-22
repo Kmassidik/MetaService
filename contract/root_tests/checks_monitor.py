@@ -26,7 +26,7 @@ NAME_LIMIT = 64
 CORE_LIMIT = 1024
 LIAR_CORES = 3000
 LIAR_PROCESSES = 40
-LIAR_NAME = "N" * 500
+LIAR_NAME = "N" * 400  # long enough to need cutting, short enough that the whole answer stays under the 64 KiB the parent accepts
 
 
 class LyingStats(FakeStats):

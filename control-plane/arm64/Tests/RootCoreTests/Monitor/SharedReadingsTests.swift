@@ -39,6 +39,27 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertEqual(second.value, 1)
     }
 
+    func testASamplerStillTryingAHelperThatWentSilentDoesNotKeepItsLastNumbersAlive() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        await counter.set(.unreachable)
+        for _ in 0..<4 {
+            clock.advance(10)
+            _ = await readings.read("mini", keepsAlive: false) { await counter.fetch() }
+        }
+        let held = await readings.lastKnown("mini")
+        XCTAssertNil(held.value, "nobody asked for 40 seconds: the last numbers are dropped, as before the sampler existed")
+    }
+
+    func testTheSamplerAndAPersonShareOneCallInsideFourSeconds() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini", keepsAlive: false) { await counter.fetch() }
+        clock.advance(2)
+        _ = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+    }
+
     func testAfterFourSecondsTheHelperIsAskedAgain() async {
         let (readings, clock, counter) = make()
         _ = await readings.read("mini") { await counter.fetch() }

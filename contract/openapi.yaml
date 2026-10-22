@@ -262,6 +262,24 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/stats/history:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The last hour of readings the parent took of this machine, oldest first, one about every 10 seconds, so a chart is full the moment the page opens.
+        Kept in the parent's memory only: it is lost when the parent restarts and never written to the database. Only online machines are sampled (through the same shared reading as the stats route,
+        without the process list); an offline machine keeps what it had. At most 256 machines and 360 points each. Gaps (a failed or still measuring reading) are simply missing.
+        Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { name: points, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 360, default: 360 }, description: 'How many of the newest points; plain digits only, anything else is a 400 (code invalid_input).' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/MachineStatsHistory' } } } }
+        '400': { description: 'points is not a whole number from 1 to 360 (code invalid_input)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/terminal/{ticket}:
     servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
     get:
@@ -356,6 +374,47 @@ components:
                 one: { type: number, nullable: true, minimum: 0 }
                 five: { type: number, nullable: true, minimum: 0 }
                 fifteen: { type: number, nullable: true, minimum: 0 }
+            physical_cores: { type: integer, minimum: 1, maximum: 1024, description: 'Optional. Physical cores; core_count is the logical CPUs (threads).' }
+            core_of:
+              type: array
+              maxItems: 1024
+              items: { type: integer, minimum: 0, maximum: 1023 }
+              description: 'Optional. For each logical CPU (same order as cores_percent) the index of its physical core, so the threads of one core can be grouped.'
+            clusters:
+              type: array
+              minItems: 1
+              maxItems: 8
+              description: 'Optional. Groups of logical CPUs the system names (Apple Silicon: Performance, Efficiency). Left out on Linux.'
+              items:
+                type: object
+                required: [name, logical]
+                additionalProperties: false
+                properties:
+                  name: { type: string, maxLength: 64 }
+                  logical: { type: integer, minimum: 1, maximum: 1024 }
+            breakdown:
+              type: object
+              nullable: true
+              additionalProperties: false
+              description: 'Optional. Share of the last interval in each CPU state, percent. Linux gives all eight; a Mac gives user, system, nice, idle only (the others are left out, never 0). Null while measuring.'
+              properties:
+                user: { $ref: '#/components/schemas/Pct' }
+                system: { $ref: '#/components/schemas/Pct' }
+                nice: { $ref: '#/components/schemas/Pct' }
+                idle: { $ref: '#/components/schemas/Pct' }
+                iowait: { $ref: '#/components/schemas/Pct' }
+                irq: { $ref: '#/components/schemas/Pct' }
+                softirq: { $ref: '#/components/schemas/Pct' }
+                steal: { $ref: '#/components/schemas/Pct' }
+            frequency_mhz:
+              type: object
+              required: [average, max]
+              additionalProperties: false
+              description: 'Optional. Linux only (cpufreq). Left out when the system does not say; never 0.'
+              properties:
+                average: { type: number, exclusiveMinimum: 0, maximum: 20000 }
+                max: { type: number, exclusiveMinimum: 0, maximum: 20000 }
+            temperature_celsius: { type: number, minimum: 1, maximum: 150, description: 'Optional. Linux only (hwmon or thermal zone). A Mac gives it only to root, so it is left out.' }
         memory:
           type: object
           required: [total_bytes, used_bytes, cached_bytes, free_bytes, swap_total_bytes, swap_used_bytes]
@@ -390,6 +449,19 @@ components:
             sent_total_bytes: { $ref: '#/components/schemas/Bytes' }
             received_bytes_per_second: { type: number, nullable: true, minimum: 0 }
             sent_bytes_per_second: { type: number, nullable: true, minimum: 0 }
+            errors_in_total: { $ref: '#/components/schemas/Bytes' }
+            errors_out_total: { $ref: '#/components/schemas/Bytes' }
+            drops_in_total: { $ref: '#/components/schemas/Bytes' }
+            drops_out_total: { $ref: '#/components/schemas/Bytes', description: 'Optional. A Mac counts drops on the way in only.' }
+        disk_io:
+          type: object
+          required: [read_bytes_per_second, write_bytes_per_second]
+          additionalProperties: false
+          description: 'Optional. Disk speed over all whole disks (Linux /proc/diskstats; macOS IOKit). Left out while measuring and when the system gives no numbers.'
+          properties:
+            read_bytes_per_second: { type: number, minimum: 0 }
+            write_bytes_per_second: { type: number, minimum: 0 }
+        process_count: { type: integer, minimum: 0, maximum: 4194304, description: 'Optional. How many programs run in all (the list below holds the busiest 15).' }
         gpus:
           type: array
           minItems: 1
@@ -417,6 +489,42 @@ components:
               user: { type: string, maxLength: 64 }
               cpu_percent: { type: number, nullable: true, minimum: 0 }
               memory_bytes: { $ref: '#/components/schemas/Bytes' }
+              threads: { type: integer, minimum: 1, maximum: 1000000, description: 'Optional. Thread count of the program.' }
+    HistoryPoint:
+      type: object
+      required: [t, cpu_percent, mem_used, mem_cached, mem_total, swap_used, swap_total, net_in_bps, net_out_bps]
+      additionalProperties: false
+      properties:
+        t: { type: integer, minimum: 0, description: 'Seconds since 1970 when the parent got the reading.' }
+        cpu_percent: { $ref: '#/components/schemas/Pct' }
+        cpu_breakdown: { type: object, additionalProperties: { $ref: '#/components/schemas/Pct' }, description: 'Optional. Same keys as cpu.breakdown.' }
+        load:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { type: number, minimum: 0 }
+          description: 'Optional. 1, 5 and 15 minute load.'
+        mem_used: { $ref: '#/components/schemas/Bytes' }
+        mem_cached: { $ref: '#/components/schemas/Bytes' }
+        mem_total: { $ref: '#/components/schemas/Bytes' }
+        swap_used: { $ref: '#/components/schemas/Bytes' }
+        swap_total: { $ref: '#/components/schemas/Bytes' }
+        disk_read: { type: number, minimum: 0 }
+        disk_write: { type: number, minimum: 0 }
+        net_in_bps: { type: number, nullable: true, minimum: 0 }
+        net_out_bps: { type: number, nullable: true, minimum: 0 }
+        net_drops: { $ref: '#/components/schemas/Bytes', description: 'Optional. Packets dropped since boot, in and out added.' }
+        processes_count: { type: integer, minimum: 0 }
+    MachineStatsHistory:
+      type: object
+      required: [interval_seconds, points]
+      additionalProperties: false
+      properties:
+        interval_seconds: { type: integer, minimum: 1, maximum: 60, description: 'Ten in real use; a test run may shorten it.' }
+        points:
+          type: array
+          maxItems: 360
+          items: { $ref: '#/components/schemas/HistoryPoint' }
     MachineStatsReply:
       type: object
       required: [state, last_seen, fetched_at, stats]

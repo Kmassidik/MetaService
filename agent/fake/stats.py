@@ -6,6 +6,8 @@ import threading
 import time
 from datetime import datetime, timezone
 
+from agent.fake.stats_extras import EXTRAS_FULL, Extras
+
 GIB = 1024 ** 3
 SECRET_COMMAND_LINE = "node server.js --api-key SECRET-FAKE-COMMAND-LINE-VALUE-0451"
 HOSTILE_NAME = "<img src=x onerror=alert(1)>"
@@ -29,10 +31,12 @@ def wants_processes(query):
 
 
 class FakeStats:
-    """One fake machine's readings. `cores` many cores, `gpu` adds one NVIDIA card, `hostile` puts markup in names."""
+    """One fake machine's readings. `cores` many logical CPUs (threads) on `physical` cores (default: as many, no hyper-threading), `gpu` adds one NVIDIA card,
+    `hostile` puts markup in names, `extras` says which optional numbers it sends: "full" (a Linux machine), "mac" or "none" (an older helper)."""
 
-    def __init__(self, cores=8, gpu=False, hostile=True, measuring_first=True):
+    def __init__(self, cores=8, gpu=False, hostile=True, measuring_first=True, physical=None, extras=EXTRAS_FULL):
         self.cores, self.gpu, self.hostile, self.measuring_first = cores, gpu, hostile, measuring_first
+        self.extras = Extras(extras, cores, physical or cores)
         self.calls = 0
         self.queries = []  # the raw query text of every request, so a check can see what the parent passed on
         self.calls_with_processes = 0
@@ -59,6 +63,7 @@ class FakeStats:
             "disks": self._disks(),
             "network": self._network(tick, measuring),
             "processes": self._processes(tick, measuring) if with_processes else [],
+            **self.extras.top(tick, measuring),
         }
         if self.gpu:
             reading["gpus"] = [self._gpu(tick)]
@@ -70,7 +75,8 @@ class FakeStats:
     def _cpu(self, tick, measuring):
         cores = None if measuring else [self._wave(tick, core) for core in range(self.cores)]
         total = None if measuring else round(sum(cores) / len(cores), 1)
-        return {"core_count": self.cores, "total_percent": total, "cores_percent": cores, "load": {"one": 1.5, "five": 1.1, "fifteen": 0.8}}
+        load = {"one": round(1.5 + math.sin(tick) * 0.4, 2), "five": 1.1, "fifteen": 0.8}
+        return {"core_count": self.cores, "total_percent": total, "cores_percent": cores, "load": load, **self.extras.cpu(tick, measuring, total)}
 
     def _memory(self, tick):
         total = 36 * GIB
@@ -84,7 +90,7 @@ class FakeStats:
 
     def _network(self, tick, measuring):
         rate = None if measuring else float(120_000 + tick * 10_000)
-        return {"received_total_bytes": tick * 1_000_000, "sent_total_bytes": tick * 400_000, "received_bytes_per_second": rate, "sent_bytes_per_second": None if measuring else rate / 4}
+        return {"received_total_bytes": tick * 1_000_000, "sent_total_bytes": tick * 400_000, "received_bytes_per_second": rate, "sent_bytes_per_second": None if measuring else rate / 4, **self.extras.network(tick)}
 
     def _gpu(self, tick):
         return {"name": "NVIDIA GeForce RTX 5090", "utilization_percent": self._wave(tick, 3), "memory_used_bytes": (4 + tick % 5) * GIB, "memory_total_bytes": 32 * GIB, "temperature_celsius": 55.0}
@@ -100,4 +106,5 @@ class FakeStats:
         cpu = None if measuring else self._wave(tick, index, 0.0, 99.0 - index)
         # `cmdline` exists only here, on the fake machine; the answer is built from the fields below and never contains it.
         process = {"pid": FIRST_PID + index, "name": name, "user": user, "cpu_percent": cpu, "memory_bytes": (200 - index * 5) * 1024 * 1024, "cmdline": SECRET_COMMAND_LINE}
-        return {key: process[key] for key in ("pid", "name", "user", "cpu_percent", "memory_bytes")}
+        shown = {key: process[key] for key in ("pid", "name", "user", "cpu_percent", "memory_bytes")}
+        return {**shown, **self.extras.threads(index)}

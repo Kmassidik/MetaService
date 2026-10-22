@@ -31,7 +31,7 @@ final class StatsService: Sendable {
 
     /// A good reading without the process list and when it was taken, for the history sampler. Nil when the helper did not answer well (the sampler leaves a gap).
     func freshReading(for id: String) async -> (stats: MachineStats, at: Date)? {
-        let reading = await readings.read(id, detailed: false) { await self.fetch(id, processes: false) }
+        let reading = await readings.read(id, detailed: false, keepsAlive: false) { await self.fetch(id, processes: false) }
         guard reading.answer == .fresh, let value = reading.value, let at = reading.fetchedAt else { return nil }
         return (value, at)
     }

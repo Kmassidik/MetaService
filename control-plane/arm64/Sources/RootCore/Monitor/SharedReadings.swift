@@ -63,11 +63,13 @@ public actor SharedReadings<Value: Sendable> {
     /// The reading for a machine; calls `fetch` only when the shared one is older than `refreshSeconds` and nobody is already fetching.
     /// `detailed` says the asker wants the extra part (the process list). A held detailed reading answers everybody; a held plain one does not answer a detailed
     /// request, which then makes one call at once (a failed or old-helper reading is not repeated for it: a dead helper is left alone for `refreshSeconds`).
-    public func read(_ key: String, detailed: Bool = false, fetch: @escaping @Sendable () async -> ReadingOutcome<Value>) async -> Reading<Value> {
+    /// `keepsAlive` false is for a caller that is not a person watching (the history sampler): it shares the reading and its rate limit like anybody, but does not
+    /// keep the reading from being dropped, so a machine nobody looks at still loses its held numbers after `dropSeconds`.
+    public func read(_ key: String, detailed: Bool = false, keepsAlive: Bool = true, fetch: @escaping @Sendable () async -> ReadingOutcome<Value>) async -> Reading<Value> {
         let now = clock.now
         sweep(now)
         var entry = entries[key] ?? Entry(lastAsked: now)
-        entry.lastAsked = now
+        if keepsAlive { entry.lastAsked = now }
         entries[key] = entry
         while let running = entries[key]?.inFlight { await running.value }
         guard let current = entries[key], needsCall(current, detailed, clock.now) else { return snapshot(key) }

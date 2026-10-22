@@ -1,5 +1,6 @@
 """The helper's monitor route: GET /v1/stats. Runs against the real macOS helper (simulated engine), the Linux helper (where /proc exists), or with
 `python -m contract.agent_tests.runner --fake` against the Fake Agent. Rules: docs/monitor-contract.md."""
+import os
 import subprocess
 import sys
 import time
@@ -13,6 +14,10 @@ SECRET_ARGUMENT = "SECRET-ARGV-VALUE-0451"
 MAX_PROCESSES = 15
 NAME_LIMIT = 64
 SAMPLE_GAP_SECONDS = 1.2
+BREAKDOWN_STATES = {"user", "nice", "system", "idle", "iowait", "irq", "softirq", "steal"}
+MAC_BREAKDOWN_STATES = {"user", "system", "nice", "idle"}
+ROUNDING_ALLOWANCE = 1.0
+FULL_SHARE = 100.0
 
 
 def fetch(one):
@@ -101,6 +106,72 @@ def check_a_missing_gpu_is_a_missing_key_never_zeros():
     with helper() as one:
         stats = fetch(one)
         expect("gpus" not in stats or (stats["gpus"] and all(g["name"] for g in stats["gpus"])), f"gpus must be absent or real: {stats.get('gpus')}")
+
+
+def second_answer(one):
+    fetch(one)
+    time.sleep(SAMPLE_GAP_SECONDS)
+    return fetch(one)
+
+
+def a_real_mac():
+    return sys.platform == "darwin" and os.environ.get("MS_HELPER") != "fake"
+
+
+def check_the_cpu_layout_is_whole_or_left_out():
+    with helper() as one:
+        cpu = second_answer(one)["cpu"]
+        if "physical_cores" in cpu:
+            expect(1 <= cpu["physical_cores"] <= cpu["core_count"], f"physical cores {cpu['physical_cores']} of {cpu['core_count']} logical")
+        if "core_of" in cpu:
+            expect(len(cpu["core_of"]) == cpu["core_count"] and all(0 <= core < cpu["core_count"] for core in cpu["core_of"]), f"core_of: {cpu['core_of']}")
+            expect(len(set(cpu["core_of"])) == cpu.get("physical_cores", len(set(cpu["core_of"]))), "core_of and physical_cores disagree")
+        for cluster in cpu.get("clusters", []):
+            expect(cluster["logical"] >= 1 and cluster["name"], f"cluster: {cluster}")
+
+
+def check_the_cpu_breakdown_is_known_states_that_add_up_to_the_whole_and_a_mac_gives_four():
+    with helper() as one:
+        cpu = second_answer(one)["cpu"]
+        breakdown = cpu.get("breakdown")
+        expect(breakdown is None or isinstance(breakdown, dict), f"breakdown: {breakdown!r}")
+        if breakdown:
+            expect(set(breakdown) <= BREAKDOWN_STATES, f"unknown states: {set(breakdown) - BREAKDOWN_STATES}")
+            expect(all(0 <= share <= FULL_SHARE for share in breakdown.values()), f"a share outside 0..100: {breakdown}")
+            expect(abs(sum(breakdown.values()) - FULL_SHARE) <= ROUNDING_ALLOWANCE + len(breakdown) * 0.05, f"the states must add up to the whole: {breakdown}")
+        if a_real_mac():
+            expect(breakdown is not None and set(breakdown) == MAC_BREAKDOWN_STATES, f"a Mac gives user, system, nice, idle and nothing else: {breakdown}")
+
+
+def check_frequency_and_temperature_are_real_numbers_or_left_out_and_a_mac_leaves_them_out():
+    with helper() as one:
+        cpu = second_answer(one)["cpu"]
+        for key in ("frequency_mhz", "temperature_celsius"):
+            expect(key not in cpu or cpu[key], f"{key} must be left out, never 0: {cpu.get(key)!r}")
+        if a_real_mac():
+            expect("frequency_mhz" not in cpu and "temperature_celsius" not in cpu, "a Mac gives no frequency or temperature without root")
+
+
+def check_disk_speed_and_network_counters_are_numbers_or_left_out():
+    with helper() as one:
+        stats = second_answer(one)
+        speed = stats.get("disk_io")
+        expect(speed is None or (speed["read_bytes_per_second"] >= 0 and speed["write_bytes_per_second"] >= 0), f"disk_io: {speed}")
+        network = stats["network"]
+        expect(all(isinstance(network[key], int) and network[key] >= 0 for key in network if key.endswith("_total") and key.split("_")[0] in ("errors", "drops")), f"network counters: {network}")
+        if a_real_mac():
+            expect(speed is not None, "a Mac gives the disk speed (IOKit, no root)")
+            expect("errors_in_total" in network and "drops_out_total" not in network, f"a Mac counts errors both ways and drops in only: {network}")
+
+
+def check_the_number_of_running_programs_is_at_least_the_list_and_threads_are_whole_numbers():
+    with helper() as one:
+        stats = second_answer(one)
+        if "process_count" in stats:
+            expect(stats["process_count"] >= len(stats["processes"]) >= 1, f"process_count {stats['process_count']} for {len(stats['processes'])} listed")
+        expect(all(process.get("threads", 1) >= 1 for process in stats["processes"]), "a thread count below one")
+        without = one.call("GET", f"{STATS}?processes=0")[1]
+        expect("process_count" not in stats or "process_count" in without, "the number of programs also comes without the list")
 
 
 CHECKS = [value for name, value in sorted(globals().items()) if name.startswith("check_")]

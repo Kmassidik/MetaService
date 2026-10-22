@@ -23,7 +23,9 @@ else:
 
 def main():
     failures = 0
-    for check in ALL_CHECKS:
+    words = [word for word in sys.argv[1:] if not word.startswith("--")]  # optional: only the checks whose name holds one of these words
+    checks = [check for check in ALL_CHECKS if not words or any(word in check.__name__ for word in words)]
+    for check in checks:
         started = time.time()
         try:
             check()
@@ -32,7 +34,7 @@ def main():
             print(f"FAIL  {check.__name__}: {error!r}")
             continue
         print(f"PASS  {check.__name__} ({time.time() - started:.1f}s)")
-    print(f"\n{len(ALL_CHECKS) - failures} passed, {failures} failed, {len(ALL_CHECKS)} checks")
+    print(f"\n{len(checks) - failures} passed, {failures} failed, {len(checks)} checks")
     sys.exit(1 if failures else 0)
 
 
