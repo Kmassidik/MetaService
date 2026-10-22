@@ -15,6 +15,7 @@
     import TokenLedger from './pages/TokenLedger.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
+  import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
   import ConfirmRemove from './components/ConfirmRemove.svelte'
   import ConfirmRemoveRemote from './components/ConfirmRemoveRemote.svelte'
@@ -299,6 +300,8 @@
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}
         <Settings {brain} {bundles} onTest={testProvider} onPin={pin} onRollback={rollback} />
+      {:else if page === 'notfound'}
+        <NotFound {route} />
       {:else}
         <Overview {machines} {brain} {bundles} />
       {/if}

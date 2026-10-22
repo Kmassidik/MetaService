@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { createVmHref, createVmOpen, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute } from './routes.ts'
+import { createVmHref, createVmOpen, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, shownAddress, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute } from './routes.ts'
 
 test('a machine address can name a tab (&tab=); old names and missing names land on a new tab', () => {
   expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=vms')).toBe('vms')
@@ -14,8 +14,27 @@ test('each address leads to its page', () => {
   expect(['/', '/machines', '/machines/find', '/usage', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'machines', 'machines', 'usage', 'health', 'settings'])
 })
 
-test('older addresses and unknown ones still land somewhere sensible', () => {
-  expect(['/deployments', '/scan', '/activity', '/bundle', '/ai', '/nope'].map(pageFor)).toEqual(['machines', 'machines', 'health', 'settings', 'settings', 'overview'])
+test('older addresses still lead to their new pages', () => {
+  expect(['/deployments', '/scan', '/activity', '/bundle', '/ai'].map(pageFor)).toEqual(['machines', 'machines', 'health', 'settings', 'settings'])
+})
+
+test('the empty address is Overview, and the pages with a detail or a window still lead to their page', () => {
+  expect(['', '/', '/?x=1', '/machines/details', '/machines/details?id=xyz', '/vms/create', '/machines/find', '/usage', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'overview', 'overview', 'machines', 'machines', 'vms', 'machines', 'usage', 'health', 'settings'])
+})
+
+test('a trailing slash and a query string do not change the page', () => {
+  expect(['/machines/', '/vms/', '/vms//', '/health/?a=1', '//'].map(pageFor)).toEqual(['machines', 'vms', 'vms', 'health', 'overview'])
+})
+
+test('an address the panel does not know leads to the Page not found screen', () => {
+  for (const route of ['/nope', '/healthsasdfasdf', '/machines/xyz/abc', '/Machines', '/vms/other', '/machines/details/x', '/<img src=x onerror=alert(1)>']) expect(pageFor(route), route).toBe('notfound')
+})
+
+test('the Page not found screen shows the typed address as text: decoded, without the query, cut when long', () => {
+  expect(shownAddress('/nope?x=1')).toBe('/nope')
+  expect(shownAddress('/%3Cimg%20src=x%3E')).toBe('/<img src=x>')
+  expect(shownAddress('/%E0%A4%A')).toBe('/%E0%A4%A')
+  expect(shownAddress(`/${'a'.repeat(200)}`)).toBe(`/${'a'.repeat(79)}…`)
 })
 
 test('a machine\'s page is /machines/details?id=<machine>, and only that address names a machine', () => {

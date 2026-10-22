@@ -13,6 +13,7 @@ import { bundleScenario } from './panel/bundles.ts'
 import { firstRun } from './panel/first-run.ts'
 import { hostileTextIsShownAsText, machinesList, overviewAndSidebar, removeAMachine, signInWithAWrongThenTheRightPassword } from './panel/machines.ts'
 import { CANCELLED_ON_PURPOSE, loadingThenErrorScreens, notFoundScreens } from './panel/owls.ts'
+import { hostilePageNotFound, pageNotFoundScreen } from './panel/notfound.ts'
 import { scanScenario } from './panel/scan.ts'
 import { seed, startWorld, stopWorld } from './panel/world.ts'
 import { workloadScenario } from './panel/workloads.ts'
@@ -46,11 +47,14 @@ try {
   await scanScenario(b)
   await notFoundScreens(b)
   await loadingThenErrorScreens(b)
+  await pageNotFoundScreen(b, 'page-not-found.png')
+  await hostilePageNotFound(b)
 
   await page.setViewport(PHONE)
   await page.reload({ waitUntil: 'networkidle0' })
   check('no sideways scrolling on a phone', await b.run(() => document.documentElement.scrollWidth <= window.innerWidth))
   await notFoundScreens(b)
+  await pageNotFoundScreen(b, 'page-not-found-phone.png')
   await b.go('#/')
   await b.click('Sign out')
   await b.until(() => /sign in to manage/i.test(document.body.innerText), { timeout: SIGN_OUT_WAIT_MS })

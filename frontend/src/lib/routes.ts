@@ -1,7 +1,7 @@
 // The panel's pages and the addresses that lead to them. Older addresses still work.
 import { tabFromName, type MachineTab } from './machineTabs.ts'
 
-export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings'
+export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings' | 'notfound'
 
 const PAGES: Record<string, Page> = {
   '/': 'overview',
@@ -79,4 +79,27 @@ export const vmsHref = (machine: string | null) => withMachine('#/vms', machine)
 /** The address that opens the Create VM window, with a machine preselected when given. */
 export const createVmHref = (machine: string | null) => withMachine(`#${CREATE_VM_PATH}`, machine)
 
-export const pageFor = (route: string): Page => PAGES[split(route).path] ?? 'overview'
+const TRAILING_SLASHES = /\/+$/
+
+/** The path of an address without its trailing slashes, so /machines/ is /machines. The bare address stays "/". */
+const normalisedPath = (route: string): string => split(route).path.replace(TRAILING_SLASHES, '') || '/'
+
+/** The page an address leads to. An address the panel does not know leads to 'notfound'. */
+export const pageFor = (route: string): Page => PAGES[normalisedPath(route)] ?? 'notfound'
+
+const SHOWN_ADDRESS_MAX = 80
+
+/** The text as the browser would show it, or as it is when it is not valid percent-encoding. */
+function decoded(text: string): string {
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
+  }
+}
+
+/** The address as the person typed it, for the Page not found screen: decoded when it can be, cut to a sensible length. Always shown as text. */
+export function shownAddress(route: string): string {
+  const typed = decoded(split(route).path)
+  return typed.length > SHOWN_ADDRESS_MAX ? `${typed.slice(0, SHOWN_ADDRESS_MAX)}…` : typed
+}
