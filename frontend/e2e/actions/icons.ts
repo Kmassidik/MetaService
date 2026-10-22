@@ -13,7 +13,9 @@ const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 const SHORT_WAIT_MS = 8000
 /** vm1 of the stand-in is running and has no chat: Terminal (off: the stand-in is not a Mac), Stop, Install chat, then Delete. */
-const VM1_ROW_LABELS = ['Terminal: Mac machines only for now', 'Stop', 'Install chat', 'Delete']
+const VM1_ROW_LABELS = ['Terminal: Mac machines only for now vm1', 'SSH keys vm1', 'Stop vm1', 'Install chat vm1', 'Delete vm1']
+/** What the tooltip of each of those says: the short word, without the VM's name. */
+const VM1_ROW_TIPS = ['Terminal: Mac machines only for now', 'SSH keys', 'Stop', 'Install chat', 'Delete']
 const ROW_BUTTONS = '.vm-acts button'
 
 interface Geometry {
@@ -40,7 +42,7 @@ const rowGeometry = (b: Browse, rowIndex: number): Promise<Geometry> =>
       tips: buttons.map((button) => button.getAttribute('data-tip') ?? ''),
       smallest: Math.min(...rects.map((rect) => Math.min(rect.width, rect.height))),
       gapBeforeDelete: before && lastRect ? lastRect.left - before.right : 0,
-      deleteIsLast: last?.getAttribute('aria-label') === 'Delete',
+      deleteIsLast: last?.getAttribute('data-tip') === 'Delete',
       deleteColour: last ? getComputedStyle(last).color : '',
       stopColour: stop ? getComputedStyle(stop).color : '',
     }
@@ -70,30 +72,30 @@ async function everyButtonHasAName(b: Browse, where: string): Promise<void> {
 
 async function orderAndLook(b: Browse): Promise<void> {
   const geometry = await rowGeometry(b, 0)
-  check('machine page table: a running VM without a chat shows Terminal, Stop, Install chat, then Delete', JSON.stringify(geometry.labels) === JSON.stringify(VM1_ROW_LABELS), JSON.stringify(geometry.labels))
-  check('machine page table: the tooltip words are the button names', JSON.stringify(geometry.tips) === JSON.stringify(geometry.labels))
+  check('machine page table: a running VM without a chat shows Terminal, SSH keys, Stop, Install chat, then Delete', JSON.stringify(geometry.labels) === JSON.stringify(VM1_ROW_LABELS), JSON.stringify(geometry.labels))
+  check('machine page table: the tooltip words are the short names, the spoken names add the VM', JSON.stringify(geometry.tips) === JSON.stringify(VM1_ROW_TIPS))
   check(`machine page table: Delete is last, set apart by a gap of at least ${MIN_GAP_PX}px, and red`, geometry.deleteIsLast && geometry.gapBeforeDelete >= MIN_GAP_PX && isRed(geometry.deleteColour) && !isRed(geometry.stopColour), JSON.stringify(geometry))
   check(`machine page table: every button is at least ${MIN_HIT_PX}px`, geometry.smallest >= MIN_HIT_PX, `${geometry.smallest}`)
 }
 
 async function tooltipsOnHoverAndFocus(b: Browse): Promise<void> {
-  check('the tooltip is hidden while nothing points at the button', !(await tooltipOf(b, 'Stop')).shown)
-  const button = await b.page.$('button[aria-label="Stop"]')
+  check('the tooltip is hidden while nothing points at the button', !(await tooltipOf(b, 'Stop vm1')).shown)
+  const button = await b.page.$('button[aria-label="Stop vm1"]')
   if (!button) throw new Error('there is no Stop button')
   await button.hover()
-  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Stop"]') as Element, '::after').opacity === '1', { timeout: SHORT_WAIT_MS })
-  const hovered = await tooltipOf(b, 'Stop')
+  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Stop vm1"]') as Element, '::after').opacity === '1', { timeout: SHORT_WAIT_MS })
+  const hovered = await tooltipOf(b, 'Stop vm1')
   check('hovering a button shows its label as a tooltip', hovered.found && hovered.shown && hovered.words === 'Stop', JSON.stringify(hovered))
   await b.shot('icons-tooltip-hover.png')
   await b.page.mouse.move(2, 2)
-  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Stop"]') as Element, '::after').opacity === '0', { timeout: SHORT_WAIT_MS })
+  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Stop vm1"]') as Element, '::after').opacity === '0', { timeout: SHORT_WAIT_MS })
   await b.page.keyboard.press('Shift')
-  await b.run(() => document.querySelector<HTMLButtonElement>('.vm-acts button[aria-label="Delete"]')?.focus())
-  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Delete"]') as Element, '::after').opacity === '1', { timeout: SHORT_WAIT_MS })
-  const focused = await tooltipOf(b, 'Delete')
+  await b.run(() => document.querySelector<HTMLButtonElement>('.vm-acts button[aria-label="Delete vm1"]')?.focus())
+  await b.until(() => getComputedStyle(document.querySelector('.vm-acts button[aria-label="Delete vm1"]') as Element, '::after').opacity === '1', { timeout: SHORT_WAIT_MS })
+  const focused = await tooltipOf(b, 'Delete vm1')
   check('keyboard focus on a button shows its label as a tooltip', focused.shown && focused.words === 'Delete', JSON.stringify(focused))
   await b.shot('icons-tooltip-focus.png')
-  await b.run(() => document.querySelector<HTMLElement>('.vm-acts button[aria-label="Delete"]')?.blur())
+  await b.run(() => document.querySelector<HTMLElement>('.vm-acts button[aria-label="Delete vm1"]')?.blur())
 }
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
@@ -118,7 +120,7 @@ async function onAllVms(b: Browse, standin: StandIn): Promise<void> {
   await b.page.waitForSelector('table[aria-label="VMs"] tbody tr')
   await everyButtonHasAName(b, 'All VMs')
   const labels = await b.run(() => [...document.querySelectorAll('tbody tr')].map((row) => [...row.querySelectorAll('.vm-acts button')].map((button) => button.getAttribute('aria-label') ?? '').join('|')))
-  const lastIsDelete = labels.every((row) => row.endsWith('|Delete'))
+  const lastIsDelete = labels.every((row) => /\|Delete vm\d+$/.test(row))
   check('All VMs: every row has Delete as its last button', lastIsDelete, JSON.stringify(labels))
   const idUnderName = await b.run(() => document.querySelector('tbody tr .vm-id')?.textContent?.trim() ?? '')
   check('All VMs: the ID is under the name', idUnderName !== '', idUnderName)
@@ -131,7 +133,7 @@ export async function iconButtonsLookAndWork(b: Browse, standin: StandIn): Promi
   await everyButtonHasAName(b, 'machine page table')
   await orderAndLook(b)
   const copy = await b.run(() => document.querySelector('tbody tr .addr button')?.getAttribute('aria-label'))
-  check('machine page table: the address has a copy icon with its label', copy === 'Copy address', `${copy}`)
+  check('machine page table: the address has a copy icon with its label', copy === 'Copy address vm1', `${copy}`)
   const idColumn = await b.run(() => [...document.querySelectorAll('thead th')].some((cell) => cell.textContent?.trim() === 'ID'))
   check('machine page table: there is no ID column any more', !idColumn)
   await tooltipsOnHoverAndFocus(b)

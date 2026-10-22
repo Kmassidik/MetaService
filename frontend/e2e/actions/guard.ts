@@ -54,7 +54,7 @@ export async function fresh(b: Browse, standin: StandIn, hash: string): Promise<
 export const buttonView = (b: Browse, text: string, nth = 0): Promise<ButtonView> =>
   b.run((wanted, index) => {
     const scope = document.querySelector('dialog[open]') ?? document
-    const button = [...scope.querySelectorAll('button')].filter((entry) => (entry.getAttribute('aria-label') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0)[index]
+    const button = [...scope.querySelectorAll('button')].filter((entry) => (entry.getAttribute('data-tip') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0)[index]
     if (!button) return { found: false, disabled: false, ariaBusy: null, line: '', hasSpinner: false }
     return {
       found: true,
@@ -66,13 +66,13 @@ export const buttonView = (b: Browse, text: string, nth = 0): Promise<ButtonView
   }, text, nth)
 
 export const waitForButton = (b: Browse, text: string): Promise<unknown> =>
-  b.until((wanted) => [...(document.querySelector('dialog[open]') ?? document).querySelectorAll('button')].some((entry) => (entry.getAttribute('aria-label') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0), { timeout: SHORT_WAIT_MS }, text)
+  b.until((wanted) => [...(document.querySelector('dialog[open]') ?? document).querySelectorAll('button')].some((entry) => (entry.getAttribute('data-tip') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0), { timeout: SHORT_WAIT_MS }, text)
 
 /** Clicks the button with this text `count` times as fast as the browser can. */
 export async function burst(b: Browse, text: string, count: number, nth = 0): Promise<void> {
   const at = await b.run((wanted, index) => {
     const scope = document.querySelector('dialog[open]') ?? document
-    const button = [...scope.querySelectorAll('button')].filter((entry) => (entry.getAttribute('aria-label') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0)[index]
+    const button = [...scope.querySelectorAll('button')].filter((entry) => (entry.getAttribute('data-tip') ?? entry.textContent?.trim()) === wanted && entry.getClientRects().length > 0)[index]
     if (!button) return null
     button.scrollIntoView({ block: 'center' })
     const box = button.getBoundingClientRect()
@@ -117,7 +117,7 @@ export async function keysSendOneRequest(b: Browse, standin: StandIn, watch: Wat
   await waitForButton(b, 'Start')
   watch.clear()
   standin.behaviour.delayMs = SLOW_MS
-  await b.run(() => [...document.querySelectorAll('button')].find((entry) => entry.getAttribute('aria-label') === 'Start')?.focus())
+  await b.run(() => [...document.querySelectorAll('button')].find((entry) => entry.getAttribute('data-tip') === 'Start')?.focus())
   for (let press = 0; press < RAPID_CLICKS; press++) await b.page.keyboard.press('Enter')
   for (let press = 0; press < RAPID_CLICKS; press++) await b.page.keyboard.press('Space')
   await wait(SETTLE_MS)
@@ -138,7 +138,7 @@ export async function refusalShowsNextToTheButton(b: Browse, standin: StandIn, w
   await b.shot('actions-stop-failed.png')
   standin.behaviour.refuseWith = null
   await burst(b, 'Stop', 1)
-  await b.until(() => ![...document.querySelectorAll('button')].some((entry) => entry.getAttribute('aria-label') === 'Stop'), { timeout: SHORT_WAIT_MS })
+  await b.until(() => ![...document.querySelectorAll('button')].some((entry) => entry.getAttribute('data-tip') === 'Stop'), { timeout: SHORT_WAIT_MS })
   check('after a refusal a second try goes through', watch.count() === 2 && standin.calls.join() === 'stop vm1,stop vm1', `${watch.count()} ${standin.calls.join()}`)
 }
 

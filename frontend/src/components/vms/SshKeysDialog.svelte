@@ -62,7 +62,7 @@
         {#each list.keys as key (key.id)}
           <li>
             <div class="info">
-              <span class="head"><span class="tag mono">{key.type}</span>{#if key.comment}<span class="comment">{key.comment}</span>{/if}</span>
+              <span class="head"><span class="kind mono">{key.type}</span>{#if key.comment}<span class="comment">{key.comment}</span>{/if}</span>
               <code class="print">{key.fingerprint}</code>
               <small class="when">Added {addedText(key)}</small>
             </div>
@@ -104,7 +104,7 @@
   li + li { border-top: 1px solid var(--line); }
   .info { display: grid; gap: 3px; min-width: 0; }
   .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-  .tag { font-size: 11px; font-weight: 700; }
+  .kind { font-size: 11px; font-weight: 700; }
   .comment { font-size: 13px; overflow-wrap: anywhere; }
   .print { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; background: none; padding: 0; }
   .when { font-size: 11px; color: var(--m50); }

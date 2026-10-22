@@ -6,11 +6,13 @@ import { extname, join } from 'node:path'
 import { panelDist } from '../support/paths.ts'
 import { wait } from '../support/net.ts'
 import { createBundleBook } from './bundleBook.ts'
+import { createSshKeyBook, type BookAnswer, type SshKeyBook } from './sshKeyBook.ts'
 
 const CSRF = 'test-token'
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const BUNDLE_CALL = /^\/api\/machines\/([^/]+)\/bundle\/(install|uninstall)$/
 const MACHINE_PAGE = /^\/api\/machines\/([^/]+)$/
+const SSH_KEYS_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/ssh-keys(?:\/([^/]+))?$/
 const VM_CALL =/^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/(start|stop|delete)$/
 
 export interface Behaviour {
@@ -27,6 +29,8 @@ export interface StandIn {
   behaviour: Behaviour
   /** Every VM call that arrived, as "start vm2", in order. */
   calls: string[]
+  /** The SSH keys of each VM and the switches that change what the answers say. */
+  sshKeys: SshKeyBook
   reset: () => void
   close: () => void
 }
@@ -86,6 +90,22 @@ export async function startStandIn(): Promise<StandIn> {
   const behaviour: Behaviour = { delayMs: 0, refuseWith: null, hang: false }
   const calls: string[] = []
   const bundles = createBundleBook()
+  const sshKeys = createSshKeyBook()
+
+  /** Answers an SSH-keys call from the book: list (GET), add (POST) or remove (DELETE one key). */
+  async function sshKeysCall(request: IncomingMessage, response: ServerResponse, match: RegExpExecArray): Promise<void> {
+    const [, , vm = '', keyId] = match
+    const answered: Record<string, () => Promise<BookAnswer>> = {
+      GET: async () => sshKeys.list(vm),
+      POST: async () => sshKeys.add(vm, await readJson(request)),
+      DELETE: async () => sshKeys.remove(vm, keyId ?? ''),
+    }
+    const work = answered[request.method ?? 'GET']
+    if (!work) return send(response, 405, { error: 'method not allowed' })
+    const result = await work()
+    await wait(sshKeys.delayMs)
+    send(response, result.status, result.body)
+  }
 
   /** Applies a start, stop or delete the way the helper would, once the call is accepted. */
   function apply(machineId: string, workloadId: string, action: string): void {
@@ -140,6 +160,8 @@ export async function startStandIn(): Promise<StandIn> {
     if (path === '/api/session') return send(response, 200, { username: 'kurnia', csrf_token: CSRF })
     if (path === '/api/auth/status') return send(response, 200, { configured: true, signedIn: true, min_password_length: 8 })
     const posted = request.method === 'POST'
+    const keysRoute = SSH_KEYS_CALL.exec(path)
+    if (keysRoute) return sshKeysCall(request, response, keysRoute)
     const call = VM_CALL.exec(path)
     if (call && posted) return vmCall(call, response)
     const bundle = BUNDLE_CALL.exec(path)
@@ -170,9 +192,11 @@ export async function startStandIn(): Promise<StandIn> {
     base: `http://127.0.0.1:${address.port}`,
     behaviour,
     calls,
+    sshKeys,
     reset() {
       machines = fleet()
       bundles.reset()
+      sshKeys.reset()
       calls.length = 0
       Object.assign(behaviour, { delayMs: 0, refuseWith: null, hang: false })
     },

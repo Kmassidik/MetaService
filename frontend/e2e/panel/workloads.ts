@@ -14,10 +14,10 @@ const NEW_VM = 'build-box'
 
 /** Presses a button in the row of one VM, on a machine's VMs tab. */
 const rowButton = (b: Browse, vm: string, label: string) =>
-  b.run((name, wanted) => [...document.querySelectorAll('tbody tr')].find((row) => row instanceof HTMLElement && row.innerText.includes(name))?.querySelectorAll('button').forEach((button) => button.getAttribute('aria-label') === wanted && button.click()), vm, label)
+  b.run((name, wanted) => [...document.querySelectorAll('tbody tr')].find((row) => row instanceof HTMLElement && row.innerText.includes(name))?.querySelectorAll('button').forEach((button) => button.getAttribute('aria-label') === `${wanted} ${name}` && button.click()), vm, label)
 
 const rowHas = (b: Browse, vm: string, label: string) =>
-  b.until((name, wanted) => [...document.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.innerText.includes(name))?.querySelector(`button[aria-label="${wanted}"]`) != null, { timeout: ROW_WAIT_MS }, vm, label)
+  b.until((name, wanted) => [...document.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.innerText.includes(name))?.querySelector(`button[aria-label="${wanted} ${name}"]`) != null, { timeout: ROW_WAIT_MS }, vm, label)
 
 const machineHeading = (b: Browse, name: string, timeout = SHORT_WAIT_MS) => b.until((wanted) => document.querySelector('.phead h1')?.textContent === wanted, { timeout }, name)
 
@@ -87,7 +87,7 @@ async function theThreeViews(b: Browse): Promise<void> {
     aligned(edges.barLeft, edges.buildingLeft) && aligned(edges.buttonRight, edges.sideRight) && aligned(edges.buildingTop, edges.sideTop) && edges.sideLeft - edges.buildingRight >= 16, JSON.stringify(edges))
   await pickView(b, 'Cards')
   await b.until(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && card.innerText.includes('build-box')), { timeout: SHORT_WAIT_MS })
-  check('the Cards view shows the VM with its actions', await b.run(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && /build-box/.test(card.innerText) && card.querySelector('button[aria-label="Stop"]') !== null)))
+  check('the Cards view shows the VM with its actions', await b.run(() => [...document.querySelectorAll('.card')].some((card) => card instanceof HTMLElement && /build-box/.test(card.innerText) && card.querySelector(`button[aria-label="Stop build-box"]`) !== null)))
   await b.shot('deployments-cards.png')
   await pickView(b, 'Table')
   await b.page.waitForSelector('tbody tr')
