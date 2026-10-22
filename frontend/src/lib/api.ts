@@ -4,12 +4,16 @@ import { parseUpdateResult } from './helperUpdate.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
 import { parseMachineImages, type MachineImages } from './images.ts'
+import { LONG_REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, TIMEOUT_MESSAGE } from './timeouts.ts'
 import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
+
+/** The code of an ApiError for a request that got no answer in time. */
+export const TIMEOUT_CODE = 'timeout'
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
@@ -26,8 +30,25 @@ export class ApiError extends Error {
   }
 }
 
-/** One request to the Root. Returns the unchecked JSON body (null when there is none). */
-async function send(method: Method, path: string, body?: unknown, retried = false): Promise<unknown> {
+/** One request to the Root. Returns the unchecked JSON body (null when there is none). Gives up after `timeoutMs` with the code `timeout`. */
+async function send(method: Method, path: string, body?: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<unknown> {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  try {
+    return await exchange(method, path, body, controller.signal)
+  } catch (error) {
+    if (timedOut) throw new ApiError(0, TIMEOUT_CODE, TIMEOUT_MESSAGE)
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function exchange(method: Method, path: string, body: unknown, signal: AbortSignal, retried = false): Promise<unknown> {
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken ?? ''
@@ -39,6 +60,7 @@ async function send(method: Method, path: string, body?: unknown, retried = fals
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       credentials: 'same-origin',
       cache: 'no-store',
+      signal,
     })
   } catch {
     throw new ApiError(0, 'unreachable', 'Cannot reach the Root.')
@@ -48,7 +70,7 @@ async function send(method: Method, path: string, body?: unknown, retried = fals
   // The Root makes a new CSRF token each time it starts, so a panel left open across a restart asks for the new one and tries once more.
   if (response.status === 403 && method !== 'GET' && !retried && !path.startsWith('/api/auth/')) {
     await getSession()
-    return send(method, path, body, true)
+    return exchange(method, path, body, signal, true)
   }
   if (!response.ok) {
     const detail = parseErrorDetail(data)
@@ -58,14 +80,14 @@ async function send(method: Method, path: string, body?: unknown, retried = fals
 }
 
 /** A call whose answer has no body (204). */
-async function callNoBody(method: Method, path: string, body?: unknown): Promise<null> {
-  await send(method, path, body)
+async function callNoBody(method: Method, path: string, body?: unknown, timeoutMs?: number): Promise<null> {
+  await send(method, path, body, timeoutMs)
   return null
 }
 
 /** One call to the Root. The caller says what the answer looks like (T); the shape is trusted until a checking parser replaces this cast. */
-async function call<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  const data = await send(method, path, body)
+async function call<T>(method: Method, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
+  const data = await send(method, path, body, timeoutMs)
   return data as T
 }
 
@@ -113,7 +135,8 @@ export const listMachines = async () => (await call<{ machines: Machine[] }>('GE
 /** What only one machine's own answer carries: helper version, engine, helper folder and port, and where Ruvio stands. */
 export const machineExtras = async (id: string): Promise<MachineExtras> => parseMachineExtras(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}`))
 /** Changes the settings of a machine after it was added. Send only what changes; the parent refuses anything else with its reason. */
-export const updateHelper = async (id: string): Promise<HelperUpdateResult> => parseUpdateResult(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/update-helper`))
+// Long: the Root sends the program over SSH and waits for the old one to stop (its own limit is 7 minutes).
+export const updateHelper = async (id: string): Promise<HelperUpdateResult> => parseUpdateResult(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/update-helper`, undefined, LONG_REQUEST_TIMEOUT_MS))
 export const updateMachineSettings = (id: string, patch: MachineSettingsPatch) => call<unknown>('PATCH', `/api/machines/${encodeURIComponent(id)}/settings`, patch)
 export const removeMachine = (id: string) => callNoBody('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 
@@ -149,15 +172,17 @@ export const chatLink = async (machine: string, workload?: string) =>
 export const brainStatus = () => call<BrainStatus>('GET', '/api/brain')
 export const testBrain = () => call<unknown>('POST', '/api/brain/test')
 
-export const remoteProbe = (body: { host: string; port?: number }) => call<ProbeResult>('POST', '/api/remote/probe', body)
-export const remoteVerify = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/verify', body)
-export const remoteFix = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/fix', body)
+// Long on purpose: these four log in to the other computer over SSH (the Root waits up to 40 s to log in; a fix installs for minutes).
+export const remoteProbe = (body: { host: string; port?: number }) => call<ProbeResult>('POST', '/api/remote/probe', body, LONG_REQUEST_TIMEOUT_MS)
+export const remoteVerify = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/verify', body, LONG_REQUEST_TIMEOUT_MS)
+export const remoteFix = (body: Record<string, unknown>) => call<VerifyResult>('POST', '/api/remote/fix', body, LONG_REQUEST_TIMEOUT_MS)
 export const parentKey = async () => (await call<{ public_key: string }>('GET', '/api/remote/key')).public_key
 export const remotePlan = (body: Record<string, unknown>) => call<PlanPreview>('POST', '/api/remote/plan', body)
 export const remoteInstall = (body: Record<string, unknown>) => call<{ id: string }>('POST', '/api/remote/installs', body)
 export const remoteInstallProgress = (id: string) => call<InstallJob>('GET', `/api/remote/installs/${encodeURIComponent(id)}`)
 export const remoteMachines = async () => (await call<{ machines: RemoteMachineInfo[] }>('GET', '/api/remote/machines')).machines
-export const remoteRemove = (machine: string, body: Record<string, unknown>) => callNoBody('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body)
+// Long: the Root logs in over SSH to stop and clear the helper.
+export const remoteRemove = (machine: string, body: Record<string, unknown>) => callNoBody('POST', `/api/remote/machines/${encodeURIComponent(machine)}/remove`, body, LONG_REQUEST_TIMEOUT_MS)
 
 /** Asks for a one-use ticket to open the console of a running VM. The socket is opened with it; a new ticket is needed for every connection. */
 export async function openTerminal(machine: string, workload: string): Promise<string> {
