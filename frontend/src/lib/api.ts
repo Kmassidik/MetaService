@@ -166,6 +166,8 @@ async function sshKeyAnswer(method: Method, path: string, body?: unknown): Promi
 
 export const listSshKeys = (machine: string, workload: string) => sshKeyAnswer('GET', sshKeysPath(machine, workload))
 export const addSshKey = (machine: string, workload: string, publicKey: string) => sshKeyAnswer('POST', sshKeysPath(machine, workload), { public_key: publicKey })
+/** Asks the helper to set SSH up inside the VM again after it failed. Answers at once with the list; the setup keeps going on the machine. */
+export const retrySshSetup = (machine: string, workload: string) => sshKeyAnswer('POST', `${sshKeysPath(machine, workload)}/retry`)
 export const removeSshKey = (machine: string, workload: string, keyId: string) => sshKeyAnswer('DELETE', `${sshKeysPath(machine, workload)}/${encodeURIComponent(keyId)}`)
 
 /** The numbers behind a refusal, when the Root gave them. */

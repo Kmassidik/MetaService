@@ -1,5 +1,6 @@
 // The SSH keys of one VM: what the panel checks before sending, how the answer is read, and the plain lines shown under the list. Pure, so every rule is tested.
 import { relativeTime } from './format.ts'
+import { parseSetup } from './sshSetup.ts'
 import { RUNNING_STATE } from './vm.ts'
 import type { SshdState, SshKey, SshKeyList } from './types.ts'
 
@@ -38,8 +39,9 @@ export function addRefusalText(refusal: { code: string; message: string }): stri
   return refusal.code === REFUSAL_CODES.tooMany ? TOO_MANY_TEXT : refusal.message
 }
 
-/** The status lines under the list, from the answer and the state of the VM. Empty when there is nothing to say. */
-export function statusLines(list: Pick<SshKeyList, 'applied' | 'sshd'>, vmState: string): string[] {
+/** The status lines under the list, from the answer and the state of the VM. Empty when there is nothing to say, and while SSH is being set up or failed (that block says it). */
+export function statusLines(list: Pick<SshKeyList, 'applied' | 'sshd' | 'sshdState'>, vmState: string): string[] {
+  if (list.sshdState !== 'idle') return []
   const lines: string[] = []
   if (!list.applied) lines.push(vmState === RUNNING_STATE ? NOT_APPLIED_RUNNING : NOT_APPLIED_STOPPED)
   if (list.sshd === 'missing') lines.push(SSHD_MISSING)
@@ -70,5 +72,5 @@ const isSshdState = (value: unknown): value is SshdState => SSHD_STATES.some((st
 export function parseSshKeyList(body: unknown): SshKeyList | null {
   if (!isFields(body) || !Array.isArray(body.keys)) return null
   const keys = body.keys.map(parseKey).filter((key): key is SshKey => key !== null)
-  return { keys, applied: body.applied === true, sshd: isSshdState(body.sshd) ? body.sshd : 'unknown' }
+  return { keys, applied: body.applied === true, sshd: isSshdState(body.sshd) ? body.sshd : 'unknown', ...parseSetup(body) }
 }

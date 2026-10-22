@@ -38,26 +38,33 @@ describe('refusal words', () => {
 
 describe('status lines under the list', () => {
   test('applied and sshd running or unknown: nothing to say', () => {
-    expect(statusLines({ applied: true, sshd: 'running' }, 'running')).toEqual([])
-    expect(statusLines({ applied: true, sshd: 'unknown' }, 'stopped')).toEqual([])
+    expect(statusLines({ applied: true, sshd: 'running', sshdState: 'idle' }, 'running')).toEqual([])
+    expect(statusLines({ applied: true, sshd: 'unknown', sshdState: 'idle' }, 'stopped')).toEqual([])
   })
 
   test('not applied while the VM is stopped: it will be written when it runs', () => {
-    expect(statusLines({ applied: false, sshd: 'unknown' }, 'stopped')).toEqual(['Saved. It will be written into the VM when the VM is running.'])
+    expect(statusLines({ applied: false, sshd: 'unknown', sshdState: 'idle' }, 'stopped')).toEqual(['Saved. It will be written into the VM when the VM is running.'])
   })
 
   test('not applied while the VM runs: the machine did not answer', () => {
-    expect(statusLines({ applied: false, sshd: 'unknown' }, 'running')).toEqual(['Saved, not applied yet: the machine did not answer. It will retry.'])
+    expect(statusLines({ applied: false, sshd: 'unknown', sshdState: 'idle' }, 'running')).toEqual(['Saved, not applied yet: the machine did not answer. It will retry.'])
   })
 
   test('sshd missing and installed each have a line, after the applied line', () => {
-    expect(statusLines({ applied: false, sshd: 'missing' }, 'stopped')[1]).toContain('No SSH server was found')
-    expect(statusLines({ applied: true, sshd: 'installed' }, 'running')).toEqual(['An SSH server is installed in this VM but not running.'])
+    expect(statusLines({ applied: false, sshd: 'missing', sshdState: 'idle' }, 'stopped')[1]).toContain('No SSH server was found')
+    expect(statusLines({ applied: true, sshd: 'installed', sshdState: 'idle' }, 'running')).toEqual(['An SSH server is installed in this VM but not running.'])
+  })
+})
+
+describe('status lines while SSH is being set up', () => {
+  test('installing or failed: the setup block speaks, so no other line shows', () => {
+    expect(statusLines({ applied: false, sshd: 'missing', sshdState: 'installing' }, 'running')).toEqual([])
+    expect(statusLines({ applied: false, sshd: 'installed', sshdState: 'failed' }, 'running')).toEqual([])
   })
 })
 
 describe('reading the answer', () => {
-  const body: SshKeyList = { keys: [{ id: 'k1', type: 'ssh-ed25519', fingerprint: 'SHA256:abc', comment: 'me@laptop', added_at: 1_700_000_000 }], applied: true, sshd: 'running' }
+  const body: SshKeyList = { keys: [{ id: 'k1', type: 'ssh-ed25519', fingerprint: 'SHA256:abc', comment: 'me@laptop', added_at: 1_700_000_000 }], applied: true, sshd: 'running', sshdState: 'idle', sshdMessage: null, connect: null }
 
   test('a good answer is read as it is', () => {
     expect(parseSshKeyList(body)).toEqual(body)

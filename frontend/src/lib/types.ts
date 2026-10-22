@@ -42,6 +42,8 @@ export interface MachineSettings {
   subdomain: string | null
   public_chat: boolean
   ai_model: string | null
+  /** user@host[:port] the ssh command goes through; null uses the machine's office address. */
+  ssh_jump: string | null
 }
 
 export interface Workload {
@@ -155,6 +157,7 @@ export interface MachineSettingsPatch {
   vm_image?: string | null
   subdomain?: string | null
   ai_model?: string | null
+  ssh_jump?: string | null
 }
 
 export interface CommandResult {
@@ -536,11 +539,28 @@ export interface SshKey {
 /** Whether an SSH server was found inside the VM: `unknown` means it never reported. */
 export type SshdState = 'running' | 'installed' | 'missing' | 'unknown'
 
-/** The answer of every SSH-keys call. `applied` false means the list is saved but not written into the VM yet. */
+/** Where the SSH server inside the VM is: idle (nothing going on), installing (the helper is setting it up) or failed (see the message). */
+export type SshdProgress = 'idle' | 'installing' | 'failed'
+
+/** How to log in to the VM from outside: the jump host, whether it is the machine's own office address, and the ready-to-paste command. */
+export interface SshConnect {
+  jump: string | null
+  jumpIsDefault: boolean
+  vmAddress: string | null
+  command: string | null
+}
+
+/**
+ * The answer of every SSH-keys call. `applied` false means the list is saved but not written into the VM yet.
+ * `connect` is null when the parent is old and does not send it; then only the old plain line can be shown.
+ */
 export interface SshKeyList {
   keys: SshKey[]
   applied: boolean
   sshd: SshdState
+  sshdState: SshdProgress
+  sshdMessage: string | null
+  connect: SshConnect | null
 }
 
 export interface MachineStatsReply {

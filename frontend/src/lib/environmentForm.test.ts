@@ -13,13 +13,13 @@ const form = (extra: Partial<EnvForm> = {}): EnvForm => ({ ...formFromMachine(st
 test('formFromMachine of the default record is empty apart from the name and the GPU offer', () => {
   expect(formFromMachine(studio())).toEqual({
     name: 'mac-studio', labels: '', notes: '', allowGpu: true, ramReserveMb: '', diskReserveGb: '', ramAllowanceMb: '', diskAllowanceGb: '', vmMaxRunning: '',
-    vmCpu: '', vmRamMb: '', vmDiskGb: '', vmImage: '', subdomain: '', aiModel: '',
+    vmCpu: '', vmRamMb: '', vmDiskGb: '', vmImage: '', subdomain: '', aiModel: '', sshJump: '',
   })
 })
 
 test('formFromMachine reads every saved setting, and a machine with no settings gets the defaults', () => {
-  const saved = machine({ name: 'dgx', settings: { labels: ['gpu', 'lab'], notes: 'rack 2', allow_gpu: false, ram_reserve_mb: 2048, vm_cpu: 4, vm_image: 'ubuntu:24.04', subdomain: 'dgx', ai_model: 'm1' } })
-  expect(formFromMachine(saved)).toMatchObject({ labels: 'gpu, lab', notes: 'rack 2', allowGpu: false, ramReserveMb: '2048', vmCpu: '4', vmImage: 'ubuntu:24.04', subdomain: 'dgx', aiModel: 'm1' })
+  const saved = machine({ name: 'dgx', settings: { labels: ['gpu', 'lab'], notes: 'rack 2', allow_gpu: false, ram_reserve_mb: 2048, vm_cpu: 4, vm_image: 'ubuntu:24.04', subdomain: 'dgx', ai_model: 'm1', ssh_jump: 'me@dgx.example.com:22' } })
+  expect(formFromMachine(saved)).toMatchObject({ labels: 'gpu, lab', notes: 'rack 2', allowGpu: false, ramReserveMb: '2048', vmCpu: '4', vmImage: 'ubuntu:24.04', subdomain: 'dgx', aiModel: 'm1', sshJump: 'me@dgx.example.com:22' })
   expect(formFromMachine(machine({ name: 'x' }))).toMatchObject({ allowGpu: true, notes: '', labels: '' })
 })
 
@@ -153,18 +153,18 @@ test('patchFor sends only the fields that changed', () => {
 test('patchFor sends every field it knows with the parent\'s names', () => {
   const everything = form({
     name: 'n', labels: 'a, b', notes: 'hello', allowGpu: false, ramReserveMb: '1024', diskReserveGb: '10', ramAllowanceMb: '8192', diskAllowanceGb: '200', vmMaxRunning: '3',
-    vmCpu: '2', vmRamMb: '2048', vmDiskGb: '20', vmImage: 'ubuntu:24.04', subdomain: 'sub', aiModel: 'model-1',
+    vmCpu: '2', vmRamMb: '2048', vmDiskGb: '20', vmImage: 'ubuntu:24.04', subdomain: 'sub', aiModel: 'model-1', sshJump: 'you@studio.example.com:2222',
   })
   expect(patchFor(everything, studio())).toEqual({
     name: 'n', labels: ['a', 'b'], notes: 'hello', allow_gpu: false, ram_reserve_mb: 1024, disk_reserve_gb: 10, ram_allowance_mb: 8192, disk_allowance_gb: 200, vm_max_running: 3,
-    vm_cpu: 2, vm_ram_mb: 2048, vm_disk_gb: 20, vm_image: 'ubuntu:24.04', subdomain: 'sub', ai_model: 'model-1',
+    vm_cpu: 2, vm_ram_mb: 2048, vm_disk_gb: 20, vm_image: 'ubuntu:24.04', subdomain: 'sub', ai_model: 'model-1', ssh_jump: 'you@studio.example.com:2222',
   })
 })
 
 test('patchFor clears an emptied field with null, but never clears name, labels, notes or the GPU offer', () => {
-  const had = machine({ name: 'a', settings: { vm_cpu: 4, vm_image: 'x', subdomain: 's', ai_model: 'm', ram_reserve_mb: 5, labels: ['l'], notes: 'n' } })
-  const cleared = patchFor({ ...formFromMachine(had), vmCpu: '', vmImage: '', subdomain: '', aiModel: '', ramReserveMb: '', labels: '', notes: '' }, had)
-  expect(cleared).toEqual({ vm_cpu: null, vm_image: null, subdomain: null, ai_model: null, ram_reserve_mb: null, labels: [], notes: '' })
+  const had = machine({ name: 'a', settings: { vm_cpu: 4, vm_image: 'x', subdomain: 's', ai_model: 'm', ssh_jump: 'a@b', ram_reserve_mb: 5, labels: ['l'], notes: 'n' } })
+  const cleared = patchFor({ ...formFromMachine(had), vmCpu: '', vmImage: '', subdomain: '', aiModel: '', sshJump: '', ramReserveMb: '', labels: '', notes: '' }, had)
+  expect(cleared).toEqual({ vm_cpu: null, vm_image: null, subdomain: null, ai_model: null, ssh_jump: null, ram_reserve_mb: null, labels: [], notes: '' })
 })
 
 test('patchFor treats 0 as a value, not as empty', () => {
@@ -176,4 +176,19 @@ test('patchFor does not resend an unchanged value that the parent already has', 
   expect(patchFor({ ...formFromMachine(had), notes: '' }, had)).toEqual({})
   expect(patchFor({ ...formFromMachine(had), labels: 'x y' }, had)).toEqual({})
   expect(patchFor({ ...formFromMachine(had), labels: 'y, x' }, had)).toEqual({ labels: ['y', 'x'] })
+})
+
+test('the SSH address takes user@host and user@host:port, and refuses the rest in plain words', () => {
+  const refusal = 'Use the form user@host or user@host:port.'
+  for (const good of ['you@203.0.113.7', 'you@studio.example.com:2222', 'a.b_c-d@host-1.example.org']) expect(textProblem('sshJump', good)).toBeNull()
+  for (const bad of ['studio.example.com', 'you@', '@host', 'you@host:', 'you@host:123456', 'you@ho st', 'ssh you@host', 'you@host:22/x']) expect(textProblem('sshJump', bad)).toBe(refusal)
+  expect(textProblem('sshJump', '')).toBeNull()
+  expect(textProblem('sshJump', `${'a'.repeat(119)}@h`)).toContain('at most 120')
+})
+
+test('an emptied SSH address is sent as null, a changed one as ssh_jump, an unchanged one not at all', () => {
+  const had = machine({ name: 'a', settings: { ssh_jump: 'you@host' } })
+  expect(patchFor({ ...formFromMachine(had), sshJump: '' }, had)).toEqual({ ssh_jump: null })
+  expect(patchFor({ ...formFromMachine(had), sshJump: 'me@other:2200' }, had)).toEqual({ ssh_jump: 'me@other:2200' })
+  expect(patchFor(formFromMachine(had), had)).toEqual({})
 })

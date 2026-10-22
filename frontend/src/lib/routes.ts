@@ -29,6 +29,9 @@ const split = (route: string) => {
 /** The address of one machine's page, where its live numbers, VMs, settings and activity are. */
 export const machineHref = (id: string) => `#/machines/details?id=${encodeURIComponent(id)}`
 
+/** The address of one machine's Environment tab. */
+export const environmentHref = (id: string) => `${machineHref(id)}&tab=environment`
+
 /** The machine a detail address (/machines/details?id=...) is about, or null for every other address. */
 export function machineFromRoute(route: string): string | null {
   const { path, query } = split(route)

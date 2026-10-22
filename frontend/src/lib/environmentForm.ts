@@ -27,12 +27,15 @@ interface TextRule {
   pattern: RegExp
   max: number
   hint: string
+  /** The whole refusal, when "label: use hint" would not read well. */
+  message?: string
 }
 
 export const TEXT_RULES = {
   vmImage: { label: 'Image', pattern: /^[a-z0-9][a-z0-9._:/-]{0,127}$/, max: 128, hint: 'lowercase letters, numbers and . _ : / -' },
   subdomain: { label: 'Name on the internet', pattern: /^[a-z0-9][a-z0-9-]{0,30}$/, max: 31, hint: 'lowercase letters, numbers and dashes' },
   aiModel: { label: 'AI model', pattern: /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/, max: 100, hint: 'letters, numbers and . _ : / -' },
+  sshJump: { label: 'SSH address', pattern: /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(:[0-9]{1,5})?$/, max: 120, hint: 'user@host or user@host:port', message: 'Use the form user@host or user@host:port.' },
 } as const satisfies Record<string, TextRule>
 
 export type TextField = keyof typeof TEXT_RULES
@@ -56,7 +59,7 @@ export interface EnvForm extends Record<NumberField, string>, Record<TextField, 
 }
 
 const NUMBER_FIELDS: NumberField[] = ['ramReserveMb', 'diskReserveGb', 'ramAllowanceMb', 'diskAllowanceGb', 'vmMaxRunning', 'vmCpu', 'vmRamMb', 'vmDiskGb']
-const TEXT_FIELDS: TextField[] = ['vmImage', 'subdomain', 'aiModel']
+const TEXT_FIELDS: TextField[] = ['vmImage', 'subdomain', 'aiModel', 'sshJump']
 
 const text = (value: number | string | null | undefined): string => (value === null || value === undefined ? '' : String(value))
 
@@ -78,6 +81,7 @@ export function formFromMachine(machine: Machine): EnvForm {
     vmImage: text(settings.vm_image),
     subdomain: text(settings.subdomain),
     aiModel: text(settings.ai_model),
+    sshJump: text(settings.ssh_jump),
   }
 }
 
@@ -100,10 +104,10 @@ export function numberProblem(field: NumberField, value: string): string | null 
 }
 
 export function textProblem(field: TextField, value: string): string | null {
-  const { label, pattern, max, hint } = TEXT_RULES[field]
+  const rule: TextRule = TEXT_RULES[field]
   if (value === '') return null
-  if (value.length > max) return `${label} must be at most ${max} characters.`
-  return pattern.test(value) ? null : `${label}: use ${hint}.`
+  if (value.length > rule.max) return `${rule.label} must be at most ${rule.max} characters.`
+  return rule.pattern.test(value) ? null : (rule.message ?? `${rule.label}: use ${rule.hint}.`)
 }
 
 export function labelsProblem(value: string): string | null {
@@ -170,5 +174,6 @@ export function patchFor(form: EnvForm, machine: Machine): MachineSettingsPatch 
     ...(textOrNull(form.vmImage) === (was.vm_image ?? null) ? {} : { vm_image: textOrNull(form.vmImage) }),
     ...(textOrNull(form.subdomain) === (was.subdomain ?? null) ? {} : { subdomain: textOrNull(form.subdomain) }),
     ...(textOrNull(form.aiModel) === (was.ai_model ?? null) ? {} : { ai_model: textOrNull(form.aiModel) }),
+    ...(textOrNull(form.sshJump) === (was.ssh_jump ?? null) ? {} : { ssh_jump: textOrNull(form.sshJump) }),
   }
 }
