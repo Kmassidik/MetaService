@@ -4,6 +4,7 @@
 import puppeteer, { type Page } from 'puppeteer-core'
 import { startStandIn, type StandIn } from './monitor/stand-in.ts'
 import { cardsAreBorderedAndEqualInHeight, chartsAreFullWithHistory, coresAreAlwaysShown, helpButtonsToggleTheExplanations, listIsNeverFetchedOrDrawnWhileTheWindowIsClosed, oneColumnWithoutSidewaysScroll, SIZES, topologyShowsCoresAndThreads, waitForNumbers, windowListsFifteenAndFilters, windowRefreshesWhileOpenAndStopsWhenClosed, windowSortsByCpuAndMemory } from './monitor/live-steps.ts'
+import { gpuOnTheLiveTab } from './monitor/gpu-steps.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
 import { noSideScroll, owlShown } from './support/owls.ts'
@@ -190,7 +191,7 @@ try {
   await page.setViewport(SIZES.desktop)
   await numbersAppear(b, world)
   await cardsAreBorderedAndEqualInHeight(b, 'studio', true)
-  await chartsAreFullWithHistory(b, world, 'studio', 'full')
+  await chartsAreFullWithHistory(b, world, 'studio', 'full', ['GPU use', 'GPU memory', 'GPU temperature', 'GPU power'])
   const historyAsked = world.askedHistory.studio
   await topologyShowsCoresAndThreads(b, 'studio', '16 cores · 32 threads', 16, 2, true)
   await numbersUseTabularFigures(b)
@@ -209,6 +210,7 @@ try {
   await tabBarAndPolling(page, b, world)
   await everyTabFitsAPhone(page, b, world)
   await pictures(page, b, world)
+  await gpuOnTheLiveTab(page, b, world)
   await oldHelper(b, world)
   await offline(page, b, world)
   await listIsSlower(b, world)

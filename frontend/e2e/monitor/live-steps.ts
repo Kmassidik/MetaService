@@ -30,13 +30,13 @@ export async function waitForNumbers(b: Browse) {
   await b.until(() => !!document.querySelector('[data-testid=gauge-cpu]'), { timeout: SHORT_WAIT_MS })
 }
 
-/** The new layout: a gauge row, then bands of two cards (CPU and Memory, System load and Disk speed, Network and GPU), then the disk volumes. */
+/** The new layout: a gauge row, then bands of two cards (CPU and Memory, System load and Disk speed, Network and GPU), the GPU charts, then the disk volumes. */
 export async function cardsAreBorderedAndEqualInHeight(b: Browse, id: string, hasGpu: boolean) {
   const gauges = await cardsOf(b, 'gauge-row')
   const bands = [await cardsOf(b, 'band-cpu'), await cardsOf(b, 'band-load'), await cardsOf(b, 'band-network'), await cardsOf(b, 'band-volumes')]
   const all = [...gauges, ...bands.flat()]
   check(`${id}: every card has a 1px border in the panel's grey`, all.length > 0 && all.every((card) => card.border === '1px' && card.borderColor === PANEL_GREY), JSON.stringify(all.map((card) => [card.border, card.borderColor])))
-  check(`${id}: the gauge row has five cards of the same size, side by side`, gauges.length === 5 && gauges.every((card) => closeTo(card.width, gauges[0]?.width ?? -1) && closeTo(card.height, gauges[0]?.height ?? -1) && closeTo(card.top, gauges[0]?.top ?? -1)), JSON.stringify(gauges))
+  check(`${id}: the gauge row has ${hasGpu ? 'six (the GPU is the sixth)' : 'five'} cards of the same size, side by side`, gauges.length === (hasGpu ? 6 : 5) && gauges.every((card) => closeTo(card.width, gauges[0]?.width ?? -1) && closeTo(card.height, gauges[0]?.height ?? -1) && closeTo(card.top, gauges[0]?.top ?? -1)), JSON.stringify(gauges))
   const [cpuBand, loadBand, netBand, volumes] = bands
   for (const [name, band] of [['CPU and Memory', cpuBand], ['System load and Disk speed', loadBand]] as const) {
     check(`${id}: ${name} are two cards of the same width and height, 16 px apart`, band?.length === 2 && closeTo(band[0]?.width ?? 0, band[1]?.width ?? -1) && closeTo(band[0]?.height ?? 0, band[1]?.height ?? -1) && closeTo((band[1]?.left ?? 0) - ((band[0]?.left ?? 0) + (band[0]?.width ?? 0)), 16), JSON.stringify(band))
@@ -46,7 +46,7 @@ export async function cardsAreBorderedAndEqualInHeight(b: Browse, id: string, ha
 }
 
 /** The charts are drawn from the first look: the parent's hour is fetched once and the lines, legends and axes are there. */
-export async function chartsAreFullWithHistory(b: Browse, world: StandIn, id: string, optional: 'full' | 'mac' | 'none') {
+export async function chartsAreFullWithHistory(b: Browse, world: StandIn, id: string, optional: 'full' | 'mac' | 'none', gpuCharts: readonly string[] = []) {
   check(`${id}: the history route was asked when the page opened`, (world.askedHistory[id] ?? 0) >= 1, String(world.askedHistory[id]))
   const drawn = await b.run(() => [...document.querySelectorAll<HTMLElement>('[data-testid=monitor-numbers] .chart')].map((chart) => ({
     name: chart.dataset.testid ?? '',
@@ -58,8 +58,9 @@ export async function chartsAreFullWithHistory(b: Browse, world: StandIn, id: st
     summary: chart.querySelectorAll('.sr-only table tbody tr').length,
   })))
   const names = drawn.map((chart) => chart.name).join('|')
-  const expected = optional === 'none' ? 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Network speed' : 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Disk speed|chart-Network speed'
-  check(`${id}: the charts are CPU, memory, load, ${optional === 'none' ? '' : 'disk speed, '}network`, names === expected, names)
+  const plain = optional === 'none' ? 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Network speed' : 'chart-CPU usage|chart-Memory usage|chart-System load|chart-Disk speed|chart-Network speed'
+  const expected = [plain, ...gpuCharts.map((name) => `chart-${name}`)].join('|')
+  check(`${id}: the charts are CPU, memory, load, ${optional === 'none' ? '' : 'disk speed, '}network${gpuCharts.length > 0 ? `, ${gpuCharts.join(', ')}` : ''}`, names === expected, names)
   check(`${id}: every chart has lines on first load, time labels, a y axis, a legend and "per 10 seconds"`, drawn.every((chart) => chart.lines >= 1 && chart.xLabels >= 2 && chart.yLabels >= 2 && chart.legend >= 1 && chart.caption.includes('per 10 seconds') && chart.summary >= 1 && chart.summary === chart.legend), JSON.stringify(drawn))
   const legend = await b.run(() => Object.fromEntries([...document.querySelectorAll<HTMLElement>('[data-testid^=legend-]')].map((cell) => [cell.dataset.testid ?? '', cell.innerText])))
   check(`${id}: legend values are real numbers, not zeros or blanks`, [optional === 'none' ? 'legend-total' : 'legend-user', 'legend-1m', 'legend-in', 'legend-used'].every((key) => /\d/.test(legend[key] ?? '')), JSON.stringify(legend))

@@ -1,5 +1,5 @@
 // A stand-in parent for the monitor test. It answers what the panel asks and gives every machine a reading that changes at each call.
-// Five machines: "studio" (16 cores, 32 threads, one GPU, every optional number, a hostile process name), "mini" (2 cores, 4 threads; can be taken offline), "oldbox" (its helper is too old),
+// Seven machines: "studio" (16 cores, 32 threads, one NVIDIA GPU, every optional number, a hostile process name), "duo" (two GPUs: NVIDIA and AMD), "macgpu" (a Mac with its Apple GPU: use and memory only), "mini" (2 cores, 4 threads; can be taken offline), "oldbox" (its helper is too old),
 // "mac" (a Mac: 10 cores, clusters, four CPU states, no frequency or temperature) and "bare" (an 8-core Mac that sends none of the optional numbers).
 // It also keeps an hour of readings per machine for the history route and counts how often that route is asked.
 // It counts how often each stats route is asked, so the test can compare the page with the list.
@@ -7,6 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { extname, join } from 'node:path'
 import type { Json } from '../support/json.ts'
+import { gpuSeriesAt, gpusAt, type GpuKind } from './gpu-readings.ts'
 
 const CONTENT_TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const GIB = 1024 ** 3
@@ -45,16 +46,18 @@ const machine = (id: string, cores: number, os = 'linux'): Json => ({
 })
 
 type Extras = 'full' | 'mac' | 'none'
-interface Kind { threads: number; cores: number; extras: Extras; gpu: boolean }
+interface Kind { threads: number; cores: number; extras: Extras; gpus: readonly GpuKind[] }
 
 const KINDS: Record<string, Kind> = {
-  studio: { threads: STUDIO_THREADS, cores: STUDIO_CORES, extras: 'full', gpu: true },
-  mini: { threads: PLAIN_THREADS, cores: PLAIN_CORES, extras: 'full', gpu: false },
-  oldbox: { threads: 2, cores: 2, extras: 'none', gpu: false },
-  mac: { threads: MAC_CORES, cores: MAC_CORES, extras: 'mac', gpu: false },
-  bare: { threads: BARE_CORES, cores: BARE_CORES, extras: 'none', gpu: false },
+  studio: { threads: STUDIO_THREADS, cores: STUDIO_CORES, extras: 'full', gpus: ['nvidia'] },
+  duo: { threads: PLAIN_THREADS, cores: PLAIN_CORES, extras: 'full', gpus: ['nvidia', 'amd'] },
+  macgpu: { threads: MAC_CORES, cores: MAC_CORES, extras: 'mac', gpus: ['apple'] },
+  mini: { threads: PLAIN_THREADS, cores: PLAIN_CORES, extras: 'full', gpus: [] },
+  oldbox: { threads: 2, cores: 2, extras: 'none', gpus: [] },
+  mac: { threads: MAC_CORES, cores: MAC_CORES, extras: 'mac', gpus: [] },
+  bare: { threads: BARE_CORES, cores: BARE_CORES, extras: 'none', gpus: [] },
 }
-const kindOf = (id: string): Kind => KINDS[id] ?? { threads: PLAIN_THREADS, cores: PLAIN_THREADS, extras: 'none', gpu: false }
+const kindOf = (id: string): Kind => KINDS[id] ?? { threads: PLAIN_THREADS, cores: PLAIN_THREADS, extras: 'none', gpus: [] }
 
 /** The CPU states of one reading, summing to 100; a Mac gives four of them. */
 function breakdownOf(call: number, total: number, extras: Extras): Json {
@@ -91,7 +94,7 @@ function reading(call: number, id: string, withProcesses: boolean): Json {
     memory: { total_bytes: 32 * GIB, used_bytes: used, cached_bytes: 6 * GIB, free_bytes: 32 * GIB - used - 6 * GIB, swap_total_bytes: 0, swap_used_bytes: 0 },
     disks: [{ mount: '/', name: 'root', fs: 'ext4', total_bytes: 500 * GIB, used_bytes: 200 * GIB, free_bytes: 300 * GIB }],
     network: { received_total_bytes: 1000 * call, sent_total_bytes: 500 * call, received_bytes_per_second: 100000 + call * 1000, sent_bytes_per_second: 20000 + call * 100, ...more.network },
-    ...(kind.gpu ? { gpus: [{ name: 'Test GPU 5090', utilization_percent: 40, memory_used_bytes: 2 * GIB, memory_total_bytes: 32 * GIB, temperature_celsius: 55 }] } : {}),
+    ...(kind.gpus.length > 0 ? { gpus: gpusAt(call, kind.gpus) } : {}),
     processes: withProcesses ? processesAt(call).map((one, index) => ({ ...one, ...more.process(index) })) : [],
     ...more.top,
   }
@@ -109,6 +112,7 @@ function historyOf(id: string): Json {
       mem_used: (8 + (call % 8)) * GIB, mem_cached: 6 * GIB, mem_total: 32 * GIB, swap_used: 0, swap_total: 0,
       net_in_bps: 100000 + call * 1000, net_out_bps: 20000 + call * 100,
       ...(kind.extras === 'none' ? {} : { cpu_breakdown: breakdownOf(call, total, kind.extras), disk_read: 2_000_000 + call * 10_000, disk_write: 500_000 + call * 5_000, net_drops: Math.floor(call / 3), processes_count: 412 }),
+      ...gpuSeriesAt(call, kind.gpus),
     }
   })
   return { interval_seconds: HISTORY_STEP_SECONDS, points }
@@ -121,10 +125,10 @@ function processesAt(call: number): Json[] {
 }
 
 export function startStandIn(dist: string): StandIn {
-  const machines = [machine('studio', STUDIO_THREADS), machine('mini', PLAIN_THREADS), machine('oldbox', 2), machine('mac', MAC_CORES, 'macos'), machine('bare', BARE_CORES, 'macos')]
-  const asked: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [] }
-  const askedWithProcesses: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [] }
-  const askedHistory: Record<string, number> = { studio: 0, mini: 0, oldbox: 0, mac: 0, bare: 0 }
+  const machines = [machine('studio', STUDIO_THREADS), machine('mini', PLAIN_THREADS), machine('oldbox', 2), machine('mac', MAC_CORES, 'macos'), machine('bare', BARE_CORES, 'macos'), machine('duo', PLAIN_THREADS), machine('macgpu', MAC_CORES, 'macos')]
+  const asked: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [], duo: [], macgpu: [] }
+  const askedWithProcesses: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [], duo: [], macgpu: [] }
+  const askedHistory: Record<string, number> = { studio: 0, mini: 0, oldbox: 0, mac: 0, bare: 0, duo: 0, macgpu: 0 }
   const queries: string[] = []
   const offline = new Set<string>()
   const last = new Map<string, Json>()
