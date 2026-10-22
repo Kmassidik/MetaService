@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { imageAfterChange, imageBundle, imageNotes, imageOptions, parseMachineImages, STOCK_IMAGE, type ImageHelper, type MachineImages } from './images.ts'
+import { imageAfterChange, imageBundle, imageCards, imageOptions, parseMachineImages, STOCK_IMAGE, type ImageHelper, type MachineImages } from './images.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 
 const COMING_SOON = 'Coming soon: needs the image to be prepared on the machine'
@@ -42,23 +42,33 @@ test('a planned image that claims to be available is refused', () => {
 test('Blank is selectable and OpenClaw and Hermes are disabled with their reasons', () => {
   const options = imageOptions(parsed())
   expect(options.map((option) => [option.id, option.disabled])).toEqual([['blank', false], ['openclaw', true], ['hermes', true]])
-  expect(options[0]?.label).toBe('Blank (plain Ubuntu)')
-  expect(options[1]).toMatchObject({ label: 'OpenClaw (not available yet)', reason: COMING_SOON })
-  expect(options[2]).toMatchObject({ label: 'Hermes (not available yet)', reason: WAITING })
+  expect(options[0]?.title).toBe('Blank (plain Ubuntu)')
+  expect(options[1]).toMatchObject({ title: 'OpenClaw', reason: COMING_SOON })
+  expect(options[2]).toMatchObject({ title: 'Hermes', reason: WAITING })
 })
 
 test('before the answer arrives, or when it cannot be read, only Blank is offered', () => {
   const options = imageOptions(null)
   expect(options.map((option) => [option.id, option.disabled])).toEqual([['blank', false]])
-  expect(options[0]?.label).toBe('Blank (plain Ubuntu)')
+  expect(options[0]?.title).toBe('Blank (plain Ubuntu)')
 })
 
-test('one line under the select for each image that cannot be picked, with its reason', () => {
-  expect(imageNotes(imageOptions(parsed()))).toEqual([`OpenClaw - ${COMING_SOON}`, `Hermes - ${WAITING}`])
-  expect(imageNotes(imageOptions(null))).toEqual([])
+test('the cards say what Blank is, and give the reason as the caption of each image that cannot be picked', () => {
+  const cards = imageCards(imageOptions(parsed()))
+  expect(cards).toEqual([
+    { id: 'blank', title: 'Blank (plain Ubuntu)', caption: 'Ubuntu 24.04 with the usual server tools. Nothing else.', disabled: false },
+    { id: 'openclaw', title: 'OpenClaw', caption: COMING_SOON, disabled: true },
+    { id: 'hermes', title: 'Hermes', caption: WAITING, disabled: true },
+  ])
+  expect(imageCards(imageOptions(null)).map((card) => card.id)).toEqual(['blank'])
 })
 
-test('the description of the picked image is what the line under the select shows', () => {
+test('an image that cannot be picked and gave no reason still says so', () => {
+  const quiet = parseMachineImages(answer({ images: [blank, { ...openclaw, reason: null }] }))
+  expect(imageCards(imageOptions(quiet))[1]?.caption).toBe('not available yet')
+})
+
+test('the description of an image is what its card shows while it can be picked', () => {
   expect(imageOptions(parsed())[0]?.description).toBe('Ubuntu 24.04 with the usual server tools. Nothing else.')
 })
 
@@ -66,8 +76,7 @@ test('hostile text from the parent stays text and changes nothing about who can 
   const hostile = '<img src=x onerror=alert(1)><script>window.pwned=1</script>'
   const evil = parseMachineImages(answer({ images: [blank, { ...openclaw, title: hostile, reason: hostile }] }))
   const options = imageOptions(evil)
-  expect(options[1]?.label).toBe(`${hostile} (not available yet)`)
-  expect(imageNotes(options)).toEqual([`${hostile} - ${hostile}`])
+  expect(imageCards(options)[1]).toEqual({ id: 'openclaw', title: hostile, caption: hostile, disabled: true })
   expect(options[1]?.disabled).toBe(true)
 })
 

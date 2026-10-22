@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { blankForm, kindChoices, kindAfterPick, machineChoices, machineDefaults, machineOptions, preselectedMachine, startingMachine, unavailableNotes } from './createVm.ts'
+import { blankForm, kindAfterPick, machineChoices, machineDefaults, machineOptions, pickMachine, preselectedMachine, runtimeCards, startingMachine, unavailableNotes } from './createVm.ts'
 import { machine } from './testing.ts'
 
 const caps = (vm: boolean, container: boolean) => ({ vm, container, gpu_in_vm: false, gpu_in_container: false })
@@ -53,10 +53,20 @@ test('a machine that has not reported what it can run is pickable with both kind
   expect(choice('new')).toMatchObject({ label: 'new', disabled: false, vm: true, container: true })
 })
 
-test('the kind choices disable the ones the picked machine cannot run, with the reason', () => {
-  expect(kindChoices(choice('box'))).toEqual([{ kind: 'vm', label: 'VM (this machine runs containers only)', disabled: true }, { kind: 'container', label: 'Container', disabled: false }])
-  expect(kindChoices(choice('zed'))).toEqual([{ kind: 'vm', label: 'VM', disabled: false }, { kind: 'container', label: 'Container', disabled: false }])
-  expect(kindChoices(undefined).every((entry) => !entry.disabled)).toBe(true)
+test('the runtime cards grey out the one the picked machine cannot run, with the reason', () => {
+  const only = runtimeCards(choice('box'))
+  expect(only.map((card) => `${card.kind}:${card.disabled}`)).toEqual(['container:false', 'vm:true'])
+  expect(only[1]?.reason).toBe('This machine runs containers only')
+  const both = runtimeCards(choice('zed'))
+  expect(both.map((card) => card.label)).toEqual(['Container', 'VM'])
+  expect(both.map((card) => card.caption)).toEqual(['fast stop & wake', 'full VM · classic'])
+  expect(both.every((card) => !card.disabled && card.reason === null)).toBe(true)
+  expect(runtimeCards(undefined).every((card) => !card.disabled)).toBe(true)
+})
+
+test('a machine that cannot run containers greys out the Container card', () => {
+  const vmOnly = runtimeCards(machineChoices([machine({ id: 'v', name: 'v', capabilities: caps(true, false) })])[0])
+  expect(vmOnly.find((card) => card.kind === 'container')).toMatchObject({ disabled: true, reason: 'This machine cannot run containers' })
 })
 
 test('picking a containers-only machine moves a VM form to Container, and leaves a fitting kind alone', () => {
@@ -88,17 +98,32 @@ test('the window starts with the machine it was opened from, else the pickable o
   expect(startingMachine('/vms', null, choices)).toBe('')
 })
 
+test('with only one machine that can take a VM, the window starts with it', () => {
+  const choices = machineChoices([fleet[0]!, fleet[1]!, fleet[2]!])
+  expect(startingMachine('/vms/create', null, choices)).toBe('zed')
+  expect(startingMachine('/vms/create', null, machineChoices([fleet[1]!]))).toBe('')
+})
+
 test('each machine that cannot be picked is explained in a line, with the machine\'s own words when it gave some', () => {
   expect(unavailableNotes(machineChoices(fleet))).toEqual(['none: cannot run VMs or containers', 'off: offline', 'sick: needs setup (the bridge incusbr0 is not trusted)', 'working: busy'])
   expect(unavailableNotes(machineChoices([fleet[0]!]))).toEqual([])
 })
 
-test('a new form has the usual defaults; a machine set up with VM sizes gives them', () => {
-  expect(blankForm(undefined)).toEqual({ name: '', kind: 'vm', cpu: 2, ramGb: 2, diskGb: 20, machine: '', bundle: 'blank' })
+test('a new form starts on Medium; a machine set up with other VM sizes starts on Custom with them; sizes equal to a preset pick it', () => {
+  expect(blankForm(undefined)).toEqual({ name: '', kind: 'vm', cpu: 2, ramGb: 4, diskGb: 40, size: 'medium', machine: '', bundle: 'blank' })
   const sized = machine({ id: 'm', settings: { vm_cpu: 4, vm_ram_mb: 8192, vm_disk_gb: 80 } })
-  expect(blankForm(sized)).toEqual({ name: '', kind: 'vm', cpu: 4, ramGb: 8, diskGb: 80, machine: 'm', bundle: 'blank' })
+  expect(blankForm(sized)).toEqual({ name: '', kind: 'vm', cpu: 4, ramGb: 8, diskGb: 80, size: 'custom', machine: 'm', bundle: 'blank' })
+  const large = machine({ id: 'm', settings: { vm_cpu: 4, vm_ram_mb: 8192, vm_disk_gb: 60 } })
+  expect(blankForm(large)).toMatchObject({ cpu: 4, ramGb: 8, diskGb: 60, size: 'large' })
   expect(machineDefaults(machine({ settings: { vm_cpu: 6 } }))).toEqual({ cpu: 6 })
   expect(machineDefaults(machine())).toEqual({})
+})
+
+test('picking another machine fills in its sizes and keeps what was typed', () => {
+  const typed = { ...blankForm(undefined), name: 'mine', bundle: 'blank' }
+  const sized = machine({ id: 'm', settings: { vm_cpu: 4, vm_ram_mb: 8192, vm_disk_gb: 80 } })
+  expect(pickMachine(typed, sized)).toMatchObject({ name: 'mine', machine: 'm', size: 'custom', cpu: 4, ramGb: 8, diskGb: 80 })
+  expect(pickMachine({ ...typed, size: 'custom', cpu: 9 }, machine({ id: 'plain' }))).toMatchObject({ size: 'medium', cpu: 2, machine: 'plain' })
 })
 
 test('a containers-only machine\'s blank form starts as a container', () => {

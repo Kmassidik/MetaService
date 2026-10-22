@@ -31,14 +31,12 @@ export interface MachineImages {
   images: MachineImage[]
 }
 
-/** One line of the select. */
+/** One image of the catalog, ready for the cards. */
 export interface ImageOption {
   id: string
   title: string
-  /** What the select shows: the title, and "(not available yet)" when it cannot be picked. */
-  label: string
   disabled: boolean
-  /** Shown under the select while this one is picked. */
+  /** What the image is, shown under its card while it can be picked. */
   description: string
   reason: string | null
 }
@@ -88,24 +86,30 @@ export function parseMachineImages(raw: unknown): MachineImages {
   return { helper: oneOf(HELPERS, raw.helper, 'helper'), images }
 }
 
-const STOCK_OPTION: ImageOption = { id: STOCK_IMAGE, title: STOCK_TITLE, label: STOCK_TITLE, disabled: false, description: STOCK_DESCRIPTION, reason: null }
+const STOCK_OPTION: ImageOption = { id: STOCK_IMAGE, title: STOCK_TITLE, disabled: false, description: STOCK_DESCRIPTION, reason: null }
 
 const option = (entry: MachineImage): ImageOption => ({
   id: entry.id,
   title: entry.title,
-  label: entry.available ? entry.title : `${entry.title} (${NOT_YET})`,
   disabled: !entry.available,
   description: entry.description,
   reason: entry.reason,
 })
 
-/** What the select lists. Before the answer arrives, or when it cannot be read, only Blank (it works on every machine). */
+/** What the cards list. Before the answer arrives, or when it cannot be read, only Blank (it works on every machine). */
 export const imageOptions = (answer: MachineImages | null): ImageOption[] => (answer === null ? [STOCK_OPTION] : answer.images.map(option))
 
-/** One line for each image that cannot be picked: its name and why. */
-export function imageNotes(options: ImageOption[]): string[] {
-  return options.filter((entry) => entry.disabled && entry.reason !== null).map((entry) => `${entry.title} - ${entry.reason}`)
+/** One Image card: the name, one short line under it (the reason when the image cannot be picked, else what it is). */
+export interface ImageCard {
+  id: string
+  title: string
+  caption: string
+  disabled: boolean
 }
+
+/** The cards of the Image row, in the catalog's order. */
+export const imageCards = (options: ImageOption[]): ImageCard[] =>
+  options.map((entry) => ({ id: entry.id, title: entry.title, caption: entry.disabled ? (entry.reason ?? NOT_YET) : entry.description, disabled: entry.disabled }))
 
 /** The image to keep after the list changed (another machine, a new answer): the current one when it can still be picked, else Blank. */
 export function imageAfterChange(options: ImageOption[], current: string): string {
