@@ -84,7 +84,7 @@
 </div>
 
 <style>
-  .top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .top { display: flex; gap: 16px; align-items: center; }
   .top :global(.owl) { margin-left: auto; }
   h2 { margin: 0; font-size: 18px; line-height: 1.25; }
   .time { margin: 2px 0 0; font-family: var(--mono); font-size: 13px; color: var(--m70); }
@@ -108,5 +108,5 @@
   .foot { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
   .open { text-decoration: none; display: inline-flex; align-items: center; border-color: var(--black); }
   .btn.line { border-color: var(--black); }
-  @media (max-width: 520px) { .foot .btn { flex: 1 1 100%; justify-content: center; } }
+  @media (max-width: 520px) { .foot .btn { flex: 1 1 100%; justify-content: center; } .top :global(.owl) { max-width: 80px; } }
 </style>
