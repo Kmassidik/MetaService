@@ -11,24 +11,24 @@ const PAGE_PADDING = 28
 const RAPID_CLICKS = 5
 const PHONE = { width: 400, height: 844 }
 const LAPTOP = { width: 1280, height: 800 }
-const LEFT_SECTIONS = 'This machine|Software|Ruvio'
-const RIGHT_SECTIONS = 'Limits|A new VM gets|Names'
+const LEFT_SECTIONS = 'This machine|Software'
+const RIGHT_SECTIONS = 'Ruvio|Limits|A new VM gets|Names'
 
 export const barShown = (b: Browse) => b.run((selector) => !!document.querySelector(selector), BAR)
 
 const sectionsOf = (b: Browse, column: 'left' | 'right') => b.run((which) => {
-  const root = which === 'left' ? document.querySelector('.env > div.col') : document.querySelector('.env > form.col')
+  const root = document.querySelector(which === 'left' ? '.env > .col:first-child' : '.env > .col:nth-child(2)')
   return [...(root?.querySelectorAll('section[aria-label]') ?? [])].map((section) => section.getAttribute('aria-label')).join('|')
 }, column)
 
 const columnEdges = (b: Browse) => b.run(() => {
   const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect()
-  const left = box('.env > div.col')
-  const right = box('.env > form.col')
+  const left = box('.env > .col:first-child')
+  const right = box('.env > .col:nth-child(2)')
   const tabs = box('[role=tablist]')
   const first = (selector: string) => box(selector)?.top ?? -1
   return {
-    leftTop: first('.env > div.col > :first-child'), rightTop: first('.env > form.col > :first-child'),
+    leftTop: first('.env > .col:first-child > :first-child'), rightTop: first('.env > .col:nth-child(2) > :first-child'),
     leftLeft: left?.left ?? -1, rightLeft: right?.left ?? -1, rightRight: right?.right ?? -1, gap: (right?.left ?? 0) - (left?.right ?? 0),
     tabsLeft: tabs?.left ?? -1, tabsRight: tabs?.right ?? -1, width: window.innerWidth,
   }
@@ -37,8 +37,8 @@ const columnEdges = (b: Browse) => b.run(() => {
 /** At laptop width: the facts on the left, the form on the right, same top, and the page edges of the tab bar. */
 export async function twoColumns(page: Page, b: Browse): Promise<void> {
   await page.setViewport(LAPTOP)
-  check('left column has This machine, Software, Ruvio', (await sectionsOf(b, 'left')) === LEFT_SECTIONS, await sectionsOf(b, 'left'))
-  check('right column has Limits, A new VM gets, Names', (await sectionsOf(b, 'right')) === RIGHT_SECTIONS, await sectionsOf(b, 'right'))
+  check('left column has This machine, Software', (await sectionsOf(b, 'left')) === LEFT_SECTIONS, await sectionsOf(b, 'left'))
+  check('right column has Ruvio, Limits, A new VM gets, Names', (await sectionsOf(b, 'right')) === RIGHT_SECTIONS, await sectionsOf(b, 'right'))
   const edges = await columnEdges(b)
   const aligned = (one: number, other: number) => Math.abs(one - other) <= SAME_PIXEL
   check('both columns start at the same top and a gap apart', aligned(edges.leftTop, edges.rightTop) && edges.gap >= 16, JSON.stringify(edges))

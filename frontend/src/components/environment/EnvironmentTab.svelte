@@ -142,18 +142,22 @@
     <MachineFacts {machine} {now} />
     {#if loaded}
       <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
-      <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
     {:else}
       <p class="loading" role="status">Loading…</p>
     {/if}
   </div>
-  <form class="col" aria-label="Settings" onsubmit={submit} novalidate>
-    <LimitsSection bind:form {errors} />
-    <VmDefaultsSection bind:form {errors} />
-    <NamesSection bind:form {errors} />
-    <!-- Lets Enter in a field save, as the visible Save button is in the bar below. -->
-    <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
-  </form>
+  <div class="col">
+    {#if loaded}
+      <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
+    {/if}
+    <form aria-label="Settings" onsubmit={submit} novalidate>
+      <LimitsSection bind:form {errors} />
+      <VmDefaultsSection bind:form {errors} />
+      <NamesSection bind:form {errors} />
+      <!-- Lets Enter in a field save, as the visible Save button is in the bar below. -->
+      <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
+    </form>
+  </div>
   {#if showBar}<SaveBar action={saveAction} {canSave} onSave={save} onUndo={undo} />{/if}
 </div>
 
