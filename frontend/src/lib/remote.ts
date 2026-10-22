@@ -83,14 +83,19 @@ export function passwordAccepted(methods: string[] | null | undefined): boolean 
 const PUBLIC_KEY = /^ssh-ed25519 [A-Za-z0-9+/]+={0,2}( [A-Za-z0-9._-]+)?$/
 
 /**
- * One line to paste in a terminal on the other computer: it makes the folder, adds the key once (never twice) and fixes the permissions.
+ * One line to paste in a terminal on the other computer: it makes the folder, saves a copy of the key file, drops older lines
+ * that carry the same label with a different key (every fresh start of MetaService makes a new key), adds this key once,
+ * and fixes the permissions. Lines with any other label are never touched.
  * Null for anything that is not a plain public key, so nothing else is ever put into a command.
  */
 export function keyCommand(publicKey: string): string | null {
   const key = publicKey.trim()
   if (!PUBLIC_KEY.test(key)) return null
+  const [, blob = '', label = ''] = key.split(' ')
   const file = '~/.ssh/authorized_keys'
-  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && (grep -qxF '${key}' ${file} 2>/dev/null || echo '${key}' >> ${file}) && chmod 600 ${file} && echo 'Done: MetaService can log in now.'`
+  const backup = `${file}.before-metaservice`
+  const dropOld = label ? ` && cp ${file} ${backup} && awk -v k='${blob}' -v c='${label}' '!($NF==c && $2!=k)' ${backup} > ${file}` : ''
+  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ${file}${dropOld} && (grep -qxF '${key}' ${file} 2>/dev/null || echo '${key}' >> ${file}) && chmod 600 ${file} && echo 'Done: MetaService can log in now.'`
 }
 
 /** The fingerprint in groups, so a person can compare it with the other computer's by eye. */

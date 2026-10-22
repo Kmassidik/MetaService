@@ -1,3 +1,6 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test, expect } from 'bun:test'
 import { fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
@@ -124,9 +127,11 @@ test('a password box is offered unless the computer said it takes only keys', ()
 test('the key command adds the key once and refuses anything that is not a plain key', () => {
   const key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwjwIYPmV4ChyokDCF+LCmk3pi0LkdCycg7KQ4h1+u/ metaservice-parent'
   const command = keyCommand(`${key}\n`) ?? ''
-  expect(command).toMatch(/^mkdir -p ~\/\.ssh && chmod 700 ~\/\.ssh && \(grep -qxF '/)
+  expect(command).toMatch(/^mkdir -p ~\/\.ssh && chmod 700 ~\/\.ssh && touch /)
+  expect(command).toMatch(/\(grep -qxF '/)
   expect(command).toMatch(/chmod 600 ~\/\.ssh\/authorized_keys/)
   expect(command.split(key).length - 1).toBe(2)
+  expect(command).toMatch(/authorized_keys\.before-metaservice/)
   for (const bad of ['', "ssh-ed25519 AAAA'; rm -rf ~; '", 'ssh-rsa AAAA x', 'ssh-ed25519 AAAA x\nssh-ed25519 BBBB y', "ssh-ed25519 AAAA $(id)"]) expect(keyCommand(bad)).toBe(null)
 })
 
@@ -162,4 +167,23 @@ test('a key login sends the key flag and the sudo password only, never a login p
 
 test('a key login whose sudo asks for none sends no password at all', () => {
   expect(fixBody(form({ useKey: true }), 'SHA256:abc', offer(false), '')).toEqual({ host: '192.168.100.40', port: 22, user: 'kurnia', fingerprint: 'SHA256:abc', use_key: true, fix: 'vm_tool' })
+})
+
+test('the key command replaces older lines with the same label, keeps every other line, and is safe to run twice', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'keycmd-'))
+  const mine = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINEWKEYNEWKEYNEWKEYNEWKEYNEWKEYNEWKEYNEWKEYNEWK metaservice-parent'
+  const han = 'ssh-rsa AAAAB3NzaC1yc2EAAAAstale han@laptop'
+  const restricted = 'restrict,command="/usr/bin/python3 /x/y.py" ssh-ed25519 AAAAC3NzaRESTRICTED catat-box@mac'
+  const someone = 'ssh-ed25519 AAAAC3NzaMINE someone@else'
+  const stale = ['ssh-ed25519 AAAAC3NzaOLDKEY1 metaservice-parent', 'ssh-ed25519 AAAAC3NzaOLDKEY2 metaservice-parent']
+  const others = [han, restricted, ...stale, someone]
+  await mkdir(join(home, '.ssh'))
+  await writeFile(join(home, '.ssh', 'authorized_keys'), others.join('\n') + '\n')
+  const run = async () => Bun.spawn(['sh', '-c', keyCommand(mine) ?? 'false'], { env: { ...process.env, HOME: home }, stdout: 'pipe', stderr: 'pipe' }).exited
+  expect(await run()).toBe(0)
+  expect(await run()).toBe(0)
+  const lines = (await readFile(join(home, '.ssh', 'authorized_keys'), 'utf8')).trim().split('\n')
+  expect(lines).toEqual([han, restricted, someone, mine])
+  expect((await readFile(join(home, '.ssh', 'authorized_keys.before-metaservice'), 'utf8')).trim().split('\n')).toContain(mine)
+  await rm(home, { recursive: true })
 })
