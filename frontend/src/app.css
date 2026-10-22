@@ -40,6 +40,11 @@ button{font-family:inherit;cursor:pointer}
 .iconbtn:hover::after{opacity:1}
 .btn:disabled{opacity:.55;cursor:default}
 .btn:focus-visible{outline:2px solid var(--accent-mark);outline-offset:2px}
+/* a button that is working (ActionButton): a little dimmer, a ring that turns before its label; with reduced motion the ring stands still and the label says it */
+.btn[aria-busy="true"]{opacity:.75;cursor:progress}
+.btn-spin{display:inline-block;width:.9em;height:.9em;margin-right:7px;vertical-align:-1px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:btn-turn .8s linear infinite}
+@keyframes btn-turn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.btn-spin{animation:none;border-right-color:currentColor;border-style:dotted}}
 
 /* announce / topbar — accent band (colours in palette.css) */
 .announce{background:var(--announce-bg);color:var(--announce-text);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:8px 16px;border-bottom:1px solid var(--announce-line)}

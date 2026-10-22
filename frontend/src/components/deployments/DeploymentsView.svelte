@@ -7,6 +7,7 @@
 
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
+  import ActionButton from '../ActionButton.svelte'
   import Building from '../Building.svelte'
   import Owl from '../Owl.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
@@ -25,7 +26,7 @@
     /** How many VMs of this machine are being made right now: the empty message must not show while one is. */
     making: number
     onCreate: () => void
-    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
+    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onInstall: (machine: Machine, workload: Workload | null) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
@@ -54,6 +55,14 @@
     lastView = next
   }
 </script>
+
+{#snippet startButton(workload: Workload)}
+  <ActionButton variant="line" small label="Start" busyLabel="Starting…" doneLabel="Started" onrun={() => onAct(machine, workload, 'start')} />
+{/snippet}
+
+{#snippet stopButton(workload: Workload)}
+  <ActionButton variant="line" small label="Stop" busyLabel="Stopping…" doneLabel="Stopped" onrun={() => onAct(machine, workload, 'stop')} />
+{/snippet}
 
 {#snippet actions(vmId: string)}
   {@const workload = machine.workloads.find((entry) => entry.id === vmId)}
@@ -89,8 +98,8 @@
         </div>
         <div class="acts">
           <TerminalButton {machine} {workload} />
-          {#if server.status === 'stopped'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
-          {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>
+          {#if server.status === 'stopped'}{@render startButton(workload)}{/if}
+          {#if server.status === 'running'}{@render stopButton(workload)}
             <button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
           {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
           <button class="btn danger sm del" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
@@ -122,8 +131,8 @@
               <TerminalButton {machine} {workload} />
               {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onInstall(machine, workload)}>{workload.bundle_version ? 'Reinstall chat' : 'Install chat'}</button>{/if}
               {#if workload.bundle_version}<button class="btn line sm" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-              {#if server.status === 'running'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'stop')}>Stop</button>{/if}
-              {#if server.status === 'stopped'}<button class="btn line sm" type="button" onclick={() => onAct(machine, workload, 'start')}>Start</button>{/if}
+              {#if server.status === 'running'}{@render stopButton(workload)}{/if}
+              {#if server.status === 'stopped'}{@render startButton(workload)}{/if}
               <button class="btn danger sm" type="button" onclick={() => onDelete(machine, workload)}>Delete</button>
             </td>
           </tr>

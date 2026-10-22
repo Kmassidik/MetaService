@@ -1,5 +1,6 @@
 <script lang="ts">
   // One VM, as the MAAS detail page shows one server: same header, tabs (Overview, Monitoring, Access, Danger), rows and wording, fed by MetaService data.
+  import ActionButton from '../components/ActionButton.svelte'
   import VmOverview from '../components/vm/VmOverview.svelte'
   import VmMonitoring from '../components/vm/VmMonitoring.svelte'
   import VmAccess from '../components/vm/VmAccess.svelte'
@@ -23,7 +24,7 @@
     banner: string
     /** The latest orders, to tell a stop the panel asked for from a VM that stopped on its own. */
     commands: Command[]
-    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
+    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
     onInstall: (machine: Machine, workload: Workload | null) => void
@@ -56,7 +57,7 @@
     <div class="sp">
       {#if access?.allowed}<button class="btn line" type="button" onclick={() => openConsole({ machine: machine.id, workload: workload.id, name: consoleTitle(workload) })}>▸ Web terminal</button>{/if}
       {#if workload.bundle_version}<button class="btn line" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-      {#if action}<button class="btn line" type="button" onclick={() => onAct(machine, workload, action)}>{action === 'start' ? 'Start' : 'Stop'}</button>{/if}
+      {#if action}<ActionButton variant="line" label={action === 'start' ? 'Start' : 'Stop'} busyLabel={action === 'start' ? 'Starting…' : 'Stopping…'} doneLabel={action === 'start' ? 'Started' : 'Stopped'} onrun={() => onAct(machine, workload, action)} />{/if}
     </div>
   </div>
 

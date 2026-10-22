@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
 
-  let { open, title, onClose, children, wide = false, closeButton = false }: { open: boolean; title: string; onClose: () => void; children: Snippet; wide?: boolean; closeButton?: boolean } = $props()
+  let { open, title, onClose, children, wide = false, closeButton = false, locked = false }: { open: boolean; title: string; onClose: () => void; children: Snippet; wide?: boolean; closeButton?: boolean; locked?: boolean } = $props()
   let element: HTMLDialogElement | undefined
 
   $effect(() => {
@@ -11,13 +11,18 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  /** Escape asks the dialog to close; while a request is running the dialog stays (it closes itself when the request ends). */
+  function keepWhileLocked(event: Event) {
+    if (locked) event.preventDefault()
+  }
+
   /** The close event arrives a moment after the dialog closes. If the dialog was opened again meanwhile, the event is about the earlier closing and is ignored. */
   function closedByPerson() {
     if (!element?.open) onClose()
   }
 </script>
 
-<dialog bind:this={element} onclose={closedByPerson} class:wide aria-labelledby="dialog-title">
+<dialog bind:this={element} onclose={closedByPerson} oncancel={keepWhileLocked} class:wide aria-labelledby="dialog-title">
   <div class="modal-head">
     <h3 id="dialog-title">{title}</h3>
     {#if closeButton}<button class="modal-x" type="button" aria-label="Close" onclick={onClose}>✕</button>{/if}

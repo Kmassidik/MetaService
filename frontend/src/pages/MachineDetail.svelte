@@ -28,7 +28,7 @@
     chatsBuilt: number
     onCreate: (machine: Machine) => void
     onRemove: (machine: Machine) => void
-    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => void
+    onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
     onInstall: (machine: Machine, workload: Workload | null) => void

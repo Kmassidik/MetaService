@@ -59,8 +59,6 @@
   /** The Create VM window is open from a button (creating) or from the old Create VM address. */
   const createOpen = $derived(loaded && (creating || createVmOpen(route)))
   let deleting = $state<{ machine: Machine; workload: Workload } | null>(null)
-  let deleteBusy = $state(false)
-  let deleteFailure = $state('')
   let removing = $state<Machine | null>(null)
   let remoteInfos = $state<RemoteMachineInfo[]>([])
   const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
@@ -158,14 +156,16 @@
     await refresh()
   }
 
-  /** Start or stop a workload; the result shows up in the activity list. */
+  /** Start or stop a workload; the result shows up in the activity list. A refusal is thrown: the button that asked shows it next to itself. */
   async function act(machine: Machine, workload: Workload, action: 'start' | 'stop') {
-    try {
-      await workloadAction(machine.id, workload.id, action)
-      await refresh()
-    } catch (error) {
-      banner = error instanceof ApiError ? error.message : 'Something went wrong.'
-    }
+    await workloadAction(machine.id, workload.id, action)
+    await refresh()
+  }
+
+  /** The terminal window's "Start the VM": starts the VM that window is about. */
+  async function startConsoleVm() {
+    if (!consoleMachine || !consoleVm) return
+    await act(consoleMachine, consoleVm, 'start')
   }
 
   async function tryAction(work: () => Promise<unknown>) {
@@ -201,21 +201,14 @@
     }
   }
 
+  /** Deletes the VM the dialog is about. A refusal is thrown: the dialog's button shows it and the dialog stays. */
   async function confirmDelete() {
     if (!deleting) return
-    deleteBusy = true
-    deleteFailure = ''
-    try {
-      await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
-      const gone = deleting.machine.id
-      deleting = null
-      if (vmId) location.hash = machineHref(gone)
-      await refresh()
-    } catch (error) {
-      deleteFailure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      deleteBusy = false
-    }
+    await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
+    const gone = deleting.machine.id
+    deleting = null
+    if (vmId) location.hash = machineHref(gone)
+    await refresh()
   }
 
   async function confirmRemoveRemote(body: Record<string, unknown>) {
@@ -310,9 +303,9 @@
   </div>
   <ConnectMachine open={connecting} host={connectHost} onClose={() => (connecting = false)} onInstalled={refresh} />
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
-  {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={() => consoleMachine && consoleVm && act(consoleMachine, consoleVm, 'start')} onchanged={refresh} />{/if}
+  {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={startConsoleVm} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
-  <ConfirmDelete target={deleting} busy={deleteBusy} failure={deleteFailure} onCancel={() => { deleting = null; deleteFailure = '' }} onConfirm={confirmDelete} />
+  <ConfirmDelete target={deleting} onCancel={() => (deleting = null)} onConfirm={confirmDelete} />
   {#if removingRemote}
     <ConfirmRemoveRemote machine={removing} info={removingRemote} busy={removeBusy} failure={removeFailure} onCancel={() => { removing = null; removeFailure = '' }} onConfirm={confirmRemoveRemote} />
   {:else}

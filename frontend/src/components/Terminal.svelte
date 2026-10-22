@@ -24,7 +24,7 @@
     /** Why the VM stopped, when it is stopped. */
     note: StopNote | null
     /** Starts the VM (the same order as the Start button of its page). */
-    onstart: () => void
+    onstart: () => Promise<void>
     /** Asks the panel to read the machines again, so the state and the reason are fresh. */
     onchanged: () => void
   }
@@ -80,9 +80,10 @@
     void connect()
   })
 
-  function start() {
+  /** Asks for the start; only a start the Root accepted makes the window wait for the VM. A refusal is shown by the button. */
+  async function start() {
+    await onstart()
     starting = true
-    onstart()
   }
 
   function happened(event: TerminalEvent) {

@@ -1,5 +1,6 @@
 <script lang="ts">
   // What the terminal window says instead of a screen when there is none: why in plain words, why the VM stopped, and the buttons that make sense (Start the VM, Close).
+  import ActionButton from './ActionButton.svelte'
   import WhyStopped from './vm/WhyStopped.svelte'
   import type { StopNote } from '../lib/stoppedReason.ts'
   import type { Notice } from '../lib/terminalNotice.ts'
@@ -9,7 +10,7 @@
     /** Why the VM stopped, when it is stopped. */
     note: StopNote | null
     starting: boolean
-    onstart: () => void
+    onstart: () => Promise<void>
     onclose: () => void
   }
 
@@ -21,7 +22,7 @@
   <p class="ntext">{notice.text}</p>
   {#if why}<WhyStopped note={why} />{/if}
   <div class="nact">
-    {#if notice.canStart}<button class="btn green sm" type="button" disabled={starting} onclick={onstart}>{starting ? 'Starting…' : 'Start the VM'}</button>{/if}
+    {#if notice.canStart}<ActionButton variant="green" small label={starting ? 'Starting…' : 'Start the VM'} busyLabel="Starting…" doneLabel="Start ordered" disabled={starting} onrun={onstart} />{/if}
     <button class="btn line sm" type="button" onclick={onclose}>Close</button>
   </div>
 </div>
