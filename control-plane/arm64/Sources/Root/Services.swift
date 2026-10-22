@@ -33,6 +33,7 @@ struct Services {
     let remoteMachines: RemoteMachineStore
     let remoteInstalls: RemoteInstallService
     let terminal: TerminalService
+    let sshKeys: SshKeyService
     let stats: StatsService
     let history: HistoryService
     let gpuCheck: GpuCheckService
@@ -58,9 +59,10 @@ struct Services {
         chatAccess = ChatAccessStore(database)
         brain = BrainStore(database)
         brainService = BrainService(config: config)
+        let sshKeyStore = SshKeyStore(database)
         let autoPin = BundleAutoPin(bundles: bundles, audit: audit, clock: clock)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
-                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets)
+                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore)
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, autoPin: autoPin, clock: clock)
         machineSettings = MachineSettingsStore(database)
         remoteSsh = RemoteSsh(parts: .init(config: config, clock: clock, keys: RemoteKeyStore(database), secrets: secrets, throttle: throttle))
@@ -73,6 +75,7 @@ struct Services {
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
+        sshKeys = SshKeyService(machines: machines, keys: sshKeyStore, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)

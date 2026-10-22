@@ -15,9 +15,11 @@ final class WorkloadService: @unchecked Sendable {
     private let autoPin: BundleAutoPin
     private let chatAccess: ChatAccessStore
     private let secrets: SecretBox
+    private let sshKeys: SshKeyStore
     private let creating = NSLock()
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore) {
+        self.sshKeys = sshKeys
         self.bundles = bundles
         self.autoPin = autoPin
         self.chatAccess = chatAccess
@@ -174,6 +176,7 @@ final class WorkloadService: @unchecked Sendable {
     private func done(_ id: String, _ state: String, _ result: [String: Any]?) {
         var text = (result ?? [:]).compactMapValues { $0 as? String }
         keepChatKey(id, &text)
+        forgetKeysOfDeletedVM(id, state: state)
         try? finish(id, state: state, result: HelperFailureText.cleanResult(text))
     }
 
@@ -183,6 +186,12 @@ final class WorkloadService: @unchecked Sendable {
         let target = row.workloadId.map { "\(row.machine)/\($0)" } ?? row.machine
         guard let sealed = try? secrets.seal(key) else { return }
         try? chatAccess.set(target: target, sealedKey: sealed, port: Int(result["port"] ?? "") ?? 9200, now: clock.now)
+    }
+
+    /// A VM that is gone takes the SSH keys given for it along.
+    private func forgetKeysOfDeletedVM(_ id: String, state: String) {
+        guard state == "succeeded", let row = try? commands.get(id), row.type == "delete", let workload = row.workloadId else { return }
+        try? sshKeys.forget(workload: workload, machine: row.machine)
     }
 
     private func lost(_ id: String, _ why: String) {

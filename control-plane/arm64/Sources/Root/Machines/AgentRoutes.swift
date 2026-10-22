@@ -40,6 +40,7 @@ struct AgentRoutes {
         let machineId = try guards.machine(request, context: context)
         let beat = try HeartbeatRequest(body: try await guards.body(request))
         try services.machines.recordHeartbeat(machineId: machineId, request: beat, ip: reportedAddress(of: machineId, context), now: services.clock.now)
+        Task.detached { [sshKeys = services.sshKeys] in await sshKeys.applyPending(machine: machineId) }
         return Response(status: .noContent)
     }
 }
