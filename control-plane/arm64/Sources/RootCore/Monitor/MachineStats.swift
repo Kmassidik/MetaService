@@ -13,6 +13,15 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public static let maxFsCharacters = 32
     public static let maxTimeCharacters = 32
     public static let maxAnswerBytes = 64 * 1024
+    public static let maxClusters = 8
+    public static let maxThreads = 1_000_000
+    public static let maxProcessCount = 4_194_304
+    /// A running total larger than this (2^53, the biggest whole number a browser keeps exactly) is not believed.
+    public static let maxCounter = 1 << 53
+    public static let maxMegahertz = 20_000.0
+    /// Outside this range a temperature is a broken sensor (0 means "no value").
+    public static let minCelsius = 1.0
+    public static let maxCelsius = 150.0
 
     public struct Load: Codable, Equatable, Sendable {
         public var one: Double?
@@ -32,6 +41,13 @@ public struct MachineStats: Codable, Equatable, Sendable {
         public var totalPercent: Double?
         public var coresPercent: [Double]?
         public var load: Load
+        /// Optional extras: a helper that does not know them leaves them out, and they stay out of the answer too.
+        public var physicalCores: Int?
+        public var coreOf: [Int]?
+        public var clusters: [Cluster]?
+        public var breakdown: Breakdown?
+        public var frequencyMhz: Frequency?
+        public var temperatureCelsius: Double?
 
         public func encode(to encoder: Encoder) throws {
             var box = encoder.container(keyedBy: CodingKeys.self)
@@ -39,6 +55,12 @@ public struct MachineStats: Codable, Equatable, Sendable {
             try box.encode(totalPercent, forKey: .totalPercent)
             try box.encode(coresPercent, forKey: .coresPercent)
             try box.encode(load, forKey: .load)
+            try box.encodeIfPresent(physicalCores, forKey: .physicalCores)
+            try box.encodeIfPresent(coreOf, forKey: .coreOf)
+            try box.encodeIfPresent(clusters, forKey: .clusters)
+            try box.encodeIfPresent(breakdown, forKey: .breakdown)
+            try box.encodeIfPresent(frequencyMhz, forKey: .frequencyMhz)
+            try box.encodeIfPresent(temperatureCelsius, forKey: .temperatureCelsius)
         }
     }
 
@@ -65,6 +87,11 @@ public struct MachineStats: Codable, Equatable, Sendable {
         public var sentTotalBytes: Int
         public var receivedBytesPerSecond: Double?
         public var sentBytesPerSecond: Double?
+        /// Running totals since boot; the panel shows the change. A Mac gives no drops on the way out.
+        public var errorsInTotal: Int?
+        public var errorsOutTotal: Int?
+        public var dropsInTotal: Int?
+        public var dropsOutTotal: Int?
 
         public func encode(to encoder: Encoder) throws {
             var box = encoder.container(keyedBy: CodingKeys.self)
@@ -72,6 +99,10 @@ public struct MachineStats: Codable, Equatable, Sendable {
             try box.encode(sentTotalBytes, forKey: .sentTotalBytes)
             try box.encode(receivedBytesPerSecond, forKey: .receivedBytesPerSecond)
             try box.encode(sentBytesPerSecond, forKey: .sentBytesPerSecond)
+            try box.encodeIfPresent(errorsInTotal, forKey: .errorsInTotal)
+            try box.encodeIfPresent(errorsOutTotal, forKey: .errorsOutTotal)
+            try box.encodeIfPresent(dropsInTotal, forKey: .dropsInTotal)
+            try box.encodeIfPresent(dropsOutTotal, forKey: .dropsOutTotal)
         }
     }
 
@@ -98,6 +129,7 @@ public struct MachineStats: Codable, Equatable, Sendable {
         public var user: String
         public var cpuPercent: Double?
         public var memoryBytes: Int
+        public var threads: Int?
 
         public func encode(to encoder: Encoder) throws {
             var box = encoder.container(keyedBy: CodingKeys.self)
@@ -106,6 +138,7 @@ public struct MachineStats: Codable, Equatable, Sendable {
             try box.encode(user, forKey: .user)
             try box.encode(cpuPercent, forKey: .cpuPercent)
             try box.encode(memoryBytes, forKey: .memoryBytes)
+            try box.encodeIfPresent(threads, forKey: .threads)
         }
     }
 
@@ -116,11 +149,15 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public var memory: Memory
     public var disks: [Disk]
     public var network: Network
+    /// Left out (nil) when the machine has no safe way to say.
+    public var diskIo: DiskIo?
+    /// Left out (nil) when the helper does not say. How many programs run, not only the listed ones.
+    public var processCount: Int?
     /// Left out (nil) when the machine cannot say. Never an empty list.
     public var gpus: [Gpu]?
     public var processes: [Process]
 
-    private enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, gpus, processes }
+    private enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, processes }
 
     /// Written like the contract: a missing number is null, but the gpus key is left out when there are none.
     public func encode(to encoder: Encoder) throws {
@@ -132,6 +169,8 @@ public struct MachineStats: Codable, Equatable, Sendable {
         try box.encode(memory, forKey: .memory)
         try box.encode(disks, forKey: .disks)
         try box.encode(network, forKey: .network)
+        try box.encodeIfPresent(diskIo, forKey: .diskIo)
+        try box.encodeIfPresent(processCount, forKey: .processCount)
         try box.encodeIfPresent(gpus, forKey: .gpus)
         try box.encode(processes, forKey: .processes)
     }

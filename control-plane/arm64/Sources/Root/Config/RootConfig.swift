@@ -39,6 +39,8 @@ struct RootConfig {
     var remoteEngine: String?
     /// Logins the parent allows itself on one other computer in a minute. A flood of logins looks like an attack to the network, so the default is small.
     var remoteTriesPerMinute = 4
+    /// Seconds between the history readings of a machine. Ten in real use; a test shortens it.
+    var historyIntervalSeconds = StatsHistory.intervalSeconds
     var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
@@ -81,7 +83,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--public-url", "--ui-dir", "--bundle-dir", "--remote-allow-loopback", "--agent-builds-dir", "--remote-engine", "--remote-tries"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--public-url", "--ui-dir", "--bundle-dir", "--remote-allow-loopback", "--agent-builds-dir", "--remote-engine", "--remote-tries", "--history-interval"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -112,6 +114,7 @@ enum ConfigLoader {
         config.agentBuildsDirectory = options["--agent-builds-dir"] ?? config.agentBuildsDirectory
         config.remoteEngine = options["--remote-engine"] ?? config.remoteEngine
         config.remoteTriesPerMinute = try number(options["--remote-tries"], named: "--remote-tries", in: 1...60, default: config.remoteTriesPerMinute)
+        config.historyIntervalSeconds = try number(options["--history-interval"], named: "--history-interval", in: historyIntervalRange, default: config.historyIntervalSeconds)
     }
 
     /// A file holding secrets must not be readable by anyone but its owner.
@@ -149,6 +152,7 @@ enum ConfigLoader {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_PORT") }
             config.port = port
         }
+        config.historyIntervalSeconds = try number(env["HISTORY_INTERVAL_SECONDS"], named: "HISTORY_INTERVAL_SECONDS", in: historyIntervalRange, default: config.historyIntervalSeconds)
         try applyScan(env, to: &config)
         try applyBrain(env, to: &config)
         if let token = env["ROOT_SETUP_TOKEN"] {
@@ -169,6 +173,9 @@ enum ConfigLoader {
         guard given.count == 3 else { throw ConfigError(description: "AI_BASE_URL, AI_API_KEY and AI_DEFAULT_MODEL must all be set, or none of them") }
         guard BrainRules.isAcceptableBaseURL(config.aiBaseURL!) else { throw ConfigError(description: "AI_BASE_URL must be https (or http to a private address) with no credentials in it") }
     }
+
+    /// One second at the shortest (for tests), one minute at the longest.
+    static let historyIntervalRange = 1...60
 
     private static func number(_ text: String?, named name: String, in range: ClosedRange<Int>, default fallback: Int) throws -> Int {
         guard let text else { return fallback }

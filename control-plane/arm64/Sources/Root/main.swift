@@ -19,6 +19,7 @@ do {
     services.tunnels.resume()
     services.workloads.resume()
     services.bundleService.start()
+    services.history.start()
     let operatorApp = buildOperatorApplication(services: services)
     let agentApp = buildAgentApplication(services: services)
     try await withThrowingTaskGroup(of: Void.self) { group in

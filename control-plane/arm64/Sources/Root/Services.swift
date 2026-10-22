@@ -34,6 +34,7 @@ struct Services {
     let remoteInstalls: RemoteInstallService
     let terminal: TerminalService
     let stats: StatsService
+    let history: HistoryService
     let gpuCheck: GpuCheckService
     let images: ImagesService
     let helperUpdates: HelperUpdates
@@ -73,6 +74,7 @@ struct Services {
                                                            settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
+        history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))

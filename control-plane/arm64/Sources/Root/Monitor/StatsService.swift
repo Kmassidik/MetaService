@@ -29,6 +29,13 @@ final class StatsService: Sendable {
         return StatsReply.make(machineOffline: offline, lastSeen: summary.lastSeen, reading: processes ? reading : reading.withoutProcesses())
     }
 
+    /// A good reading without the process list and when it was taken, for the history sampler. Nil when the helper did not answer well (the sampler leaves a gap).
+    func freshReading(for id: String) async -> (stats: MachineStats, at: Date)? {
+        let reading = await readings.read(id, detailed: false) { await self.fetch(id, processes: false) }
+        guard reading.answer == .fresh, let value = reading.value, let at = reading.fetchedAt else { return nil }
+        return (value, at)
+    }
+
     private func fetch(_ id: String, processes: Bool) async -> ReadingOutcome<MachineStats> {
         let path = StatsQuery.helperPath(processes: processes)
         guard let reply = try? await client.call(machine: id, method: "GET", path: path, timeout: Self.helperTimeoutSeconds) else { return .unreachable }

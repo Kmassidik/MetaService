@@ -27,6 +27,8 @@ extension MachineStats {
         kept.memory = memory.limited()
         kept.disks = disks.prefix(Self.maxDisks).map { $0.limited() }
         kept.network = network.limited()
+        kept.diskIo = diskIo?.limited()
+        kept.processCount = processCount.flatMap(Self.processCountOrNil)
         kept.gpus = Self.limitedGpus(gpus)
         kept.processes = processes.prefix(Self.maxProcesses).map { $0.limited() }
         return kept
@@ -41,13 +43,23 @@ extension MachineStats {
     static func percent(_ value: Double?) -> Double? { value.map { $0.isFinite ? min(max($0, 0), 100) : 0 } }
     static func rate(_ value: Double?) -> Double? { value.map { $0.isFinite ? max($0, 0) : 0 } }
     static func bytes(_ value: Int) -> Int { max(value, 0) }
+    /// For an optional extra: an absurd number is "not said", never a clamped lie.
+    static func threadsOrNil(_ value: Int) -> Int? { (1...maxThreads).contains(value) ? value : nil }
+    static func processCountOrNil(_ value: Int) -> Int? { (0...maxProcessCount).contains(value) ? value : nil }
+    static func countOrNil(_ value: Int) -> Int? { (0...maxCounter).contains(value) ? value : nil }
+    static func rateOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } }
+    static func percentOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && (0...100).contains($0) ? $0 : nil } }
 }
 
 extension MachineStats.Cpu {
     fileprivate func limited() -> MachineStats.Cpu {
         let cores = coresPercent?.prefix(MachineStats.maxCores).map { MachineStats.percent($0) ?? 0 }
-        return .init(coreCount: min(max(coreCount, 1), MachineStats.maxCores), totalPercent: MachineStats.percent(totalPercent), coresPercent: cores,
-                     load: .init(one: MachineStats.rate(load.one), five: MachineStats.rate(load.five), fifteen: MachineStats.rate(load.fifteen)))
+        let logical = min(max(coreCount, 1), MachineStats.maxCores)
+        return .init(coreCount: logical, totalPercent: MachineStats.percent(totalPercent), coresPercent: cores,
+                     load: .init(one: MachineStats.rate(load.one), five: MachineStats.rate(load.five), fifteen: MachineStats.rate(load.fifteen)),
+                     physicalCores: physicalCores.flatMap { (1...logical).contains($0) ? $0 : nil }, coreOf: limitedCoreOf(logical: logical),
+                     clusters: limitedClusters(logical: logical), breakdown: breakdown?.limited(), frequencyMhz: frequencyMhz?.limited(),
+                     temperatureCelsius: temperatureCelsius.flatMap { (MachineStats.minCelsius...MachineStats.maxCelsius).contains($0) ? $0 : nil })
     }
 }
 
@@ -68,7 +80,9 @@ extension MachineStats.Disk {
 extension MachineStats.Network {
     fileprivate func limited() -> MachineStats.Network {
         .init(receivedTotalBytes: MachineStats.bytes(receivedTotalBytes), sentTotalBytes: MachineStats.bytes(sentTotalBytes),
-              receivedBytesPerSecond: MachineStats.rate(receivedBytesPerSecond), sentBytesPerSecond: MachineStats.rate(sentBytesPerSecond))
+              receivedBytesPerSecond: MachineStats.rate(receivedBytesPerSecond), sentBytesPerSecond: MachineStats.rate(sentBytesPerSecond),
+              errorsInTotal: errorsInTotal.flatMap(MachineStats.countOrNil), errorsOutTotal: errorsOutTotal.flatMap(MachineStats.countOrNil),
+              dropsInTotal: dropsInTotal.flatMap(MachineStats.countOrNil), dropsOutTotal: dropsOutTotal.flatMap(MachineStats.countOrNil))
     }
 }
 
@@ -82,6 +96,6 @@ extension MachineStats.Gpu {
 extension MachineStats.Process {
     fileprivate func limited() -> MachineStats.Process {
         .init(pid: max(pid, 0), name: MachineStats.cut(name, MachineStats.maxTextCharacters), user: MachineStats.cut(user, MachineStats.maxTextCharacters),
-              cpuPercent: MachineStats.rate(cpuPercent), memoryBytes: MachineStats.bytes(memoryBytes))
+              cpuPercent: MachineStats.rate(cpuPercent), memoryBytes: MachineStats.bytes(memoryBytes), threads: threads.flatMap(MachineStats.threadsOrNil))
     }
 }
