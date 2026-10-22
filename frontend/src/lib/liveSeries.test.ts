@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { appendPoint, CHART_POINT_LIMIT, column, dropsInWindow, pointFromHistory, pointFromReading, pointsFromHistory, summarize, type LivePoint } from './liveSeries.ts'
+import { appendPoint, CHART_POINT_LIMIT, column, dropsInWindow, mergeHistory, pointFromHistory, pointFromReading, pointsFromHistory, summarize, type LivePoint } from './liveSeries.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { sampleStats } from './stats.test.ts'
 import type { MachineStatsReply, StatsHistoryPoint } from './types.ts'
@@ -119,5 +119,22 @@ describe('summaries', () => {
     expect(dropsInWindow([live(0), live(10)])).toBeNull()
     expect(dropsInWindow([live(0, { drops: 9 }), live(10, { drops: 2 })])).toBeNull()
     expect(dropsInWindow([])).toBeNull()
+  })
+})
+
+describe('mergeHistory', () => {
+  test('the history first, then only the live points that are newer', () => {
+    const merged = mergeHistory([live(0), live(10)], [live(5), live(10), live(20)])
+    expect(merged.map((point) => point.t)).toEqual([0, 10, 20])
+  })
+
+  test('no history keeps the live points; no live points keep the history', () => {
+    expect(mergeHistory([], [live(1)]).length).toBe(1)
+    expect(mergeHistory([live(1)], []).length).toBe(1)
+  })
+
+  test('never more than an hour', () => {
+    const many = Array.from({ length: CHART_POINT_LIMIT }, (_, index) => live(index))
+    expect(mergeHistory(many, [live(CHART_POINT_LIMIT + 5)]).length).toBe(CHART_POINT_LIMIT)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  areaPaths, bucketMeans, gaugeArc, gaugeLevel, linePath, linearScale, nearestIndex, niceBytesTicks, niceTicks, scalePoints, stackSeries, timeTicks, formatClock, type Pt,
+  areaPaths, bucketMeans, gaugeArc, gaugeLevel, linePath, linearScale, nearestIndex, niceBytesTicks, niceTicks, scalePoints, stackSeries, timeTicks, formatClock, formatClockSeconds, plotArea, type Pt,
 } from './charts.ts'
 
 describe('linearScale', () => {
@@ -161,6 +161,11 @@ describe('time axis', () => {
     expect(formatClock(3600 * 13 + 60 * 5, -60)).toBe('14:05')
   })
 
+  test('a pointed-at time also shows seconds', () => {
+    expect(formatClockSeconds(3600 * 13 + 60 * 5 + 7, 0)).toBe('13:05:07')
+    expect(formatClockSeconds(59, 0)).toBe('00:00:59')
+  })
+
   test('ticks fall on round minutes, inside the range, with a sensible step', () => {
     const ticks = timeTicks(0, 3600, 6, 0)
     expect(ticks.length).toBeGreaterThanOrEqual(4)
@@ -189,5 +194,25 @@ describe('nearestIndex', () => {
 
   test('nothing to pick from is -1', () => {
     expect(nearestIndex([], 5)).toBe(-1)
+  })
+})
+
+describe('plotArea', () => {
+  test('leaves room on the left for the widest y label and below for the time labels', () => {
+    const narrow = plotArea(400, 200, ['0', '50%'])
+    const wide = plotArea(400, 200, ['0', '100 MB/s'])
+    expect(wide.left).toBeGreaterThan(narrow.left)
+    expect(narrow.height).toBeLessThan(200)
+    expect(narrow.left + narrow.width).toBeLessThanOrEqual(400)
+  })
+
+  test('a tiny chart still has a plot to draw in', () => {
+    const tiny = plotArea(50, 20, ['1000 MB/s'])
+    expect(tiny.width).toBeGreaterThanOrEqual(60)
+    expect(tiny.height).toBeGreaterThanOrEqual(1)
+  })
+
+  test('no labels at all is fine', () => {
+    expect(plotArea(300, 150, []).left).toBeGreaterThan(0)
   })
 })

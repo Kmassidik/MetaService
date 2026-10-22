@@ -15,6 +15,7 @@ HOSTILE_USER = "<script>alert(2)</script>"
 MAX_PROCESSES = 15
 NAME_LIMIT = 64
 PROCESS_COUNT_SENT = 20
+HOSTILE_CPU_FLOOR = 60.0
 FIRST_PID = 300
 PROCESSES_PARAMETER = "processes"
 
@@ -103,7 +104,7 @@ class FakeStats:
     def _process(self, tick, index, measuring):
         name = HOSTILE_NAME if self.hostile and index == 0 else f"worker-{index}"
         user = HOSTILE_USER if self.hostile and index == 1 else "kurnia"
-        cpu = None if measuring else self._wave(tick, index, 0.0, 99.0 - index)
+        cpu = None if measuring else self._wave(tick, index, HOSTILE_CPU_FLOOR if self.hostile and index == 0 else 0.0, 99.0 - index)  # the hostile program stays among the busiest 15
         # `cmdline` exists only here, on the fake machine; the answer is built from the fields below and never contains it.
         process = {"pid": FIRST_PID + index, "name": name, "user": user, "cpu_percent": cpu, "memory_bytes": (200 - index * 5) * 1024 * 1024, "cmdline": SECRET_COMMAND_LINE}
         shown = {key: process[key] for key in ("pid", "name", "user", "cpu_percent", "memory_bytes")}

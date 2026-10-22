@@ -52,13 +52,14 @@ async function startProvider(): Promise<Provider> {
   return provider
 }
 
-export async function startWorld(): Promise<World> {
+/** `extraEnv` are more lines for the parent's env file (a test that needs a faster sampler gives one). */
+export async function startWorld(extraEnv: string[] = []): Promise<World> {
   const provider = await startProvider()
   const bundleDir = join(mkdtempSync(join(tmpdir(), 'ms-e2e-bundles-')), 'bundles')
   for (const version of BUNDLE_VERSIONS) spawnSync('python3', [chatBuilder, '--version', version, '--out', bundleDir])
   const scan = scanSettings()
   const root = await startRoot({
-    envLines: [...scan.envLines, `AI_BASE_URL=${provider.base}`, `AI_API_KEY=${AI_KEY}`, `AI_DEFAULT_MODEL=${AI_MODEL}`],
+    envLines: [...scan.envLines, ...extraEnv, `AI_BASE_URL=${provider.base}`, `AI_API_KEY=${AI_KEY}`, `AI_DEFAULT_MODEL=${AI_MODEL}`],
     args: ['--bundle-dir', bundleDir],
     processEnv: scan.processEnv,
   })

@@ -24,9 +24,11 @@ const SHORT_WAIT_MS = 15000
 const PAGE_POLL_MS = 5000
 const SLACK_MS = 2500
 const HEARTBEAT_EVERY_MS = 5000
+const FAST_SAMPLING = 'HISTORY_INTERVAL_SECONDS=1'
+const SAMPLER_HEAD_START_MS = 11000
 const HOSTILE_NAME = '<img src=x onerror=alert(1)>'
 const SIZES = { desktop: { width: 1280, height: 1000 }, phone: { width: 400, height: 900 } }
-const cpuText = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('[data-testid=cpu-total]')?.innerText ?? '')
+const cpuText = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('[data-testid=gauge-cpu]')?.innerText ?? '')
 
 interface Helper { process: ChildProcess; beat: NodeJS.Timeout }
 
@@ -43,7 +45,7 @@ async function startHelper(world: World): Promise<Helper> {
   writeFileSync(tokenFile, textField(enrolled, 'command_token', 'enroll'))
   chmodSync(tokenFile, 0o600)
   const port = await freePort()
-  const process = spawn(FAKE_PYTHON, ['-m', 'agent.fake', '--port', String(port), '--token-file', tokenFile, '--cores', '32', '--gpu'], { cwd: repo, env: { ...globalThis.process.env, PYTHONPATH: repo }, stdio: 'ignore' })
+  const process = spawn(FAKE_PYTHON, ['-m', 'agent.fake', '--port', String(port), '--token-file', tokenFile, '--cores', '32', '--physical', '16', '--gpu'], { cwd: repo, env: { ...globalThis.process.env, PYTHONPATH: repo }, stdio: 'ignore' })
   await wait(1500)
   const machineToken = textField(enrolled, 'machine_token', 'enroll')
   const heartbeat = { facts: { os: 'linux', arch: 'x86_64', cpu_cores: 32, ram_total_mb: 65536, disk_total_gb: 1000, free_ram_mb: 30000, free_disk_gb: 700, gpu: [], capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false } }, workloads: [], bundle_version: null, agent_port: port }
@@ -54,13 +56,13 @@ async function startHelper(world: World): Promise<Helper> {
 
 async function openMonitor(b: Browse, world: World) {
   await b.page.goto(`${world.root.base}/#/machines/details?id=${MACHINE}`, { waitUntil: 'networkidle0' })
-  await b.until(() => document.querySelector('[data-testid=cpu-total]') !== null, { timeout: SHORT_WAIT_MS }).catch(async (error: unknown) => {
+  await b.until(() => document.querySelector('[data-testid=gauge-cpu]') !== null, { timeout: SHORT_WAIT_MS }).catch(async (error: unknown) => {
     console.log((await b.text()).slice(0, 800))
     throw error
   })
 }
 
-const world = await startWorld()
+const world = await startWorld([FAST_SAMPLING])
 const browser = await puppeteer.launch({ executablePath: chromePath, headless: true, args: ['--no-first-run'] })
 let helper: Helper | null = null
 try {
@@ -71,8 +73,10 @@ try {
   page.on('dialog', (dialog) => { dialogs.push(dialog.message()); void dialog.dismiss() })
   const asked: number[] = []
   const urls: string[] = []
+  const histories: string[] = []
   page.on('request', (request) => {
-    if (!request.url().includes(`/api/machines/${MACHINE}/stats`)) return
+    if (request.url().includes(`/api/machines/${MACHINE}/stats/history`)) histories.push(request.url())
+    if (!request.url().endsWith('/stats') && !request.url().includes(`/api/machines/${MACHINE}/stats?`)) return
     asked.push(Date.now())
     urls.push(request.url())
   })
@@ -82,16 +86,19 @@ try {
   helper = await startHelper(world)
   await signInWithAWrongThenTheRightPassword(b, world)
 
+  await wait(SAMPLER_HEAD_START_MS) // the parent's own sampler fills the history while nobody looks
   await openMonitor(b, world)
   const first = await cpuText(b)
   const text = await b.text()
   check('against the real parent the monitor shows CPU, memory, disk, network, GPU and processes', ['cpu', 'memory', 'disk', 'network', 'gpu', 'top processes'].every((word) => text.toLowerCase().includes(word)))
-  check('the first reading says measuring and shows no zeros', /measuring/i.test(text) && first.trim() !== '0%')
+  check('the first look shows a real CPU number, not a zero (the parent had already measured)', /^\d+%$/.test(first.trim()) && first.trim() !== '0%', first)
   check('the old allocated headline is gone', !/Disk allocated|cores promised|whole building/.test(text))
   await b.shot('monitor-real-desktop.png')
-  await b.until((before) => document.querySelector<HTMLElement>('[data-testid=cpu-total]')?.innerText !== before, { timeout: PAGE_POLL_MS * 2 + SLACK_MS }, first)
-  await b.until(() => document.querySelectorAll('section[aria-label=CPU] .core').length === 32, { timeout: PAGE_POLL_MS * 2 + SLACK_MS })
-  check('32 cores draw 32 bars in the CPU card once measured, with nothing to press', (await b.run(() => document.querySelectorAll('section[aria-label=CPU] .core').length)) === 32)
+  await b.until((before) => document.querySelector<HTMLElement>('[data-testid=gauge-cpu]')?.innerText !== before, { timeout: PAGE_POLL_MS * 2 + SLACK_MS }, first)
+  await b.until(() => document.querySelectorAll('section[aria-label=CPU] .thread').length === 32, { timeout: PAGE_POLL_MS * 2 + SLACK_MS })
+  check('32 threads draw 32 bars in the CPU card once measured, with nothing to press', (await b.run(() => document.querySelectorAll('section[aria-label=CPU] .thread').length)) === 32)
+  check('the CPU card says 16 cores · 32 threads and groups the bars by core (16 groups of 2)', (await b.run(() => document.querySelector<HTMLElement>('[data-testid=cpu-topology]')?.innerText)) === '16 cores · 32 threads' && (await b.run(() => [...document.querySelectorAll('[data-testid=cpu-core]')].every((core) => core.querySelectorAll('.thread').length === 2) && document.querySelectorAll('[data-testid=cpu-core]').length)) === 16)
+  check('the real parent was asked for the last hour once, and the charts draw it on the first look', histories.length === 1 && (await b.run(() => [...document.querySelectorAll('[data-testid=monitor-numbers] .chart svg path.line')].filter((path) => (path.getAttribute('d') ?? '').length > 40).length)) >= 4, `${histories.length} history requests`)
   check('while the window is closed the page asks the real parent without the list (processes=0)', urls.length > 0 && urls.every((url) => url.endsWith('?processes=0')), urls.join(' '))
   check('no process table is on the page while the window is closed', (await b.run(() => document.querySelectorAll('.procs').length)) === 0)
   check('the numbers change by themselves', (await cpuText(b)) !== first)
@@ -117,7 +124,7 @@ try {
 
   helper.process.kill()
   await b.until(() => /offline/i.test(document.body.innerText) && /last seen/i.test(document.body.innerText), { timeout: 60000 })
-  const offline = await b.run(() => ({ greyed: document.querySelector('[data-testid=monitor]')?.className ?? '', cpu: document.querySelector<HTMLElement>('[data-testid=cpu-total]')?.innerText ?? '' }))
+  const offline = await b.run(() => ({ greyed: document.querySelector('[data-testid=monitor]')?.className ?? '', cpu: document.querySelector<HTMLElement>('[data-testid=gauge-cpu]')?.innerText ?? '' }))
   check('a dead helper shows offline with the last numbers kept, not zeros', /\d/.test(offline.cpu) && offline.cpu.trim() !== '0%', JSON.stringify(offline))
   await b.shot('monitor-real-offline.png')
   check('no script errors or alerts', dialogs.length === 0)

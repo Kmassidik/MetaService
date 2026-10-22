@@ -1,6 +1,6 @@
 // Pure helpers for the live monitor: units, percentages, bar widths, the short history, "measuring" and "offline". No DOM, no network.
 import { formatGb, formatMb, relativeTime } from './format.ts'
-import type { MachineStats, MachineStatsReply, Workload } from './types.ts'
+import type { MachineStatsReply, Workload } from './types.ts'
 
 /** How often a machine's own page asks for a reading, and how often the Machines list does. */
 export const MACHINE_PAGE_POLL_MS = 5000
@@ -8,16 +8,12 @@ export const LIST_POLL_MS = 15000
 /** The address of a machine's reading. `withProcesses` false asks the parent to leave the list of programs out, which spares the machine the scan. */
 export const statsPath = (id: string, withProcesses: boolean): string => `/api/machines/${encodeURIComponent(id)}/stats?processes=${withProcesses ? 1 : 0}`
 
-/** The history kept in the browser: 60 readings, 5 minutes at 5 seconds. */
-export const HISTORY_LIMIT = 60
 const KIB = 1024
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 const SECONDS_PER_MINUTE = 60
 const SECONDS_PER_HOUR = 3600
 const SECONDS_PER_DAY = 86400
 const FULL = 100
-const SMALL_CORE_GRID = 8
-const WIDE_CORE_GRID = 16
 export const MEASURING_TEXT = 'measuring…'
 
 function trimmed(value: number): string {
@@ -74,23 +70,6 @@ export function barWidth(percent: number | null): string {
   return `${Math.min(FULL, Math.max(0, percent)).toFixed(1).replace(/\.0$/, '')}%`
 }
 
-/** Used, cached and free as widths that never pass 100 together. */
-export function memorySegments(memory: MachineStats['memory']): { used: number; cached: number; free: number } {
-  const used = percentOf(memory.used_bytes, memory.total_bytes)
-  const cached = Math.min(FULL - used, percentOf(memory.cached_bytes, memory.total_bytes))
-  const free = Math.min(FULL - used - cached, percentOf(memory.free_bytes, memory.total_bytes))
-  return { used, cached, free }
-}
-
-/** How many columns the per-core grid has: one row for a few cores, 8 or 16 across for many, so 32 cores stay small. */
-export function coreColumns(count: number): number {
-  if (count <= SMALL_CORE_GRID) return Math.max(1, count)
-  return count <= WIDE_CORE_GRID ? SMALL_CORE_GRID : WIDE_CORE_GRID
-}
-
-/** The first answer after a start has no earlier reading to compare with. */
-export const isMeasuring = (stats: MachineStats): boolean => stats.measuring
-
 /** The helper on the machine is too old to answer: say so, show no numbers. */
 export const needsHelperUpdate = (reply: MachineStatsReply): boolean => reply.state === 'old_helper'
 
@@ -99,51 +78,6 @@ export const isStale = (reply: MachineStatsReply): boolean => reply.state === 'o
 
 export function offlineText(reply: MachineStatsReply, now: number): string {
   return `offline, last seen ${relativeTime(reply.last_seen, now)}`
-}
-
-/** One point of the short graphs. */
-export interface HistoryPoint {
-  cpu: number | null
-  memory: number
-  down: number | null
-  up: number | null
-}
-
-export function historyPoint(stats: MachineStats): HistoryPoint {
-  return {
-    cpu: stats.cpu.total_percent,
-    memory: percentOf(stats.memory.used_bytes, stats.memory.total_bytes),
-    down: stats.network.received_bytes_per_second,
-    up: stats.network.sent_bytes_per_second,
-  }
-}
-
-/** The history with one more point, the oldest dropped past the limit. Returns a new list. */
-export function pushHistory<T>(history: readonly T[], point: T, limit: number = HISTORY_LIMIT): T[] {
-  return [...history, point].slice(-limit)
-}
-
-/** The drawing of a graph: line segments in a box, broken where a value is missing. */
-export function sparkPath(values: readonly (number | null)[], width: number, height: number, ceiling: number): string {
-  if (values.length < 2 || ceiling <= 0) return ''
-  const step = width / (values.length - 1)
-  let path = ''
-  let pen = false
-  values.forEach((value, index) => {
-    if (value === null) {
-      pen = false
-      return
-    }
-    const y = height - Math.min(1, Math.max(0, value / ceiling)) * height
-    path += `${pen ? 'L' : 'M'}${(index * step).toFixed(1)} ${y.toFixed(1)}`
-    pen = true
-  })
-  return path
-}
-
-/** The biggest value in a series, at least `floor`, so a quiet network does not draw as a full-height line. */
-export function ceilingOf(values: readonly (number | null)[], floor: number): number {
-  return values.reduce<number>((top, value) => (value !== null && value > top ? value : top), floor)
 }
 
 /** The one small line about what VMs have reserved: running VMs hold cores and memory, every VM keeps its disk. */

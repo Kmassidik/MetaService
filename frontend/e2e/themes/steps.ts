@@ -44,7 +44,7 @@ export async function machinesPage(b: Browse): Promise<void> {
 /** A machine with a GPU, online, with its numbers moving. It comes from the monitor's stand-in parent, because only it sends numbers. */
 export async function livePage(b: Browse, standInBase: string): Promise<void> {
   await openMachine(b, standInBase, LIVE_MACHINE)
-  await b.until(() => !!document.querySelector('[data-testid=cpu-total]'), { timeout: SHORT_WAIT_MS })
+  await b.until(() => !!document.querySelector('[data-testid=gauge-cpu]'), { timeout: SHORT_WAIT_MS })
 }
 
 export async function vmsTab(b: Browse, base: string): Promise<void> {

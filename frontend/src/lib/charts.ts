@@ -171,6 +171,11 @@ export function formatClock(seconds: number, offsetMinutes: number = new Date(se
   return `${twoDigits(local.getUTCHours())}:${twoDigits(local.getUTCMinutes())}`
 }
 
+/** "13:05:20", for the reading at a pointed-at time. */
+export function formatClockSeconds(seconds: number, offsetMinutes?: number): string {
+  return `${formatClock(seconds, offsetMinutes)}:${twoDigits(((Math.floor(seconds) % SECONDS_PER_MINUTE) + SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE)}`
+}
+
 /** Axis labels on round minutes inside [from, to], with the smallest step that gives at most `count` of them. */
 export function timeTicks(from: number, to: number, count: number, offsetMinutes?: number): { t: number; label: string }[] {
   if (!(to > from)) return []
@@ -194,4 +199,20 @@ export function nearestIndex(times: readonly number[], t: number): number {
     }
   })
   return best
+}
+
+export interface PlotArea { left: number; top: number; width: number; height: number }
+
+const CHAR_WIDTH = 6.6
+const AXIS_PADDING = 10
+const TOP_MARGIN = 8
+const RIGHT_MARGIN = 10
+const AXIS_ROW = 22
+const MIN_PLOT_WIDTH = 60
+
+/** The box inside a chart where lines are drawn: room on the left for the y labels, below for the time labels. */
+export function plotArea(width: number, height: number, yLabels: readonly string[]): PlotArea {
+  const labelWidth = Math.max(0, ...yLabels.map((label) => label.length)) * CHAR_WIDTH + AXIS_PADDING
+  const plotWidth = Math.max(MIN_PLOT_WIDTH, width - labelWidth - RIGHT_MARGIN)
+  return { left: labelWidth, top: TOP_MARGIN, width: plotWidth, height: Math.max(1, height - TOP_MARGIN - AXIS_ROW) }
 }

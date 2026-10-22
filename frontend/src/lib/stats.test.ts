@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { barWidth, ceilingOf, coreColumns, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, historyPoint, HISTORY_LIMIT, isStale, memorySegments, MEASURING_TEXT, needsHelperUpdate, offlineText, percentOf, pushHistory, reservedText, sparkPath, statsPath } from './stats.ts'
+import { barWidth, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, isStale, MEASURING_TEXT, needsHelperUpdate, offlineText, percentOf, reservedText, statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 import { workload } from './testing.ts'
@@ -48,43 +48,6 @@ test('percent and bar width stay between 0 and 100', () => {
   expect(barWidth(150)).toBe('100%')
   expect(barWidth(-3)).toBe('0%')
   expect(barWidth(33.33)).toBe('33.3%')
-})
-
-test('memory segments never add up past 100', () => {
-  const parts = memorySegments({ ...sampleStats().memory, used_bytes: 7 * GIB, cached_bytes: 3 * GIB, free_bytes: 3 * GIB })
-  expect(parts.used + parts.cached + parts.free).toBeLessThanOrEqual(100)
-  expect(memorySegments(sampleStats().memory)).toEqual({ used: 50, cached: 25, free: 25 })
-})
-
-test('the core grid stays compact for many cores', () => {
-  expect(coreColumns(1)).toBe(1)
-  expect(coreColumns(4)).toBe(4)
-  expect(coreColumns(14)).toBe(8)
-  expect(coreColumns(32)).toBe(16)
-})
-
-test('the history keeps the newest 60 readings and leaves the old list alone', () => {
-  const first = [1, 2]
-  expect(pushHistory(first, 3)).toEqual([1, 2, 3])
-  expect(first).toEqual([1, 2])
-  let history: number[] = []
-  for (let n = 0; n < HISTORY_LIMIT + 10; n += 1) history = pushHistory(history, n)
-  expect(history.length).toBe(HISTORY_LIMIT)
-  expect(history[0]).toBe(10)
-})
-
-test('a history point keeps a missing rate as null', () => {
-  const point = historyPoint(sampleStats({ network: { received_total_bytes: 0, sent_total_bytes: 0, received_bytes_per_second: null, sent_bytes_per_second: null } }))
-  expect(point.down).toBeNull()
-  expect(point.memory).toBe(50)
-})
-
-test('a graph line breaks where a value is missing', () => {
-  expect(sparkPath([0, 100], 10, 10, 100)).toBe('M0.0 10.0L10.0 0.0')
-  expect(sparkPath([0, null, 100, 100], 30, 10, 100)).toBe('M0.0 10.0M20.0 0.0L30.0 0.0')
-  expect(sparkPath([5], 10, 10, 100)).toBe('')
-  expect(ceilingOf([null, 5], 100)).toBe(100)
-  expect(ceilingOf([null, 500], 100)).toBe(500)
 })
 
 test('an offline reply is stale and says when the machine was last seen', () => {

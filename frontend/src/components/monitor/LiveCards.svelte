@@ -1,38 +1,42 @@
 <script lang="ts">
-  // The cards of the Live tab as a grid: CPU and Memory as two wide cards, then Disk, Network and GPU (Disk and Network only, when there is no GPU) as equal smaller cards.
-  // Cards in a row are equally tall; below 900 px wide every card is full width in one column.
-  import CpuPanel from './CpuPanel.svelte'
-  import MemoryPanel from './MemoryPanel.svelte'
+  // The Live tab as a Grafana-and-btop page: the gauge row on top; then CPU with Memory, System load with Disk speed, Network with the GPU, and last the disk volumes.
+  // Two columns on a wide screen, one column below 900 px. Every block is a bordered card.
+  import CpuCard from './charts/CpuCard.svelte'
+  import DiskIoCard from './charts/DiskIoCard.svelte'
+  import GaugeRow from './charts/GaugeRow.svelte'
+  import LoadCard from './charts/LoadCard.svelte'
+  import MemoryCard from './charts/MemoryCard.svelte'
+  import NetworkCard from './charts/NetworkCard.svelte'
   import DiskPanel from './DiskPanel.svelte'
-  import NetworkPanel from './NetworkPanel.svelte'
   import GpuPanel from './GpuPanel.svelte'
-  import { lowerRowColumns } from '../../lib/liveLayout.ts'
-  import type { HistoryPoint } from '../../lib/stats.ts'
+  import type { LivePoint } from '../../lib/liveSeries.ts'
   import type { MachineStats } from '../../lib/types.ts'
 
-  let { stats, history, grey }: { stats: MachineStats; history: readonly HistoryPoint[]; grey: boolean } = $props()
+  let { stats, points, intervalSeconds, grey }: { stats: MachineStats; points: readonly LivePoint[]; intervalSeconds: number; grey: boolean } = $props()
   const hasGpu = $derived(stats.gpus.length > 0)
 </script>
 
 <div class="cards" class:grey data-testid="monitor-numbers">
-  <div class="band upper" data-testid="cards-upper">
-    <CpuPanel cpu={stats.cpu} history={history.map((point) => point.cpu)} />
-    <MemoryPanel memory={stats.memory} history={history.map((point) => point.memory)} />
+  <GaugeRow {stats} {points} />
+  <div class="band" data-testid="band-cpu">
+    <CpuCard {points} cpu={stats.cpu} {intervalSeconds} />
+    <MemoryCard {points} memory={stats.memory} {intervalSeconds} />
   </div>
-  <div class="band lower" style:--columns={lowerRowColumns(hasGpu)} data-testid="cards-lower">
-    <DiskPanel disks={stats.disks} />
-    <NetworkPanel network={stats.network} down={history.map((point) => point.down)} up={history.map((point) => point.up)} />
+  <div class="band" data-testid="band-load">
+    <LoadCard {points} {intervalSeconds} />
+    <DiskIoCard {points} {intervalSeconds} />
+  </div>
+  <div class="band" class:single={!hasGpu} data-testid="band-network">
+    <NetworkCard {points} {intervalSeconds} />
     {#if hasGpu}<GpuPanel gpus={stats.gpus} />{/if}
   </div>
+  <div class="band single" data-testid="band-volumes"><DiskPanel disks={stats.disks} /></div>
 </div>
 
 <style>
   .cards { display: grid; gap: 16px; }
-  .band { display: grid; gap: 16px; align-items: stretch; }
-  .upper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lower { grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+  .band { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+  .band.single { grid-template-columns: minmax(0, 1fr); }
   .grey { opacity: 0.45; filter: grayscale(1); }
-  @media (max-width: 900px) {
-    .upper, .lower { grid-template-columns: minmax(0, 1fr); }
-  }
+  @media (max-width: 900px) { .band { grid-template-columns: minmax(0, 1fr); } }
 </style>

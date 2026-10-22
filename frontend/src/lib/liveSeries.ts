@@ -73,6 +73,12 @@ export function appendPoint(points: readonly LivePoint[], point: LivePoint, inte
   return due ? [...points, point].slice(-CHART_POINT_LIMIT) : [...points]
 }
 
+/** The hour from the parent, then the live points that came in meanwhile and are newer than it. */
+export function mergeHistory(history: readonly LivePoint[], live: readonly LivePoint[]): LivePoint[] {
+  const newest = history[history.length - 1]?.t ?? Number.NEGATIVE_INFINITY
+  return [...history, ...live.filter((point) => point.t > newest)].slice(-CHART_POINT_LIMIT)
+}
+
 /** A column of numbers out of the points, gaps kept as null. */
 export const column = (points: readonly LivePoint[], pick: (point: LivePoint) => number | null): (number | null)[] => points.map(pick)
 
