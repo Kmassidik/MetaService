@@ -6,25 +6,25 @@ import type { Browse } from '../support/page.ts'
 import { burst, fresh, openTable } from './guard.ts'
 import type { StandIn } from './standin.ts'
 
-const MACHINE_VMS = '#/machines/details?id=studio&tab=vms'
+export const MACHINE_VMS = '#/machines/details?id=studio&tab=vms'
 const ALL_VMS = '#/vms'
-const VM_PAGE = '#/machines/details?id=studio&vm=vm1'
-const PASTE_BOX = 'dialog[open] #ssh-key-paste'
-const SHORT_WAIT_MS = 8000
+export const VM_PAGE = '#/machines/details?id=studio&vm=vm1'
+export const PASTE_BOX = 'dialog[open] #ssh-key-paste'
+export const SHORT_WAIT_MS = 8000
 const SLOW_MS = 800
 const RAPID_CLICKS = 5
 const SETTLE_MS = 1600
-const PHONE = { width: 400, height: 844 }
-const DESKTOP = { width: 1280, height: 800 }
+export const PHONE = { width: 400, height: 844 }
+export const DESKTOP = { width: 1280, height: 800 }
 const VMS_ON_STUDIO = ['vm1', 'vm2', 'vm3']
 const VMS_ON_ALL = ['vm1', 'vm2', 'vm3', 'vm4']
 
 const BLOB_ONE = 'AAAAC3NzaC1lZDI1NTE5AAAAIGq3k9eX1mQ2y0pT7uV8wXyZ1aBcDeFgHiJkLmNoPqRs'
 const BLOB_TWO = 'AAAAB3NzaC1yc2EAAAADAQABAAABAQDk3Lm9XvQ2y0pT7uV8wXyZ1aBcDeFgHiJkLmNoPqRsTuVwXyZ'
-const BLOB_NEW = 'AAAAC3NzaC1lZDI1NTE5AAAAIPz9yX8wV7uT6sR5qP4oN3mL2kJ1iH0gF9eD8cB7aZ6y'
-const KEY_ONE = `ssh-ed25519 ${BLOB_ONE} kurnia@laptop`
-const KEY_TWO = `ssh-rsa ${BLOB_TWO} ci-runner`
-const KEY_NEW = `ssh-ed25519 ${BLOB_NEW} new@phone`
+export const BLOB_NEW = 'AAAAC3NzaC1lZDI1NTE5AAAAIPz9yX8wV7uT6sR5qP4oN3mL2kJ1iH0gF9eD8cB7aZ6y'
+export const KEY_ONE = `ssh-ed25519 ${BLOB_ONE} kurnia@laptop`
+export const KEY_TWO = `ssh-rsa ${BLOB_TWO} ci-runner`
+export const KEY_NEW = `ssh-ed25519 ${BLOB_NEW} new@phone`
 const OPTION_KEY = `command="rm -rf /" ssh-ed25519 ${BLOB_NEW} sneaky`
 const PRIVATE_KEY = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ\n-----END OPENSSH PRIVATE KEY-----'
 const DUPLICATE_TEXT = 'This key is already on this VM.'
@@ -35,20 +35,20 @@ const dialogItems = (b: Browse) => b.run(() => [...document.querySelectorAll<HTM
 /** The small line next to the Add button. */
 const addLine = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('dialog[open] .add .aline')?.innerText.trim() ?? '')
 
-async function openKeys(b: Browse, vm: string): Promise<void> {
+export async function openKeys(b: Browse, vm: string): Promise<void> {
   await b.page.click(`button[aria-label="SSH keys ${vm}"]`)
   await b.page.waitForSelector(PASTE_BOX, { timeout: SHORT_WAIT_MS })
   await b.until(() => document.querySelector('dialog[open]')?.textContent?.includes('Reading the keys') === false, { timeout: SHORT_WAIT_MS })
 }
 
-async function pasteAndAdd(b: Browse, pasted: string): Promise<void> {
+export async function pasteAndAdd(b: Browse, pasted: string): Promise<void> {
   await b.type(PASTE_BOX, pasted)
   await b.click('Add')
 }
 
-const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll<HTMLElement>('dialog[open]')].every((dialog) => dialog.scrollWidth <= dialog.clientWidth))
+export const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll<HTMLElement>('dialog[open]')].every((dialog) => dialog.scrollWidth <= dialog.clientWidth))
 
-async function freshWithKeys(b: Browse, standin: StandIn, hash: string): Promise<void> {
+export async function freshWithKeys(b: Browse, standin: StandIn, hash: string): Promise<void> {
   await fresh(b, standin, hash)
   standin.sshKeys.seed('vm1', KEY_ONE)
   standin.sshKeys.seed('vm1', KEY_TWO)
@@ -81,7 +81,7 @@ async function listOfKeys(b: Browse, standin: StandIn): Promise<void> {
   const mono = await b.run(() => getComputedStyle(document.querySelector('dialog[open] ul.keys code') as Element).fontFamily.toLowerCase().includes('mono'))
   check('the fingerprint is in the mono face', mono)
   const connect = await b.dialogText()
-  check('the dialog shows the copyable "ssh root@10.0.0.1" line and the note about ssh -J', connect.includes('ssh root@10.0.0.1') && connect.includes('ssh -J'))
+  check('the dialog shows Ready and the copyable "ssh -J ... root@10.0.0.1" command', connect.includes('Ready. This key can log in.') && connect.includes('ssh -J luca@202.0.113.9 root@10.0.0.1'))
   check('the help line says to paste the .pub file and never a private key', connect.includes('Paste the public key (the file that ends in .pub). Never paste a private key.'))
   check('no status line while the keys are applied and the SSH server runs', (await b.run(() => document.querySelectorAll('dialog[open] .status').length)) === 0)
   await b.shot('ssh-keys-list-desktop.png')

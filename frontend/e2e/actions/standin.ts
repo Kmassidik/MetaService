@@ -11,6 +11,8 @@ import { createSshKeyBook, type BookAnswer, type SshKeyBook } from './sshKeyBook
 const CSRF = 'test-token'
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const BUNDLE_CALL = /^\/api\/machines\/([^/]+)\/bundle\/(install|uninstall)$/
+const SETTINGS_CALL = /^\/api\/machines\/([^/]+)\/settings$/
+const RETRY_SEGMENT = 'retry'
 const MACHINE_PAGE = /^\/api\/machines\/([^/]+)$/
 const SSH_KEYS_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/ssh-keys(?:\/([^/]+))?$/
 const VM_CALL =/^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/(start|stop|delete)$/
@@ -29,6 +31,8 @@ export interface StandIn {
   behaviour: Behaviour
   /** Every VM call that arrived, as "start vm2", in order. */
   calls: string[]
+  /** Every body PATCHed to a machine's settings, in order. */
+  settingsPatches: Json[]
   /** The SSH keys of each VM and the switches that change what the answers say. */
   sshKeys: SshKeyBook
   reset: () => void
@@ -89,6 +93,7 @@ export async function startStandIn(): Promise<StandIn> {
   let machines = fleet()
   const behaviour: Behaviour = { delayMs: 0, refuseWith: null, hang: false }
   const calls: string[] = []
+  const settingsPatches: Json[] = []
   const bundles = createBundleBook()
   const sshKeys = createSshKeyBook()
 
@@ -97,7 +102,7 @@ export async function startStandIn(): Promise<StandIn> {
     const [, , vm = '', keyId] = match
     const answered: Record<string, () => Promise<BookAnswer>> = {
       GET: async () => sshKeys.list(vm),
-      POST: async () => sshKeys.add(vm, await readJson(request)),
+      POST: async () => (keyId === RETRY_SEGMENT ? sshKeys.retry(vm) : sshKeys.add(vm, await readJson(request))),
       DELETE: async () => sshKeys.remove(vm, keyId ?? ''),
     }
     const work = answered[request.method ?? 'GET']
@@ -105,6 +110,23 @@ export async function startStandIn(): Promise<StandIn> {
     const result = await work()
     await wait(sshKeys.delayMs)
     send(response, result.status, result.body)
+  }
+
+  /** Saves the settings the Environment tab sends (null clears one) and answers with the machine, as the parent does. The ssh_jump setting also changes the command the SSH keys answers give. */
+  async function settingsCall(request: IncomingMessage, response: ServerResponse, match: RegExpExecArray): Promise<void> {
+    const owner = machines.find((entry) => entry.id === match[1])
+    if (!owner || request.method !== 'PATCH') return send(response, 404, { error: { code: 'not_found', message: 'no such machine' } })
+    const patch = await readJson(request)
+    settingsPatches.push(patch)
+    const settings: Json = isJson(owner.settings) ? owner.settings : {}
+    for (const [key, value] of Object.entries(patch)) {
+      if (key === 'name') continue
+      if (value === null) delete settings[key]
+      else settings[key] = value
+    }
+    owner.settings = settings
+    if ('ssh_jump' in patch) sshKeys.jumpSetting = typeof patch.ssh_jump === 'string' ? patch.ssh_jump : null
+    send(response, 200, owner)
   }
 
   /** Applies a start, stop or delete the way the helper would, once the call is accepted. */
@@ -162,6 +184,8 @@ export async function startStandIn(): Promise<StandIn> {
     const posted = request.method === 'POST'
     const keysRoute = SSH_KEYS_CALL.exec(path)
     if (keysRoute) return sshKeysCall(request, response, keysRoute)
+    const settingsRoute = SETTINGS_CALL.exec(path)
+    if (settingsRoute) return settingsCall(request, response, settingsRoute)
     const call = VM_CALL.exec(path)
     if (call && posted) return vmCall(call, response)
     const bundle = BUNDLE_CALL.exec(path)
@@ -192,12 +216,14 @@ export async function startStandIn(): Promise<StandIn> {
     base: `http://127.0.0.1:${address.port}`,
     behaviour,
     calls,
+    settingsPatches,
     sshKeys,
     reset() {
       machines = fleet()
       bundles.reset()
       sshKeys.reset()
       calls.length = 0
+      settingsPatches.length = 0
       Object.assign(behaviour, { delayMs: 0, refuseWith: null, hang: false })
     },
     close() {

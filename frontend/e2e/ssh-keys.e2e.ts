@@ -7,6 +7,8 @@ import { browse } from './support/page.ts'
 import { chromePath } from './support/paths.ts'
 import { startStandIn } from './actions/standin.ts'
 import { sshKeysDialogWorks } from './actions/ssh.ts'
+import { sshConnectWorks } from './actions/sshConnect.ts'
+import { sshSetupWorks } from './actions/sshSetup.ts'
 
 const DESKTOP = { width: 1280, height: 800 }
 
@@ -18,7 +20,10 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error instanceof Error ? error.message : String(error)))
-  await sshKeysDialogWorks(browse(page), standin)
+  const b = browse(page)
+  await sshKeysDialogWorks(b, standin)
+  await sshSetupWorks(b, standin)
+  await sshConnectWorks(b, standin)
   check('no script errors', errors.length === 0, errors.join(' | '))
 } finally {
   await browser.close()
