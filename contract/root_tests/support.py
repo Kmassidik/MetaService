@@ -13,6 +13,7 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = REPO / "control-plane" / "arm64"
 BINARY = PACKAGE / ".build" / "debug" / "metaservice-root"
 START_WAIT_SECONDS = 15
+REQUEST_SECONDS = 15
 
 
 class CheckFailed(AssertionError):
@@ -105,6 +106,7 @@ class Browser:
         self.root = root
         self.cookies = {}
         self.auto_login = auto_login
+        self.timeout = REQUEST_SECONDS
 
     def _needs_login(self, path):
         return self.auto_login and not self.cookies and not path.startswith(("/v1/", "/health", "/api/auth/"))
@@ -126,7 +128,7 @@ class Browser:
             sent["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
         if data is not None:
             sent.setdefault("Content-Type", "application/json")
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=self.timeout)
         connection.request(method, path, body=data, headers=sent)
         response = connection.getresponse()
         reply = Reply(response.status, response.getheaders(), response.read())

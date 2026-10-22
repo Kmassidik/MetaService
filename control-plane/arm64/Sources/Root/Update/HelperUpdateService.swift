@@ -45,11 +45,11 @@ final class HelperUpdateService: @unchecked Sendable {
     }
 
     private func perform(_ machine: MachineSummary) async throws -> (answer: HelperUpdateResult, output: String) {
-        guard let record = try parts.remoteMachines.get(machine.id) else { throw HelperUpdateFailure.loginNeeded }
         let offers = parts.updates.offers()
         let decision = parts.updates.status(of: machine, offers: offers)
         guard let system = HelperUpdateRules.system(os: machine.os, arch: machine.arch), let offer = offers[system] else { throw HelperUpdateFailure.noBuild(decision.reason ?? HelperUpdateRules.noBuildReason) }
         guard decision.available else { throw HelperUpdateFailure.upToDate }
+        guard let record = try parts.remoteMachines.get(machine.id) else { throw HelperUpdateFailure.loginNeeded }
         guard try !parts.commands.hasUnfinishedOrder(machine: machine.id) else { throw HelperUpdateFailure.busy }
         try begin(machine.id)
         defer { end(machine.id) }
