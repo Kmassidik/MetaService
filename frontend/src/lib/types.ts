@@ -376,10 +376,37 @@ export interface RemoteMachineInfo {
 
 /** One reading of a machine, as GET /api/machines/{id}/stats carries it (docs/monitor-contract.md). A number the machine could not give yet is null, never 0. */
 export interface StatsCpu {
+  /** Logical CPUs (threads). */
   core_count: number
   total_percent: number | null
   cores_percent: number[] | null
   load: { one: number | null; five: number | null; fifteen: number | null }
+  /** The next six are left out by a helper that does not know them (an older helper, or a system that does not say). */
+  physical_cores?: number
+  /** For each logical CPU, the index of its physical core. */
+  core_of?: number[]
+  /** Apple Silicon: the groups the system names. */
+  clusters?: StatsCluster[]
+  breakdown?: StatsBreakdown
+  frequency_mhz?: { average: number; max: number }
+  temperature_celsius?: number
+}
+
+export interface StatsCluster {
+  name: string
+  logical: number
+}
+
+/** Percent of the last interval in each CPU state. A Mac gives user, system, nice and idle only. */
+export interface StatsBreakdown {
+  user?: number
+  system?: number
+  nice?: number
+  idle?: number
+  iowait?: number
+  irq?: number
+  softirq?: number
+  steal?: number
 }
 
 export interface StatsMemory {
@@ -405,6 +432,11 @@ export interface StatsNetwork {
   sent_total_bytes: number
   received_bytes_per_second: number | null
   sent_bytes_per_second: number | null
+  /** Running totals since boot. A Mac counts drops on the way in only. */
+  errors_in_total?: number
+  errors_out_total?: number
+  drops_in_total?: number
+  drops_out_total?: number
 }
 
 export interface StatsGpu {
@@ -421,6 +453,7 @@ export interface StatsProcess {
   user: string
   cpu_percent: number | null
   memory_bytes: number
+  threads?: number
 }
 
 export interface MachineStats {
@@ -431,9 +464,38 @@ export interface MachineStats {
   memory: StatsMemory
   disks: StatsDisk[]
   network: StatsNetwork
+  /** Left out when the helper gives no disk speed. */
+  disk_io?: { read_bytes_per_second: number; write_bytes_per_second: number }
+  /** How many programs run in all; the list holds only the busiest. */
+  process_count?: number
   /** Left out when the machine cannot say. */
   gpus: StatsGpu[]
   processes: StatsProcess[]
+}
+
+/** One reading the parent kept (GET /api/machines/{id}/stats/history). Optional numbers are left out when the helper did not give them. */
+export interface StatsHistoryPoint {
+  /** Seconds since 1970. */
+  t: number
+  cpu_percent: number
+  cpu_breakdown?: StatsBreakdown
+  load?: [number, number, number]
+  mem_used: number
+  mem_cached: number
+  mem_total: number
+  swap_used: number
+  swap_total: number
+  disk_read?: number
+  disk_write?: number
+  net_in_bps: number | null
+  net_out_bps: number | null
+  net_drops?: number
+  processes_count?: number
+}
+
+export interface StatsHistoryReply {
+  interval_seconds: number
+  points: StatsHistoryPoint[]
 }
 
 export interface MachineStatsReply {

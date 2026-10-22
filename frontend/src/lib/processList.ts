@@ -14,3 +14,14 @@ export function processesFromReply(reply: MachineStatsReply, askedForList: boole
   if (!askedForList || !reply.stats) return null
   return reply.stats.processes
 }
+
+export type ProcessSort = 'cpu' | 'memory'
+
+/** The programs busiest first by the chosen number; a program with no CPU yet comes last, and ties keep the order of the list. */
+export function sortProcesses(processes: readonly StatsProcess[], by: ProcessSort): StatsProcess[] {
+  const value = (process: StatsProcess): number => (by === 'cpu' ? (process.cpu_percent ?? Number.NEGATIVE_INFINITY) : process.memory_bytes)
+  return processes.map((process, index) => ({ process, index })).sort((a, b) => value(b.process) - value(a.process) || a.index - b.index).map(({ process }) => process)
+}
+
+/** The value of `aria-sort` for a column header: the sorted column says descending, the others say nothing. */
+export const ariaSortOf = (column: ProcessSort, sorted: ProcessSort): 'descending' | 'none' => (column === sorted ? 'descending' : 'none')

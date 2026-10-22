@@ -1,5 +1,6 @@
 // Checks the answer of GET /api/machines/{id}/stats before the page trusts it. A shape that is wrong throws UnreadableAnswer.
 import { UnreadableAnswer } from './machineDetail.ts'
+import { cpuExtras, networkExtras, processExtras, topExtras } from './statsExtrasParse.ts'
 import type { MachineStats, MachineStatsReply, StatsCpu, StatsDisk, StatsGpu, StatsMemory, StatsNetwork, StatsProcess } from './types.ts'
 
 type Rec = Record<string, unknown>
@@ -52,6 +53,7 @@ function cpu(source: Rec): StatsCpu {
     total_percent: numOrNull(source, 'total_percent'),
     cores_percent: cores === null || cores === undefined ? null : list(source, 'cores_percent').map(finite),
     load: { one: numOrNull(load, 'one'), five: numOrNull(load, 'five'), fifteen: numOrNull(load, 'fifteen') },
+    ...cpuExtras(source),
   }
 }
 
@@ -70,6 +72,7 @@ const disk = (source: Rec): StatsDisk => ({
 const network = (source: Rec): StatsNetwork => ({
   received_total_bytes: num(source, 'received_total_bytes'), sent_total_bytes: num(source, 'sent_total_bytes'),
   received_bytes_per_second: numOrNull(source, 'received_bytes_per_second'), sent_bytes_per_second: numOrNull(source, 'sent_bytes_per_second'),
+  ...networkExtras(source),
 })
 
 const gpu = (source: Rec): StatsGpu => ({
@@ -79,6 +82,7 @@ const gpu = (source: Rec): StatsGpu => ({
 
 const processOf = (source: Rec): StatsProcess => ({
   pid: num(source, 'pid'), name: str(source, 'name'), user: str(source, 'user'), cpu_percent: numOrNull(source, 'cpu_percent'), memory_bytes: num(source, 'memory_bytes'),
+  ...processExtras(source),
 })
 
 function parseStats(source: Rec): MachineStats {
@@ -91,6 +95,7 @@ function parseStats(source: Rec): MachineStats {
     network: network(rec(source.network, 'network')),
     gpus: source.gpus === undefined ? [] : list(source, 'gpus').map((item) => gpu(rec(item, 'gpu'))),
     processes: list(source, 'processes').map((item) => processOf(rec(item, 'process'))),
+    ...topExtras(source),
   }
 }
 

@@ -18,7 +18,14 @@ const MUTED = ['--m40', '--m50', '--m60', '--m70'] as const
 const textOnFloors: Pair[] = FLOORS.map((floor) => ['--text', floor, AA_TEXT, `text on ${floor}`])
 const mutedOnFloors: Pair[] = MUTED.flatMap((step) => FLOORS.map((floor): Pair => [step, floor, AA_TEXT, `${step} on ${floor}`]))
 
+const CHART_COLOURS: readonly string[] = ['green', 'red', 'purple', 'orange', 'olive', 'ink', 'teal', 'blue', 'navy']
+/** Two series colours closer than this (straight distance in red, green, blue) are too alike to tell apart on a chart. */
+const MIN_COLOUR_DISTANCE = 60
+
+const chartOnCards: Pair[] = CHART_COLOURS.flatMap((name): Pair[] => ['--surface', '--surface-2'].map((floor): Pair => [`--chart-${name}`, floor, AA_LARGE_TEXT_AND_MARKS, `chart colour ${name} on ${floor}`]))
+
 const PAIRS: readonly Pair[] = [
+  ...chartOnCards,
   ...textOnFloors,
   ...mutedOnFloors,
   ['--text', '--accent', AA_TEXT, 'text on a moss fill (selected tab, apartment, step number)'],
@@ -104,4 +111,25 @@ test('the check can fail: a weak muted colour on the card colour is below AA', (
 
 test('every light surface is near white, so the owl pictures (multiplied onto them) show no box', () => {
   for (const floor of ['--page-bg', '--surface', '--surface-2']) expect(contrastRatio(colourOf(tokens, floor), '#ffffff')).toBeLessThan(1.1)
+})
+
+function channels(hex: string): [number, number, number] {
+  const value = hex.replace('#', '')
+  const channel = (at: number): number => Number.parseInt(value.slice(at, at + 2), 16)
+  return [channel(0), channel(2), channel(4)]
+}
+
+test('every chart colour is a token, and no two chart colours are alike', () => {
+  const colours = CHART_COLOURS.map((name) => ({ name, hex: colourOf(tokens, `--chart-${name}`) }))
+  const alike = colours.flatMap(({ name: first, hex: a }, index) => colours.slice(index + 1).flatMap(({ name: second, hex: b }) => {
+    const [ar, ag, ab] = channels(a)
+    const [br, bg, bb] = channels(b)
+    const distance = Math.hypot(ar - br, ag - bg, ab - bb)
+    return distance >= MIN_COLOUR_DISTANCE ? [] : [`${first} and ${second} are ${distance.toFixed(0)} apart`]
+  }))
+  expect(alike).toEqual([])
+})
+
+test('the chart colours named in the code are the ones in the palette', () => {
+  expect(Object.keys(tokens).filter((name) => name.startsWith('--chart-')).sort()).toEqual(CHART_COLOURS.map((name) => `--chart-${name}`).sort())
 })

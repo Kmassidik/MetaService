@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { filterProcesses, processesFromReply } from './processList.ts'
+import { ariaSortOf, filterProcesses, processesFromReply, sortProcesses } from './processList.ts'
 import { sampleStats } from './stats.test.ts'
 import type { MachineStatsReply, StatsProcess } from './types.ts'
 
@@ -35,4 +35,32 @@ test('a reply asked without the list gives no list at all, not an empty one', ()
 
 test('a reply with no numbers (old helper, never seen) gives no list', () => {
   expect(processesFromReply(reply({ state: 'old_helper', stats: null }), true)).toBeNull()
+})
+
+const mixed: StatsProcess[] = [
+  { pid: 1, name: 'a', user: 'u', cpu_percent: 5, memory_bytes: 900 },
+  { pid: 2, name: 'b', user: 'u', cpu_percent: 50, memory_bytes: 100 },
+  { pid: 3, name: 'c', user: 'u', cpu_percent: null, memory_bytes: 500 },
+  { pid: 4, name: 'd', user: 'u', cpu_percent: 5, memory_bytes: 300 },
+]
+
+test('sorting by CPU puts the busiest first, ties keep the list order and no reading yet comes last', () => {
+  expect(sortProcesses(mixed, 'cpu').map((p) => p.pid)).toEqual([2, 1, 4, 3])
+})
+
+test('sorting by memory puts the biggest first', () => {
+  expect(sortProcesses(mixed, 'memory').map((p) => p.pid)).toEqual([1, 3, 4, 2])
+})
+
+test('sorting returns a new list and leaves the given one alone', () => {
+  const copy = [...mixed]
+  const sorted = sortProcesses(mixed, 'memory')
+  expect(sorted).not.toBe(mixed)
+  expect(mixed).toEqual(copy)
+  expect(sortProcesses([], 'cpu')).toEqual([])
+})
+
+test('only the sorted column says descending', () => {
+  expect(ariaSortOf('cpu', 'cpu')).toBe('descending')
+  expect(ariaSortOf('memory', 'cpu')).toBe('none')
 })

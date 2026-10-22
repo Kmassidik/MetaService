@@ -19,6 +19,8 @@
   --off: #6b655f; --reserve-bg: #d9d9d6; --reserve-line: #8a8a8a;
   --danger: #b3261e; --danger-bg: #fbe9e6; --danger-line: #e3b2ab; --danger-d: #8f1d17; --danger-ink: #8f1d17; --danger-bright: #b3261e;
   --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
+  /* chart series (stacked areas and lines on a card): each at least 3:1 against the card, far enough apart to tell apart, and every chart also names its series in a legend and gives lines different patterns */
+  --chart-green: #2e7d32; --chart-red: #c62828; --chart-purple: #6a3fb5; --chart-orange: #bf5a00; --chart-olive: #7a6b00; --chart-ink: #231b15; --chart-teal: #00796b; --chart-blue: #1565c0; --chart-navy: #1a237e;
   /* shadows and the dim layer behind a window */
   --scrim: rgba(35,27,21,.6); --shadow-window: 0 20px 60px rgba(35,27,21,.4); --shadow-card: 0 18px 40px -24px rgba(35,27,21,.35); --pane-line: rgba(35,27,21,.18);
   /* the terminal window: dark */
