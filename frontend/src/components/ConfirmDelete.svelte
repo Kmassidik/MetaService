@@ -17,7 +17,7 @@
     <p><strong>{target.workload.name}</strong> on <strong>{target.machine.name}</strong> will be stopped and deleted. The machine makes a backup of it first and keeps that backup;
       if the backup fails, nothing is deleted.</p>
     <div class="row">
-      {#if action.busy}<span class="still" role="status">Still working. The dialog closes when it is done.</span>{/if}
+      {#if action.busy}<span class="still" role="status">Still working…</span>{/if}
       <button class="btn line" type="button" disabled={action.busy} onclick={onCancel}>Keep it</button>
       <ActionButton {action} variant="danger" label="Back up and delete" busyLabel="Deleting…" doneLabel="Deleted" onrun={onConfirm} />
     </div>

@@ -23,8 +23,16 @@
 
   let { label, busyLabel, doneLabel, onrun, variant = 'plain', small = false, disabled = false, title, action }: Props = $props()
   const own = new ActionState()
-  const state = $derived(action ?? own)
-  const line = $derived(lineOf({ status: state.status, message: state.message }, doneLabel))
+  const current = $derived(action ?? own)
+  /** The words of the press that started the work: the page may change the button's own words while it runs (Start becomes Stop), but the line must still say what was asked. */
+  let asked = $state({ busy: '', done: '' })
+  const line = $derived(lineOf({ status: current.status, message: current.message }, asked.done))
+
+  function press() {
+    if (current.busy) return
+    asked = { busy: busyLabel, done: doneLabel }
+    void current.run(onrun)
+  }
 </script>
 
 <span class="abtn">
@@ -36,11 +44,11 @@
     class:sm={small}
     type="button"
     {title}
-    disabled={disabled || state.busy}
-    aria-busy={state.busy}
-    onclick={() => void state.run(onrun)}
-  >{#if state.busy}<span class="btn-spin" aria-hidden="true"></span>{busyLabel}{:else}{label}{/if}</button>
-  <span class="aline" class:bad={state.status === 'failed'} class:hide={line === ''} role="status" aria-live="polite">{line}</span>
+    disabled={disabled || current.busy}
+    aria-busy={current.busy}
+    onclick={press}
+  >{#if current.busy}<span class="btn-spin" aria-hidden="true"></span>{asked.busy}{:else}{label}{/if}</button>
+  <span class="aline" class:bad={current.status === 'failed'} class:hide={line === ''} role="status" aria-live="polite">{line}</span>
 </span>
 
 <style>
