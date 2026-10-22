@@ -62,6 +62,7 @@ public struct MachineStore: @unchecked Sendable {
     public func remove(id: String) throws {
         let removed = try database.execute("DELETE FROM machines WHERE id = ?", [.text(id)])
         guard removed == 1 else { throw MachineError.notFound }
+        try SshKeyStore(database).forget(machine: id)
     }
 
     // MARK: heartbeat

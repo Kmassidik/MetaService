@@ -116,6 +116,18 @@ public enum Migrations {
             """) }),
         // Which build of the helper program a machine runs (the SHA-256 of its file, as the helper reports it), replaced with every heartbeat. Null for a helper that does not say.
         (19, { try $0.exec("ALTER TABLE machines ADD COLUMN agent_build TEXT;") }),
+        // SSH public keys an operator gave for one VM, and per VM whether the helper has the current list (revision counts changes so a late apply cannot overwrite a newer one). Workload ids are only unique per machine. Not tied to the workloads table: that one is rewritten by every heartbeat.
+        (20, { try $0.exec("""
+            CREATE TABLE workload_ssh_keys (
+              id TEXT PRIMARY KEY, workload_id TEXT NOT NULL, machine_id TEXT NOT NULL, key_type TEXT NOT NULL, blob TEXT NOT NULL,
+              comment TEXT NOT NULL, fingerprint TEXT NOT NULL, added_at INTEGER NOT NULL
+            );
+            CREATE UNIQUE INDEX workload_ssh_keys_blob ON workload_ssh_keys (machine_id, workload_id, blob);
+            CREATE TABLE workload_ssh_state (
+              workload_id TEXT NOT NULL, machine_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0, applied INTEGER NOT NULL DEFAULT 0, sshd TEXT,
+              PRIMARY KEY (machine_id, workload_id)
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
