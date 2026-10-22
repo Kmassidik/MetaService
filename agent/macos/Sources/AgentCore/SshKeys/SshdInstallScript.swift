@@ -69,7 +69,7 @@ public enum SshdInstallScript {
     has_sshd() { command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ]; }
     is_running() { cat /proc/[0-9]*/comm 2>/dev/null | grep -qx sshd; }
     is_listening() { cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -Eq '^ *[0-9]+: [0-9A-Fa-f]+:0016 [0-9A-Fa-f]+:[0-9A-Fa-f]+ 0A '; }
-    is_up() { is_running && is_listening; }
+    is_up() { is_listening; }
 
     report() {
       if is_up; then state=running
