@@ -133,6 +133,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'install_sshd was true and the SSH server could not be made to listen (code sshd_install_failed, plain-words message); the keys are still written', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
@@ -654,6 +655,7 @@ components:
           maxItems: 20
           description: 'the complete list of authorized_keys lines for root of the VM, in the order they were added'
           items: { type: string, minLength: 1, maxLength: 800, pattern: '^[^\r\n\x00]+$', description: 'one line: type, base64, optional comment (already validated by the Root)' }
+        install_sshd: { type: boolean, default: false, description: 'true: the helper also installs, locks to keys only, and starts the SSH server inside the VM when it is missing (keys are written first; up to 5 minutes). Absent or false: only report.' }
     SshKeysApplied:
       type: object
       required: [applied, sshd]
@@ -661,6 +663,7 @@ components:
       properties:
         applied: { type: integer, minimum: 0, maximum: 20, description: 'how many keys are in the VM now' }
         sshd: { type: string, enum: [running, installed, missing] }
+        installed: { type: boolean, description: 'present only when install_sshd was true: true when this call installed the SSH server package' }
     SshKeyAdd:
       type: object
       required: [public_key]
