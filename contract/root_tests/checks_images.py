@@ -17,6 +17,7 @@ COMING_SOON = "Coming soon: needs the image to be prepared on the machine"
 WAITING_FOR_PIN = "Waiting for a pinned release and checksum"
 VM = {"kind": "vm", "cpu": 1, "ram_mb": 1024, "disk_gb": 5}
 HOSTILE_ID = "evil-image"
+UPDATE_HELPER = "Update the helper on this machine first"
 
 
 class ImageHelper:
@@ -38,6 +39,19 @@ def machine_with_helper(operator, root, machine_spec=None):
     helper = ImageHelper(command_token, machine_spec)
     beat(root, machine_token, helper.port)
     return helper
+
+
+def machine_images_of(operator, machine_spec):
+    """What the panel route says for a machine whose helper is built as `machine_spec` says (a second machine, so the first one stays as it is)."""
+    machine_token, command_token = enroll(operator, "other")
+    helper = ImageHelper(command_token, machine_spec)
+    try:
+        beat(operator.root, machine_token, helper.port)
+        reply = operator.request("GET", "/api/machines/other/images")
+        expect(reply.status == 200, f"machine images gave {reply.status}")
+        return reply.body["images"]
+    finally:
+        helper.stop()
 
 
 def machine_images(operator):
@@ -94,21 +108,24 @@ def check_the_machine_route_merges_the_catalog_with_what_the_helper_has():
             expect(body["helper"] == "answered", f"helper: {body['helper']}")
             images = by_id(body["images"])
             expect(images["blank"]["ready"] and images["blank"]["available"] and images["blank"]["reason"] is None, f"blank: {images['blank']}")
-            for planned, reason in (("openclaw", COMING_SOON), ("hermes", WAITING_FOR_PIN)):
-                expect(not images[planned]["available"] and images[planned]["reason"] == reason, f"{planned}: {images[planned]}")
+            for app in ("openclaw", "hermes"):
+                expect(images[app]["ready"] and images[app]["available"] and images[app]["reason"] is None, f"{app} is installed after the VM starts, so a helper that says ready makes it selectable: {images[app]}")
+            old = by_id(machine_images_of(operator, MachineSpec(serves_apps=False)))
+            for app in ("openclaw", "hermes"):
+                expect(not old[app]["available"] and old[app]["reason"] == UPDATE_HELPER, f"{app} on a helper that does not report ready: {old[app]}")
         finally:
             helper.stop()
 
 
-def check_a_helper_that_claims_a_planned_image_or_names_a_stranger_changes_nothing_for_the_panel():
-    claims = [dict(BLANK_IMAGE), {"id": "openclaw", "ready": True, "built_at": "2026-10-22T10:00:00Z"}, {"id": HOSTILE_ID, "ready": True, "built_at": None}]
+def check_a_helper_that_names_a_stranger_or_says_an_app_is_not_ready_changes_nothing_for_the_panel():
+    claims = [dict(BLANK_IMAGE), {"id": "openclaw", "ready": False, "built_at": None}, {"id": HOSTILE_ID, "ready": True, "built_at": None}]
     with running() as root:
         operator = Browser(root)
-        helper = machine_with_helper(operator, root, MachineSpec(images=claims))
+        helper = machine_with_helper(operator, root, MachineSpec(images=claims, serves_apps=False))
         try:
             body = machine_images(operator)
             expect([image["id"] for image in body["images"]] == CATALOG_IDS, "a name outside the catalog must never reach the panel")
-            expect(by_id(body["images"])["openclaw"]["available"] is False, "a planned image cannot be chosen, whatever the helper says")
+            expect(by_id(body["images"])["openclaw"]["available"] is False, "an app the helper says is not ready cannot be chosen")
         finally:
             helper.stop()
 
@@ -159,12 +176,12 @@ def check_creating_with_blank_or_nothing_is_todays_request_and_sends_no_bundle_t
             helper.stop()
 
 
-def check_a_planned_image_is_a_409_in_plain_words_and_nothing_is_started():
+def check_an_app_the_helper_cannot_install_is_a_409_in_plain_words_and_nothing_is_started():
     with running() as root:
         operator = Browser(root)
-        helper = machine_with_helper(operator, root)
+        helper = machine_with_helper(operator, root, MachineSpec(serves_apps=False))
         try:
-            for bundle, reason in (("openclaw", COMING_SOON), ("hermes", WAITING_FOR_PIN)):
+            for bundle, reason in (("openclaw", UPDATE_HELPER), ("hermes", UPDATE_HELPER)):
                 reply = create(operator, bundle=bundle)
                 error = (reply.body or {}).get("error", {})
                 expect(reply.status == 409 and error.get("code") == "image_not_available" and error.get("message") == reason, f"{bundle}: {reply.status} {reply.body}")
