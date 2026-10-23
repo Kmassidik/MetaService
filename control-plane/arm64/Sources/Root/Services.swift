@@ -34,6 +34,7 @@ struct Services {
     let remoteInstalls: RemoteInstallService
     let terminal: TerminalService
     let sshKeys: SshKeyService
+    let apps: AppService
     let stats: StatsService
     let history: HistoryService
     let gpuCheck: GpuCheckService
@@ -61,8 +62,10 @@ struct Services {
         brainService = BrainService(config: config)
         let sshKeyStore = SshKeyStore(database)
         let autoPin = BundleAutoPin(bundles: bundles, audit: audit, clock: clock)
+        images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
+        apps = AppService(machines: machines, apps: AppStateStore(database), audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
-                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore)
+                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore, apps: apps, images: images)
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, autoPin: autoPin, clock: clock)
         machineSettings = MachineSettingsStore(database)
         remoteSsh = RemoteSsh(parts: .init(config: config, clock: clock, keys: RemoteKeyStore(database), secrets: secrets, throttle: throttle))
@@ -79,7 +82,6 @@ struct Services {
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
-        images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))
     }
 }

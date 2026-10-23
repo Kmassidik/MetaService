@@ -28,8 +28,10 @@ struct WorkloadRoutes {
         return try Json.response(Reply(command: try await services.workloads.create(actor: caller.name, request: wish)), status: .accepted)
     }
 
+    /// An app is checked against the machine it will land on, by the service; only images are checked here.
     /// A listed image that cannot be chosen yet is a plain 409 that says why, in the catalog's words.
     private func requireSelectable(_ bundle: String) throws {
+        guard !AppCatalog.isApp(bundle) else { return }
         do {
             _ = try ImageCatalog.choose(bundle)
         } catch ImageChoiceError.notAvailable(let reason) {

@@ -16,10 +16,16 @@ final class WorkloadService: @unchecked Sendable {
     private let chatAccess: ChatAccessStore
     private let secrets: SecretBox
     private let sshKeys: SshKeyStore
+    private let apps: AppService
+    private let images: ImagesService
     private let creating = NSLock()
+    /// The create command's parameter that carries the app asked for, so the wish survives until the helper names the new VM.
+    private static let appParam = "app"
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore, apps: AppService, images: ImagesService) {
         self.sshKeys = sshKeys
+        self.apps = apps
+        self.images = images
         self.bundles = bundles
         self.autoPin = autoPin
         self.chatAccess = chatAccess
@@ -34,10 +40,30 @@ final class WorkloadService: @unchecked Sendable {
     // MARK: asking for things
 
     func create(actor: String, request: CreateWorkloadOperatorRequest) async throws -> CommandRow {
+        let request = try await placedWhereTheAppCanBeInstalled(request)
         let (machine, id) = try reserve(actor: actor, request: request)
         let savedDefault = (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
         let body = HelperCreateBody.make(commandId: id, request: request, machineDefaultImage: savedDefault)
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads", body: body)
+    }
+
+    /// An app is installed after the VM starts, so the machine must have a helper that can do it: it is chosen first, asked, and the VM is pinned to it.
+    /// A machine whose helper cannot is refused with the catalog's plain reason. Anything but an app is left as it is.
+    private func placedWhereTheAppCanBeInstalled(_ request: CreateWorkloadOperatorRequest) async throws -> CreateWorkloadOperatorRequest {
+        guard AppCatalog.isApp(request.bundle) else { return request }
+        let wish = PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine)
+        let machine = try Placement.choose(try candidates(clock.now), wish)
+        let reply: MachineImagesReply
+        do {
+            reply = try await images.reply(for: machine)
+        } catch MachineError.notFound {
+            throw ApiFailure.notFound
+        }
+        let image = reply.images.first { $0.id == request.bundle }
+        guard image?.available == true else {
+            throw ApiFailure(status: .conflict, code: "image_not_available", message: image?.reason ?? AppCatalog.oldHelperReason)
+        }
+        return request.placed(on: machine)
     }
 
     /// Chooses the machine and writes the command in one step, so two requests made at once cannot both count the same free room.
@@ -47,7 +73,8 @@ final class WorkloadService: @unchecked Sendable {
         let now = clock.now
         let machine = try Placement.choose(try candidates(now), PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine))
         let id = Self.newCommandId()
-        let params = ["name": request.name, "kind": request.kind, "cpu": String(request.cpu), "ram_mb": String(request.ramMb), "disk_gb": String(request.diskGb), "gpu_mode": request.gpuMode]
+        var params = ["name": request.name, "kind": request.kind, "cpu": String(request.cpu), "ram_mb": String(request.ramMb), "disk_gb": String(request.diskGb), "gpu_mode": request.gpuMode]
+        params[Self.appParam] = AppCatalog.isApp(request.bundle) ? request.bundle : nil
         try commands.create(id: id, machine: machine, workloadId: nil, type: "create", params: params, actor: actor, now: now)
         try audit.record(actor: actor, action: "workload.create", target: machine, detail: ["name": request.name, "command": id], at: now)
         return (machine, id)
@@ -177,6 +204,7 @@ final class WorkloadService: @unchecked Sendable {
         var text = (result ?? [:]).compactMapValues { $0 as? String }
         keepChatKey(id, &text)
         forgetKeysOfDeletedVM(id, state: state)
+        startAppOfCreatedVM(id, state: state, result: text)
         try? finish(id, state: state, result: HelperFailureText.cleanResult(text))
     }
 
@@ -188,10 +216,17 @@ final class WorkloadService: @unchecked Sendable {
         try? chatAccess.set(target: target, sealedKey: sealed, port: Int(result["port"] ?? "") ?? 9200, now: clock.now)
     }
 
-    /// A VM that is gone takes the SSH keys given for it along.
+    /// A VM that is gone takes the SSH keys and the app state given for it along.
     private func forgetKeysOfDeletedVM(_ id: String, state: String) {
         guard state == "succeeded", let row = try? commands.get(id), row.type == "delete", let workload = row.workloadId else { return }
         try? sshKeys.forget(workload: workload, machine: row.machine)
+        apps.forget(workload: workload, machine: row.machine)
+    }
+
+    /// A create that asked for an app has made its VM: the wish is kept and the install starts in the background.
+    private func startAppOfCreatedVM(_ id: String, state: String, result: [String: String]) {
+        guard state == "succeeded", let row = try? commands.get(id), row.type == "create", let app = row.params[Self.appParam], let workload = result["workload_id"] else { return }
+        apps.created(app: app, machine: row.machine, workload: workload)
     }
 
     private func lost(_ id: String, _ why: String) {

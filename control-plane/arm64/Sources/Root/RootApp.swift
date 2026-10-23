@@ -20,6 +20,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     RemoteInstallRoutes(services: services, guards: guards).register(on: router.group())
     TerminalRoutes(services: services, guards: guards).register(on: router.group())
     SshKeyRoutes(services: services, guards: guards).register(on: router.group())
+    AppRoutes(services: services, guards: guards).register(on: router.group())
     StatsRoutes(services: services, guards: guards).register(on: router.group())
     GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     ImagesRoutes(services: services, guards: guards).register(on: router.group())
