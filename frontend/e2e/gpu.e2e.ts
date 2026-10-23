@@ -25,7 +25,8 @@ const GPU_LINES = [
 const CONTAINER_CAPTION = "The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit."
 const NO_GPU_CAPTION = 'No GPU is given to this VM.'
 const PLANNED_MODES = ['shared', 'passthrough', 'custom']
-const VM_TEXT = 'A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.'
+const VM_TEXT = "GPU in a VM is coming soon. It needs the machine's virtualization (SVM) switched on in its BIOS and the card passed through to one VM. Choose Container to use the GPU today."
+const containerLineIsOff = (line: { options: { value: string; disabled: boolean }[] }) => line.options.find((option) => option.value === 'container')?.disabled === true
 const TOOLKIT_TEXT = 'This machine needs the NVIDIA container toolkit first'
 
 const openCreate = async (b: Browse, base: string, machine: string): Promise<void> => {
@@ -66,24 +67,24 @@ async function choiceByMachineAndKind(b: Browse, base: string): Promise<void> {
   check('the line under the select says what No GPU means', line.caption === NO_GPU_CAPTION)
   await choose(b, GPU, 'container')
   check('picking the real mode changes it to what sharing means', (await gpuLine(b)).caption === CONTAINER_CAPTION)
-  check('there is no VM text for a container', line.notes.length === 0)
+  check('there is no VM text for a container', line.notes.length === 1 && line.notes[0]?.kind === 'choice')
   await b.shot('gpu-create-container.png')
 
   await openCreate(b, base, 'gpu-server')
   await pickKind(b, 'vm')
   line = await gpuLine(b)
-  check('on a machine that runs VMs, the VM kind shows the plain text and no control', line.options.length === 0 && line.notes.length === 1 && line.notes[0]?.kind === 'vm' && line.notes[0].text === VM_TEXT, JSON.stringify(line))
+  check('on a machine that runs VMs, the VM kind still shows the whole GPU select, No GPU picked, "GPU in a container" off, with the coming-soon caption', line.options.length === 5 && containerLineIsOff(line) && line.picked === 'none' && line.caption === VM_TEXT && line.notes[0]?.kind === 'vm_text', JSON.stringify(line))
   await b.shot('gpu-create-vm.png')
   await pickKind(b, 'container')
   line = await gpuLine(b)
-  check('switching to Container brings the choice and takes the text away', line.options.length === 5 && line.notes.length === 0, JSON.stringify(line))
+  check('switching to Container turns "GPU in a container" on and shows what the choice means', line.options.length === 5 && !containerLineIsOff(line) && line.caption === NO_GPU_CAPTION && line.notes[0]?.kind === 'choice', JSON.stringify(line))
   await pickKind(b, 'vm')
-  check('switching back to VM brings the text back', (await gpuLine(b)).notes[0]?.text === VM_TEXT)
+  check('switching back to VM brings the coming-soon caption back', (await gpuLine(b)).caption === VM_TEXT)
 
   await openCreate(b, base, 'rtx-notoolkit')
   line = await gpuLine(b)
   const link = await b.run(() => document.querySelector<HTMLAnchorElement>('[data-gpu-note=toolkit] a')?.getAttribute('href') ?? '')
-  check('a card without the toolkit says the machine needs it first, with a link to the machine page and no control', line.options.length === 0 && line.notes[0]?.text.startsWith(TOOLKIT_TEXT) === true && link === '#/machines/details?id=rtx-notoolkit', JSON.stringify({ line, link }))
+  check('a card without the toolkit keeps the select, with "GPU in a container" off, says the machine needs the toolkit first and links to the machine page', line.options.length === 5 && containerLineIsOff(line) && line.caption.startsWith(TOOLKIT_TEXT) && link === '#/machines/details?id=rtx-notoolkit', JSON.stringify({ line, link }))
   await b.shot('gpu-create-no-toolkit.png')
 
   for (const machine of ['mac-studio', 'plain-linux']) {

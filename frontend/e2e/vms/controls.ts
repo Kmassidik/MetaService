@@ -2,7 +2,7 @@
 // An empty name gets a generated one, five quick clicks send one order that carries the choices, and on a phone nothing scrolls sideways while the footer stays in reach.
 import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
-import { CREATE_FORM, NAME, RUNTIME, SIZE, captionOf, choose, createFormCount, fieldValue, imageListArrived, lines, selectValue, setField } from '../support/createVm.ts'
+import { CREATE_FORM, NAME, RUNTIME, SIZE, captionOf, choose, createFormCount, fieldValue, imageListArrived, imageState, lines, openedMenu, selectValue, setField } from '../support/createVm.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
 import { closeWithEscape, openCreate } from './create.ts'
@@ -21,10 +21,10 @@ const RAM_TOO_BIG_TEXT = 'RAM (GB) must be between 0.5 and 1024.'
 const RAM_BEYOND_LIMIT_GB = '2000'
 const REFUSING_RAM_GB = '500'
 const OTHER_PAGES = ['#/overview', '#/machines', '#/vms', '#/machines/details?id=mac-mini']
-const CONTAINER_CAPTION = "Shares the machine's core: starts in seconds, uses little memory."
-const VM_CAPTION = 'A whole separate computer with its own core: stronger wall, slower start.'
+const CONTAINER_CAPTION = "Fast stop and wake. Shares the machine's core, so it starts in seconds and uses little memory. Best for agents and apps."
+const VM_CAPTION = 'A full computer with its own core: a stronger wall, slower start, more memory. Needs virtualization on the machine.'
 const MAC_CAPTION = "On a Mac both run inside Apple's own small VM."
-const SECTION_LABELS = ['ON HOST', 'SERVER IMAGE', 'INSTANCE SIZE', 'RUNTIME ENVIRONMENT', 'INSTANCE NAME (optional)']
+const SECTION_LABELS = ['ON HOST', 'SERVER IMAGE', 'INSTALL ON TOP (optional)', 'INSTANCE SIZE', 'RUNTIME ENVIRONMENT', 'INSTANCE NAME (optional)']
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
 const closed = (b: Browse) => b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
@@ -80,7 +80,7 @@ export async function sectionsInOrder(b: Browse): Promise<void> {
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector(NAME)
   const labels = await b.page.$$eval('dialog[open] form .label', (list) => list.map((label) => (label instanceof HTMLElement ? label.innerText.replace(/\s+/g, ' ').trim() : '')))
-  check('the sections are On host, Server image, Instance size, Runtime environment (a Mac has no GPU line), Instance name, in capitals', JSON.stringify(labels) === JSON.stringify(SECTION_LABELS), JSON.stringify(labels))
+  check('the sections are On host, Server image, Install on top, Instance size, Runtime environment (a Mac has no GPU line), Instance name, in capitals', JSON.stringify(labels) === JSON.stringify(SECTION_LABELS), JSON.stringify(labels))
   const frame = await b.run(() => {
     const dialog = document.querySelector('dialog[open]')?.getBoundingClientRect()
     const title = document.querySelector('dialog[open] h3')
@@ -117,9 +117,11 @@ export async function disabledSizeAndRuntime(b: Browse): Promise<void> {
   await b.page.waitForSelector(NAME)
   const sizes = await lines(b, SIZE)
   check('with 6 GB free Large is disabled and says why in brackets; the others can be picked', JSON.stringify(sizes.map((line) => [line.value, line.disabled])) === JSON.stringify([['small', false], ['medium', false], ['large', true], ['custom', false]]) && sizes[2]?.text.endsWith('(This machine has 6 GB free)') === true, JSON.stringify(sizes))
-  const runtimes = await lines(b, RUNTIME)
-  check('on a containers-only machine the VM line is disabled with its reason in brackets', JSON.stringify(runtimes.map((line) => line.text)) === JSON.stringify(['Container — fast stop & wake', 'VM — full VM, classic (this machine runs containers only)']) && runtimes[1]?.disabled === true, JSON.stringify(runtimes))
-  check('Container is picked, and the line under the select explains it', (await selectValue(b, RUNTIME)) === 'container' && (await captionOf(b, RUNTIME)) === CONTAINER_CAPTION)
+  const runtimes = await openedMenu(b, RUNTIME)
+  check('on a containers-only machine the VM row is disabled and gives its reason as the caption', runtimes.rows.length === 2 && runtimes.rows[0]?.title === 'Container' && runtimes.rows[1]?.title === 'VM' && runtimes.rows[1].disabled && runtimes.rows[1].caption === 'This machine runs containers only' && !runtimes.rows[0].disabled, JSON.stringify(runtimes.rows))
+  await b.page.keyboard.press('Escape')
+  const shut = await imageState(b, RUNTIME)
+  check('Container is picked, and the line under the dropdown explains it', shut.trigger.startsWith('Container') && (await captionOf(b, RUNTIME)) === CONTAINER_CAPTION, shut.trigger)
   await b.shot('vms-create-containers-only.png')
   await closeWithEscape(b)
 }

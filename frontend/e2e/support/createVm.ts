@@ -1,13 +1,16 @@
-// How the browser tests read and drive the Create VM window: its native selects (their lines, which are off, the caption under them) and the image dropdown (a button and a list of rows).
+// How the browser tests read and drive the Create VM window: its native selects (their lines, which are off, the caption under them) and its three rich dropdowns (server image, install on top, runtime: a button and a list of rows).
 import type { Browse } from './page.ts'
 
 const IMAGES_WAIT_MS = 10000
 const UNREADABLE_NOTE = 'could not be read'
+/** Install on top lists None and the four planned frameworks before the machine's catalog has answered; the catalog's own frameworks come after. */
+const ROWS_BEFORE_THE_ANSWER = 5
 
 export const NAME = '#vm-create-name'
 export const PICKER = '#vm-create-machine'
 export const IMAGE = '#vm-create-image'
 export const IMAGE_MENU = '#vm-create-image-menu'
+export const FRAMEWORK = '#vm-create-framework'
 export const SIZE = '#vm-create-size'
 export const RUNTIME = '#vm-create-runtime'
 export const GPU = '#vm-create-gpu'
@@ -35,7 +38,10 @@ export async function summary(b: Browse, select: string): Promise<string[]> {
 
 /** Picks a line of a select the way a person does (the page is told by a change event). */
 export async function choose(b: Browse, select: string, value: string): Promise<void> {
-  await b.page.select(`dialog[open] ${select}`, value)
+  const isRich = await b.run((selector) => document.querySelector(`dialog[open] ${selector}`) instanceof HTMLButtonElement, select)
+  if (!isRich) return void (await b.page.select(`dialog[open] ${select}`, value))
+  await b.page.click(`dialog[open] ${select}`)
+  await b.page.click(`dialog[open] ${select}-menu [role=option][data-value="${value}"]`)
 }
 
 /** The plain line under a select (its caption), found by the id the select points to. */
@@ -43,6 +49,9 @@ export const captionOf = (b: Browse, select: string): Promise<string> =>
   b.run((selector) => document.getElementById(document.querySelector(`dialog[open] ${selector}`)?.getAttribute('aria-describedby') ?? '')?.textContent?.trim() ?? '', select)
 
 export interface ImageRow {
+  value: string
+  title: string
+  caption: string
   text: string
   tag: string
   selected: boolean
@@ -56,8 +65,8 @@ export interface ImageState {
   rows: ImageRow[]
 }
 
-/** What the image dropdown shows right now: whether its list is open, the picked image on the button, and every row. */
-export const imageState = (b: Browse): Promise<ImageState> =>
+/** What a rich dropdown shows right now (the image one unless told otherwise): whether its list is open, the picked row on the button, and every row. */
+export const imageState = (b: Browse, trigger: string = IMAGE): Promise<ImageState> =>
   b.run((trigger, menu) => {
     const button = document.querySelector(`dialog[open] ${trigger}`)
     const activeId = button?.getAttribute('aria-activedescendant')
@@ -65,6 +74,9 @@ export const imageState = (b: Browse): Promise<ImageState> =>
       expanded: button?.getAttribute('aria-expanded') === 'true',
       trigger: button?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       rows: [...document.querySelectorAll(`dialog[open] ${menu} [role=option]`)].map((row) => ({
+        value: row.getAttribute('data-value') ?? '',
+        title: row.querySelector('.name')?.textContent?.trim() ?? '',
+        caption: row.querySelector('.caption')?.textContent?.trim() ?? '',
         text: row.textContent?.replace(/\s+/g, ' ').trim() ?? '',
         tag: row.querySelector('.chip')?.textContent?.trim() ?? '',
         selected: row.getAttribute('aria-selected') === 'true',
@@ -72,7 +84,13 @@ export const imageState = (b: Browse): Promise<ImageState> =>
         active: row.id === activeId,
       })),
     }
-  }, IMAGE, IMAGE_MENU)
+  }, trigger, `${trigger}-menu`)
+
+/** Clicks a rich dropdown's button to open its list, and reads it. */
+export async function openedMenu(b: Browse, trigger: string): Promise<ImageState> {
+  await b.page.click(`dialog[open] ${trigger}`)
+  return imageState(b, trigger)
+}
 
 /** Sets one of the Custom boxes by its label (CPU, RAM, Disk), the way a person would (the page is told by an input event). */
 export const setField = (b: Browse, label: string, value: string): Promise<void> =>
@@ -96,6 +114,6 @@ export const createDisabled = (b: Browse): Promise<boolean> => b.run(() => [...d
 export const createFormCount = (b: Browse): Promise<{ forms: number; openDialogs: number; nameBoxes: number }> =>
   b.run((form) => ({ forms: document.querySelectorAll(form).length, openDialogs: document.querySelectorAll('dialog[open]').length, nameBoxes: document.querySelectorAll('#vm-create-name').length }), CREATE_FORM)
 
-/** The image list has arrived (or the page gave up on it and said so): a test about to press Create waits for it, the way a person would not click while the form is still moving. */
+/** The machine's list of images has arrived (or the page gave up on it and said so): a test about to press Create waits for it, the way a person would not click while the form is still moving. */
 export const imageListArrived = (b: Browse) =>
-  b.until((root, note) => Number(document.querySelector(root)?.getAttribute('data-images')) > 1 || document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: IMAGES_WAIT_MS }, '[data-images]', UNREADABLE_NOTE)
+  b.until((root, note, before) => Number(document.querySelector(root)?.getAttribute('data-count')) > before || document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: IMAGES_WAIT_MS }, FRAMEWORK, UNREADABLE_NOTE, ROWS_BEFORE_THE_ANSWER)

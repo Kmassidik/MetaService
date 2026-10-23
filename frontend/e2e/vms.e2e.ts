@@ -1,5 +1,5 @@
 // End-to-end test of the VMs pages in a real browser against a real Root: the VMs link in the sidebar, All VMs (the table, the Machine filter kept in the address, empty states),
-// the Create VM window (who can be picked and why not, the containers-only machine, the Image choice, the refusal, a VM made on a simulated helper), the machine page's own button opening the same window, and a phone.
+// the Create VM window (who can be picked and why not, the containers-only machine, the server image and install-on-top dropdowns, the refusal, a VM made on a simulated helper), the machine page's own button opening the same window, and a phone.
 // Needs: the Root build (`swift build` in control-plane/arm64), the macOS helper build (`swift build` in agent/macos), a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: bun e2e/vms.e2e.ts
 import { readFileSync } from 'node:fs'
@@ -12,7 +12,8 @@ import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World }
 import { disabledSizeAndRuntime, generatedNameAndOneOrder, onAPhoneWithSelects, oneWindowFromEveryWayIn, runtimeCaptions, sectionsInOrder, sizeSelect } from './vms/controls.ts'
 import { closeWithEscape, noMachinesYet, openCreate, openingAndClosing, preselectedAndValidated, refusedThenMade, thenInAllVms, theMachinePageButton, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
-import { createWithBlankIsAsBefore, hostileImageText, imageFollowsTheMachine, imageListFails, imageMenuKeys, imageOnAPhone, imageSelect, recordCreateBodies } from './vms/images.ts'
+import { createWithDefaultsIsAsBefore, frameworkSelect, hostileImageText, imageFollowsTheMachine, imageListFails, imageMenuKeys, imageOnAPhone, imageSelect, recordCreateBodies } from './vms/images.ts'
+import { dropdownPictures, logosRendered, noPictureFromElsewhere, runtimeDropdown, watchPictures } from './vms/richDropdowns.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
 import { pendingScenario } from './vms/pending.ts'
 import { vmsIsOneLink, vmsLinkOnItsPages } from './vms/sidebar.ts'
@@ -75,6 +76,7 @@ try {
   page.on('console', (message) => message.type() === 'error' && !/status of (401|403|409|502)/.test(message.text()) && errors.push(message.text()))
   await page.evaluateOnNewDocument(() => document.addEventListener('securitypolicyviolation', (event) => { window.violation = event.violatedDirective }))
   const b = browse(page)
+  const pictures = watchPictures(page, world.root.base)
 
   await makeAdminAndSignIn(b, world)
   await emptyStates(b)
@@ -105,6 +107,10 @@ try {
   await generatedNameAndOneOrder(b)
   await resendHeartbeats(world)
   await imageSelect(b)
+  await frameworkSelect(b)
+  await logosRendered(b)
+  await runtimeDropdown(b)
+  await dropdownPictures(b)
   await imageFollowsTheMachine(b)
   await imageMenuKeys(b)
   await hostileImageText(b)
@@ -115,7 +121,8 @@ try {
   await resendHeartbeats(world)
   await onAPhoneWithSelects(b)
   await onAPhone(b, world)
-  createWithBlankIsAsBefore(createBodies)
+  createWithDefaultsIsAsBefore(createBodies)
+  noPictureFromElsewhere(pictures)
 
   check('no script errors and no policy violations', errors.length === 0 && (await b.run(() => window.violation)) === undefined, errors.join(' | '))
 } finally {
