@@ -1,4 +1,5 @@
-// The Create VM window is ONE window for every way in. Its size and runtime are native selects: lines that do not fit are off with the reason, Custom opens the boxes, the caption follows the runtime.
+// The Create VM window is ONE window for every way in, laid out like Proxmox's windows. Its size and runtime are selects: lines that do not fit are off with the reason, the number boxes are always there and
+// typing in them moves the size to Custom, the caption follows the runtime.
 // An empty name gets a generated one, five quick clicks send one order that carries the choices, and on a phone nothing scrolls sideways while the footer stays in reach.
 import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
@@ -24,7 +25,7 @@ const OTHER_PAGES = ['#/overview', '#/machines', '#/vms', '#/machines/details?id
 const CONTAINER_CAPTION = "Fast stop and wake. Shares the machine's core, so it starts in seconds and uses little memory. Best for agents and apps."
 const VM_CAPTION = 'A full computer with its own core: a stronger wall, slower start, more memory. Needs virtualization on the machine.'
 const MAC_CAPTION = "On a Mac both run inside Apple's own small VM."
-const SECTION_LABELS = ['ON HOST', 'SERVER IMAGE', 'INSTALL ON TOP (optional)', 'INSTANCE SIZE', 'RUNTIME ENVIRONMENT', 'INSTANCE NAME (optional)']
+const SECTION_LABELS = ['Host:', 'Name (optional):', 'Server image:', 'Install on top (optional):', 'Runtime:', 'Size:', 'Sockets:', 'Type:', 'Cores:', 'Total cores:', 'Memory (GB):', 'Disk (GB):', 'Extra CPU flags:']
 
 const noSideScroll = (b: Browse) => b.run(() => document.documentElement.scrollWidth <= window.innerWidth)
 const closed = (b: Browse) => b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
@@ -75,39 +76,44 @@ export async function oneWindowFromEveryWayIn(b: Browse): Promise<void> {
   }
 }
 
-/** The sections come in the mockup's order with their small uppercase labels. */
+/** The rows come in Proxmox's order, two to a line, each label ending in a colon. */
 export async function sectionsInOrder(b: Browse): Promise<void> {
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector(NAME)
   const labels = await b.page.$$eval('dialog[open] form .label', (list) => list.map((label) => (label instanceof HTMLElement ? label.innerText.replace(/\s+/g, ' ').trim() : '')))
-  check('the sections are On host, Server image, Install on top, Instance size, Runtime environment (a Mac has no GPU line), Instance name, in capitals', JSON.stringify(labels) === JSON.stringify(SECTION_LABELS), JSON.stringify(labels))
+  check('the rows are Host and Name, Server image and Install on top, Runtime (a Mac has no GPU line), Size, Sockets and Type, Cores and Total cores, Memory and Disk, then the extra CPU flags', JSON.stringify(labels) === JSON.stringify(SECTION_LABELS), JSON.stringify(labels))
   const frame = await b.run(() => {
     const dialog = document.querySelector('dialog[open]')?.getBoundingClientRect()
     const title = document.querySelector('dialog[open] h3')
     return { width: Math.round(dialog?.width ?? 0), title: title ? getComputedStyle(title).fontSize : '' }
   })
-  check('the window is 760 px wide with a 17 px title', frame.width === 760 && frame.title === '17px', JSON.stringify(frame))
+  check('the window is 900 px wide with a 15 px title', frame.width === 900 && frame.title === '15px', JSON.stringify(frame))
   await b.shot('vms-create-default.png')
   await closeWithEscape(b)
 }
 
-/** The size select: lines that do not fit are off with the reason in brackets, and Custom opens the three boxes with the usual limits; a preset hides them again. */
+/** The size select: lines that do not fit are off with the reason in brackets. A preset fills the boxes, typing in them moves the select to Custom (or to the preset they match), and the boxes keep the usual limits. */
 export async function sizeSelect(b: Browse): Promise<void> {
   await openCreate(b, '#/vms/create?machine=mac-mini')
   await b.page.waitForSelector(NAME)
   const roomy = await lines(b, SIZE)
   check('the size select reads Small, Medium (Recommended), Large and Custom with their specs', JSON.stringify(roomy.map((line) => line.text)) === JSON.stringify(['Small — 1 vCPU · 2GB RAM · 20GB Disk', 'Medium — 2 vCPU · 4GB RAM · 40GB Disk (Recommended)', 'Large — 4 vCPU · 8GB RAM · 60GB Disk', 'Custom — Configure specs manually...']), JSON.stringify(roomy))
-  check('with no machine defaults Medium is picked', (await selectValue(b, SIZE)) === 'medium')
-  check('the three boxes are not there while a preset is picked', (await fieldValue(b, 'CPU')) === null)
+  check('with no machine defaults Medium is picked, and the boxes hold its numbers', (await selectValue(b, SIZE)) === 'medium' && (await fieldValue(b, 'Cores')) === '2' && (await fieldValue(b, 'Memory')) === '4' && (await fieldValue(b, 'Disk')) === '40')
   await choose(b, SIZE, 'custom')
-  check('Custom opens the three boxes right below the select, filled with Medium', (await fieldValue(b, 'CPU')) === '2' && (await fieldValue(b, 'RAM')) === '4' && (await fieldValue(b, 'Disk')) === '40')
+  check('Custom keeps the numbers that are there', (await fieldValue(b, 'Cores')) === '2' && (await fieldValue(b, 'Memory')) === '4' && (await fieldValue(b, 'Disk')) === '40')
   await b.shot('vms-create-custom.png')
-  await setField(b, 'RAM', RAM_BEYOND_LIMIT_GB)
+  await setField(b, 'Memory', RAM_BEYOND_LIMIT_GB)
   check('a RAM above the limit is refused with the limit and Create waits', (await b.dialogText()).includes(RAM_TOO_BIG_TEXT))
-  await setField(b, 'CPU', '65')
+  await setField(b, 'Cores', '65')
   check('a CPU above the limit is refused with the limit', (await b.dialogText()).includes('CPU must be between 1 and 64'))
   await choose(b, SIZE, 'large')
-  check('picking a preset puts its numbers in and hides the boxes', (await fieldValue(b, 'CPU')) === null && !(await b.dialogText()).includes(RAM_TOO_BIG_TEXT))
+  check('picking a preset puts its numbers in the boxes and the refusals go', (await fieldValue(b, 'Cores')) === '4' && (await fieldValue(b, 'Memory')) === '8' && (await fieldValue(b, 'Disk')) === '60' && !(await b.dialogText()).includes(RAM_TOO_BIG_TEXT))
+  await setField(b, 'Cores', '3')
+  check('typing a number no preset has moves the select to Custom', (await selectValue(b, SIZE)) === 'custom')
+  await setField(b, 'Cores', '1')
+  await setField(b, 'Memory', '2')
+  await setField(b, 'Disk', '20')
+  check('typing the numbers of a preset moves the select to it', (await selectValue(b, SIZE)) === 'small')
   await closeWithEscape(b)
 }
 
@@ -205,14 +211,14 @@ export async function onAPhoneWithSelects(b: Browse): Promise<void> {
   await b.page.keyboard.press('Escape')
   await choose(b, SIZE, 'custom')
   await b.shot('vms-create-custom-phone.png')
-  check('with Custom open there is still no sideways scrolling and the footer is reachable', (await noSideScroll(b)) && (await footerReachable(b)))
+  check('with Custom picked there is still no sideways scrolling and the footer is reachable', (await noSideScroll(b)) && (await footerReachable(b)))
   await closeWithEscape(b)
 
   await openCreate(b, `#/vms/create?machine=${HELPER_MACHINE}`)
   await b.page.waitForSelector(NAME)
   await imageListArrived(b)
   await choose(b, SIZE, 'custom')
-  await setField(b, 'RAM', REFUSING_RAM_GB)
+  await setField(b, 'Memory', REFUSING_RAM_GB)
   await b.click('Create VM')
   await b.page.waitForSelector('dialog[open] .aline.bad', { timeout: SHORT_WAIT_MS })
   check('a refusal shows inside the window on a phone, and the page does not scroll sideways', (await noSideScroll(b)) && (await b.dialogText()).includes('needs 512000 MB RAM'))

@@ -119,7 +119,7 @@ async function aRequestThatFitsNowhere(b: Browse): Promise<void> {
   await imageListArrived(b)
   await b.page.type(`dialog[open] ${NAME}`, 'too-big')
   await choose(b, SIZE, 'custom')
-  await setField(b, 'RAM', TOO_MUCH_RAM_GB)
+  await setField(b, 'Memory', TOO_MUCH_RAM_GB)
   await b.click('Create VM')
   await b.page.waitForSelector('dialog[open] .aline.bad', { timeout: SHORT_WAIT_MS })
   const refusal = await b.page.$eval('dialog[open] .aline.bad', (line) => (line instanceof HTMLElement ? line.innerText : ''))
