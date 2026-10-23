@@ -129,8 +129,11 @@ export async function frameworkSelect(b: Browse): Promise<void> {
     check(`${machine}: Install on top shows None — just the server`, !shut.expanded && shut.trigger.includes('None — just the server'), JSON.stringify(shut))
     const list = await openedMenu(b, FRAMEWORK)
     check(`${machine}: the list is None, OpenClaw, Hermes and the four planned ones`, JSON.stringify(list.rows.map((row) => row.title)) === JSON.stringify(FRAMEWORK_TITLES), JSON.stringify(list.rows.map((row) => row.title)))
-    check(`${machine}: None is selected and can be picked; every other row is disabled`, list.rows[0]?.selected === true && !list.rows[0].disabled && list.rows.slice(1).every((row) => row.disabled && !row.selected), JSON.stringify(list.rows))
-    check(`${machine}: OpenClaw and Hermes give their catalog reasons and a Coming soon tag`, list.rows[1]?.caption === COMING_SOON && list.rows[2]?.caption === WAITING_FOR_PIN && list.rows[1].tag === 'Coming soon' && list.rows[2].tag === 'Coming soon', JSON.stringify(list.rows.slice(1, 3)))
+    const appsReady = machine === HELPER_MACHINE
+    const pickable = appsReady ? 3 : 1
+    check(`${machine}: None is selected and can be picked; ${appsReady ? 'OpenClaw and Hermes can be picked too; the four planned ones are disabled' : 'every other row is disabled'}`, list.rows[0]?.selected === true && !list.rows[0].disabled && list.rows.slice(1, pickable).every((row) => !row.disabled && !row.selected) && list.rows.slice(pickable).every((row) => row.disabled && !row.selected), JSON.stringify(list.rows))
+    if (appsReady) check(`${machine}: OpenClaw and Hermes carry the Installs on start tag, because the helper can install them`, list.rows[1]?.tag === 'Installs on start' && list.rows[2]?.tag === 'Installs on start', JSON.stringify(list.rows.slice(1, 3)))
+    else check(`${machine}: OpenClaw and Hermes give their catalog reasons and a Coming soon tag`, list.rows[1]?.caption === COMING_SOON && list.rows[2]?.caption === WAITING_FOR_PIN && list.rows[1].tag === 'Coming soon' && list.rows[2].tag === 'Coming soon', JSON.stringify(list.rows.slice(1, 3)))
     check(`${machine}: Docker, Ollama, Python + Jupyter and Node.js say Coming soon`, list.rows.slice(3).every((row) => row.caption === 'Coming soon' && row.tag === 'Coming soon'), JSON.stringify(list.rows.slice(3)))
     await b.page.click('dialog[open] [role=listbox] [role=option][aria-disabled=true]')
     const after = await imageState(b, FRAMEWORK)
@@ -191,7 +194,7 @@ export async function imageFollowsTheMachine(b: Browse): Promise<void> {
   await b.page.select('#vm-create-machine', HELPER_MACHINE)
   await dropdownCount(b, FRAMEWORK, FRAMEWORK_COUNT)
   const list = await openedMenu(b, FRAMEWORK)
-  check('after another machine is picked Install on top is None again and OpenClaw and Hermes are still greyed out', list.trigger.includes('None — just the server') && list.rows[0]?.selected === true && list.rows[1]?.disabled === true && list.rows[2]?.disabled === true, JSON.stringify(list))
+  check('after another machine is picked Install on top is None again, and OpenClaw and Hermes can be picked on a machine whose helper installs them', list.trigger.includes('None — just the server') && list.rows[0]?.selected === true && list.rows[1]?.disabled === false && list.rows[2]?.disabled === false, JSON.stringify(list))
   await closeWindow(b)
 }
 
