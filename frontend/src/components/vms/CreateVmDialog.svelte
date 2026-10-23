@@ -27,7 +27,7 @@
   }
 </script>
 
-<Dialog {open} title="Create VM" onClose={closeByPerson} closeButton locked={busy}>
+<Dialog {open} title="Create VM" onClose={closeByPerson} closeButton locked={busy} spacious>
   {#if open && machines.length === 0}
     <div class="empty" role="status"><Owl name="emptyMachines" />No machines yet. Add one first, then make a VM on it.<a class="btn green sm" href="#/machines/find">Find machines</a></div>
   {:else if open}

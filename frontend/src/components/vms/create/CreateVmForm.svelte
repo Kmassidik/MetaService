@@ -1,12 +1,13 @@
 <script lang="ts">
-  // The inside of the Create VM window: machine, then IMAGE, SIZE and RUNTIME cards, an optional name, and the footer. It is built fresh each time the window opens.
+  // The inside of the Create VM window: the host, then image, size, runtime and GPU, an optional name, and the footer. It is built fresh each time the window opens.
   import { onMount, tick } from 'svelte'
   import ActionButton from '../../ActionButton.svelte'
   import GpuChoice from '../../GpuChoice.svelte'
-  import ImageCards from './ImageCards.svelte'
+  import FieldBlock from './FieldBlock.svelte'
+  import ImageDropdown from './ImageDropdown.svelte'
   import MachinePick from './MachinePick.svelte'
-  import RuntimeCards from './RuntimeCards.svelte'
-  import SizeCards from './SizeCards.svelte'
+  import RuntimeSelect from './RuntimeSelect.svelte'
+  import SizeSelect from './SizeSelect.svelte'
   import { ActionState } from '../../../lib/action.svelte.ts'
   import { ApiError, createWorkload, getMachineImages, refusalText } from '../../../lib/api.ts'
   import { blankForm, machineChoices, machineOptions, pickMachine, runtimeCards, startingMachine, type NewVmForm } from '../../../lib/createVm.ts'
@@ -20,12 +21,12 @@
 
   const MACHINE_ID = 'vm-create-machine'
   const NAME_ID = 'vm-create-name'
-  const IMAGE_GROUP = 'vm-create-image'
-  const SIZE_GROUP = 'vm-create-size'
-  const RUNTIME_GROUP = 'vm-create-runtime'
+  const IMAGE_ID = 'vm-create-image'
+  const SIZE_ID = 'vm-create-size'
+  const RUNTIME_ID = 'vm-create-runtime'
   const FIRST_CONTROL = 'select:not(:disabled), input:not(:disabled)'
   const NAME_EXAMPLE = 'e.g. build-box'
-  const SPACE_SENTENCE = 'The machine checks its own space again before it makes the VM.'
+  const SPACE_SENTENCE = 'The host re-checks available memory and disk space before provisioning.'
   const UNREADABLE_ANSWER = 'The parent answered in a way this page cannot read. Look in All VMs to see whether the VM was made.'
 
   interface Props {
@@ -123,14 +124,13 @@
   <div class="scroll">
   <fieldset disabled={action.busy}>
     <MachinePick id={MACHINE_ID} options={machineOptions(choices, only?.id ?? null)} value={form.machine} locked={only !== null} onpick={pickMachineById} />
-    <ImageCards group={IMAGE_GROUP} cards={imageCards(images)} chosen={form.bundle ?? STOCK_IMAGE} unreadable={imagesUnreadable} onpick={(id) => (form.bundle = id)} />
-    <SizeCards group={SIZE_GROUP} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
-    <RuntimeCards group={RUNTIME_GROUP} cards={runtimes} chosen={form.kind} onpick={(kind) => (form.kind = kind)} />
+    <ImageDropdown id={IMAGE_ID} cards={imageCards(images)} chosen={form.bundle ?? STOCK_IMAGE} unreadable={imagesUnreadable} onpick={(id) => (form.bundle = id)} />
+    <SizeSelect id={SIZE_ID} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
+    <RuntimeSelect id={RUNTIME_ID} cards={runtimes} chosen={form.kind} os={pickedMachine?.os} onpick={(kind) => (form.kind = kind)} />
     <GpuChoice bind:form machine={pickedMachine} />
-    <div class="name">
-      <label for={NAME_ID}>Name <span class="optional">optional</span></label>
+    <FieldBlock label="Instance name" note="(optional)" forId={NAME_ID}>
       <input id={NAME_ID} bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder={NAME_EXAMPLE} aria-invalid={form.name !== '' && nameProblem(form.name) !== null ? 'true' : 'false'} />
-    </div>
+    </FieldBlock>
   </fieldset>
   </div>
   <footer>
@@ -146,14 +146,12 @@
   /* The window's title bar and padding take this much of the screen; the form keeps the rest, scrolls its fields inside it, and leaves the footer in view. */
   form { --window-chrome: 130px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100dvh - var(--window-chrome)); }
   .scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: -4px; padding: 4px; }
-  fieldset { display: grid; gap: 16px; border: 0; margin: 0; padding: 0; min-width: 0; }
-  .name { display: grid; gap: 8px; }
-  .name label { font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--m50); }
-  .optional { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--m40); }
-  .name input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 400 14px var(--mono); min-width: 0; }
-  .name input[aria-invalid='true'] { border-color: var(--danger); }
+  fieldset { display: grid; gap: 24px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  input { min-height: 44px; padding: 0 12px; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 400 14px var(--mono); min-width: 0; }
+  input:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; border-color: var(--line-strong); }
+  input[aria-invalid='true'] { border-color: var(--danger); }
   footer { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; flex: none; padding-top: 14px; border-top: 1px solid var(--line); }
-  .hint { flex: 1 1 200px; margin: 0; font: 10px/1.5 var(--mono); color: var(--m40); }
+  .hint { flex: 1 1 200px; margin: 0; font: 12px/1.5 var(--mono); color: var(--m50); }
   .hint.bad { color: var(--danger); }
   .buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
 </style>
