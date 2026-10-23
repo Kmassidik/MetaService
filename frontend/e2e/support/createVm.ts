@@ -92,17 +92,23 @@ export async function openedMenu(b: Browse, trigger: string): Promise<ImageState
   return imageState(b, trigger)
 }
 
-/** Sets one of the Custom boxes by its label (CPU, RAM, Disk), the way a person would (the page is told by an input event). */
+/** Sets one of the number boxes by its label (Sockets, Cores, Memory, Disk, CPU limit), the way a person would (the page is told by an input event). */
 export const setField = (b: Browse, label: string, value: string): Promise<void> =>
   b.run((wanted, text) => {
-    const field = [...document.querySelectorAll('dialog[open] form label')].find((entry) => entry.textContent?.trim().startsWith(wanted))?.querySelector('input')
-    if (!field) throw new Error(`no field ${wanted}`)
+    const named = [...document.querySelectorAll('dialog[open] form label')].find((entry) => entry.textContent?.trim().startsWith(wanted))
+    const field = named instanceof HTMLLabelElement ? (named.control ?? named.querySelector('input')) : null
+    if (!(field instanceof HTMLInputElement)) throw new Error(`no field ${wanted}`)
     field.value = text
     field.dispatchEvent(new Event('input', { bubbles: true }))
   }, label, value)
 
+/** What a number box holds, found by its label; null when the window has no such box. */
 export const fieldValue = (b: Browse, label: string): Promise<string | null> =>
-  b.run((wanted) => [...document.querySelectorAll('dialog[open] form label')].find((entry) => entry.textContent?.trim().startsWith(wanted))?.querySelector('input')?.value ?? null, label)
+  b.run((wanted) => {
+    const named = [...document.querySelectorAll('dialog[open] form label')].find((entry) => entry.textContent?.trim().startsWith(wanted))
+    const field = named instanceof HTMLLabelElement ? (named.control ?? named.querySelector('input')) : null
+    return field instanceof HTMLInputElement ? field.value : null
+  }, label)
 
 /** The machine select's value, or null when the window shows no machine select. */
 export const pickerValue = (b: Browse): Promise<string | null> => b.run((selector) => document.querySelector<HTMLSelectElement>(selector)?.value ?? null, PICKER)
