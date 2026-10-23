@@ -142,6 +142,14 @@ public enum Migrations {
               PRIMARY KEY (machine_id, workload_id)
             );
             """) }),
+        // GPU memory promised to containers (a shared slice of a card). A booking is made when a create is accepted (under the create command's id), moves to the VM's id when the create succeeds, and goes when the create fails or the VM is deleted. A stopped VM keeps it. The workloads column holds the limit the helper says a container has, replaced with every heartbeat.
+        (23, { try $0.exec("""
+            CREATE TABLE workload_gpu_booking (
+              machine_id TEXT NOT NULL, workload_id TEXT NOT NULL, gpu_memory_gb INTEGER NOT NULL, created_at INTEGER NOT NULL,
+              PRIMARY KEY (machine_id, workload_id)
+            );
+            ALTER TABLE workloads ADD COLUMN gpu_memory_gb INTEGER;
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

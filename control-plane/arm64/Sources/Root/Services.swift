@@ -65,7 +65,8 @@ struct Services {
         images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         apps = AppService(machines: machines, apps: AppStateStore(database), audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
-                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore, apps: apps, images: images)
+                                    bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore, apps: apps, images: images,
+                                    gpuLimit: GpuLimitService(bookings: GpuBookingStore(database), clock: clock))
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, autoPin: autoPin, clock: clock)
         machineSettings = MachineSettingsStore(database)
         remoteSsh = RemoteSsh(parts: .init(config: config, clock: clock, keys: RemoteKeyStore(database), secrets: secrets, throttle: throttle))

@@ -71,7 +71,7 @@ public struct MachineSettings: Codable, Equatable {
     /// What the machine may be used for: with GPU use switched off, the machine does not offer its GPU to VMs or containers.
     public func limiting(_ capabilities: Capabilities?) -> Capabilities? {
         guard !allowGpu, let capabilities else { return capabilities }
-        return Capabilities(vm: capabilities.vm, container: capabilities.container, gpuInVm: false, gpuInContainer: false)
+        return Capabilities(vm: capabilities.vm, container: capabilities.container, gpuInVm: false, gpuInContainer: false, gpuMemoryLimit: capabilities.gpuMemoryLimit)
     }
 
     /// True when the machine already runs as many VMs as it was allowed.

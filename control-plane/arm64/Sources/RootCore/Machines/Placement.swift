@@ -9,8 +9,12 @@ public struct PlacementMachine: Equatable {
     public let freeDiskGb: Int
     public let hasProblems: Bool
     public let atMaxVMs: Bool
+    /// The card's memory and how much of it is booked. Only read when the wish asks for a GPU memory limit.
+    public let gpuRoom: GpuRoom
 
-    public init(id: String, online: Bool, capabilities: Capabilities?, freeRamMb: Int, freeDiskGb: Int, hasProblems: Bool = false, atMaxVMs: Bool = false) {
+    public init(id: String, online: Bool, capabilities: Capabilities?, freeRamMb: Int, freeDiskGb: Int, hasProblems: Bool = false, atMaxVMs: Bool = false,
+                gpuRoom: GpuRoom = GpuRoom(announcesLimit: false, totalGb: nil, bookedGb: 0)) {
+        self.gpuRoom = gpuRoom
         self.hasProblems = hasProblems
         self.atMaxVMs = atMaxVMs
         self.id = id
@@ -43,8 +47,11 @@ public struct PlacementWish: Equatable {
     public let ramMb: Int
     public let diskGb: Int
     public let onlyMachine: String?
+    /// The GPU memory limit asked for, in GB. Nil: no limit, nothing to book.
+    public let gpuMemoryGb: Int?
 
-    public init(kind: String, gpuMode: String, ramMb: Int, diskGb: Int, onlyMachine: String?) {
+    public init(kind: String, gpuMode: String, ramMb: Int, diskGb: Int, onlyMachine: String?, gpuMemoryGb: Int? = nil) {
+        self.gpuMemoryGb = gpuMemoryGb
         self.kind = kind
         self.gpuMode = gpuMode
         self.ramMb = ramMb
@@ -66,7 +73,8 @@ public enum Placement {
         guard !open.isEmpty else { throw refusal("machine_at_max_vms", "every ready machine already runs the most VMs it was allowed", "capability", 1, 0) }
         let capable = open.filter { canRun($0, wish) }
         guard !capable.isEmpty else { throw refusal("missing_capability", noCapableMachineMessage(wish), "capability", 1, 0) }
-        let fitting = capable.filter { $0.freeRamMb >= wish.ramMb && $0.freeDiskGb >= wish.diskGb }
+        let bookable = try withRoomOnTheCard(capable, wish)
+        let fitting = bookable.filter { $0.freeRamMb >= wish.ramMb && $0.freeDiskGb >= wish.diskGb }
         guard let best = fitting.max(by: { isBetter($1, than: $0, wish) }) else { throw shortage(capable, wish) }
         return best.id
     }
@@ -90,6 +98,15 @@ public enum Placement {
         case "passthrough": return caps.gpuInVm && wish.kind == "vm"
         default: return true
         }
+    }
+
+    /// With a GPU memory limit asked for, only machines where it can be booked stay; when none can, the first machine's reason (by name) is the answer.
+    private static func withRoomOnTheCard(_ capable: [PlacementMachine], _ wish: PlacementWish) throws -> [PlacementMachine] {
+        guard let requested = wish.gpuMemoryGb else { return capable }
+        let ordered = capable.sorted { $0.id < $1.id }
+        let fitting = ordered.filter { GpuBooking.refusal($0.gpuRoom, requestedGb: requested) == nil }
+        guard fitting.isEmpty else { return fitting }
+        throw ordered.compactMap { GpuBooking.refusal($0.gpuRoom, requestedGb: requested) }.first ?? refusal("missing_capability", noGpuContainerMessage, "capability", 1, 0)
     }
 
     /// More room left after placing wins: RAM first, then disk, then the lower name, so the answer never changes between runs.

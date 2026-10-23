@@ -58,6 +58,13 @@ public struct StrictObject {
         return number.intValue
     }
 
+    /// A number that may have decimals (a size in GB, for instance). Booleans, text and numbers outside the range are refused.
+    public func double(_ key: String, range: ClosedRange<Double>) throws -> Double {
+        guard let number = values[key] as? NSNumber, !Self.isBoolean(number), number.doubleValue.isFinite else { throw InputError("\(path)\(key) must be a number") }
+        guard range.contains(number.doubleValue) else { throw InputError("\(path)\(key) is out of range") }
+        return number.doubleValue
+    }
+
     public func bool(_ key: String) throws -> Bool {
         guard let number = values[key] as? NSNumber, Self.isBoolean(number) else { throw InputError("\(path)\(key) must be true or false") }
         return number.boolValue

@@ -69,6 +69,7 @@ public struct MachineStore: @unchecked Sendable {
         guard removed == 1 else { throw MachineError.notFound }
         try SshKeyStore(database).forget(machine: id)
         try AppStateStore(database).forget(machine: id)
+        try GpuBookingStore(database).release(machine: id)
     }
 
     // MARK: heartbeat
@@ -95,12 +96,12 @@ public struct MachineStore: @unchecked Sendable {
         try database.execute("DELETE FROM workloads WHERE machine_id = ?", [.text(machineId)])
         for item in reports {
             try database.execute("""
-                INSERT INTO workloads (id, machine_id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, updated_at, stopped_reason_json, init_mode)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO workloads (id, machine_id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, updated_at, stopped_reason_json, init_mode, gpu_memory_gb)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [.text(item.id), .text(machineId), .text(item.name), .text(item.kind), .text(item.state), .int(item.cpu), .int(item.ramMb),
                       .int(item.diskGb), .text(item.gpuMode), item.address.map(SQLValue.text) ?? .null,
                       item.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
-                      try item.stoppedReason.map { .text(try json($0)) } ?? .null, item.initMode.map(SQLValue.text) ?? .null])
+                      try item.stoppedReason.map { .text(try json($0)) } ?? .null, item.initMode.map(SQLValue.text) ?? .null, item.gpuMemoryGb.map(SQLValue.int) ?? .null])
         }
     }
 
@@ -129,31 +130,41 @@ public struct MachineStore: @unchecked Sendable {
         let workloads = try workloadSummaries(machineId: row.string("id"), now: now)
         let lastSeen = row.optionalInt("last_seen").map { Date(timeIntervalSince1970: TimeInterval($0)) }
         let state = MachineStates.derive(lastSeen: lastSeen, now: now, workloadStates: workloads.map(\.state))
+        let gpu = (try? decoder.decode([GpuInfo].self, from: Data(row.string("gpu_json").utf8))) ?? []
+        let capabilities = try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8))
         return MachineSummary(
             id: row.string("id"), name: row.string("name"), ip: row.optionalString("ip"), os: row.optionalString("os"),
             arch: row.optionalString("arch"), cpuCores: row.optionalInt("cpu_cores"), ramTotalMb: row.optionalInt("ram_total_mb"),
             diskTotalGb: row.optionalInt("disk_total_gb"), freeRamMb: row.optionalInt("free_ram_mb"), freeDiskGb: row.optionalInt("free_disk_gb"),
-            gpu: (try? decoder.decode([GpuInfo].self, from: Data(row.string("gpu_json").utf8))) ?? [],
-            capabilities: try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8)),
+            gpu: gpu, capabilities: capabilities,
             settings: try? MachineSettingsStore(database).get(machine: row.string("id")),
             problems: (try? decoder.decode([HostProblem].self, from: Data(row.string("problems_json").utf8))) ?? [],
             agentVersion: row.optionalString("agent_version"), agentBuild: row.optionalString("agent_build"),
             engine: row.optionalString("engine_json").flatMap { try? decoder.decode(EngineReport.self, from: Data($0.utf8)) }, bundleVersion: row.optionalString("bundle_version"),
-            state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads)
+            state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads,
+            gpuBooking: try gpuBooking(machineId: row.string("id"), gpu: gpu, capabilities: capabilities))
+    }
+
+    /// Only a machine that can share an NVIDIA card with containers and says how much memory it has gets a booking summary.
+    private func gpuBooking(machineId: String, gpu: [GpuInfo], capabilities: Capabilities?) throws -> GpuBookingSummary? {
+        guard capabilities?.gpuInContainer == true else { return nil }
+        return GpuBooking.summary(total: GpuBooking.totalGb(gpu: gpu), booked: try GpuBookingStore(database).bookedGb(machine: machineId))
     }
 
     private func workloadSummaries(machineId: String, now: Date) throws -> [WorkloadSummary] {
         let apps = try AppStateStore(database).records(machine: machineId)
+        let bookings = try GpuBookingStore(database).bookings(machine: machineId)
         let seconds = Int(now.timeIntervalSince1970)
         return try database.query("""
-            SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, stopped_reason_json, init_mode
+            SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, stopped_reason_json, init_mode, gpu_memory_gb
             FROM workloads WHERE machine_id = ? ORDER BY name
             """, [.text(machineId)]).map {
             WorkloadSummary(id: $0.string("id"), name: $0.string("name"), kind: $0.string("kind"), state: $0.string("state"),
                             cpu: $0.int("cpu"), ramMb: $0.int("ram_mb"), diskGb: $0.int("disk_gb"), gpuMode: $0.string("gpu_mode"),
                             address: $0.optionalString("address"), bundleVersion: $0.optionalString("bundle_version"),
                             stoppedReason: $0.optionalString("stopped_reason_json").flatMap { try? decoder.decode(StoppedReasonReport.self, from: Data($0.utf8)) },
-                            initMode: $0.optionalString("init_mode"), app: apps[$0.string("id")].map { WorkloadAppSummary($0.atTime(seconds)) })
+                            initMode: $0.optionalString("init_mode"), app: apps[$0.string("id")].map { WorkloadAppSummary($0.atTime(seconds)) },
+                            gpuMemoryGb: bookings[$0.string("id")] ?? $0.optionalInt("gpu_memory_gb"))
         }
     }
 

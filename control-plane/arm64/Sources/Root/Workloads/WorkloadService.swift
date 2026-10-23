@@ -18,11 +18,13 @@ final class WorkloadService: @unchecked Sendable {
     private let sshKeys: SshKeyStore
     private let apps: AppService
     private let images: ImagesService
+    private let gpuLimit: GpuLimitService
     private let creating = NSLock()
     /// The create command's parameter that carries the app asked for, so the wish survives until the helper names the new VM.
     private static let appParam = "app"
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore, apps: AppService, images: ImagesService) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore, apps: AppService, images: ImagesService, gpuLimit: GpuLimitService) {
+        self.gpuLimit = gpuLimit
         self.sshKeys = sshKeys
         self.apps = apps
         self.images = images
@@ -51,8 +53,7 @@ final class WorkloadService: @unchecked Sendable {
     /// A machine whose helper cannot is refused with the catalog's plain reason. Anything but an app is left as it is.
     private func placedWhereTheAppCanBeInstalled(_ request: CreateWorkloadOperatorRequest) async throws -> CreateWorkloadOperatorRequest {
         guard AppCatalog.isApp(request.bundle) else { return request }
-        let wish = PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine)
-        let machine = try Placement.choose(try candidates(clock.now), wish)
+        let machine = try Placement.choose(try candidates(clock.now), Self.wish(of: request))
         let reply: MachineImagesReply
         do {
             reply = try await images.reply(for: machine)
@@ -71,13 +72,29 @@ final class WorkloadService: @unchecked Sendable {
         creating.lock()
         defer { creating.unlock() }
         let now = clock.now
-        let machine = try Placement.choose(try candidates(now), PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine))
+        let machine = try Placement.choose(try candidates(now), Self.wish(of: request))
         let id = Self.newCommandId()
         var params = ["name": request.name, "kind": request.kind, "cpu": String(request.cpu), "ram_mb": String(request.ramMb), "disk_gb": String(request.diskGb), "gpu_mode": request.gpuMode]
         params[Self.appParam] = AppCatalog.isApp(request.bundle) ? request.bundle : nil
-        try commands.create(id: id, machine: machine, workloadId: nil, type: "create", params: params, actor: actor, now: now)
-        try audit.record(actor: actor, action: "workload.create", target: machine, detail: ["name": request.name, "command": id], at: now)
+        try gpuLimit.book(machine: try machines.get(id: machine, now: now), command: id, request: request)
+        do {
+            try commands.create(id: id, machine: machine, workloadId: nil, type: "create", params: params, actor: actor, now: now)
+        } catch {
+            gpuLimit.free(machine: machine, key: id)
+            throw error
+        }
+        try audit.record(actor: actor, action: "workload.create", target: machine, detail: Self.createDetail(request, command: id), at: now)
         return (machine, id)
+    }
+
+    private static func wish(of request: CreateWorkloadOperatorRequest) -> PlacementWish {
+        PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine, gpuMemoryGb: request.gpuMemoryGb)
+    }
+
+    private static func createDetail(_ request: CreateWorkloadOperatorRequest, command: String) -> [String: String] {
+        var detail = ["name": request.name, "command": command]
+        detail["gpu_memory_gb"] = request.gpuMemoryGb.map(String.init)
+        return detail
     }
 
     enum Action: String { case start, stop, delete }
@@ -154,7 +171,7 @@ final class WorkloadService: @unchecked Sendable {
             return PlacementMachine(id: machine.id, online: machine.state != "offline",
                                     capabilities: settings?.limiting(machine.capabilities) ?? machine.capabilities,
                                     freeRamMb: max(0, (machine.freeRamMb ?? 0) - promised.ramMb), freeDiskGb: max(0, (machine.freeDiskGb ?? 0) - promised.diskGb),
-                                    hasProblems: !machine.problems.isEmpty, atMaxVMs: settings?.isFull(running: running) ?? false)
+                                    hasProblems: !machine.problems.isEmpty, atMaxVMs: settings?.isFull(running: running) ?? false, gpuRoom: gpuLimit.room(of: machine))
         }
     }
 
@@ -236,6 +253,7 @@ final class WorkloadService: @unchecked Sendable {
     private func finish(_ id: String, state: String, result: [String: String]) throws {
         try commands.update(id: id, state: state, result: result, now: clock.now)
         guard let row = try commands.get(id) else { return }
+        gpuLimit.settle(row, succeeded: state == "succeeded", workload: result["workload_id"])
         try audit.record(actor: "root", action: "workload.\(row.type)_\(state)", target: row.machine, detail: ["command": id].merging(result) { $1 }, at: clock.now)
     }
 

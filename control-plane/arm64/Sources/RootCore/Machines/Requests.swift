@@ -37,6 +37,26 @@ public struct Capabilities: Equatable, Codable {
     public let container: Bool
     public let gpuInVm: Bool
     public let gpuInContainer: Bool
+    /// The helper can cap and watch the GPU memory of a container. Helpers older than this feature do not say, which reads as false.
+    public let gpuMemoryLimit: Bool
+
+    public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, gpuMemoryLimit: Bool = false) {
+        self.vm = vm
+        self.container = container
+        self.gpuInVm = gpuInVm
+        self.gpuInContainer = gpuInContainer
+        self.gpuMemoryLimit = gpuMemoryLimit
+    }
+
+    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit }
+
+    /// Capabilities saved before this feature have no `gpuMemoryLimit`.
+    public init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(vm: try box.decode(Bool.self, forKey: .vm), container: try box.decode(Bool.self, forKey: .container),
+                  gpuInVm: try box.decode(Bool.self, forKey: .gpuInVm), gpuInContainer: try box.decode(Bool.self, forKey: .gpuInContainer),
+                  gpuMemoryLimit: try box.decodeIfPresent(Bool.self, forKey: .gpuMemoryLimit) ?? false)
+    }
 }
 
 public struct FactsReport: Equatable {
@@ -70,9 +90,10 @@ public struct FactsReport: Equatable {
         freeRamMb = try object.int("free_ram_mb", range: 0...100_000_000)
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
         gpu = try object.objects("gpu", allowed: ["vendor", "model", "memory_mb"], maxCount: Self.maxGpus).map(Self.gpuInfo)
-        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container"])
+        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit"])
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
-                                    gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"))
+                                    gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"),
+                                    gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false)
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
         agentVersion = try ReportedVersion.optional(object, "agent_version")
         engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil
@@ -105,8 +126,10 @@ public struct WorkloadReport: Equatable {
     public let stoppedReason: StoppedReasonReport?
     /// How the VM came up: "systemd", or "plain" (no systemd). Nil when the helper does not say.
     public let initMode: String?
+    /// The GPU memory limit the helper says this container has, when it has one.
+    public let gpuMemoryGb: Int?
 
-    static let keys: Set<String> = ["id", "name", "kind", "state", "cpu", "ram_mb", "disk_gb", "gpu_mode", "address", "bundle_version", "stopped_reason", "init_mode"]
+    static let keys: Set<String> = ["id", "name", "kind", "state", "cpu", "ram_mb", "disk_gb", "gpu_mode", "address", "bundle_version", "stopped_reason", "init_mode", "gpu_memory_gb"]
     static let statesWithAReason: Set<String> = ["stopped", "failed"]
     static let maxPerMachine = 1000
 
@@ -124,6 +147,7 @@ public struct WorkloadReport: Equatable {
         let reason = object.has("stopped_reason") ? try StoppedReasonReport(object.object("stopped_reason", allowed: StoppedReasonReport.keys)) : nil
         stoppedReason = Self.statesWithAReason.contains(state) ? reason : nil
         initMode = object.has("init_mode") ? try object.choice("init_mode", among: ["systemd", "plain"]) : nil
+        gpuMemoryGb = object.has("gpu_memory_gb") ? try object.int("gpu_memory_gb", range: GpuBooking.allowedGb) : nil
     }
 
     private static func version(_ object: StrictObject) throws -> String? {
@@ -198,9 +222,11 @@ public struct CreateWorkloadOperatorRequest: Equatable {
     public let machine: String?
     /// The catalog id of the image to start from. Blank when the request does not say. The browser never names an engine image: only this id, and the parent maps it.
     public let bundle: String
+    /// The GPU memory this container may use, in GB. Nil: the whole card is shared, nothing is booked.
+    public let gpuMemoryGb: Int?
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "bundle"])
+        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "bundle", "gpu_memory_gb"])
         name = try object.id("name")
         kind = try object.choice("kind", among: ["vm", "container"])
         cpu = try object.int("cpu", range: 1...64)
@@ -209,14 +235,17 @@ public struct CreateWorkloadOperatorRequest: Equatable {
         gpuMode = object.has("gpu_mode") ? try object.choice("gpu_mode", among: ["none", "container", "passthrough"]) : "none"
         machine = object.has("machine") ? try object.id("machine") : nil
         bundle = object.has("bundle") ? try Self.knownBundle(object) : ImageCatalog.blankId
+        gpuMemoryGb = object.has("gpu_memory_gb") ? try object.int("gpu_memory_gb", range: GpuBooking.allowedGb) : nil
+        guard gpuMemoryGb == nil || gpuMode == "container" else { throw InputError("gpu_memory_gb can only be set when gpu_mode is container") }
     }
 
     /// The same wish, pinned to the machine the parent chose for it.
     public func placed(on machine: String) -> CreateWorkloadOperatorRequest {
-        CreateWorkloadOperatorRequest(name: name, kind: kind, cpu: cpu, ramMb: ramMb, diskGb: diskGb, gpuMode: gpuMode, machine: machine, bundle: bundle)
+        CreateWorkloadOperatorRequest(name: name, kind: kind, cpu: cpu, ramMb: ramMb, diskGb: diskGb, gpuMode: gpuMode, machine: machine, bundle: bundle, gpuMemoryGb: gpuMemoryGb)
     }
 
-    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, machine: String?, bundle: String) {
+    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, machine: String?, bundle: String, gpuMemoryGb: Int? = nil) {
+        self.gpuMemoryGb = gpuMemoryGb
         self.name = name
         self.kind = kind
         self.cpu = cpu

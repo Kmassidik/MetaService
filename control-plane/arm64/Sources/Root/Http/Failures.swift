@@ -40,6 +40,16 @@ enum Json {
         return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
     }
 
+    /// A GPU memory limit that cannot be booked: a 409 with the plain reason, and `free_gb` when the card's numbers are known.
+    static func gpuRefusal(_ refusal: GpuBookingRefusal) -> Response {
+        var error: [String: Any] = ["code": refusal.code, "message": refusal.message]
+        error["free_gb"] = refusal.freeGb
+        var headers = HTTPFields()
+        headers[.contentType] = "application/json"
+        let data = (try? JSONSerialization.data(withJSONObject: ["error": error])) ?? Data()
+        return Response(status: .conflict, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
+    }
+
     static func failure(_ failure: ApiFailure) -> Response {
         let body = ["error": ["code": failure.code, "message": failure.message]]
         var headers = HTTPFields()
@@ -58,6 +68,8 @@ struct ErrorMiddleware<Context: RequestContext>: RouterMiddleware {
             return Json.failure(failure)
         } catch let refusal as PlacementRefusal {
             return Json.refusal(refusal)
+        } catch let refusal as GpuBookingRefusal {
+            return Json.gpuRefusal(refusal)
         } catch let error as InputError {
             return Json.failure(.invalid(error.message))
         } catch let error as HTTPError {
