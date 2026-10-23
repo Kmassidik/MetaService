@@ -1,9 +1,8 @@
 <script lang="ts">
-  // "Runtime environment": Container or VM in a select, with one plain line under it that follows the choice. The kind the machine cannot run is disabled with its reason.
-  import { runtimeCaption, runtimeOptions } from '../../../lib/createSelects.ts'
+  // "Runtime environment": Container or VM in the rich dropdown, each row with what it is, and one plain line under it that follows the choice. The kind the machine cannot run is greyed out with its reason.
+  import { runtimeCaption, runtimeRows } from '../../../lib/createSelects.ts'
   import type { RuntimeCard } from '../../../lib/createVm.ts'
-  import FieldBlock from './FieldBlock.svelte'
-  import SelectBox from './SelectBox.svelte'
+  import RichDropdown from './RichDropdown.svelte'
 
   interface Props {
     id: string
@@ -18,10 +17,9 @@
   const captionId = $derived(`${id}-caption`)
 </script>
 
-<FieldBlock label="Runtime environment" forId={id}>
-  <SelectBox {id} value={chosen} options={runtimeOptions(cards)} describedBy={captionId} {onpick} />
+<RichDropdown {id} label="Runtime environment" cards={runtimeRows(cards)} {chosen} describedBy={captionId} {onpick}>
   <p class="caption" id={captionId}>{runtimeCaption(chosen, os)}</p>
-</FieldBlock>
+</RichDropdown>
 
 <style>
   .caption { margin: 0; font-size: 12px; line-height: 1.5; color: var(--m50); }

@@ -1,10 +1,10 @@
 <script lang="ts">
-  // The inside of the Create VM window: the host, then image, size, runtime and GPU, an optional name, and the footer. It is built fresh each time the window opens.
+  // The inside of the Create VM window: the host, then server image, install on top, size, runtime and GPU, an optional name, and the footer. It is built fresh each time the window opens.
   import { onMount, tick } from 'svelte'
   import ActionButton from '../../ActionButton.svelte'
   import GpuChoice from '../../GpuChoice.svelte'
   import FieldBlock from './FieldBlock.svelte'
-  import ImageDropdown from './ImageDropdown.svelte'
+  import ImageSections from './ImageSections.svelte'
   import MachinePick from './MachinePick.svelte'
   import RuntimeSelect from './RuntimeSelect.svelte'
   import SizeSelect from './SizeSelect.svelte'
@@ -12,7 +12,7 @@
   import { ApiError, createWorkload, getMachineImages, refusalText } from '../../../lib/api.ts'
   import { blankForm, machineChoices, machineOptions, pickMachine, runtimeCards, startingMachine, type NewVmForm } from '../../../lib/createVm.ts'
   import { nameProblem, workloadBody, workloadProblem } from '../../../lib/format.ts'
-  import { imageAfterChange, imageCards, imageOptions, STOCK_IMAGE, type MachineImages } from '../../../lib/images.ts'
+  import { imageAfterChange, imageOptions, STOCK_IMAGE, type MachineImages } from '../../../lib/images.ts'
   import { trackCreateAnswer } from '../../../lib/pendingStore.svelte.ts'
   import { FAILED_MESSAGE } from '../../../lib/timeouts.ts'
   import type { Machine } from '../../../lib/types.ts'
@@ -22,6 +22,7 @@
   const MACHINE_ID = 'vm-create-machine'
   const NAME_ID = 'vm-create-name'
   const IMAGE_ID = 'vm-create-image'
+  const FRAMEWORK_ID = 'vm-create-framework'
   const SIZE_ID = 'vm-create-size'
   const RUNTIME_ID = 'vm-create-runtime'
   const FIRST_CONTROL = 'select:not(:disabled), input:not(:disabled)'
@@ -124,7 +125,7 @@
   <div class="scroll">
   <fieldset disabled={action.busy}>
     <MachinePick id={MACHINE_ID} options={machineOptions(choices, only?.id ?? null)} value={form.machine} locked={only !== null} onpick={pickMachineById} />
-    <ImageDropdown id={IMAGE_ID} cards={imageCards(images)} chosen={form.bundle ?? STOCK_IMAGE} unreadable={imagesUnreadable} onpick={(id) => (form.bundle = id)} />
+    <ImageSections serverId={IMAGE_ID} frameworkId={FRAMEWORK_ID} options={images} bundle={form.bundle} unreadable={imagesUnreadable} onpick={(bundle) => (form.bundle = bundle)} />
     <SizeSelect id={SIZE_ID} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
     <RuntimeSelect id={RUNTIME_ID} cards={runtimes} chosen={form.kind} os={pickedMachine?.os} onpick={(kind) => (form.kind = kind)} />
     <GpuChoice bind:form machine={pickedMachine} />

@@ -7,7 +7,7 @@
     /** The id of the control the label names; leave out when the section's control is a custom one that names itself. */
     forId?: string
     /** A small "(optional)" after the label. */
-    note?: string
+    note?: string | undefined
     /** Gives the label an id so a custom control can be named by it. */
     labelId?: string
     children: Snippet
