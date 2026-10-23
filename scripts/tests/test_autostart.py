@@ -52,7 +52,7 @@ class AutostartCase(unittest.TestCase):
         self.env = {**os.environ, "METASERVICE_ROOT": self.folder, "METASERVICE_DAEMONS_DIR": self.daemons, "METASERVICE_AGENTS_DIR": self.agents,
                     "METASERVICE_LAUNCHCTL": launchctl, "FAKE_LAUNCHCTL_LOG": self.calls_log, "FAKE_LOADED": "",
                     "METASERVICE_PANEL_URL": f"http://127.0.0.1:{server.server_port}", "METASERVICE_WAIT_SECONDS": "3",
-                    "METASERVICE_CLOUDFLARED": self.cloudflared, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"),
+                    "METASERVICE_CLOUDFLARED": self.cloudflared, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"), "METASERVICE_LOG_DIR": os.path.join(self.folder, "logs"),
                     "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(self.folder),
                     "PATH": os.path.join(self.folder, "bin") + os.pathsep + os.environ["PATH"]}
 
@@ -93,7 +93,7 @@ class PlistTest(AutostartCase):
     def test_the_parent_plist_has_exactly_the_keys_and_values_asked_for(self):
         result = self.autostart("on")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        log = os.path.join(self.control_plane, "run", "parent.log")
+        log = os.path.join(self.folder, "logs", "parent.log")
         self.assertEqual(self.plist(PARENT), {
             "Label": PARENT, "ProgramArguments": [self.binary], "WorkingDirectory": self.control_plane, "UserName": getpass.getuser(),
             "GroupName": "staff", "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 10, "StandardOutPath": log, "StandardErrorPath": log,
@@ -106,8 +106,15 @@ class PlistTest(AutostartCase):
         self.assertEqual(job["UserName"], getpass.getuser())
         self.assertEqual(job["GroupName"], "staff")
         self.assertIs(job["KeepAlive"], True)
-        self.assertEqual(job["StandardOutPath"], os.path.join(self.control_plane, "state", "cloudflared.log"))
+        self.assertEqual(job["StandardOutPath"], os.path.join(self.folder, "logs", "cloudflared.log"))
         self.assertNotIn("secret-token-value", repr(job))
+
+    def test_both_plists_follow_the_log_folder_override_and_the_folder_is_private(self):
+        elsewhere = os.path.join(self.folder, "elsewhere-logs")
+        self.autostart("on", METASERVICE_LOG_DIR=elsewhere)
+        self.assertEqual(self.plist(PARENT)["StandardOutPath"], os.path.join(elsewhere, "parent.log"))
+        self.assertEqual(self.plist(CONNECTOR)["StandardErrorPath"], os.path.join(elsewhere, "cloudflared.log"))
+        self.assertEqual(os.stat(elsewhere).st_mode & 0o777, 0o700)
 
     def test_every_plist_passes_plutil_lint(self):
         plutil = shutil.which("plutil")

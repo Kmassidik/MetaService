@@ -6,7 +6,7 @@
   python3 scripts/remote_access status   is it connected and answering?
   python3 scripts/remote_access down     remove exactly what `up` made
 
-Options: --env FILE  --host NAME (a throwaway name for a first test)  --tunnel-name NAME  --origin URL  --state-dir DIR
+Options: --env FILE  --host NAME (a throwaway name for a first test)  --tunnel-name NAME  --origin URL  --state-dir DIR  --log-dir DIR
 It never prints the API token. The tunnel is this tool's own; another project's tunnel (MAAS's) is never read or changed.
 """
 import argparse
@@ -14,6 +14,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
 CONTROL_PLANE = os.path.normpath(os.path.join(HERE, "..", "..", "control-plane", "arm64"))
 sys.path.insert(0, HERE)
 
@@ -23,6 +24,7 @@ import cf_connector  # noqa: E402
 import cf_env  # noqa: E402
 import cf_probe  # noqa: E402
 import cf_state  # noqa: E402
+import log_folder  # noqa: E402
 
 
 def parse(argv):
@@ -30,6 +32,7 @@ def parse(argv):
     parser.add_argument("command", choices=("check", "plan", "up", "status", "down"))
     parser.add_argument("--env", default=os.path.join(CONTROL_PLANE, ".env"))
     parser.add_argument("--state-dir", default=os.path.join(CONTROL_PLANE, "state"))
+    parser.add_argument("--log-dir", default=log_folder.log_dir(REPO))
     parser.add_argument("--host", default="")
     parser.add_argument("--origin", default="")
     parser.add_argument("--tunnel-name", default="")
@@ -55,7 +58,7 @@ def main(argv):
     # The two overrides are for tests, so a test run can never touch a real connector on a machine where remote access is working.
     launchctl = os.environ.get("METASERVICE_LAUNCHCTL", "launchctl")
     agents_dir = os.environ.get("METASERVICE_AGENTS_DIR", os.path.expanduser("~/Library/LaunchAgents"))
-    tool = cf_commands.Tool(settings, api, cf_probe.status_of, cf_connector.Launchd(os.getuid(), program=launchctl), args.state_dir, agents_dir)
+    tool = cf_commands.Tool(settings, api, cf_probe.status_of, cf_connector.Launchd(os.getuid(), program=launchctl), args.state_dir, agents_dir, args.log_dir)
     return getattr(tool, args.command)()
 
 

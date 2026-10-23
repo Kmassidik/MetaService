@@ -22,6 +22,7 @@ done
 builds="control-plane/arm64/.build agent/macos/.build agent/linux/target shared/metaservice-shared/.build"
 packages="frontend/node_modules bundles/chat/ui/node_modules"
 runtime="control-plane/arm64/run"
+log_folder="logs"
 data="control-plane/arm64/state"
 caches="$(cd "$root" && find . -name __pycache__ -type d -not -path '*/node_modules/*' -not -path './.git/*' -prune | sed 's#^\./##')"
 
@@ -29,9 +30,9 @@ present() { for path in "$@"; do [ -e "$root/$path" ] && echo "$path"; done; }
 kilobytes() { for path in "$@"; do du -sk "$root/$path" 2>/dev/null; done | awk '{sum += $1} END {print sum + 0}'; }
 human() { awk -v k="$1" 'BEGIN { if (k >= 1048576) printf "%.1f GB", k/1048576; else if (k >= 1024) printf "%.0f MB", k/1024; else printf "%d KB", k }'; }
 
-found_builds="$(present $builds)"; found_packages="$(present $packages)"; found_runtime="$(present $runtime)"; found_data="$(present $data)"
+found_builds="$(present $builds)"; found_packages="$(present $packages)"; found_runtime="$(present $runtime)"; found_logs="$(present $log_folder)"; found_data="$(present $data)"
 [ "$keep_data" = yes ] && found_data=""
-remove_list="$found_builds $found_packages $found_runtime $found_data $caches"
+remove_list="$found_builds $found_packages $found_runtime $found_logs $found_data $caches"
 if [ -z "$(echo $remove_list)" ] && { [ "$remove_env" = no ] || [ ! -e "$root/control-plane/arm64/.env" ]; }; then
   echo "Nothing to remove: no builds, packages or data are here."
   exit 0
@@ -41,7 +42,8 @@ row() { printf "  %9s  %-12s %s\n" "$(human "$(kilobytes $3)")" "$1" "$2"; }
 echo "This removes what MetaService made on this computer:"
 [ -n "$found_builds" ] && row "builds" "$(echo $found_builds)" "$found_builds"
 [ -n "$found_packages" ] && row "packages" "$(echo $found_packages)" "$found_packages"
-[ -n "$found_runtime" ] && row "run files" "$found_runtime (the background pid and log)" "$found_runtime"
+[ -n "$found_runtime" ] && row "run files" "$found_runtime (the background pid)" "$found_runtime"
+[ -n "$found_logs" ] && row "log files" "$found_logs (parent, build, connector and install logs)" "$found_logs"
 [ -n "$found_data" ] && row "your data" "$found_data (the machines, the admin login and the keys)" "$found_data"
 [ -n "$caches" ] && row "Python caches" "" "$caches"
 [ "$keep_data" = yes ] && echo "  (your data stays: --keep-data)"

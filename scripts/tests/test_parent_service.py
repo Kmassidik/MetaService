@@ -28,7 +28,8 @@ class ServiceCase(unittest.TestCase):
         self.port = free_port()
         self.program = os.path.join(self.folder, "fake-parent.sh")
         self.write_program(f'#!/bin/sh\necho "fake parent says hello"\nexec {sys.executable} -m http.server {self.port} --bind 127.0.0.1 --directory {self.served}\n')
-        self.env = {**os.environ, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"), "METASERVICE_PARENT_COMMAND": self.program, "METASERVICE_SKIP_BUILD": "1",
+        self.env = {**os.environ, "METASERVICE_RUN_DIR": os.path.join(self.folder, "run"), "METASERVICE_LOG_DIR": os.path.join(self.folder, "logs"),
+                    "METASERVICE_STATE_DIR": os.path.join(self.folder, "state"), "METASERVICE_PARENT_COMMAND": self.program, "METASERVICE_SKIP_BUILD": "1",
                     "METASERVICE_PANEL_URL": f"http://127.0.0.1:{self.port}", "METASERVICE_PROCESS_PATTERN": self.token, "METASERVICE_WAIT_SECONDS": "20",
                     # No test may install nmap: it is "missing" and Homebrew is "not here" unless a test says otherwise.
                     "METASERVICE_NMAP_PATHS": os.path.join(self.folder, "no-nmap-here"), "METASERVICE_BREW": os.path.join(self.folder, "no-brew-here"),
@@ -83,7 +84,8 @@ class BackgroundTest(ServiceCase):
         self.service("start")
         run = os.path.join(self.folder, "run")
         self.assertEqual(os.stat(run).st_mode & 0o077, 0)
-        self.assertEqual(os.stat(os.path.join(run, "parent.log")).st_mode & 0o077, 0)
+        self.assertEqual(os.stat(os.path.join(self.folder, "logs")).st_mode & 0o077, 0)
+        self.assertEqual(os.stat(os.path.join(self.folder, "logs", "parent.log")).st_mode & 0o077, 0)
         self.assertIn("fake parent says hello", self.service("logs").stdout)
 
     def test_starting_twice_does_not_start_a_second_one(self):
@@ -128,6 +130,81 @@ class BackgroundTest(ServiceCase):
         self.assertIsNotNone(other.wait(timeout=10), "the parent that was not started here is still running")  # wait() also reaps it, as its owner would
 
 
+class LogFolderTest(ServiceCase):
+    """All logs live in one folder (logs/ at the top of the repository); old places are emptied into it once."""
+
+    def logs(self, name=""):
+        return os.path.join(self.folder, "logs", name)
+
+    def put(self, folder, name, text):
+        os.makedirs(os.path.join(self.folder, folder), exist_ok=True)
+        with open(os.path.join(self.folder, folder, name), "w") as file:
+            file.write(text)
+
+    def read(self, path):
+        with open(path) as file:
+            return file.read()
+
+    def test_the_folder_is_made_private_with_the_log_inside_and_no_log_stays_in_run(self):
+        self.service("start")
+        self.assertEqual(os.stat(self.logs()).st_mode & 0o777, 0o700)
+        self.assertEqual(os.stat(self.logs("parent.log")).st_mode & 0o777, 0o600)
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "run", "parent.log")))
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "run", "parent.pid")))
+
+    def test_the_log_folder_can_be_changed_with_the_environment(self):
+        elsewhere = os.path.join(self.folder, "elsewhere")
+        self.service("start", METASERVICE_LOG_DIR=elsewhere)
+        self.assertIn("fake parent says hello", self.read(os.path.join(elsewhere, "parent.log")))
+        self.assertFalse(os.path.exists(self.logs()))
+
+    def test_old_logs_are_moved_once_and_not_lost(self):
+        self.put("run", "parent.log", "old parent line\n")
+        self.put("run", "build.log", "old build line\n")
+        self.put("state", "cloudflared.log", "old connector line\n")
+        self.service("start")
+        self.assertIn("old parent line", self.read(self.logs("parent.log")))
+        self.assertEqual(self.read(self.logs("build.log")), "old build line\n")
+        self.assertEqual(self.read(self.logs("cloudflared.log")), "old connector line\n")
+        for old in ("run/parent.log", "run/build.log", "state/cloudflared.log"):
+            self.assertFalse(os.path.exists(os.path.join(self.folder, old)), old)
+        self.service("stop")
+        self.service("start")
+        self.assertEqual(self.read(self.logs("cloudflared.log")), "old connector line\n")
+        self.assertFalse(os.path.exists(self.logs("cloudflared.log.old")))
+
+    def test_an_old_log_is_kept_as_old_when_the_new_one_exists(self):
+        self.put("logs", "cloudflared.log", "new line\n")
+        self.put("state", "cloudflared.log", "old line\n")
+        self.service("start")
+        self.assertEqual(self.read(self.logs("cloudflared.log")), "new line\n")
+        self.assertEqual(self.read(self.logs("cloudflared.log.old")), "old line\n")
+
+    def test_the_logs_command_and_the_messages_name_the_new_path(self):
+        self.write_program('#!/bin/sh\necho "cannot bind the port"\nexit 1\n')
+        failed = self.service("start")
+        self.assertEqual(self.read(self.logs("parent.log")).strip(), "cannot bind the port")
+        self.assertIn("cannot bind the port", self.service("logs").stdout)
+        self.assertNotIn(os.path.join(self.folder, "run", "parent.log"), failed.stdout)
+
+    def test_a_log_over_five_mebibytes_is_rotated_at_start_keeping_one_old_file(self):
+        big = "x" * (5 * 1024 * 1024 + 1)
+        self.put("logs", "parent.log", big)
+        self.put("logs", "cloudflared.log", big)
+        self.put("logs", "cloudflared.log.1", "older generation")
+        self.service("start")
+        self.assertEqual(self.read(self.logs("parent.log.1")), big)
+        self.assertEqual(self.read(self.logs("cloudflared.log.1")), big)
+        self.assertNotIn("xxxx", self.read(self.logs("parent.log")))
+        self.assertIn("fake parent says hello", self.read(self.logs("parent.log")))
+
+    def test_a_small_log_is_not_rotated(self):
+        self.put("logs", "parent.log", "small\n")
+        self.service("start")
+        self.assertFalse(os.path.exists(self.logs("parent.log.1")))
+        self.assertTrue(self.read(self.logs("parent.log")).startswith("small"))
+
+
 class BuildOutputTest(ServiceCase):
     """The build step is quiet: the compiler's warnings go to a log, and show only when the build fails."""
 
@@ -146,8 +223,8 @@ class BuildOutputTest(ServiceCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertNotIn(self.noise, done.stdout + done.stderr)
         self.assertIn("Building MetaService", done.stdout)
-        self.assertIn("build.log", done.stdout)
-        with open(os.path.join(self.folder, "run", "build.log")) as file:
+        self.assertIn(os.path.join(self.folder, "logs", "build.log"), done.stdout)
+        with open(os.path.join(self.folder, "logs", "build.log")) as file:
             self.assertIn(self.noise, file.read())
         self.assertTrue(self.listening())
 
@@ -162,7 +239,7 @@ class BuildOutputTest(ServiceCase):
 
     def test_the_build_log_is_private(self):
         self.service("start")
-        self.assertEqual(os.stat(os.path.join(self.folder, "run", "build.log")).st_mode & 0o077, 0)
+        self.assertEqual(os.stat(os.path.join(self.folder, "logs", "build.log")).st_mode & 0o077, 0)
 
 
 if __name__ == "__main__":

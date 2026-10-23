@@ -6,6 +6,8 @@
 cd "$(dirname "$0")" || exit 1
 env_file="${METASERVICE_ENV_FILE:-control-plane/arm64/.env}"
 service="scripts/parent-service.sh"
+log_dir="${METASERVICE_LOG_DIR:-logs}"  # every log MetaService writes lives here; install.log is this script's own
+install_log="$log_dir/install.log"
 
 banner() {
   echo "=================================================="
@@ -106,6 +108,21 @@ install_now() {
   echo "      You can close this terminal. Stop it with ./install.sh stop"
 }
 
+# Runs install_now and appends everything it prints to logs/install.log as well. Errors stay on stderr; the exit code is install_now's, not tee's.
+install_logged() {
+  mkdir -p "$log_dir" && chmod 700 "$log_dir" || return 1
+  (umask 077; : >> "$install_log") || return 1
+  scratch="$(mktemp -d)" || return 1
+  mkfifo "$scratch/errors" || return 1
+  tee -a "$install_log" < "$scratch/errors" >&2 &
+  errors_copy=$!
+  { echo "=== install $(date '+%Y-%m-%d %H:%M:%S') ==="; install_now "$@"; echo $? > "$scratch/status"; } 2> "$scratch/errors" | tee -a "$install_log"
+  wait "$errors_copy"
+  status="$(cat "$scratch/status")"
+  rm -rf "$scratch"
+  return "${status:-1}"
+}
+
 choose() {
   while true; do
     menu
@@ -115,7 +132,7 @@ choose() {
     case "$answer" in
       1|help) show_help ;;
       2|readme) show_readme ;;
-      3|install) install_now ;;
+      3|install) install_logged ;;
       4|status) status_now ;;
       5|logs) sh "$service" logs ;;
       6|stop) stop_now ;;
@@ -131,7 +148,7 @@ banner
 case "$1" in
   help|--help|-h) show_help ;;
   readme|--readme) show_readme ;;
-  install) shift; install_now "$@"; exit $? ;;
+  install) shift; install_logged "$@"; exit $? ;;
   status) status_now; exit $? ;;
   stop) stop_now; exit $? ;;
   logs) sh "$service" logs ;;
@@ -139,7 +156,7 @@ case "$1" in
   uninstall) shift; sh scripts/uninstall.sh "$@"; exit $? ;;
   run) shift; run_checks || exit 1; exec scripts/start-parent.sh "$@" ;;
   remote) shift; run_checks || exit 1; exec python3 scripts/remote_access --env "$env_file" "$@" ;;
-  --*) install_now "$@"; exit $? ;;
+  --*) install_logged "$@"; exit $? ;;
   "")
     if [ -t 0 ]; then choose; else menu; echo "Run ./install.sh install to install, or ./install.sh help for the commands."; fi ;;
   *) echo "I do not know \"$1\"."; echo; show_help; exit 1 ;;

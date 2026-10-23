@@ -4,7 +4,8 @@
 #   io.metaservice.parent     the parent (control-plane/arm64/.build/debug/metaservice-root), kept running
 #   io.metaservice.connector  the Cloudflare connector, only when remote access is set up (state/cloudflared.token) and cloudflared is installed
 # It never asks for or stores a password: it uses `sudo -n`, and when that is not possible it prints the exact commands to run yourself.
-# The tests change the places with METASERVICE_DAEMONS_DIR, METASERVICE_AGENTS_DIR, METASERVICE_LAUNCHCTL, METASERVICE_ROOT and METASERVICE_PANEL_URL.
+# The tests change the places with METASERVICE_DAEMONS_DIR, METASERVICE_AGENTS_DIR, METASERVICE_LAUNCHCTL, METASERVICE_ROOT, METASERVICE_LOG_DIR and METASERVICE_PANEL_URL.
+# Both daemons write to logs/ at the top of the repository. An install from before that keeps the old paths until `autostart on` is run again.
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="${METASERVICE_ROOT:-$here}"
 daemons_dir="${METASERVICE_DAEMONS_DIR:-/Library/LaunchDaemons}"
@@ -16,6 +17,7 @@ parent_label="io.metaservice.parent"
 connector_label="io.metaservice.connector"
 agent_label="io.metaservice.cloudflared"  # the user job that scripts/remote_access made before; the connector daemon replaces it
 control_plane="$root/control-plane/arm64"
+log_dir="${METASERVICE_LOG_DIR:-$root/logs}"
 binary="$control_plane/.build/debug/metaservice-root"
 staging_dir="$control_plane/run/autostart"
 priv=""
@@ -63,8 +65,9 @@ stage_plists() {
 
 # Log files are made now, by the person, so the daemon (which runs as the same person) can always write them.
 prepare_logs() {
-  mkdir -p "$control_plane/run" "$control_plane/state" || return 1
-  : >> "$control_plane/run/parent.log" && : >> "$control_plane/state/cloudflared.log"
+  mkdir -p "$control_plane/run" "$control_plane/state" "$log_dir" || return 1
+  chmod 700 "$log_dir" || return 1
+  (umask 077; : >> "$log_dir/parent.log" && : >> "$log_dir/cloudflared.log")
 }
 
 # bootout first, so a daemon that is already loaded is replaced; "not loaded" is the normal case and is not an error.
@@ -116,7 +119,7 @@ refuse_unless_ready() {
 
 report_started() {
   if wait_for_panel; then echo "      ✓ Autostart is on. MetaService starts at boot, with nobody logged in, and comes back if it stops: $panel_url"; return 0; fi
-  echo "      ✗ The daemons are installed but the panel does not answer on $panel_url yet. Look at $control_plane/run/parent.log"
+  echo "      ✗ The daemons are installed but the panel does not answer on $panel_url yet. Look at $log_dir/parent.log"
   return 1
 }
 

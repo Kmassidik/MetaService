@@ -56,6 +56,7 @@ class Fixture:
         folder = tempfile.TemporaryDirectory()
         test.addCleanup(folder.cleanup)
         self.state_dir = os.path.join(folder.name, "state")
+        self.log_dir = os.path.join(folder.name, "logs")
         self.agents_dir = os.path.join(folder.name, "agents")
         self.said = []
         self.probes = []
@@ -74,7 +75,7 @@ class Fixture:
             return self.statuses.get(url, 200)
 
         finder = (lambda: "/opt/homebrew/bin/cloudflared") if binary else self._no_binary
-        self.tool = cf_commands.Tool(self.settings, self.api, probe_fn, self.launchd, self.state_dir, self.agents_dir,
+        self.tool = cf_commands.Tool(self.settings, self.api, probe_fn, self.launchd, self.state_dir, self.agents_dir, self.log_dir,
                                      find_binary=finder, say=self.said.append, sleep=lambda seconds: None)
 
     @staticmethod
@@ -162,14 +163,14 @@ class PartsTest(unittest.TestCase):
         self.assertFalse(cf_ingress.routes_only_to(config, "other.example.com", ORIGIN))
 
     def test_the_connector_job_reads_its_token_from_a_file_and_names_no_token(self):
-        text = cf_connector.plist_text("/opt/homebrew/bin/cloudflared", "/x/state/cloudflared.token", "/x/state/cloudflared.log")
+        text = cf_connector.plist_text("/opt/homebrew/bin/cloudflared", "/x/state/cloudflared.token", "/x/logs/cloudflared.log")
         self.assertIn("<string>--token-file</string>", text)
         self.assertIn("<string>/x/state/cloudflared.token</string>", text)
         self.assertIn(cf_connector.LABEL, text)
         self.assertNotIn(TUNNEL_TOKEN, text)
 
     def test_the_connector_uses_tcp_so_a_router_that_drops_udp_cannot_stall_it(self):
-        text = cf_connector.plist_text("/opt/homebrew/bin/cloudflared", "/x/state/cloudflared.token", "/x/state/cloudflared.log")
+        text = cf_connector.plist_text("/opt/homebrew/bin/cloudflared", "/x/state/cloudflared.token", "/x/logs/cloudflared.log")
         self.assertIn("<string>--protocol</string><string>http2</string>", text)
 
     def test_a_missing_cloudflared_is_a_clear_error(self):

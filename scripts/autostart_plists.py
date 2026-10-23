@@ -16,14 +16,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "remote_access"))
 
 import cf_connector  # noqa: E402
+import log_folder  # noqa: E402
 
 PARENT_LABEL = "io.metaservice.parent"
 CONNECTOR_LABEL = cf_connector.DAEMON_LABEL
 CONTROL_PLANE = os.path.join("control-plane", "arm64")
 PARENT_BINARY = os.path.join(CONTROL_PLANE, ".build", "debug", "metaservice-root")
 TOKEN_FILE = "cloudflared.token"
-CONNECTOR_LOG = "cloudflared.log"
-PARENT_LOG = "parent.log"
 GROUP = "staff"
 RESTART_SECONDS = 10
 DAEMON_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -38,7 +37,7 @@ def base_job(label: str, arguments: list, user: str, home: str, log_file: str) -
 
 def parent_job(root: str, user: str, home: str) -> dict:
     working_folder = os.path.join(root, CONTROL_PLANE)  # the parent finds its .env and state/ from here
-    job = base_job(PARENT_LABEL, [os.path.join(root, PARENT_BINARY)], user, home, os.path.join(working_folder, "run", PARENT_LOG))
+    job = base_job(PARENT_LABEL, [os.path.join(root, PARENT_BINARY)], user, home, os.path.join(log_folder.log_dir(root), log_folder.PARENT_LOG))
     job["WorkingDirectory"] = working_folder
     return job
 
@@ -58,7 +57,7 @@ def connector_job(root: str, user: str, home: str) -> dict:
     if not os.path.exists(token_file):
         raise cf_connector.ConnectorError(f"there is no {token_file} (run ./install.sh remote up first).")
     arguments = list(cf_connector.program_arguments(find_cloudflared(), token_file))
-    return base_job(CONNECTOR_LABEL, arguments, user, home, os.path.join(state_dir, CONNECTOR_LOG))
+    return base_job(CONNECTOR_LABEL, arguments, user, home, os.path.join(log_folder.log_dir(root), log_folder.CONNECTOR_LOG))
 
 
 def write_plist(out_dir: str, job: dict) -> str:

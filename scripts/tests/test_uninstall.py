@@ -13,7 +13,7 @@ REPO = os.path.join(os.path.dirname(__file__), "..", "..")
 UNINSTALL = os.path.join(REPO, "scripts", "uninstall.sh")
 
 GENERATED = ["control-plane/arm64/.build", "agent/macos/.build", "agent/linux/target", "shared/metaservice-shared/.build", "frontend/node_modules", "bundles/chat/ui/node_modules",
-             "control-plane/arm64/run", "control-plane/arm64/state", "scripts/__pycache__"]
+             "control-plane/arm64/run", "control-plane/arm64/state", "logs", "scripts/__pycache__"]
 KEPT = ["install.sh", "control-plane/arm64/.env", "control-plane/arm64/Package.swift", "frontend/src/App.svelte", ".git/HEAD", "README.md"]
 
 

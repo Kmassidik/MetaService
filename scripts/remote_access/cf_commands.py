@@ -11,6 +11,7 @@ import time
 import cf_connector
 import cf_ingress
 import cf_state
+import log_folder
 from cf_api import CloudflareError
 from cf_probe import reached
 
@@ -19,17 +20,18 @@ CONNECTION_ATTEMPTS = 20
 REACH_ATTEMPTS = 20
 PAUSE_SECONDS = 3
 TOKEN_FILE = "cloudflared.token"
-LOG_FILE = "cloudflared.log"
+PRIVATE_FOLDER_MODE = 0o700
 
 
 class Tool:
-    def __init__(self, settings, api, probe, launchd, state_dir, agents_dir, find_binary=cf_connector.find_binary, say=print, sleep=time.sleep):
+    def __init__(self, settings, api, probe, launchd, state_dir, agents_dir, log_dir, find_binary=cf_connector.find_binary, say=print, sleep=time.sleep):
         self.s = settings
         self.api = api
         self.probe = probe
         self.launchd = launchd
         self.state_dir = state_dir
         self.agents_dir = agents_dir
+        self.log_dir = log_dir
         self.find_binary = find_binary
         self.say = say
         self.sleep = sleep
@@ -139,6 +141,9 @@ class Tool:
     def _plist_path(self) -> str:
         return os.path.join(self.agents_dir, cf_connector.LABEL + ".plist")
 
+    def _log_path(self) -> str:
+        return os.path.join(self.log_dir, log_folder.CONNECTOR_LOG)
+
     def _write_token(self, state: dict) -> None:
         token = self.api.tunnel_token(self.s.account_id, state["tunnel_id"])
         os.makedirs(self.state_dir, mode=0o700, exist_ok=True)
@@ -153,14 +158,15 @@ class Tool:
             state["connector_domain"] = "system"
             return
         os.makedirs(self.agents_dir, exist_ok=True)
+        os.makedirs(self.log_dir, mode=PRIVATE_FOLDER_MODE, exist_ok=True)
         with open(self._plist_path(), "w", encoding="utf-8") as file:
-            file.write(cf_connector.plist_text(self.find_binary(), self._token_path(), os.path.join(self.state_dir, LOG_FILE)))
+            file.write(cf_connector.plist_text(self.find_binary(), self._token_path(), self._log_path()))
         state["connector_domain"] = self.launchd.start(self._plist_path())
 
     def _wait_until_reachable(self) -> int:
         state = cf_state.load(self.state_dir) or {}
         if not self._wait_for_connection(state["tunnel_id"]):
-            self.say(f"The tunnel made and the connector started, but Cloudflare shows no connection yet. Look at {os.path.join(self.state_dir, LOG_FILE)}, then run `status`.")
+            self.say(f"The tunnel made and the connector started, but Cloudflare shows no connection yet. Look at {self._log_path()}, then run `status`.")
             return EXIT_NOT_REACHABLE
         self.say("The connector is connected.")
         status = self._wait_for_host()

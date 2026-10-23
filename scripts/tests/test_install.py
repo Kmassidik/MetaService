@@ -10,7 +10,7 @@ INSTALL = os.path.join(ROOT, "install.sh")
 
 def isolated(folder, env_path):
     """The settings every run here gets, so no test reads or changes the real parent or the real parent's files. METASERVICE_ROOT points the uninstaller at an empty folder, which it refuses."""
-    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder),
+    return {**os.environ, "METASERVICE_ENV_FILE": env_path, "METASERVICE_RUN_DIR": os.path.join(folder, "run"), "METASERVICE_LOG_DIR": os.path.join(folder, "logs"), "METASERVICE_ROOT": folder, "METASERVICE_SKIP_BUILD": "1", "METASERVICE_WAIT_SECONDS": "1", "METASERVICE_PROCESS_PATTERN": "no-such-process-" + os.path.basename(folder),
             "METASERVICE_LAUNCHCTL": "/usr/bin/true", "METASERVICE_AGENTS_DIR": os.path.join(folder, "agents"), "METASERVICE_DAEMONS_DIR": os.path.join(folder, "daemons"),
             "METASERVICE_NMAP_PATHS": os.path.join(folder, "no-nmap-here"), "METASERVICE_BREW": os.path.join(folder, "no-brew-here")}
 
@@ -119,6 +119,20 @@ class NamedCommandTest(unittest.TestCase):
         done = install("ROOT_SETUP_TOKEN=tiny\n", "install")
         self.assertEqual(done.returncode, 1)
         self.assertIn("ROOT_SETUP_TOKEN", done.stderr)
+
+    def test_a_named_install_appends_to_install_log_in_the_private_log_folder(self):
+        folder, env = with_env_file("ROOT_SETUP_TOKEN=tiny\n")
+        log_dir = env["METASERVICE_LOG_DIR"]
+        for _ in range(2):
+            done = subprocess.run(["sh", INSTALL, "install"], capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL)
+            self.assertEqual(done.returncode, 1)
+        self.assertEqual(os.stat(log_dir).st_mode & 0o777, 0o700)
+        log_path = os.path.join(log_dir, "install.log")
+        self.assertEqual(os.stat(log_path).st_mode & 0o777, 0o600)
+        with open(log_path) as file:
+            text = file.read()
+        self.assertEqual(text.count("=== install "), 2)
+        self.assertIn("ROOT_SETUP_TOKEN", text)
 
     def test_status_and_stop_can_be_named(self):
         self.assertIn("not running", install("", "status").stdout)
