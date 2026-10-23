@@ -1,4 +1,6 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
+use crate::apps::simulated::SimulatedApps;
+use crate::apps::App;
 use crate::ssh_install::{InstallReport, SshdFailure};
 use crate::ssh_keys::{KeyList, Sshd};
 use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
@@ -30,6 +32,8 @@ pub trait Engine: Send + Sync {
     fn apply_ssh_keys(&self, id: &str, keys: &KeyList) -> Result<Sshd, EngineError>;
     /// Installs (when missing), locks to keys only, and starts the SSH server inside the workload, with a fixed script and no request data. The keys were written before.
     fn install_sshd(&self, id: &str) -> Result<InstallReport, EngineError>;
+    /// Runs the app's constant installer script inside the workload (script on standard input, no request data) and returns what it printed.
+    fn install_app(&self, id: &str, app: App) -> Result<String, EngineError>;
     /// Like `exec` with no environment, for a quick look inside that must not hang: the engine gives it a short time limit.
     fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
         self.exec(id, arguments, &[])
@@ -46,6 +50,8 @@ pub struct SimulatedEngine {
     /// How an install of the SSH server goes (set by tests), and how many times one was asked for.
     install: Mutex<SimulatedInstall>,
     installs: Mutex<usize>,
+    /// The pretend app installs, per workload.
+    pub apps: SimulatedApps,
 }
 
 /// What a simulated install of the SSH server does when the server is missing.
@@ -59,7 +65,7 @@ pub const SIMULATED_ENGINE: &str = "simulated";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
-        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0) }
+        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0), apps: SimulatedApps::new() }
     }
 
     /// What every later apply reports about sshd, as the workload's image would decide it.
@@ -150,6 +156,11 @@ impl Engine for SimulatedEngine {
         }
         *sshd = Sshd::Running;
         Ok(InstallReport { sshd: Sshd::Running, installed: missing, failure: None })
+    }
+
+    fn install_app(&self, id: &str, app: App) -> Result<String, EngineError> {
+        self.change(id, |_| {})?;
+        Ok(self.apps.run(id, app))
     }
 
     fn exec(&self, id: &str, _arguments: &[String], _environment: &[(String, String)]) -> Result<String, EngineError> {

@@ -62,6 +62,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/stop", post(stop))
         .route("/v1/workloads/:id/gpu-check", post(gpu_check))
         .route("/v1/workloads/:id/ssh-keys", put(ssh_keys))
+        .route("/v1/workloads/:id/app", put(app_install))
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
@@ -119,6 +120,7 @@ fn failure(failure: Failure) -> Response {
         Failure::Refused(r) => refusal(&r),
         Failure::NotFound => error(StatusCode::NOT_FOUND, "not_found", "no such thing"),
         Failure::Engine(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
+        Failure::App(failed) => (StatusCode::BAD_GATEWAY, Json(json!({"error": {"code": crate::apps::ERROR_CODE, "message": failed.message, "log_tail": failed.log_tail}}))).into_response(),
         Failure::Sshd(reason) => error(StatusCode::BAD_GATEWAY, ssh_install::ERROR_CODE, reason.message()),
     }
 }
@@ -234,6 +236,18 @@ async fn ssh_keys(State(app): State<Arc<App>>, Path(id): Path<String>, request: 
     let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
     match SshRequest::parse(&body) {
         Ok(request) => app.service.apply_ssh_keys(&id, request).await.map(ok).unwrap_or_else(failure),
+        Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
+    }
+}
+
+/// Puts OpenClaw or Hermes on top of a running VM. The body is only the choice between the two constant scripts.
+async fn app_install(State(app): State<Arc<App>>, Path(id): Path<String>, request: Request) -> Response {
+    if !is_id(&id) {
+        return failure(Failure::NotFound);
+    }
+    let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
+    match crate::apps::App::parse(&body) {
+        Ok(chosen) => app.service.install_app(&id, chosen).await.map(ok).unwrap_or_else(failure),
         Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
     }
 }

@@ -28,6 +28,8 @@ pub enum Failure {
     Engine(#[allow(dead_code)] String),
     /// The SSH server could not be made to listen inside the VM (the keys were still written).
     Sshd(SshdFailure),
+    /// An app could not be put in the VM (plain words and the installer's last lines).
+    App(crate::apps::AppError),
 }
 
 impl From<EngineError> for Failure {
@@ -54,7 +56,7 @@ struct Flight {
 }
 
 pub struct Service {
-    engine: Arc<dyn Engine>,
+    pub(crate) engine: Arc<dyn Engine>,
     budget: SpaceBudget,
     specs: Specs,
     version: String,

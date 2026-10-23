@@ -3,6 +3,7 @@
 mod list;
 mod runner;
 
+use crate::apps::{self, App};
 use crate::engine::Engine;
 use crate::gpu;
 use crate::models::{Capabilities, EngineError, EngineIdentity, Kind, Problem, State, Workload};
@@ -178,6 +179,11 @@ impl Engine for IncusEngine {
         self.require(id)?;
         let report = self.runner.run(&ssh_install::incus_call(&name_of(id)), INSTALL_TIMEOUT)?;
         ssh_install::parse_report(&report).ok_or_else(|| EngineError::Failed("the workload did not report what happened to the SSH server".into()))
+    }
+
+    fn install_app(&self, id: &str, app: App) -> Result<String, EngineError> {
+        self.require(id)?;
+        self.runner.run_with_input(&apps::incus_call(&name_of(id)), app.script().as_bytes(), apps::INSTALL_TIMEOUT)
     }
 
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError> {

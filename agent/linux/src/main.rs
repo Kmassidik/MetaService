@@ -1,4 +1,5 @@
 //! MetaService Agent for Linux. Runs workloads on this machine for the Root, through Incus.
+mod apps;
 mod budget;
 mod build;
 mod bundle;
