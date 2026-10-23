@@ -49,9 +49,19 @@ public struct PlacementWish: Equatable {
     public let onlyMachine: String?
     /// The GPU memory limit asked for, in GB. Nil: no limit, nothing to book.
     public let gpuMemoryGb: Int?
+    /// The CPU settings asked for (see CpuSettings). Nil: what every VM got before, which any machine can give.
+    public let cpuSockets: Int?
+    public let cpuType: String?
+    public let cpuFlags: [String: String]?
+    public let cpuLimitPercent: Int?
 
-    public init(kind: String, gpuMode: String, ramMb: Int, diskGb: Int, onlyMachine: String?, gpuMemoryGb: Int? = nil) {
+    public init(kind: String, gpuMode: String, ramMb: Int, diskGb: Int, onlyMachine: String?, gpuMemoryGb: Int? = nil,
+                cpuSockets: Int? = nil, cpuType: String? = nil, cpuFlags: [String: String]? = nil, cpuLimitPercent: Int? = nil) {
         self.gpuMemoryGb = gpuMemoryGb
+        self.cpuSockets = cpuSockets
+        self.cpuType = cpuType
+        self.cpuFlags = cpuFlags
+        self.cpuLimitPercent = cpuLimitPercent
         self.kind = kind
         self.gpuMode = gpuMode
         self.ramMb = ramMb
@@ -73,9 +83,10 @@ public enum Placement {
         guard !open.isEmpty else { throw refusal("machine_at_max_vms", "every ready machine already runs the most VMs it was allowed", "capability", 1, 0) }
         let capable = open.filter { canRun($0, wish) }
         guard !capable.isEmpty else { throw refusal("missing_capability", noCapableMachineMessage(wish), "capability", 1, 0) }
-        let bookable = try withRoomOnTheCard(capable, wish)
+        let offering = try offeringTheCpuSettings(capable, wish)
+        let bookable = try withRoomOnTheCard(offering, wish)
         let fitting = bookable.filter { $0.freeRamMb >= wish.ramMb && $0.freeDiskGb >= wish.diskGb }
-        guard let best = fitting.max(by: { isBetter($1, than: $0, wish) }) else { throw shortage(capable, wish) }
+        guard let best = fitting.max(by: { isBetter($1, than: $0, wish) }) else { throw shortage(offering, wish) }
         return best.id
     }
 
@@ -98,6 +109,14 @@ public enum Placement {
         case "passthrough": return caps.gpuInVm && wish.kind == "vm"
         default: return true
         }
+    }
+
+    /// With CPU settings asked for, only machines that offer them stay; when none does, the first machine's reason (by name) is the answer.
+    private static func offeringTheCpuSettings(_ capable: [PlacementMachine], _ wish: PlacementWish) throws -> [PlacementMachine] {
+        let ordered = capable.sorted { $0.id < $1.id }
+        let offering = ordered.filter { CpuSettings.refusal($0.capabilities, wish) == nil }
+        guard offering.isEmpty else { return offering }
+        throw ordered.compactMap { CpuSettings.refusal($0.capabilities, wish) }.first ?? refusal("missing_capability", noCapableMachineMessage(wish), "capability", 1, 0)
     }
 
     /// With a GPU memory limit asked for, only machines where it can be booked stay; when none can, the first machine's reason (by name) is the answer.
