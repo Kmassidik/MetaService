@@ -930,6 +930,20 @@ components:
             gpu_in_container: { type: boolean, description: 'True only when an NVIDIA card was found AND NVIDIA''s container toolkit works on the machine, looked at again each time (so installing the toolkit needs no restart). A card without the toolkit is not a `problem`: the machine still makes VMs and containers.' }
             gpu_memory_limit: { type: boolean, description: 'Optional (absent means false). True when the helper can cap and watch the GPU memory of a container (`gpu_memory_gb` on create). Always equal to `gpu_in_container`. The Root refuses a limit on a machine that does not say true.' }
             terminal: { type: boolean, description: 'Optional (absent means false). True when the helper serves the console route `GET /v1/workloads/{id}/terminal`. The Linux helper says true; the macOS helper may say true too. Added without a version change.' }
+            cpu_models:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$' }
+              description: 'Optional (absent means `[host]` only). The CPU models a VM on this machine can be given (`cpu_type` on create), `host` first: the machine''s own CPU, which is what every VM got before this field. A helper lists only models its engine knows. Added without a version change.'
+            cpu_topology: { type: boolean, description: 'Optional (absent means false). True when a VM can be given more than one socket (`cpu_sockets` on create). Added without a version change.' }
+            cpu_flags:
+              type: array
+              maxItems: 8
+              uniqueItems: true
+              items: { type: string, enum: [nested-virt, aes] }
+              description: 'Optional (absent means none). The CPU flags a VM can have switched on or off (`cpu_flags` on create). `nested-virt` is `svm` on an AMD machine and `vmx` on an Intel one, so only an x86 machine whose CPU maker is known lists it. Added without a version change.'
+            cpu_limit: { type: boolean, description: 'Optional (absent means false). True when a container can get a hard cap on its CPU time (`cpu_limit_percent` on create). Added without a version change.' }
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'
@@ -1027,6 +1041,17 @@ components:
         image: { type: string, pattern: '^[a-z0-9][a-z0-9._:/-]{0,127}$' }
         bundle: { $ref: '#/components/schemas/ImageId' }
         gpu_memory_gb: { type: integer, minimum: 1, maximum: 1024, description: 'Optional. Caps the GPU memory this container may use, in GB. Only with kind container and gpu_mode container, else 400. The helper watches it and stops a container that stays over. Absent: the whole card is shared. The Root sends it only to a helper that says `gpu_memory_limit: true`.' }
+        cpu_sockets: { type: integer, minimum: 1, maximum: 8, description: 'Optional. How many sockets the VM''s CPUs are spread over; `cpu` must be a multiple of it (cores per socket = cpu / cpu_sockets). Only with kind vm and on a helper that says `cpu_topology: true`, else 400. Absent or 1: the engine''s own layout, as before. The Root sends it only when it is 2 or more.' }
+        cpu_type: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$', description: 'Optional. The CPU model the VM sees, one of the helper''s `cpu_models`, else 400. Only with kind vm. Absent or `host`: the machine''s own CPU, as before. The Root sends it only when it is not `host`.' }
+        cpu_flags:
+          type: object
+          minProperties: 1
+          additionalProperties: false
+          properties:
+            nested-virt: { type: string, enum: ['on', 'off'] }
+            aes: { type: string, enum: ['on', 'off'] }
+          description: 'Optional. CPU flags switched on or off for the VM; a flag left out keeps what the CPU model gives. Each key must be in the helper''s `cpu_flags`, else 400. Only with kind vm.'
+        cpu_limit_percent: { type: integer, minimum: 10, maximum: 6400, description: 'Optional. A hard cap on the container''s CPU time, in percent of one core (150 is one and a half cores); at most `cpu` x 100. Only with kind container and on a helper that says `cpu_limit: true`, else 400. Absent: no cap.' }
     ImageId:
       type: string
       pattern: '^[a-z0-9][a-z0-9-]{0,31}$'
