@@ -6,6 +6,8 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+from agent.fake.apps import MODES as APP_INSTALL_MODES
+from agent.fake.apps import AppInstallFailed
 from agent.fake.engine import NotFound, Refused, SshdInstallFailed
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
@@ -68,6 +70,8 @@ class AgentHandler(BaseHTTPRequestHandler):
             handler(self, **params)
         except ApiError as error:
             self._send(error.status, {"error": {"code": error.code, "message": error.message}})
+        except AppInstallFailed as failed:
+            self._send(502, {"error": {"code": "app_install_failed", "message": failed.message, "log_tail": failed.log_tail}})
         except Refused as refused:
             self._send(409, {"error": refusal_error(refused)})
         except NotFound:
@@ -204,6 +208,27 @@ class AgentHandler(BaseHTTPRequestHandler):
         except SshdInstallFailed as failed:
             raise ApiError(502, "sshd_install_failed", str(failed)) from None
 
+    def put_app(self, id):
+        if not self.engine.spec.serves_apps:
+            raise ApiError(404, "not_found", "no such path")
+        if not self.engine.spec.serves_apps:
+            raise ApiError(404, "not_found", "no such path")
+        body = self._body("AppInstall")
+        self._send(200, self.engine.install_app(id, body["app"]))
+
+    def show_apps(self, id):
+        """Test tool, not part of the contract: the apps now installed in the VM."""
+        self._send(200, {"apps": self.engine.apps_in(id)})
+
+    def set_app_install(self):
+        """Test tool, not part of the contract: how app installs go. Body: {"mode": "works" | "fails", "delay_seconds": 0 to 10 (default 0)}."""
+        body = self._tool_body_with_optional({"mode": str}, {"delay_seconds": (int, float)})
+        delay = body.get("delay_seconds", 0)
+        if body["mode"] not in APP_INSTALL_MODES or isinstance(delay, bool) or not 0 <= delay <= MAX_INSTALL_DELAY_SECONDS:
+            raise ApiError(400, "invalid_input", f"mode must be works or fails and delay_seconds 0 to {MAX_INSTALL_DELAY_SECONDS}")
+        self.engine.set_app_install(body["mode"], delay)
+        self._send(204)
+
     def show_ssh_keys(self, id):
         """Test tool, not part of the contract: the keys now in the VM."""
         self._send(200, {"keys": self.engine.ssh_keys_of(id)})
@@ -277,6 +302,7 @@ ROUTES = [
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/gpu-check", AgentHandler.gpu_check),
     ("PUT", rf"/v1/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.put_ssh_keys),
+    ("PUT", rf"/v1/workloads/(?P<id>{ID_PATTERN})/app", AgentHandler.put_app),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/start", AgentHandler.start_workload),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/stop", AgentHandler.stop_workload),
     ("DELETE", rf"/v1/workloads/(?P<id>{ID_PATTERN})", AgentHandler.delete_workload),
@@ -288,6 +314,8 @@ ROUTES = [
     ("GET", rf"/fake/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.show_ssh_keys),
     ("POST", r"/fake/ssh-sshd", AgentHandler.set_sshd),
     ("POST", r"/fake/ssh-install", AgentHandler.set_ssh_install),
+    ("POST", r"/fake/app-install", AgentHandler.set_app_install),
+    ("GET", rf"/fake/workloads/(?P<id>{ID_PATTERN})/apps", AgentHandler.show_apps),
 ]
 
 

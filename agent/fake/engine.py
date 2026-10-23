@@ -5,6 +5,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from agent.fake.apps import APP_IMAGES, FakeApps
 from contract.spec import CONTRACT_VERSION
 
 DEFAULT_BUNDLE_VERSION = None
@@ -46,6 +47,8 @@ class MachineSpec:
     gpu_inside: str = "nvidia-smi"
     images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
     serves_images: bool = True
+    # A helper of this build installs apps (OpenClaw, Hermes) into a running VM and says so in GET /v1/images. False plays an older helper: no app entries, no route.
+    serves_apps: bool = True
     # What the helper says about the SSH server in a VM after it wrote the keys: running, installed (not running) or missing (the helper had to add it, or could not).
     sshd: str = "running"
 
@@ -86,6 +89,7 @@ class FakeEngine:
         # The test switch for the install step: "works" or "fails", and how long the step takes.
         self.ssh_install_mode = "works"
         self.ssh_install_delay = 0.0
+        self.apps = FakeApps()
         # Every create request this helper accepted, as received, so a test can see what the parent really sent.
         self.created_requests = []
         self._ids = itertools.count(1)
@@ -130,7 +134,8 @@ class FakeEngine:
 
     def images(self):
         """The images this machine has prepared. Only catalog ids are named."""
-        return {"images": [dict(image) for image in self.spec.images]}
+        apps = APP_IMAGES if self.spec.serves_apps else []
+        return {"images": [dict(image) for image in [*self.spec.images, *apps]]}
 
     def gpu_check(self, workload_id):
         """What the helper would find inside: nothing is asked of a VM or of a container that was not given the GPU."""
@@ -196,6 +201,29 @@ class FakeEngine:
             self.spec.sshd = "running"
             return {"applied": applied, "sshd": "running", "installed": before == "missing"}
 
+    def set_app_install(self, mode, delay_seconds):
+        """How a later app install goes: mode "works" or "fails", and how many seconds the installer takes."""
+        with self._lock:
+            self.apps.set_install(mode, delay_seconds)
+
+    def apps_in(self, workload_id):
+        with self._lock:
+            self._get(workload_id)
+            return self.apps.installed_in(workload_id)
+
+    def install_app(self, workload_id, app):
+        """Runs the installer inside a running VM. An app that is there already changes nothing (`installed` false)."""
+        with self._lock:
+            workload = self._get(workload_id)
+            if workload["state"] != "running":
+                raise Refused("not_running", "the VM is not running: start it first", "state", 1, 0)
+            if self.apps.already_there(workload_id, app):
+                return self.apps.answer(app, False)
+            delay = self.apps.delay_seconds
+        time.sleep(delay)
+        with self._lock:
+            return self.apps.finish_installer(workload_id, app)
+
     def fail_creates_with(self, message):
         """Every later create fails with this plain-words reason (None: creates work again)."""
         with self._lock:
@@ -257,6 +285,7 @@ class FakeEngine:
             self._get(workload_id)
             del self._workloads[workload_id]
             self._ssh_keys.pop(workload_id, None)
+            self.apps.forget(workload_id)
             backup = f"{BACKUP_PREFIX}-{workload_id}"
             return self._finish(command_id, "delete", workload_id, {"backup_id": backup})
 

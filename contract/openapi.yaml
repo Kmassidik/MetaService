@@ -134,6 +134,40 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'install_sshd was true and the SSH server could not be made to listen (code sshd_install_failed, plain-words message); the keys are still written', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/workloads/{id}/app:
+    put:
+      summary: >
+        Installs an app (OpenClaw or Hermes) inside ONE running VM, with constant installer scripts that download the vendor's official installer. Optional, added without a version change
+        (a helper without it answers 404 or 400, and the Root then shows the app as failed with "update the helper"). Helpers that have it say `ready: true` for `openclaw` and `hermes` in GET /v1/images.
+        Idempotent: `installed` is false when the app was there already and nothing changed. The body holds exactly one field, `app`; an unknown field or value is a 400 invalid_input.
+        The VM must be running (409 not_running). A long call (up to 25 minutes; the Root waits that long). `version` and `installer_sha256` (lowercase hex SHA-256 of the installer script that ran) are null when unknown.
+        A failed install is a 502 `app_install_failed` with a plain-words message and `log_tail`: at most 12 strings of at most 200 characters, the last lines the installer printed (plain text, no secrets). Nothing else is returned.
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstall' } } } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstalled' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'the installer failed (code app_install_failed)', content: { application/json: { schema: { $ref: '#/components/schemas/AppInstallError' } } } }
+  /v1/workloads/{id}/app:
+    put:
+      summary: >
+        Installs an app (OpenClaw or Hermes) inside ONE running VM, with constant installer scripts that download the vendor's official installer. Optional, added without a version change
+        (a helper without it answers 404 or 400, and the Root then shows the app as failed with "update the helper"). Helpers that have it say `ready: true` for `openclaw` and `hermes` in GET /v1/images.
+        Idempotent: `installed` is false when the app was there already and nothing changed. The body holds exactly one field, `app`; an unknown field or value is a 400 invalid_input.
+        The VM must be running (409 not_running). A long call (up to 25 minutes; the Root waits that long). `version` and `installer_sha256` (lowercase hex SHA-256 of the installer script that ran) are null when unknown.
+        A failed install is a 502 `app_install_failed` with a plain-words message and `log_tail`: at most 12 strings of at most 200 characters, the last lines the installer printed (plain text, no secrets). Nothing else is returned.
+      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstall' } } } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstalled' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'the installer failed (code app_install_failed)', content: { application/json: { schema: { $ref: '#/components/schemas/AppInstallError' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
@@ -284,6 +318,70 @@ paths:
         '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/app:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel (operator read). The app wanted inside one VM and how setting it up stands. `state` is none (no app wanted, or wanted and not started yet), installing, ready or failed.
+        An install older than 30 minutes is read as failed ("Setting up the app did not finish. The parent may have restarted. Try again."). `log_tail` is plain text, to be shown as text only.
+        The machine list (GET /api/machines) carries the same on each workload as `app`: { name, state, message } or null.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/app/retry:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: Root endpoint for the panel (operator write). Starts the install now, without waiting for the heartbeat or the minute after a failure. Answers the same shape as the read, with state installing. 409 not_running when the VM is stopped, 409 no_app when the VM has no app wanted.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the VM is not running (code not_running) or has no app wanted (code no_app)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/app:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel (operator read). The app wanted inside one VM and how setting it up stands. `state` is none (no app wanted, or wanted and not started yet), installing, ready or failed.
+        An install older than 30 minutes is read as failed ("Setting up the app did not finish. The parent may have restarted. Try again."). `log_tail` is plain text, to be shown as text only.
+        The machine list (GET /api/machines) carries the same on each workload as `app`: { name, state, message } or null.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/workloads/{workload}/app/retry:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
+    post:
+      summary: Root endpoint for the panel (operator write). Starts the install now, without waiting for the heartbeat or the minute after a failure. Answers the same shape as the read, with state installing. 409 not_running when the VM is stopped, 409 no_app when the VM has no app wanted.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/WorkloadId' }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the VM is not running (code not_running) or has no app wanted (code no_app)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/update-helper:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
@@ -671,6 +769,84 @@ components:
           description: 'the complete list of authorized_keys lines for root of the VM, in the order they were added'
           items: { type: string, minLength: 1, maxLength: 800, pattern: '^[^\r\n\x00]+$', description: 'one line: type, base64, optional comment (already validated by the Root)' }
         install_sshd: { type: boolean, default: false, description: 'true: the helper also installs, locks to keys only, and starts the SSH server inside the VM when it is missing (keys are written first; up to 5 minutes). Absent or false: only report.' }
+    AppInstall:
+      type: object
+      required: [app]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes] }
+    AppInstalled:
+      type: object
+      required: [app, installed, version, installer_sha256]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes] }
+        installed: { type: boolean, description: 'false: the app was there already and nothing changed' }
+        version: { type: string, nullable: true, maxLength: 64 }
+        installer_sha256: { type: string, nullable: true, pattern: '^[0-9a-f]{64}$', description: 'SHA-256 of the installer script that ran' }
+    AppInstallError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, log_tail]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [app_install_failed] }
+            message: { type: string, minLength: 1, description: plain words }
+            log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed; plain text' }
+    AppView:
+      type: object
+      required: [app, state, message, log_tail, version, started_at]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes], nullable: true, description: 'null when no app is wanted in this VM' }
+        state: { type: string, enum: [none, installing, ready, failed] }
+        message: { type: string, nullable: true, maxLength: 300, description: 'plain reason, only while failed' }
+        log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed, only while failed; render as text only' }
+        version: { type: string, nullable: true, maxLength: 64 }
+        started_at: { type: integer, nullable: true, description: 'seconds since 1970, when the last install began' }
+    AppInstall:
+      type: object
+      required: [app]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes] }
+    AppInstalled:
+      type: object
+      required: [app, installed, version, installer_sha256]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes] }
+        installed: { type: boolean, description: 'false: the app was there already and nothing changed' }
+        version: { type: string, nullable: true, maxLength: 64 }
+        installer_sha256: { type: string, nullable: true, pattern: '^[0-9a-f]{64}$', description: 'SHA-256 of the installer script that ran' }
+    AppInstallError:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, log_tail]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [app_install_failed] }
+            message: { type: string, minLength: 1, description: plain words }
+            log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed; plain text' }
+    AppView:
+      type: object
+      required: [app, state, message, log_tail, version, started_at]
+      additionalProperties: false
+      properties:
+        app: { type: string, enum: [openclaw, hermes], nullable: true, description: 'null when no app is wanted in this VM' }
+        state: { type: string, enum: [none, installing, ready, failed] }
+        message: { type: string, nullable: true, maxLength: 300, description: 'plain reason, only while failed' }
+        log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed, only while failed; render as text only' }
+        version: { type: string, nullable: true, maxLength: 64 }
+        started_at: { type: integer, nullable: true, description: 'seconds since 1970, when the last install began' }
     SshKeysApplied:
       type: object
       required: [applied, sshd]
@@ -893,6 +1069,7 @@ components:
       description: >
         A catalog id (`blank`, `openclaw`, `hermes`). Optional on create, added without a version change; absent means `blank`. The Root only sends it for an image that is ready and not `blank`,
         and never forwards a name from the browser: `image` comes from the machine's own saved default. Helpers refuse unknown fields, so a helper has to be updated before any image other than `blank` is ready.
+        `openclaw` and `hermes` are apps, not images: on `POST /api/workloads` the parent makes the VM from the stock image, never sends them to the helper as `bundle`, and installs the app afterwards with PUT /v1/workloads/{id}/app. They can be chosen on a machine exactly when its helper says `ready` for them in GET /v1/images.
     HelperImages:
       type: object
       required: [images]
@@ -909,6 +1086,8 @@ components:
               id: { $ref: '#/components/schemas/ImageId' }
               ready: { type: boolean }
               built_at: { type: string, maxLength: 64, nullable: true, description: when it was built (ISO 8601), null for the stock image }
+              caption: { type: string, maxLength: 200, nullable: true, description: 'optional. For `openclaw` and `hermes` on a helper that installs apps: ready is true and the caption is "Installs after the VM starts, about 2 minutes". An older helper keeps ready false.' }
+              caption: { type: string, maxLength: 200, nullable: true, description: 'optional. For `openclaw` and `hermes` on a helper that installs apps: ready is true and the caption is "Installs after the VM starts, about 2 minutes". An older helper keeps ready false.' }
     ImageCatalog:
       type: object
       required: [images]
