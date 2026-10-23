@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The one rich dropdown of the Create VM window (server image, install on top, runtime): a button showing the chosen row, and a list under it with a logo or picture, a name, a short line and a small tag for each row.
+  // The one rich dropdown of the Create VM window (server image, install on top, runtime): a button showing the chosen row on one line, and a list under it with a logo or picture, a name, a short line and a small tag for each row.
   // A row that cannot be picked is shown greyed out with its reason as the caption.
   // The focus stays on the button while the list is open (the row the arrow keys are on is named by aria-activedescendant). Escape closes only the list, never the window around it.
   import { firstPickable, isMenuKey, nextActive } from '../../../lib/menuNav.ts'
@@ -144,21 +144,25 @@
 </FieldBlock>
 
 <style>
-  .dropdown { position: relative; min-width: 0; }
-  .trigger { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 12px; border: 2px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text); font-family: var(--mono); text-align: left; cursor: pointer; }
-  .trigger:hover { background: var(--surface-2); }
-  .trigger:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; }
+  /* Compact as in Proxmox: one line on the button (name, then the caption in grey), and a list under it with one row per choice. */
+  .dropdown { position: relative; min-width: 0; --badge-size: 18px; }
+  .trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 4px 9px; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 400 13px var(--sans); text-align: left; cursor: pointer; }
+  .trigger:hover { border-color: var(--m50); }
+  .trigger:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 1px; }
   .text { display: grid; flex: 1; min-width: 0; }
-  .name { font-size: 14px; font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trigger .text { display: flex; align-items: baseline; gap: 8px; }
+  .name { font-size: 13px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 100%; }
   .caption { font-size: 12px; color: var(--m50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chevron { flex: none; width: 16px; height: 16px; color: var(--m70); }
-  .menu { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin-top: 4px; border: 2px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-card); }
-  .row { display: flex; align-items: center; gap: 12px; padding: 12px; cursor: pointer; font-family: var(--mono); }
+  /* The button shows the name only, as Proxmox's boxes do; its caption stays for screen readers and is shown in full in the list. */
+  .trigger .caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .chevron { flex: none; width: 14px; height: 14px; color: var(--m60); }
+  .menu { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin-top: 2px; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-card); --badge-size: 22px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 7px 9px; cursor: pointer; font-family: var(--sans); }
   .row + .row { border-top: 1px solid var(--line); }
   .row.active { background: var(--surface-2); }
   .row[aria-selected='true'] { box-shadow: inset 3px 0 0 var(--accent-mark); }
   .row.disabled { cursor: not-allowed; color: var(--m40); }
   .row.disabled .name, .row.disabled .caption { color: var(--m60); }
   .row .caption { overflow: visible; white-space: normal; }
-  .chip { flex: none; padding: 2px 8px; background: var(--reserve-bg); color: var(--m70); font: 700 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .chip { flex: none; padding: 2px 6px; background: var(--reserve-bg); color: var(--m70); font: 700 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
 </style>

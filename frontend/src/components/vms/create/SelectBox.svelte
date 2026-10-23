@@ -1,6 +1,6 @@
 <script lang="ts">
   // A native select that looks the same in every browser: no native arrow, a small chevron drawn inside, the panel's focus ring.
-  // `strong` is the heavier look (2px dark border, bold text) the size select uses.
+  // `strong` is the heavier text the size select uses.
   import type { SelectOption } from '../../../lib/createSelects.ts'
 
   interface Props {
@@ -25,9 +25,10 @@
 
 <style>
   .box { position: relative; min-width: 0; }
-  select { width: 100%; min-width: 0; min-height: 44px; padding: 0 40px 0 12px; appearance: none; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 600 14px var(--mono); cursor: pointer; text-overflow: ellipsis; }
-  select.strong { min-height: 48px; border: 2px solid var(--line-strong); font-weight: 700; }
-  select:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; border-color: var(--line-strong); }
+  select { width: 100%; min-width: 0; min-height: 32px; padding: 0 32px 0 9px; appearance: none; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 400 13px var(--sans); cursor: pointer; text-overflow: ellipsis; }
+  select.strong { font-weight: 600; }
+  select:hover:not(:disabled) { border-color: var(--m50); }
+  select:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 1px; border-color: var(--line-strong); }
   select:disabled { cursor: not-allowed; background: var(--surface-2); color: var(--m40); }
-  .chevron { position: absolute; top: 50%; right: 12px; width: 16px; height: 16px; margin-top: -8px; pointer-events: none; color: var(--m60); }
+  .chevron { position: absolute; top: 50%; right: 9px; width: 14px; height: 14px; margin-top: -7px; pointer-events: none; color: var(--m60); }
 </style>

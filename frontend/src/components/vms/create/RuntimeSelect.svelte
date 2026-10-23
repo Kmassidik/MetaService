@@ -1,5 +1,5 @@
 <script lang="ts">
-  // "Runtime environment": Container or VM in the rich dropdown, each row with what it is, and one plain line under it that follows the choice. The kind the machine cannot run is greyed out with its reason.
+  // "Runtime": Container or VM in the rich dropdown, each row with what it is, and one plain line under it that follows the choice. The kind the machine cannot run is greyed out with its reason.
   import { runtimeCaption, runtimeRows } from '../../../lib/createSelects.ts'
   import type { RuntimeCard } from '../../../lib/createVm.ts'
   import RichDropdown from './RichDropdown.svelte'
@@ -17,7 +17,7 @@
   const captionId = $derived(`${id}-caption`)
 </script>
 
-<RichDropdown {id} label="Runtime environment" cards={runtimeRows(cards)} {chosen} describedBy={captionId} {onpick}>
+<RichDropdown {id} label="Runtime" cards={runtimeRows(cards)} {chosen} describedBy={captionId} {onpick}>
   <p class="caption" id={captionId}>{runtimeCaption(chosen, os)}</p>
 </RichDropdown>
 

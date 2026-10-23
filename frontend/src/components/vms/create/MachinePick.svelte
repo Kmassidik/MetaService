@@ -1,5 +1,5 @@
 <script lang="ts">
-  // "On host": the machine select, each line "<name> (<what it runs>) — <N>GB free". A machine that cannot take a VM is disabled with its reason in the line.
+  // "Host": the machine select, each line "<name> (<what it runs>) — <N>GB free". A machine that cannot take a VM is disabled with its reason in the line.
   // The longer explanations (with the machine's own words) are folded into one collapsed line under the select.
   // Opened from one machine's own page the select lists that machine only and cannot be changed.
   import { unavailableNotes, unavailableSummary, type MachineChoice } from '../../../lib/createVm.ts'
@@ -24,7 +24,7 @@
   ])
 </script>
 
-<FieldBlock label="On host" forId={id}>
+<FieldBlock label="Host" forId={id}>
   <SelectBox {id} {value} options={lines} disabled={locked} {onpick} />
   {#if notes.length > 0}
     <details class="why">
