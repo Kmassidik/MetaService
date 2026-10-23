@@ -11,9 +11,24 @@ pub struct SpaceBudget {
     pub reserve_ram_mb: u64,
     pub reserve_disk_gb: u64,
     pub margin_disk_gb: u64,
+    /// True when the owner set the reserve explicitly; a re-read of the totals then leaves it alone.
+    pub reserve_ram_pinned: bool,
+    pub reserve_disk_pinned: bool,
 }
 
 pub const DEFAULT_MARGIN_DISK_GB: u64 = 20;
+const RESERVE_RAM_DIVISOR: u64 = 4;
+const MIN_RESERVE_RAM_MB: u64 = 4096;
+const RESERVE_DISK_DIVISOR: u64 = 5;
+const MIN_RESERVE_DISK_GB: u64 = 30;
+
+fn default_reserve_ram_mb(total: u64) -> u64 {
+    (total / RESERVE_RAM_DIVISOR).max(MIN_RESERVE_RAM_MB)
+}
+
+fn default_reserve_disk_gb(total: u64) -> u64 {
+    (total / RESERVE_DISK_DIVISOR).max(MIN_RESERVE_DISK_GB)
+}
 
 impl SpaceBudget {
     pub fn new(ram_total_mb: u64, disk_total_gb: u64) -> Self {
@@ -22,9 +37,22 @@ impl SpaceBudget {
             disk_total_gb,
             ram_allowance_mb: None,
             disk_allowance_gb: None,
-            reserve_ram_mb: (ram_total_mb / 4).max(4096),
-            reserve_disk_gb: (disk_total_gb / 5).max(30),
+            reserve_ram_mb: default_reserve_ram_mb(ram_total_mb),
+            reserve_disk_gb: default_reserve_disk_gb(disk_total_gb),
             margin_disk_gb: DEFAULT_MARGIN_DISK_GB,
+            reserve_ram_pinned: false,
+            reserve_disk_pinned: false,
+        }
+    }
+
+    /// The same budget over fresh machine totals. Default reserves follow the new totals; pinned (explicit) ones stay. Allowances stay and are clamped when used.
+    pub fn with_totals(&self, ram_total_mb: u64, disk_total_gb: u64) -> SpaceBudget {
+        SpaceBudget {
+            ram_total_mb,
+            disk_total_gb,
+            reserve_ram_mb: if self.reserve_ram_pinned { self.reserve_ram_mb } else { default_reserve_ram_mb(ram_total_mb) },
+            reserve_disk_gb: if self.reserve_disk_pinned { self.reserve_disk_gb } else { default_reserve_disk_gb(disk_total_gb) },
+            ..self.clone()
         }
     }
 

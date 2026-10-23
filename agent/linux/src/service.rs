@@ -1,5 +1,6 @@
 //! Everything the Agent does, on top of an Engine. HTTP and the system probes live outside of it.
 use crate::budget::SpaceBudget;
+use crate::live_space::{Current, LiveSpace, Reading};
 use crate::engine::Engine;
 use crate::gpu;
 use crate::gpu_check::{self, GpuCheck};
@@ -57,13 +58,12 @@ struct Flight {
 
 pub struct Service {
     pub(crate) engine: Arc<dyn Engine>,
-    budget: SpaceBudget,
+    space: Arc<LiveSpace>,
     specs: Specs,
     version: String,
     build: Option<String>,
     ledger: Arc<crate::ledger::Ledger>,
     installer: Arc<dyn BundleInstalling>,
-    os_disk: fn() -> Option<u64>,
     create_lock: tokio::sync::Mutex<()>,
     flight: Mutex<Flight>,
     on_change: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
@@ -79,8 +79,9 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
 }
 
 impl Service {
-    pub fn new(engine: Arc<dyn Engine>, budget: SpaceBudget, specs: Specs, version: &str, ledger: Arc<crate::ledger::Ledger>, installer: Arc<dyn BundleInstalling>, os_disk: fn() -> Option<u64>) -> Self {
-        Service { engine, budget, specs, version: version.into(), build: None, ledger, installer, os_disk, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()), on_change: Mutex::new(None) }
+    pub fn new(engine: Arc<dyn Engine>, budget: SpaceBudget, specs: Specs, version: &str, ledger: Arc<crate::ledger::Ledger>, installer: Arc<dyn BundleInstalling>, read_machine: impl Fn() -> Option<Reading> + Send + Sync + 'static) -> Self {
+        let space = Arc::new(LiveSpace::new(budget, read_machine));
+        Service { engine, space, specs, version: version.into(), build: None, ledger, installer, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()), on_change: Mutex::new(None) }
     }
 
     /// Says which build of the program this is (see build.rs); it goes into the facts.
@@ -100,6 +101,12 @@ impl Service {
         }
     }
 
+    /// Re-reads the machine's totals; used before every space decision and every facts report.
+    async fn fresh_space(&self) -> Current {
+        let space = self.space.clone();
+        blocking(move || space.refresh()).await
+    }
+
     // ---- reading
 
     pub async fn health(&self) -> Health {
@@ -114,10 +121,11 @@ impl Service {
         let problems = blocking(move || for_problems.problems()).await;
         let identity = blocking(move || engine.identity()).await;
         let capabilities = self.capabilities().await;
+        let space = self.fresh_space().await;
         let engine_info = EngineInfo { name: identity.name, version: identity.version, ready: problems.is_empty() };
         Ok(Facts {
-            os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: self.specs.ram_total_mb, disk_total_gb: self.specs.disk_total_gb,
-            free_ram_mb: self.budget.free_ram_mb(&all), free_disk_gb: self.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
+            os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: space.budget.ram_total_mb, disk_total_gb: space.budget.disk_total_gb,
+            free_ram_mb: space.budget.free_ram_mb(&all), free_disk_gb: space.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
             agent_version: self.version.clone(), engine: engine_info, agent_build: self.build.clone(),
         })
     }
@@ -184,13 +192,12 @@ impl Service {
             return Ok(existing);
         }
         let current = self.workloads().await?;
-        let os_disk = self.os_disk;
-        let available = blocking(os_disk).await;
+        let space = self.fresh_space().await;
         let capabilities = self.capabilities().await;
         if let Some(refused) = gpu::refusal(&request, !self.specs.gpu.is_empty(), &capabilities) {
             return Err(Failure::Refused(refused));
         }
-        self.budget.check(&request, &current, &capabilities, available).map_err(Failure::Refused)?;
+        space.budget.check(&request, &current, &capabilities, space.os_available_disk_gb).map_err(Failure::Refused)?;
         let id = new_workload_id();
         let planned = Workload { id: id.clone(), name: request.name.clone(), kind: request.kind, state: State::Provisioning, cpu: request.cpu, ram_mb: request.ram_mb, disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None };
         self.flight.lock().unwrap().inflight.insert(id.clone(), planned);

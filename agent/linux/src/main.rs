@@ -17,6 +17,7 @@ mod http;
 mod images;
 mod incus;
 mod ledger;
+mod live_space;
 mod models;
 mod preflight;
 mod service;
@@ -27,6 +28,8 @@ mod ssh_install_tests;
 mod ssh_keys;
 #[cfg(test)]
 mod ssh_keys_tests;
+#[cfg(test)]
+mod space_service_tests;
 mod stats;
 mod supervisor;
 mod validate;
@@ -99,13 +102,15 @@ fn run(config: Config) -> Result<(), String> {
     budget.disk_allowance_gb = config.disk_allowance_gb;
     budget.reserve_ram_mb = config.reserve_ram_mb.unwrap_or(budget.reserve_ram_mb);
     budget.reserve_disk_gb = config.reserve_disk_gb.unwrap_or(budget.reserve_disk_gb);
+    budget.reserve_ram_pinned = config.reserve_ram_mb.is_some();
+    budget.reserve_disk_pinned = config.reserve_disk_gb.is_some();
     let engine = make_engine(&config, &specs)?;
     let supervisor = (std::env::var("MS_NO_CHAT").is_err()).then(|| config.python_path.clone().or_else(bundle::find_python)).flatten()
         .map(|python| supervisor::Supervisor::new(python, config.state_dir.join("chat.log")));
     let installer = bundle::BundleInstaller::new(config.clone(), engine.clone(), root.clone(), machine_token.clone(), supervisor.clone());
     installer.resume();
     let ledger = Arc::new(ledger::Ledger::new(2000, Some(config.state_dir.join("commands.json"))));
-    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::available_disk_gb).with_build(build::running()));
+    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     if let (Some(root), Some(token)) = (root, machine_token) {
         let heartbeat = heartbeat::Heartbeat::new(root, token, config.port, config.heartbeat_seconds);

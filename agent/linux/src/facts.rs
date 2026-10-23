@@ -1,4 +1,5 @@
-//! What this machine is: cores, memory, disk, GPU. Measured once at start (the disk is asked again each time).
+//! What this machine is: cores, memory, disk, GPU. Cores and GPU are measured once at start; RAM and disk are read again (`read_machine`).
+use crate::live_space::Reading;
 use crate::models::{Gpu, Specs};
 use sysinfo::{Disks, MemoryRefreshKind, RefreshKind, System};
 
@@ -25,9 +26,11 @@ fn root_disk() -> Option<(u64, u64)> {
     Some((root.total_space() / BYTES_PER_GB, root.available_space() / BYTES_PER_GB))
 }
 
-/// Free space the file system reports, in GB.
-pub fn available_disk_gb() -> Option<u64> {
-    root_disk().map(|(_, available)| available)
+/// A fresh reading of RAM and the root volume: one memory read and one volume listing, no external program.
+pub fn read_machine() -> Option<Reading> {
+    let system = System::new_with_specifics(RefreshKind::new().with_memory(MemoryRefreshKind::new().with_ram()));
+    let (disk_total_gb, disk_available_gb) = root_disk()?;
+    Some(Reading { ram_total_mb: system.total_memory() / BYTES_PER_MB, disk_total_gb, disk_available_gb })
 }
 
 fn read_nvidia_smi(path: &str) -> Vec<Gpu> {
