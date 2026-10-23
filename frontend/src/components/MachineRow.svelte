@@ -1,7 +1,7 @@
 <script lang="ts">
   import StatePill from './StatePill.svelte'
   import IconButton from './IconButton.svelte'
-  import { MACHINE_ICONS, RENAME_LABEL } from '../lib/machineIcons.ts'
+  import { MACHINE_ICONS, OPEN_LABEL, REMOVE_LABEL, RENAME_LABEL } from '../lib/machineIcons.ts'
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
@@ -58,10 +58,12 @@
   {/if}
 
   <div class="acts">
-    <a class="btn line sm" href={machineHref(machine.id)}>Open</a>
     <span class="id seen">seen {relativeTime(machine.last_seen, now)}</span>
-    <IconButton label={RENAME_LABEL} subject={machine.name} icon={MACHINE_ICONS.pencil} text="Rename" onclick={() => onRename(machine)} />
-    <button class="btn danger sm del" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
+    <span class="tools">
+      <IconButton label={OPEN_LABEL} subject={machine.name} icon={MACHINE_ICONS.open} text="Open" href={machineHref(machine.id)} />
+      <IconButton label={RENAME_LABEL} subject={machine.name} icon={MACHINE_ICONS.pencil} text="Rename" onclick={() => onRename(machine)} />
+      <IconButton label={REMOVE_LABEL} subject={machine.name} icon={MACHINE_ICONS.trash} text="Remove" variant="danger" onclick={() => onRemove(machine)} />
+    </span>
   </div>
 </article>
 
@@ -75,6 +77,6 @@
   .problems ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   .problems li { display: grid; gap: 2px; }
   .fix { color: var(--text); font-family: var(--mono); font-size: 11px; }
-  .acts .seen { margin-left: 4px; }
+  .tools { display: inline-flex; gap: 8px; margin-left: auto; }
   .stale { color: var(--warn); font-weight: 700; }
 </style>

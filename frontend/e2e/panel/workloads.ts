@@ -25,7 +25,7 @@ const machineHeading = (b: Browse, name: string, timeout = SHORT_WAIT_MS) => b.u
 async function openTheMachine(b: Browse): Promise<void> {
   await b.go('#/machines')
   await b.until(() => document.body.innerText.includes('agent-mac'), { timeout: AGENT_WAIT_MS })
-  await b.run(() => [...document.querySelectorAll('article')].find((card) => card.innerText.includes('agent-mac'))?.querySelector<HTMLElement>('a.btn')?.click())
+  await b.run(() => [...document.querySelectorAll('article')].find((card) => card.innerText.includes('agent-mac'))?.querySelector<HTMLElement>('a.ib')?.click())
   await machineHeading(b, 'agent-mac')
   check('opening a machine goes to /machines/details?id=<machine>', b.page.url().endsWith('#/machines/details?id=agent-mac'), b.page.url())
   const shown = await b.text()

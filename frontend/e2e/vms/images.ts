@@ -1,5 +1,5 @@
 // The two image dropdowns of the Create VM window. Server image lists real server operating systems: Ubuntu Server 24.04 LTS can be picked, the other five are greyed out for good.
-// Install on top lists None (the default), OpenClaw and Hermes greyed out with the catalog's reasons, and four planned frameworks greyed out for good.
+// Install on top lists None (the default), OpenClaw and Hermes greyed out with the catalog's reasons, and no other framework.
 // A hostile title or reason stays text, a parent answer that cannot be read leaves the plain Ubuntu only with a note, the keyboard and mouse behave (arrows, Home, End, Enter, Escape closes only the list, a press outside closes it),
 // a phone has no sideways scrolling, and a VM created with the defaults is asked for exactly as before (no bundle in the request).
 import type { HTTPRequest, Page } from 'puppeteer-core'
@@ -24,13 +24,13 @@ const DESKTOP = { width: 1280, height: 800 }
 const WINDOW_TITLE = 'dialog[open] h3'
 const STOCK_TITLE = 'Ubuntu Server 24.04 LTS'
 const SERVER_TITLES = [STOCK_TITLE, 'Debian 12', 'Fedora Server', 'Rocky Linux', 'AlmaLinux', 'Alpine Linux']
-const FRAMEWORK_TITLES = ['None — just the server', 'OpenClaw', 'Hermes', 'Docker', 'Ollama', 'Python + Jupyter', 'Node.js']
+const FRAMEWORK_TITLES = ['None — just the server', 'OpenClaw', 'Hermes']
 const PREVIEW_SYSTEM_CAPTION = 'Coming soon: not tested on this machine yet'
-/** None, the catalog's frameworks, then the four planned ones. */
-const FRAMEWORK_COUNT = 7
-const FRAMEWORK_COUNT_WITH_TWO_PICKABLE = 8
-const FRAMEWORK_COUNT_WITH_HOSTILE = 6
-const FRAMEWORK_COUNT_WITH_STOCK_ONLY = 5
+/** None, the catalog's frameworks, and nothing else. */
+const FRAMEWORK_COUNT = 3
+const FRAMEWORK_COUNT_WITH_TWO_PICKABLE = 4
+const FRAMEWORK_COUNT_WITH_HOSTILE = 2
+const FRAMEWORK_COUNT_WITH_STOCK_ONLY = 1
 const TWO_PICKABLE = {
   helper: 'answered',
   images: [
@@ -120,7 +120,7 @@ export async function imageSelect(b: Browse): Promise<void> {
   }
 }
 
-/** Install on top: None is the default, OpenClaw and Hermes are greyed out with the catalog's reasons, and the four planned frameworks are greyed out for good. */
+/** Install on top: None is the default, OpenClaw and Hermes are greyed out with the catalog's reasons, and no other framework is listed. */
 export async function frameworkSelect(b: Browse): Promise<void> {
   for (const machine of [OFFLINE_HELPER_MACHINE, HELPER_MACHINE]) {
     await openOn(b, machine)
@@ -128,13 +128,12 @@ export async function frameworkSelect(b: Browse): Promise<void> {
     const shut = await imageState(b, FRAMEWORK)
     check(`${machine}: Install on top shows None — just the server`, !shut.expanded && shut.trigger.includes('None — just the server'), JSON.stringify(shut))
     const list = await openedMenu(b, FRAMEWORK)
-    check(`${machine}: the list is None, OpenClaw, Hermes and the four planned ones`, JSON.stringify(list.rows.map((row) => row.title)) === JSON.stringify(FRAMEWORK_TITLES), JSON.stringify(list.rows.map((row) => row.title)))
+    check(`${machine}: the list is None, OpenClaw and Hermes`, JSON.stringify(list.rows.map((row) => row.title)) === JSON.stringify(FRAMEWORK_TITLES), JSON.stringify(list.rows.map((row) => row.title)))
     const appsReady = machine === HELPER_MACHINE
     const pickable = appsReady ? 3 : 1
-    check(`${machine}: None is selected and can be picked; ${appsReady ? 'OpenClaw and Hermes can be picked too; the four planned ones are disabled' : 'every other row is disabled'}`, list.rows[0]?.selected === true && !list.rows[0].disabled && list.rows.slice(1, pickable).every((row) => !row.disabled && !row.selected) && list.rows.slice(pickable).every((row) => row.disabled && !row.selected), JSON.stringify(list.rows))
+    check(`${machine}: None is selected and can be picked; ${appsReady ? 'OpenClaw and Hermes can be picked too' : 'every other row is disabled'}`, list.rows[0]?.selected === true && !list.rows[0].disabled && list.rows.slice(1, pickable).every((row) => !row.disabled && !row.selected) && list.rows.slice(pickable).every((row) => row.disabled && !row.selected), JSON.stringify(list.rows))
     if (appsReady) check(`${machine}: OpenClaw and Hermes carry the Installs on start tag, because the helper can install them`, list.rows[1]?.tag === 'Installs on start' && list.rows[2]?.tag === 'Installs on start', JSON.stringify(list.rows.slice(1, 3)))
     else check(`${machine}: OpenClaw and Hermes give their catalog reasons and a Coming soon tag`, list.rows[1]?.caption === COMING_SOON && list.rows[2]?.caption === WAITING_FOR_PIN && list.rows[1].tag === 'Coming soon' && list.rows[2].tag === 'Coming soon', JSON.stringify(list.rows.slice(1, 3)))
-    check(`${machine}: Docker, Ollama, Python + Jupyter and Node.js say Coming soon`, list.rows.slice(3).every((row) => row.caption === 'Coming soon' && row.tag === 'Coming soon'), JSON.stringify(list.rows.slice(3)))
     await b.page.click('dialog[open] [role=listbox] [role=option][aria-disabled=true]')
     const after = await imageState(b, FRAMEWORK)
     check(`${machine}: clicking a disabled framework selects nothing`, after.expanded && after.rows[0]?.selected === true)
@@ -229,7 +228,7 @@ export async function imageListFails(b: Browse): Promise<void> {
       check(`when the list answers ${reply.status} ${JSON.stringify(reply.body).slice(0, 30)} Ubuntu is still offered and selected`, server.rows[0]?.selected === true && !server.rows[0].disabled, JSON.stringify(server.rows))
       await b.page.keyboard.press('Escape')
       const framework = await openedMenu(b, FRAMEWORK)
-      check('and Install on top has None and the four planned ones only', framework.rows.length === FRAMEWORK_COUNT_WITH_STOCK_ONLY && framework.rows[0]?.selected === true, JSON.stringify(framework.rows.map((row) => row.title)))
+      check('and Install on top has None only', framework.rows.length === FRAMEWORK_COUNT_WITH_STOCK_ONLY && framework.rows[0]?.selected === true, JSON.stringify(framework.rows.map((row) => row.title)))
       await closeWindow(b)
     })
   }

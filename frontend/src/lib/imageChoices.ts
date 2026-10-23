@@ -30,7 +30,6 @@ const TAG_COMING_SOON = 'Coming soon'
 const TAG_WAITING = 'Waiting'
 const TAG_INSTALLS_ON_START = 'Installs on start'
 const PREVIEW_SYSTEM_CAPTION = 'Coming soon: not tested on this machine yet'
-const PREVIEW_FRAMEWORK_CAPTION = 'Coming soon'
 const PREVIEW_PREFIX = 'preview-'
 
 interface Preview {
@@ -46,14 +45,6 @@ export const SERVER_PREVIEWS: readonly Preview[] = [
   { id: 'rockylinux', title: 'Rocky Linux', logo: 'rockylinux' },
   { id: 'almalinux', title: 'AlmaLinux', logo: 'almalinux' },
   { id: 'alpinelinux', title: 'Alpine Linux', logo: 'alpinelinux' },
-]
-
-/** The frameworks that are planned. They are shown, never offered. */
-export const FRAMEWORK_PREVIEWS: readonly Preview[] = [
-  { id: 'docker', title: 'Docker', logo: 'docker' },
-  { id: 'ollama', title: 'Ollama', logo: 'ollama' },
-  { id: 'python', title: 'Python + Jupyter', logo: 'python' },
-  { id: 'nodejs', title: 'Node.js', logo: 'nodejs' },
 ]
 
 /** The logos of the catalog's own images, by id. */
@@ -100,7 +91,6 @@ export const serverCards = (options: ImageOption[]): RichCard[] => [stockCard(op
 export const frameworkCards = (options: ImageOption[]): RichCard[] => [
   { id: NO_FRAMEWORK, title: NO_FRAMEWORK_TITLE, caption: NO_FRAMEWORK_CAPTION, disabled: false, tag: null, glyph: 'none' },
   ...options.filter((option) => option.id !== STOCK_IMAGE).map(catalogCard),
-  ...FRAMEWORK_PREVIEWS.map((preview) => previewCard(preview, PREVIEW_FRAMEWORK_CAPTION)),
 ]
 
 /** The row of "Install on top" that stands for the form's bundle: None for the stock image. */

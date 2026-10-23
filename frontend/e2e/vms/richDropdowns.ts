@@ -13,7 +13,7 @@ const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 const LOGO_SIZE_PX = 28
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
-const FRAMEWORK_ROWS_WITH_LOGOS = 6
+const FRAMEWORK_ROWS_WITH_LOGOS = 2
 const SERVER_ROWS_WITH_LOGOS = 6
 const CONTAINER_TEXT = "Fast stop and wake. Shares the machine's core, so it starts in seconds and uses little memory. Best for agents and apps."
 const VM_TEXT = 'A full computer with its own core: a stronger wall, slower start, more memory. Needs virtualization on the machine.'
@@ -77,7 +77,7 @@ export async function logosRendered(b: Browse): Promise<void> {
   await picturesLoaded(b)
   const framework = await badgeReports(b, '#vm-create-framework-menu')
   const withLogo = framework.slice(1)
-  check('OpenClaw, Hermes, Docker, Ollama, Python and Node.js each show a loaded logo', withLogo.length === FRAMEWORK_ROWS_WITH_LOGOS && withLogo.every((badge) => badge.kind === 'logo' && badge.loaded && badge.letters === '' && badge.background === TRANSPARENT), JSON.stringify(withLogo))
+  check('OpenClaw and Hermes each show a loaded logo', withLogo.length === FRAMEWORK_ROWS_WITH_LOGOS && withLogo.every((badge) => badge.kind === 'logo' && badge.loaded && badge.letters === '' && badge.background === TRANSPARENT), JSON.stringify(withLogo))
   check('None has a small outline icon, no letter and no dark box', framework[0]?.kind === 'none' && framework[0].letters === '' && framework[0].background === TRANSPARENT, JSON.stringify(framework[0]))
   const grey = await b.run(() => [...document.querySelectorAll('dialog[open] #vm-create-framework-menu [role=option][aria-disabled=true] img')].every((img) => getComputedStyle(img).filter.includes('grayscale') && Number(getComputedStyle(img).opacity) < 1))
   check('the logos of rows that cannot be picked are greyed (grayscale and faded)', grey)

@@ -38,14 +38,13 @@ test('the preview rows can never become a request value', () => {
   }
 })
 
-test('Install on top starts with None, then OpenClaw and Hermes with their catalog reasons, then four previews', () => {
+test('Install on top starts with None, then OpenClaw and Hermes with their catalog reasons, and nothing else', () => {
   const cards = frameworkCards(real)
-  expect(cards.map((card) => card.title)).toEqual(['None — just the server', 'OpenClaw', 'Hermes', 'Docker', 'Ollama', 'Python + Jupyter', 'Node.js'])
+  expect(cards.map((card) => card.title)).toEqual(['None — just the server', 'OpenClaw', 'Hermes'])
   expect(cards[0]).toMatchObject({ id: NO_FRAMEWORK, disabled: false, glyph: 'none' })
   expect(cards[0]?.logo).toBeUndefined()
   expect(cards[1]).toMatchObject({ id: 'openclaw', disabled: true, caption: COMING_SOON, tag: 'Coming soon', logo: LOGOS.openclaw })
   expect(cards[2]).toMatchObject({ id: 'hermes', disabled: true, caption: WAITING, tag: 'Waiting', logo: LOGOS.hermes })
-  for (const card of cards.slice(3)) expect(card).toMatchObject({ disabled: true, caption: 'Coming soon', tag: 'Coming soon' })
 })
 
 test('None sends the stock image like before, and a framework the catalog makes ready sends its own id', () => {

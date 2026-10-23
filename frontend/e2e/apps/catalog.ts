@@ -74,14 +74,11 @@ export async function selectableWhenReady(b: Browse, standin: StandIn): Promise<
   await openCreateWindow(b)
   const list = await openedMenu(b, FRAMEWORK)
   const [none, openclaw, hermes] = list.rows
-  check('Install on top lists None, OpenClaw, Hermes, then the four planned', list.rows.map((row) => row.title).join('|') === 'None — just the server|OpenClaw|Hermes|Docker|Ollama|Python + Jupyter|Node.js', JSON.stringify(list.rows.map((row) => row.title)))
+  check('Install on top lists None, OpenClaw, Hermes, and nothing else', list.rows.map((row) => row.title).join('|') === 'None — just the server|OpenClaw|Hermes', JSON.stringify(list.rows.map((row) => row.title)))
   check('None is picked and OpenClaw and Hermes are not greyed out', none?.selected === true && openclaw?.disabled === false && hermes?.disabled === false, JSON.stringify(list.rows.slice(0, 3)))
   check('they show the catalog caption and an Installs on start chip, never Coming soon', [openclaw, hermes].every((row) => row?.caption === APP_CAPTION && row.tag === 'Installs on start'), JSON.stringify([openclaw, hermes]))
-  check('the four planned ones stay greyed out with Coming soon', list.rows.slice(3).every((row) => row.disabled && row.tag === 'Coming soon'))
   const logos = [await logoOf(b, 'openclaw'), await logoOf(b, 'hermes')]
   check('OpenClaw has its bundled svg and Hermes its bundled webp, both drawn, in full colour', logos[0]?.src.endsWith('.svg') === true && logos[1]?.src.endsWith('.webp') === true && logos.every((logo) => logo?.drawn === true && !logo.muted && logo.filter === 'none'), JSON.stringify(logos))
-  const planned = await logoOf(b, 'preview-docker')
-  check('a planned row keeps its logo greyed out', planned?.muted === true && planned.filter.includes('grayscale'), JSON.stringify(planned))
   check('every logo comes from the panel itself (no request to another site)', outside.length === 0, outside.join(' | '))
   await b.shot('apps-install-on-top-desktop.png')
   await b.page.setViewport(PHONE)

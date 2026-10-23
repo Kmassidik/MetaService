@@ -8,7 +8,9 @@
     subject?: string | undefined
     /** SVG path data on a 24 x 24 grid; several sub-paths may be joined in one string. */
     icon: string
-    onclick: () => void
+    /** A page address: the control is then a link (it can open in a new tab) and not a button; `onclick` is not used. */
+    href?: string
+    onclick?: () => void
     variant?: 'normal' | 'danger'
     disabled?: boolean
     /** True while the action runs: a spinner replaces the icon. */
@@ -17,15 +19,23 @@
     text?: string
   }
 
-  let { label, subject, icon, onclick, variant = 'normal', disabled = false, busy = false, text }: Props = $props()
+  let { label, subject, icon, href, onclick, variant = 'normal', disabled = false, busy = false, text }: Props = $props()
+  const spokenName = $derived(subject ? `${label} ${subject}` : label)
 </script>
 
-<button class="ib" class:danger={variant === 'danger'} type="button" aria-label={subject ? `${label} ${subject}` : label} data-tip={label} aria-busy={busy} {disabled} {onclick}>
+{#snippet face()}
   {#if busy}<span class="btn-spin" aria-hidden="true"></span>{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>{/if}
   {#if text}<span class="word">{text}</span>{/if}
-</button>
+{/snippet}
+
+{#if href}
+  <a class="ib" class:danger={variant === 'danger'} {href} aria-label={spokenName} data-tip={label}>{@render face()}</a>
+{:else}
+  <button class="ib" class:danger={variant === 'danger'} type="button" aria-label={spokenName} data-tip={label} aria-busy={busy} {disabled} {onclick}>{@render face()}</button>
+{/if}
 
 <style>
+  a.ib { text-decoration: none; }
   .ib { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 36px; min-height: 36px; padding: 0; background: transparent; color: var(--text); border: 1px solid var(--line); cursor: pointer; }
   .ib:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-2); }
   .ib:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; }
