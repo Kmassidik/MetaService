@@ -6,6 +6,7 @@
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
   import { listTag } from '../lib/helperUpdate.ts'
+  import { cpuModelText } from '../lib/cpuModel.ts'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
   import type { Machine } from '../lib/types.ts'
@@ -15,6 +16,7 @@
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
   const chip = $derived(machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch))
+  const cpuName = $derived(cpuModelText(machine.cpu_model))
   const vmCount = $derived(machine.workloads.length)
   const settings = $derived(machine.settings)
   const updateTag = $derived(listTag(machine))
@@ -30,6 +32,7 @@
       {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
     </div>
     <div class="where">{machine.ip ?? 'address unknown'}{#if settings} · {profileLabel(settings.profile)}{/if}</div>
+    {#if cpuName}<div class="where cpu-name" data-testid="machine-cpu-model" title={cpuName}>{cpuName}</div>{/if}
     {#if settings?.labels?.length}<div class="labels">{#each settings.labels as label (label)}<span class="tag">{label}</span>{/each}</div>{/if}
     <div class="specs">
       <span>{osName(machine.os)} · {chip}</span>
@@ -71,6 +74,7 @@
   .card.offline { opacity: 0.7; }
   .labels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .where { font-family: var(--mono); font-size: 11px; color: var(--m50); margin-top: 3px; }
+  .cpu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nm { overflow-wrap: anywhere; }
   .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .problems { display: grid; gap: 6px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-bottom: 1px solid var(--warn-line); font-size: 13px; }

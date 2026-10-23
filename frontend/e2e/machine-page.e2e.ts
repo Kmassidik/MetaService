@@ -55,7 +55,7 @@ async function keyboardAndLinks(b: Browse) {
 async function facts(b: Browse) {
   await expandAll(b)
   const shown = await b.text()
-  check('Environment has the facts of the real mac-studio record', /ID\s*mac-studio/i.test(shown) && /CPU\s*14 cores/i.test(shown) && /of 36 GB/.test(shown) && /of 494 GB/.test(shown) && /System\s*macOS · Apple Silicon/i.test(shown), shown.slice(0, 600))
+  check('Environment has the facts of the real mac-studio record', /ID\s*mac-studio/i.test(shown) && /CPU\s*Apple M4 Max · 14 cores/i.test(shown) && /of 36 GB/.test(shown) && /of 494 GB/.test(shown) && /System\s*macOS · Apple Silicon/i.test(shown), shown.slice(0, 600))
   check('Environment says what the machine can run', shown.includes('Can run: VMs and containers · GPU in a VM: no · GPU in a container: no'))
   check('Environment shows the address, the GPU and when the machine was last seen', /Address\s*\S+/i.test(shown) && /GPU\s*\S+/.test(shown) && /Last seen\s*\S+/i.test(shown))
   check('there is no profile or old set-up block', !/Profile/.test(shown) && !/How this machine was set up/.test(shown))

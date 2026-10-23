@@ -71,9 +71,12 @@ export function stopWorld(world: World): void {
   world.provider.server.close()
 }
 
+/** What each machine says its CPU is. The DGX says it with a control character, extra blanks and markup, as a hostile helper could: the parent cleans it, the panel shows it as text. */
+const CPU_MODELS: Record<string, string> = { 'mac-mini': 'Apple M4', 'dgx-spark': '  <b>Grace</b>\u0000   Blackwell CPU ' }
+
 function heartbeat(name: string) {
   return {
-    facts: { os: name === 'mac-mini' ? 'macos' : 'linux', arch: 'aarch64', cpu_cores: 10, ram_total_mb: 32768, disk_total_gb: 1000, free_ram_mb: 20000, free_disk_gb: 700, gpu: [],
+    facts: { os: name === 'mac-mini' ? 'macos' : 'linux', arch: 'aarch64', cpu_cores: 10, cpu_model: CPU_MODELS[name], ram_total_mb: 32768, disk_total_gb: 1000, free_ram_mb: 20000, free_disk_gb: 700, gpu: [],
       capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }, problems: name === 'dgx-spark' ? [PROBLEM] : [] },
     workloads: [{ id: 'wl-1', name: 'demo', kind: 'vm', state: 'running', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'none', address: XSS, bundle_version: '1.0.0' }],
     bundle_version: '1.0.0',

@@ -3,7 +3,7 @@
 // a reset when the machine changes, the ↺ Reset, a refusal inside the window, and a phone.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/cpu-options.e2e.ts   (needs a built panel, Google Chrome, `bun install` in frontend/)
 import puppeteer from 'puppeteer-core'
-import { containerLimit, flagsTable, machineChangeResets, openCreate, resetButton, rowsAndTypeList, sendsTheChoices, sendsTheOldBodies, serverRefusalStaysInTheModal, socketsAndCores, whatMachinesCannotSet } from './cpu/steps.ts'
+import { containerLimit, flagsTable, hostRowNamesTheCpu, machineChangeResets, openCreate, resetButton, rowsAndTypeList, sendsTheChoices, sendsTheOldBodies, serverRefusalStaysInTheModal, socketsAndCores, whatMachinesCannotSet } from './cpu/steps.ts'
 import { CPU_PC, startCpuStandIn } from './cpu/stand-in.ts'
 import { check, finish } from './support/check.ts'
 import { chromePath, panelDist } from './support/paths.ts'
@@ -40,6 +40,7 @@ try {
   await page.evaluateOnNewDocument(() => document.addEventListener('securitypolicyviolation', (event) => { window.violation = event.violatedDirective }))
   const b = browse(page)
   await rowsAndTypeList(b, world.base)
+  await hostRowNamesTheCpu(b, world.base)
   await socketsAndCores(b, world.base)
   await flagsTable(b, world.base)
   await whatMachinesCannotSet(b, world.base)

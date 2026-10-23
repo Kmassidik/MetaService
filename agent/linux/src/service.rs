@@ -127,7 +127,7 @@ impl Service {
         let space = self.fresh_space().await;
         let engine_info = EngineInfo { name: identity.name, version: identity.version, ready: problems.is_empty() };
         Ok(Facts {
-            os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, ram_total_mb: space.budget.ram_total_mb, disk_total_gb: space.budget.disk_total_gb,
+            os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, cpu_model: self.specs.cpu_model.clone(), ram_total_mb: space.budget.ram_total_mb, disk_total_gb: space.budget.disk_total_gb,
             free_ram_mb: space.budget.free_ram_mb(&all), free_disk_gb: space.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
             agent_version: self.version.clone(), engine: engine_info, agent_build: self.build.clone(),
         })
@@ -398,7 +398,7 @@ mod tests {
     }
 
     fn service(installer: Arc<Counting>) -> Arc<Service> {
-        let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: 16384, disk_total_gb: 500, gpu: Vec::new() };
+        let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, cpu_model: None, ram_total_mb: 16384, disk_total_gb: 500, gpu: Vec::new() };
         let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
         Arc::new(Service::new(engine, SpaceBudget::new(16384, 500), specs, "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), installer, || None))
     }

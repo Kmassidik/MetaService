@@ -55,6 +55,24 @@ final class MachineReportStoreTests: XCTestCase {
         XCTAssertNil(try machines.get(id: "mini", now: now).agentBuild, "an older helper that does not say it must not keep the last answer")
     }
 
+    private func heartbeat(cpuModel: String?) throws -> HeartbeatRequest {
+        var facts: [String: Any] = ["os": "linux", "arch": "x86_64", "cpu_cores": 64, "ram_total_mb": 65536, "disk_total_gb": 1000, "free_ram_mb": 50000, "free_disk_gb": 800,
+                                    "gpu": [], "capabilities": ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]]
+        facts["cpu_model"] = cpuModel
+        return try HeartbeatRequest(body: JSONSerialization.data(withJSONObject: ["facts": facts, "workloads": []]))
+    }
+
+    func testTheCpuNameIsKeptCleanedReplacedAndClearedWhenNotSaid() throws {
+        XCTAssertNil(try machines.get(id: "mini", now: now).cpuModel)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(cpuModel: "AMD  EPYC\u{0} 7763"), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).cpuModel, "AMD EPYC 7763")
+        XCTAssertEqual(try machines.list(now: now).first?.cpuModel, "AMD EPYC 7763")
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(cpuModel: "Apple M4"), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).cpuModel, "Apple M4")
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(cpuModel: nil), ip: nil, now: now)
+        XCTAssertNil(try machines.get(id: "mini", now: now).cpuModel, "an older helper that does not say it must not keep the last answer")
+    }
+
     func testBeforeAnyHeartbeatNothingIsInventedAboutTheHelperOrTheEngine() throws {
         let seen = try machines.get(id: "mini", now: now)
         XCTAssertNil(seen.agentVersion)

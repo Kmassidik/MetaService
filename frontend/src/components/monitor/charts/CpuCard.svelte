@@ -9,10 +9,10 @@
 
   const HINT = 'CPU use over the last hour, split by what the processor was busy with: user is programs, system is the operating system, nice is low-priority programs, iowait is waiting for the disk.'
 
-  let { points, cpu, intervalSeconds }: { points: readonly LivePoint[]; cpu: StatsCpu; intervalSeconds: number } = $props()
+  let { points, cpu, intervalSeconds, cpuName = null }: { points: readonly LivePoint[]; cpu: StatsCpu; intervalSeconds: number; cpuName?: string | null } = $props()
 </script>
 
 <MetricCard label="CPU" hint={HINT}>
   <TimeChart model={cpuChart(points)} label="CPU usage" {intervalSeconds} />
-  <CpuDetail {cpu} />
+  <CpuDetail {cpu} name={cpuName} />
 </MetricCard>

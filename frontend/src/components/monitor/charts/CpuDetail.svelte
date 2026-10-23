@@ -4,7 +4,7 @@
   import type { StatsCpu } from '../../../lib/types.ts'
 
   const FULL = 100
-  let { cpu }: { cpu: StatsCpu } = $props()
+  let { cpu, name = null }: { cpu: StatsCpu; name?: string | null } = $props()
   const groups = $derived(threadGroups(cpu))
   const speed = $derived(frequencyText(cpu.frequency_mhz))
   const heat = $derived(temperatureText(cpu.temperature_celsius))
@@ -13,6 +13,7 @@
 </script>
 
 <div class="detail">
+  {#if name}<p class="model" data-testid="cpu-model" title={name}>{name}</p>{/if}
   <p class="facts nums">
     <span data-testid="cpu-topology">{topologyLine(cpu)}</span>
     {#if speed}<span data-testid="cpu-frequency">{speed}</span>{/if}
@@ -36,6 +37,7 @@
 
 <style>
   .detail { display: grid; gap: 8px; min-width: 0; }
+  .model { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--m60); }
   .facts { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 16px; font-family: var(--mono); font-size: 12px; color: var(--m60); }
   .facts span:first-child { font-weight: 700; color: var(--text); }
   .threads { display: flex; flex-wrap: wrap; gap: 4px 6px; max-height: 150px; overflow-y: auto; }

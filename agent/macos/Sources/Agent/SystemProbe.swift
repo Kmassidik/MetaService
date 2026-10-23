@@ -10,11 +10,13 @@ struct SystemProbe {
     private static let bytesPerMb = 1024 * 1024
     private static let bytesPerGb = 1_000_000_000
     private static let profilerPath = "/usr/sbin/system_profiler"
+    private static let cpuBrandTimeout: TimeInterval = 5
 
     static func measure() async -> SystemProbe {
         let gpu = (try? await CommandRunner.run(profilerPath, ["SPDisplaysDataType", "-json"], timeout: 20)).map(GpuParser.parse) ?? []
+        let cpuModel = await CpuBrand.read { try await CommandRunner.run($0, $1, timeout: cpuBrandTimeout) }
         let info = ProcessInfo.processInfo
-        return SystemProbe(specs: MachineSpecs(os: "macos", arch: machine(), cpuCores: info.activeProcessorCount,
+        return SystemProbe(specs: MachineSpecs(os: "macos", arch: machine(), cpuCores: info.activeProcessorCount, cpuModel: cpuModel,
                                                 ramTotalMb: Int(info.physicalMemory / UInt64(bytesPerMb)), diskTotalGb: diskGb(\.volumeTotalCapacity) ?? 1, gpu: gpu))
     }
 

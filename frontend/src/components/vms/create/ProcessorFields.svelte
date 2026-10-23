@@ -44,7 +44,7 @@
 
 {#if form.kind === 'vm'}
   <SpinField id="vm-create-sockets" label="Sockets" value={form.cpuSockets ?? 1} min={1} max={MAX_SOCKETS} disabled={!offer.sockets} reason={offer.sockets ? null : ONE_SOCKET_TEXT} oninput={setSockets} />
-  <CpuTypeCombo id="vm-create-cpu-type" models={offer.models} chosen={form.cpuType ?? HOST_MODEL} reason={offer.models.length > 1 ? null : HOST_ONLY_REASON} onpick={(model) => (form.cpuType = model === HOST_MODEL ? undefined : model)} />
+  <CpuTypeCombo id="vm-create-cpu-type" models={offer.models} chosen={form.cpuType ?? HOST_MODEL} hostName={machine?.cpu_model} reason={offer.models.length > 1 ? null : HOST_ONLY_REASON} onpick={(model) => (form.cpuType = model === HOST_MODEL ? undefined : model)} />
   <SpinField id="vm-create-cores" label="Cores" value={coresPerSocket(form)} min={1} max={MAX_CPU} oninput={setCores} />
   <FieldBlock label="Total cores"><output class="total" for="vm-create-sockets vm-create-cores" data-total-cores>{form.cpu}</output></FieldBlock>
 {:else}

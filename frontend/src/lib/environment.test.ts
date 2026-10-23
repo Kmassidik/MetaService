@@ -83,6 +83,15 @@ test('factRows say unknown or none instead of inventing a value', () => {
   expect(rows.find((row) => row.label === 'Last seen')?.value).toBe('never')
 })
 
+test('factRows put the CPU name before the cores when the machine gives one, cleaned', () => {
+  const cpu = (cpu_model: string | null) => factRows(machine({ cpu_cores: 16, cpu_model }), NOW).find((row) => row.label === 'CPU')?.value
+  expect(cpu('AMD Ryzen 9 5950X 16-Core Processor')).toBe('AMD Ryzen 9 5950X 16-Core Processor · 16 cores')
+  expect(cpu(null)).toBe('16 cores')
+  expect(factRows(machine({ cpu_cores: 16 }), NOW).find((row) => row.label === 'CPU')?.value).toBe('16 cores')
+  expect(cpu('  \u0000 ')).toBe('16 cores')
+  expect(cpu(`${'z'.repeat(300)}`)).toBe(`${'z'.repeat(120)} · 16 cores`)
+})
+
 test('softwareRows of the real mac-studio record: nothing is invented', () => {
   const studio = machine({ id: 'mac-studio', name: 'mac-studio', agent_version: null, engine: null, box: null, agent_port: null })
   const rows = softwareRows(studio, null, '0.3.0', NOW)

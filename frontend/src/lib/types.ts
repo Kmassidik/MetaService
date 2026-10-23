@@ -136,6 +136,8 @@ export interface Machine {
   arch: string
   ip?: string
   cpu_cores?: number | null
+  /** The CPU's name as the helper reports it (cleaned by the parent); null or left out for a helper that does not say. */
+  cpu_model?: string | null
   ram_total_mb?: number | null
   disk_total_gb?: number | null
   free_ram_mb?: number | null

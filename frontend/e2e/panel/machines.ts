@@ -68,6 +68,16 @@ export async function machinesList(b: Browse): Promise<void> {
   check('only the machine that reported a problem is marked', (body.match(/needs setup/gi) ?? []).length === 1)
   check('a list with machines has no Add a machine button of its own', !body.includes('＋ Add a machine'))
   await b.shot('needs-setup.png', true)
+  await cpuNamesOnTheCards(b)
+}
+
+/** The CPU name under each machine's address, as the parent cleaned it, drawn as text (markup is shown, never run). */
+async function cpuNamesOnTheCards(b: Browse): Promise<void> {
+  const names = await b.run(() => [...document.querySelectorAll('article.card')].map((card) => [card.querySelector('.nm')?.textContent?.trim(), card.querySelector('[data-testid=machine-cpu-model]')?.textContent?.trim()]))
+  const byMachine = Object.fromEntries(names)
+  check('each machine card names the CPU the helper reported', byMachine['mac-mini'] === 'Apple M4', JSON.stringify(names))
+  check('a hostile CPU name is cleaned by the parent and shown as plain text', byMachine['dgx-spark'] === '<b>Grace</b> Blackwell CPU' && (await b.run(() => document.querySelector('[data-testid=machine-cpu-model] b') === null)), JSON.stringify(names))
+  await b.shot('machine-card-cpu-name.png')
 }
 
 export async function hostileTextIsShownAsText(b: Browse): Promise<void> {

@@ -56,7 +56,7 @@ def tell_the_parent(root, machine_token, helper):
     """A heartbeat with the helper's real facts and workloads, as a helper sends it."""
     body = copy.deepcopy(good_heartbeat())
     facts = helper.engine.facts()
-    body["facts"] = {key: facts[key] for key in ("os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities")}
+    body["facts"] = {key: facts[key] for key in ("os", "arch", "cpu_cores", "cpu_model", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities") if key in facts}
     body["workloads"] = helper.engine.workloads()
     body["agent_port"] = helper.port
     reply = Browser(root).request("POST", "/v1/agents/heartbeat", body, headers={"Authorization": f"Bearer {machine_token}"}, origin=None)

@@ -32,7 +32,7 @@ fn reading(disk_total_gb: u64) -> Reading {
 
 /// A service whose reader hands out the shared reading, so a test can change the machine between two calls.
 fn service_over(machine: Arc<Mutex<Reading>>) -> Arc<Service> {
-    let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: RAM_MB, disk_total_gb: 105, gpu: Vec::new() };
+    let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, cpu_model: None, ram_total_mb: RAM_MB, disk_total_gb: 105, gpu: Vec::new() };
     let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
     let ledger = Arc::new(crate::ledger::Ledger::new(100, None));
     Arc::new(Service::new(engine, SpaceBudget::new(RAM_MB, 105), specs, "0.9.9", ledger, Arc::new(NoChat), move || Some(*machine.lock().unwrap())))

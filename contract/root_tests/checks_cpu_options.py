@@ -254,7 +254,41 @@ def check_creating_with_cpu_settings_has_the_same_guards_as_any_create():
             helper.stop()
 
 
-CHECKS = [check_the_machine_list_carries_each_machines_cpu_settings_and_follows_every_heartbeat,
+def listed_cpu_model(operator, machine=MACHINE):
+    """The cpu_model GET /api/machines shows for a machine (None when the key is null)."""
+    listed = next(m for m in operator.request("GET", "/api/machines").body["machines"] if m["id"] == machine)
+    expect("cpu_model" in listed, f"cpu_model must always be in the machine object: {sorted(listed)}")
+    return listed["cpu_model"]
+
+
+HOSTILE_CPU_NAMES = {
+    "control characters": ("  Intel(R)\tXeon(R)\x00  CPU\x1b[31m \n E5   v4 ", "Intel(R) Xeon(R) CPU[31m E5 v4"),
+    "300 characters": ("Z" * 300, "Z" * 120),
+    "html": ("<script>alert(1)</script> Ryzen", "<script>alert(1)</script> Ryzen"),
+    "only blanks": ("  \t\n ", None),
+}
+
+
+def check_the_cpu_name_the_helper_says_is_cleaned_kept_and_null_for_a_helper_that_does_not_say():
+    with running() as root:
+        operator = Browser(root)
+        helper, beat = machine_like(operator, root, MachineSpec(cpu_model="AMD Ryzen 9 5950X 16-Core Processor"))
+        try:
+            beat()
+            expect(listed_cpu_model(operator) == "AMD Ryzen 9 5950X 16-Core Processor", f"the name as the helper says it: {listed_cpu_model(operator)!r}")
+            for label, (sent, wanted) in HOSTILE_CPU_NAMES.items():
+                helper.engine.spec = MachineSpec(cpu_model=sent)
+                beat()
+                expect(listed_cpu_model(operator) == wanted, f"{label}: wanted {wanted!r}, got {listed_cpu_model(operator)!r}")
+            helper.engine.spec = MachineSpec(cpu_model=None)
+            beat()
+            expect(listed_cpu_model(operator) is None, "a helper that does not say the name must show null, not the last answer")
+        finally:
+            helper.stop()
+
+
+CHECKS = [check_the_cpu_name_the_helper_says_is_cleaned_kept_and_null_for_a_helper_that_does_not_say,
+          check_the_machine_list_carries_each_machines_cpu_settings_and_follows_every_heartbeat,
           check_a_vm_gets_sockets_type_and_flags_under_the_contracts_names_and_nothing_that_is_as_before,
           check_a_container_gets_its_cpu_cap_as_cpu_limit_percent_and_none_when_it_asks_for_none,
           check_a_cpu_setting_on_the_wrong_kind_or_out_of_step_with_cpu_is_a_400_and_reaches_nothing, check_a_cpu_setting_out_of_range_is_a_400_and_reaches_nothing,

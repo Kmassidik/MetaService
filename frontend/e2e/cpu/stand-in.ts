@@ -11,6 +11,9 @@ export const CPU_PC = 'cpu-pc'
 export const TYPES_PC = 'types-pc'
 export const OLD_PC = 'old-pc'
 export const MAC = 'mac-studio'
+/** What the CPU PC's helper says its CPU is, a hostile name on the types PC (markup and 300 characters), none on the older helper. */
+export const CPU_PC_NAME = 'AMD Ryzen 9 5950X 16-Core Processor'
+export const HOSTILE_NAME = `<script>window.__cpu=1</script>${'W'.repeat(300)}`
 export const MODELS = ['host', 'EPYC', 'EPYC-Rome', 'EPYC-Milan', 'EPYC-Genoa', 'Skylake-Server', 'Icelake-Server', 'kvm64']
 const ACCEPTED = 202
 const VM_ONLY = ['cpu_sockets', 'cpu_type', 'cpu_flags']
@@ -26,9 +29,9 @@ export interface CpuStandIn {
 
 const kinds = { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }
 
-function machine(id: string, os: string, arch: string, capabilities: Json): Json {
+function machine(id: string, os: string, arch: string, capabilities: Json, cpuModel?: string): Json {
   return {
-    id, name: id, state: 'online', os, arch, ip: '10.0.0.7', cpu_cores: 32, ram_total_mb: 65536, disk_total_gb: 2000, free_ram_mb: 50000, free_disk_gb: 1500,
+    id, name: id, state: 'online', os, arch, ip: '10.0.0.7', cpu_cores: 32, ...(cpuModel === undefined ? {} : { cpu_model: cpuModel }), ram_total_mb: 65536, disk_total_gb: 2000, free_ram_mb: 50000, free_disk_gb: 1500,
     gpu: [], capabilities, last_seen: new Date().toISOString(), settings: { profile: 'custom', labels: [] }, problems: [], workloads: [], bundle_version: null, agent_version: '0.2.0', engine: { name: 'incus', version: '7.3', ready: true },
   }
 }
@@ -64,10 +67,10 @@ export function startCpuStandIn(dist: string): CpuStandIn {
   const created: Json[] = []
   let forced: { status: number; error: Json } | null = null
   const machines: Json[] = [
-    machine(CPU_PC, 'linux', 'x86_64', { ...kinds, cpu_models: MODELS, cpu_topology: true, cpu_flags: ['nested-virt', 'aes'], cpu_limit: true }),
-    machine(TYPES_PC, 'linux', 'x86_64', { ...kinds, cpu_models: ['host', 'EPYC'], cpu_flags: ['aes'] }),
+    machine(CPU_PC, 'linux', 'x86_64', { ...kinds, cpu_models: MODELS, cpu_topology: true, cpu_flags: ['nested-virt', 'aes'], cpu_limit: true }, CPU_PC_NAME),
+    machine(TYPES_PC, 'linux', 'x86_64', { ...kinds, cpu_models: ['host', 'EPYC'], cpu_flags: ['aes'] }, HOSTILE_NAME),
     machine(OLD_PC, 'linux', 'x86_64', kinds),
-    machine(MAC, 'macos', 'arm64', kinds),
+    machine(MAC, 'macos', 'arm64', kinds, 'Apple M4'),
   ]
   const reply = (body: unknown, status = 200) => Response.json(body, { status })
   const missing = () => reply(refusal('not_found', 'no such thing'), 404)

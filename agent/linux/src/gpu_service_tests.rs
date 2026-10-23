@@ -36,7 +36,7 @@ async fn finished(service: &Arc<Service>, id: &str) -> Command {
 
 fn gpu_service(gpu_in_container: bool) -> Arc<Service> {
     let gpu = vec![Gpu { vendor: "nvidia".into(), model: "NVIDIA GeForce RTX 5090".into(), memory_mb: Some(32768) }];
-    let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, ram_total_mb: 65536, disk_total_gb: 2000, gpu };
+    let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, cpu_model: None, ram_total_mb: 65536, disk_total_gb: 2000, gpu };
     let engine = Arc::new(SimulatedEngine::new(Capabilities { gpu_in_container, ..default_capabilities() }));
     Arc::new(Service::new(engine, SpaceBudget::new(65536, 2000), specs, "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), Arc::new(NoChat), || None))
 }

@@ -6,6 +6,7 @@ mod bundle;
 mod config;
 mod console;
 mod cpu;
+mod cpu_model;
 #[cfg(test)]
 mod cpu_service_tests;
 mod engine;

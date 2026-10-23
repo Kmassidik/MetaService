@@ -4,7 +4,7 @@ import { check } from '../support/check.ts'
 import { NAME, PICKER, RUNTIME, SIZE, choose, fieldValue, imageListArrived, selectValue, setField } from '../support/createVm.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
-import { CPU_PC, MAC, MODELS, OLD_PC, TYPES_PC, type CpuStandIn } from './stand-in.ts'
+import { CPU_PC, CPU_PC_NAME, HOSTILE_NAME, MAC, MODELS, OLD_PC, TYPES_PC, type CpuStandIn } from './stand-in.ts'
 
 const SHORT_WAIT_MS = 10000
 const SENT_TRIES = 50
@@ -13,6 +13,7 @@ const RAPID_CLICKS = 5
 const TYPE = '#vm-create-cpu-type'
 const SOCKETS = '#vm-create-sockets'
 const LIMIT = '#vm-create-cpu-limit'
+const HOST_ROW = `host (${CPU_PC_NAME})`
 const VENDORS = ['This machine', 'AMD', 'AMD', 'AMD', 'AMD', 'Intel', 'Intel', 'Generic']
 const OLD_HELPER_NOTE = "This machine's helper cannot set sockets, the CPU type or CPU flags, so a VM gets the machine's own CPU on one socket. Update the helper to choose them."
 const MAC_NOTE = "On a Mac a VM always gets the Mac's own CPU on one socket."
@@ -54,7 +55,7 @@ const cpuState = (b: Browse) =>
       where: row.querySelector('.where')?.textContent?.trim() ?? '',
     }))
     return {
-      type: typeBox?.querySelector('.value')?.textContent?.trim() ?? null,
+      type: typeBox?.querySelector('.value')?.textContent?.trim().replace(/^host \(.*\)$/, 'host') ?? null,
       typeOff: typeBox?.disabled ?? null,
       clear: document.querySelector('dialog[open] .combo .clear') !== null,
       sockets: socketsBox?.value ?? null,
@@ -83,8 +84,9 @@ export async function rowsAndTypeList(b: Browse, base: string): Promise<void> {
     vendors: [...document.querySelectorAll(`dialog[open] ${menu} [role=option] .vendor`)].map((cell) => cell.textContent?.trim()),
     picked: document.querySelector(`dialog[open] ${menu} [aria-selected=true]`)?.getAttribute('data-value'),
   }), `${TYPE}-menu`)
-  check('the Type list has a Model and a Vendor column, host first, and only the models the machine offers', JSON.stringify(list.head) === '["Model","Vendor"]' && JSON.stringify(list.models) === JSON.stringify(MODELS) && JSON.stringify(list.vendors) === JSON.stringify(VENDORS) && list.picked === 'host', JSON.stringify(list))
+  check('the Type list has a Model and a Vendor column, host first, and only the models the machine offers', JSON.stringify(list.head) === '["Model","Vendor"]' && JSON.stringify(list.models) === JSON.stringify([HOST_ROW, ...MODELS.slice(1)]) && JSON.stringify(list.vendors) === JSON.stringify(VENDORS) && list.picked === 'host', JSON.stringify(list))
   await b.shot('cpu-type-list.png')
+  check('the first row says host and names the machine CPU, and no other row does', list.models[0] === HOST_ROW && list.models.slice(1).every((model) => model !== undefined && !model.includes('(')), JSON.stringify(list.models))
   for (let step = 0; step < MODELS.indexOf('EPYC-Genoa'); step++) await b.page.keyboard.press('ArrowDown')
   await b.page.keyboard.press('Enter')
   const picked = await cpuState(b)
@@ -95,6 +97,31 @@ export async function rowsAndTypeList(b: Browse, base: string): Promise<void> {
   await b.page.click('dialog[open] .combo .clear')
   const back = await cpuState(b)
   check('the × goes back to host and goes away', back.type === 'host' && !back.clear, JSON.stringify(back))
+  await b.page.keyboard.press('Escape')
+}
+
+/** The host row on the other machines: the CPU name as plain text cut to 120 characters, plain `host` without a name, and markup in the name never becomes an element. */
+export async function hostRowNamesTheCpu(b: Browse, base: string): Promise<void> {
+  const hostRow = () => b.run((menu) => document.querySelector(`dialog[open] ${menu} [role=option] .model`)?.textContent?.trim(), `${TYPE}-menu`)
+  const triggerText = () => b.run((type) => document.querySelector(`dialog[open] ${type} .value`)?.textContent?.trim(), TYPE)
+  const openList = async () => {
+    await b.page.focus(TYPE)
+    await b.page.keyboard.press('ArrowDown')
+    await b.page.waitForSelector(`dialog[open] ${TYPE}-menu`)
+  }
+  await openCreate(b, base, TYPES_PC)
+  await openList()
+  const cleaned = Array.from(HOSTILE_NAME).slice(0, 120).join('')
+  check('a hostile CPU name is cut to 120 characters in the host row, the box shows the same, and markup stays text', (await hostRow()) === `host (${cleaned})` && (await triggerText()) === `host (${cleaned})`
+    && (await b.run(() => document.querySelector('dialog[open] [role=listbox] script') === null && window.__cpu === undefined)), String(await hostRow()))
+  await b.shot('cpu-type-list-long-name.png')
+  await b.page.keyboard.press('Escape')
+  await b.page.keyboard.press('Escape')
+  await openCreate(b, base, MAC)
+  check('on a Mac the host row names the Apple chip', (await triggerText()) === 'host (Apple M4)', String(await triggerText()))
+  await b.page.keyboard.press('Escape')
+  await openCreate(b, base, OLD_PC)
+  check('a machine whose helper gives no CPU name shows plain host', (await triggerText()) === 'host' && !(await b.dialogText()).includes('host ('), String(await triggerText()))
   await b.page.keyboard.press('Escape')
 }
 

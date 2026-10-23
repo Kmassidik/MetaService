@@ -4,7 +4,7 @@ import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
-import { HOSTILE_NAME, PROCESS_COUNT, type StandIn } from './stand-in.ts'
+import { CPU_NAMES, HOSTILE_NAME, PROCESS_COUNT, type StandIn } from './stand-in.ts'
 
 const SHORT_WAIT_MS = 10000
 const PAGE_POLL_MS = 5000
@@ -74,9 +74,11 @@ export async function topologyShowsCoresAndThreads(b: Browse, id: string, line: 
     labels: [...document.querySelectorAll('[data-testid=cpu-core] .thread')].slice(0, 2).map((bar) => bar.getAttribute('aria-label') ?? ''),
     speed: document.querySelector('[data-testid=cpu-frequency]') !== null,
     heat: document.querySelector('[data-testid=cpu-temperature]') !== null,
+    name: document.querySelector<HTMLElement>('[data-testid=cpu-model]')?.innerText ?? null,
     text: document.body.innerText,
   }))
   check(`${id}: the CPU card says "${line}"`, found.line === line, found.line)
+  check(`${id}: the CPU card names the CPU when the machine reports one, and shows nothing when it does not`, found.name === (CPU_NAMES[id] ?? null), String(found.name))
   check(`${id}: the thread bars are grouped by core (${groups} groups of ${threadsPerGroup})`, found.groups.length === groups && found.groups.every((count) => count === threadsPerGroup), found.groups.join(','))
   check(`${id}: a bar is named like "core 1 thread 1 · 12%", "core 1 · 12%" or (no core data) "CPU 1 · 12%"`, found.labels.every((label) => /^(core|CPU) \d+( thread \d+)? · \d+%$/.test(label)), found.labels.join('|'))
   check(`${id}: frequency and temperature ${hasSpeed ? 'are shown' : 'are left out, never shown as 0'}`, found.speed === hasSpeed && found.heat === hasSpeed && (hasSpeed || !/0 °C|0\.0 GHz/.test(found.text)))

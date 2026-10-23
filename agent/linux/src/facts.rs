@@ -12,6 +12,7 @@ pub fn measure(nvidia_smi: Option<&str>) -> Specs {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         cpu_cores: std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1),
+        cpu_model: crate::cpu_model::read(),
         ram_total_mb: system.total_memory() / BYTES_PER_MB,
         disk_total_gb: root_disk().map(|(total, _)| total).unwrap_or(1).max(1),
         gpu: nvidia_smi.map(read_nvidia_smi).unwrap_or_default(),

@@ -96,8 +96,10 @@ public struct FactsReport: Equatable {
     public let engine: EngineReport?
     /// The SHA-256 of the helper's own program file (see AgentBuild). Helpers that do not say it give nil.
     public let agentBuild: String?
+    /// The CPU's name as the helper reported it, cleaned and cut to 120 characters (see CpuModelText). Helpers that do not say it give nil.
+    public let cpuModel: String?
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "cpu_model", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build"]
     static let maxGpus = 16
     static let maxProblems = 20
     private static let codePattern = #/^[a-z0-9_]{1,64}$/#
@@ -106,6 +108,7 @@ public struct FactsReport: Equatable {
         os = try object.choice("os", among: ["macos", "linux", "windows"])
         arch = try object.choice("arch", among: ["arm64", "aarch64", "x86_64"])
         cpuCores = try object.int("cpu_cores", range: 1...100_000)
+        cpuModel = try CpuModelText.optional(object, "cpu_model")
         ramTotalMb = try object.int("ram_total_mb", range: 1...100_000_000)
         diskTotalGb = try object.int("disk_total_gb", range: 1...100_000_000)
         freeRamMb = try object.int("free_ram_mb", range: 0...100_000_000)

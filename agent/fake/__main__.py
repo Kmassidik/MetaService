@@ -2,7 +2,7 @@
 import argparse
 import pathlib
 
-from agent.fake.engine import CPU_OPTIONS, DEFAULT_AGENT_BUILD, GPU_INSIDE, FakeEngine, MachineSpec
+from agent.fake.engine import CPU_OPTIONS, DEFAULT_AGENT_BUILD, DEFAULT_CPU_MODEL, MAC_CPU_MODEL, GPU_INSIDE, FakeEngine, MachineSpec
 from agent.fake.server import make_server
 from agent.fake.stats import FakeStats
 from agent.fake.stats_gpu import GPU_KINDS
@@ -15,6 +15,13 @@ def parse_kinds(text):
     if unknown:
         raise SystemExit(f"unknown GPU kinds: {unknown}; choose from {GPU_KINDS}")
     return kinds
+
+
+def cpu_model_for(args):
+    """The CPU name to announce: the one given, none for 'none' (an older helper), else a realistic one for the system."""
+    if args.cpu_model is not None:
+        return None if args.cpu_model == "none" else args.cpu_model
+    return MAC_CPU_MODEL if args.os == "macos" else DEFAULT_CPU_MODEL
 
 
 def main():
@@ -35,12 +42,13 @@ def main():
     parser.add_argument("--no-terminal", action="store_true", help="play an older helper that does not say it serves the console (no `terminal` in the capabilities)")
     parser.add_argument("--workload", action="append", default=[], metavar="NAME:KIND", help="start with a running workload of this name and kind (vm or container); the first one is wl-1 and so on; can be repeated")
     parser.add_argument("--agent-build", default=DEFAULT_AGENT_BUILD, help="the build (64 lowercase hex digits) the facts report; 'none' reports no build, like an older helper")
+    parser.add_argument("--cpu-model", help="the CPU name the facts report (default: a realistic one for the system); 'none' reports no name, like an older helper")
     args = parser.parse_args()
     token = pathlib.Path(args.token_file).read_text().strip()
     has_card = args.nvidia is not None
     card = [{"vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768}] if has_card else []
     cpu_options = CPU_OPTIONS if args.cpu_options else {}
-    spec = MachineSpec(os=args.os, arch="arm64" if args.os == "macos" else "x86_64", vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside,
+    spec = MachineSpec(cpu_model=cpu_model_for(args), os=args.os, arch="arm64" if args.os == "macos" else "x86_64", vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside,
                        gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, **cpu_options)
     build = None if args.agent_build == "none" else args.agent_build
     engine = FakeEngine(spec, agent_build=build)

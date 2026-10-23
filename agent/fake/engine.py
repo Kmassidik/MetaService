@@ -34,6 +34,8 @@ CPU_MODELS = (HOST_CPU_MODEL, "EPYC", "EPYC-Rome", "EPYC-Milan", "EPYC-Genoa", "
 NESTED_VIRT = "nested-virt"
 CPU_FLAGS = (NESTED_VIRT, "aes")
 X86 = "x86_64"
+DEFAULT_CPU_MODEL = "AMD EPYC 7763 64-Core Processor"
+MAC_CPU_MODEL = "Apple M4"
 # Every CPU setting a helper of this build offers, as --cpu-options turns them on: MachineSpec(**CPU_OPTIONS).
 CPU_OPTIONS = {"cpu_models": CPU_MODELS, "cpu_topology": True, "cpu_flags": CPU_FLAGS, "cpu_limit": True}
 
@@ -43,6 +45,8 @@ class MachineSpec:
     os: str = "linux"
     arch: str = "x86_64"
     cpu_cores: int = 16
+    # The CPU name the facts announce (cpu_model). None plays an older helper that does not say it: the key is left out.
+    cpu_model: str | None = DEFAULT_CPU_MODEL
     ram_total_mb: int = 65536
     disk_total_gb: int = 2000
     reserve_ram_mb: int = 8192
@@ -126,6 +130,7 @@ class FakeEngine:
         spec = self.spec
         return {
             "os": spec.os, "arch": spec.arch, "cpu_cores": spec.cpu_cores,
+            **({"cpu_model": spec.cpu_model} if spec.cpu_model is not None else {}),
             "ram_total_mb": spec.ram_total_mb, "disk_total_gb": spec.disk_total_gb,
             "free_ram_mb": self._free_ram(), "free_disk_gb": self._free_disk(),
             "gpu": list(spec.gpu),

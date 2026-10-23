@@ -35,14 +35,17 @@ public struct MachineSpecs: Equatable {
     public let os: String
     public let arch: String
     public let cpuCores: Int
+    /// The CPU's name as the system reports it (see CpuBrand); nil when it does not say.
+    public let cpuModel: String?
     public let ramTotalMb: Int
     public let diskTotalGb: Int
     public let gpu: [Gpu]
 
-    public init(os: String, arch: String, cpuCores: Int, ramTotalMb: Int, diskTotalGb: Int, gpu: [Gpu]) {
+    public init(os: String, arch: String, cpuCores: Int, cpuModel: String? = nil, ramTotalMb: Int, diskTotalGb: Int, gpu: [Gpu]) {
         self.os = os
         self.arch = arch
         self.cpuCores = cpuCores
+        self.cpuModel = cpuModel
         self.ramTotalMb = ramTotalMb
         self.diskTotalGb = diskTotalGb
         self.gpu = gpu
@@ -50,7 +53,7 @@ public struct MachineSpecs: Equatable {
 
     /// The same machine with fresh RAM and disk totals.
     public func withTotals(ramTotalMb: Int, diskTotalGb: Int) -> MachineSpecs {
-        MachineSpecs(os: os, arch: arch, cpuCores: cpuCores, ramTotalMb: ramTotalMb, diskTotalGb: diskTotalGb, gpu: gpu)
+        MachineSpecs(os: os, arch: arch, cpuCores: cpuCores, cpuModel: cpuModel, ramTotalMb: ramTotalMb, diskTotalGb: diskTotalGb, gpu: gpu)
     }
 }
 
@@ -102,7 +105,7 @@ public struct Facts: Encodable, Equatable {
     public let agentBuild: String?
 
     enum CodingKeys: String, CodingKey {
-        case os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems, agentVersion, engine, agentBuild
+        case os, arch, cpuCores, cpuModel, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, gpu, capabilities, problems, agentVersion, engine, agentBuild
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -110,6 +113,7 @@ public struct Facts: Encodable, Equatable {
         try box.encode(specs.os, forKey: .os)
         try box.encode(specs.arch, forKey: .arch)
         try box.encode(specs.cpuCores, forKey: .cpuCores)
+        try box.encodeIfPresent(specs.cpuModel, forKey: .cpuModel)
         try box.encode(specs.ramTotalMb, forKey: .ramTotalMb)
         try box.encode(specs.diskTotalGb, forKey: .diskTotalGb)
         try box.encode(freeRamMb, forKey: .freeRamMb)

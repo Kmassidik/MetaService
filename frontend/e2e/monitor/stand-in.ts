@@ -39,8 +39,11 @@ export interface StandIn {
   stop: () => void
 }
 
+/** The CPU name some machines report; the others report none, like an older helper. */
+export const CPU_NAMES: Readonly<Record<string, string>> = { studio: 'AMD EPYC 7763 64-Core Processor', mac: 'Apple M4 Pro' }
+
 const machine = (id: string, cores: number, os = 'linux'): Json => ({
-  id, name: id, state: 'online', os, arch: os === 'macos' ? 'arm64' : 'x86_64', ip: '10.0.0.5', cpu_cores: cores, ram_total_mb: 32768, disk_total_gb: 500, free_ram_mb: 16000, free_disk_gb: 300,
+  id, name: id, state: 'online', os, arch: os === 'macos' ? 'arm64' : 'x86_64', ip: '10.0.0.5', cpu_cores: cores, ...(CPU_NAMES[id] === undefined ? {} : { cpu_model: CPU_NAMES[id] }), ram_total_mb: 32768, disk_total_gb: 500, free_ram_mb: 16000, free_disk_gb: 300,
   gpu: [], capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }, last_seen: new Date().toISOString(), settings: { profile: 'custom', labels: [] }, problems: [],
   workloads: id === 'studio' ? [{ id: 'vm1', name: 'vm1', kind: 'vm', state: 'running', cpu: 4, ram_mb: 8192, disk_gb: 80 }] : [], bundle_version: null, agent_version: '0.2.0', engine: { name: 'incus', version: null, ready: true },
 })

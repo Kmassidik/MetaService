@@ -3,12 +3,15 @@
   // Only the models the machine offers are listed, host first. The keys work as in the window's other dropdowns: the focus stays on the box, Escape shuts only the list.
   import { firstPickable, isMenuKey, nextActive } from '../../../lib/menuNav.ts'
   import { HOST_MODEL, modelVendor } from '../../../lib/cpuOptions.ts'
+  import { cpuTypeLabel } from '../../../lib/cpuModel.ts'
   import FieldBlock from './FieldBlock.svelte'
 
   interface Props {
     id: string
     models: string[]
     chosen: string
+    /** The machine's CPU name, shown after host; null or left out when the machine does not say. */
+    hostName?: string | null | undefined
     /** Why the type cannot be changed (a machine that offers host only); null when it can. */
     reason: string | null
     onpick: (model: string) => void
@@ -16,7 +19,7 @@
 
   const OPENING_KEYS = ['ArrowDown', 'ArrowUp']
 
-  let { id, models, chosen, reason, onpick }: Props = $props()
+  let { id, models, chosen, hostName = null, reason, onpick }: Props = $props()
   let open = $state(false)
   let active = $state(0)
   let root: HTMLDivElement | undefined = $state()
@@ -94,7 +97,7 @@
       onclick={toggle}
       {onkeydown}
     >
-      <span class="value" id="{id}-value">{chosen}</span>
+      <span class="value" id="{id}-value" title={cpuTypeLabel(chosen, hostName)}>{cpuTypeLabel(chosen, hostName)}</span>
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
     {#if chosen !== HOST_MODEL}<button type="button" class="clear" aria-label="Back to host" title="Back to host" onclick={backToHost}>✕</button>{/if}
@@ -115,7 +118,7 @@
             {onkeydown}
             onmousemove={() => (active = index)}
           >
-            <span class="model">{model}</span><span class="vendor">{modelVendor(model)}</span>
+            <span class="model" title={cpuTypeLabel(model, hostName)}>{cpuTypeLabel(model, hostName)}</span><span class="vendor">{modelVendor(model)}</span>
           </div>
         {/each}
       </div>

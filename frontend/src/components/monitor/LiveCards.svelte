@@ -14,14 +14,14 @@
   import type { LivePoint } from '../../lib/liveSeries.ts'
   import type { MachineStats } from '../../lib/types.ts'
 
-  let { stats, points, intervalSeconds, grey, booking = null }: { stats: MachineStats; points: readonly LivePoint[]; intervalSeconds: number; grey: boolean; booking?: GpuBooking | null } = $props()
+  let { stats, points, intervalSeconds, grey, booking = null, cpuName = null }: { stats: MachineStats; points: readonly LivePoint[]; intervalSeconds: number; grey: boolean; booking?: GpuBooking | null; cpuName?: string | null } = $props()
   const hasGpu = $derived(stats.gpus.length > 0)
 </script>
 
 <div class="cards" class:grey data-testid="monitor-numbers">
   <GaugeRow {stats} {points} />
   <div class="band" data-testid="band-cpu">
-    <CpuCard {points} cpu={stats.cpu} {intervalSeconds} />
+    <CpuCard {points} cpu={stats.cpu} {intervalSeconds} {cpuName} />
     <MemoryCard {points} memory={stats.memory} {intervalSeconds} />
   </div>
   <div class="band" data-testid="band-load">

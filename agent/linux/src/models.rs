@@ -122,6 +122,8 @@ pub struct Specs {
     pub os: String,
     pub arch: String,
     pub cpu_cores: u32,
+    /// The CPU name as the system reports it; None when it does not say.
+    pub cpu_model: Option<String>,
     pub ram_total_mb: u64,
     pub disk_total_gb: u64,
     pub gpu: Vec<Gpu>,
@@ -155,6 +157,9 @@ pub struct Facts {
     pub os: String,
     pub arch: String,
     pub cpu_cores: u32,
+    /// The CPU name as the system reports it; left out of the facts when it does not say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_model: Option<String>,
     pub ram_total_mb: u64,
     pub disk_total_gb: u64,
     pub free_ram_mb: u64,

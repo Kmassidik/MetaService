@@ -1,4 +1,5 @@
 // What the machine page's Environment tab says about a machine: software, Ruvio, and what it can run. Pure functions, no DOM, no network.
+import { cpuModelText } from './cpuModel.ts'
 import { archName, formatGb, formatMb, osName, relativeTime } from './format.ts'
 import { connectionText } from './remote.ts'
 import type { Capabilities, Engine, Gpu, Machine, RemoteMachineInfo, Ruvio } from './types.ts'
@@ -66,6 +67,13 @@ export function canRunText(capabilities: Capabilities | undefined): string {
 
 export const gpuText = (gpu: Gpu[]): string => (gpu.length ? gpu.map((entry) => `${entry.vendor} ${entry.model}`).join(', ') : 'none')
 
+/** "AMD EPYC 7763 64-Core Processor · 64 cores"; just the cores for a machine whose helper does not give the CPU's name. */
+function cpuRowText(machine: Machine): string {
+  const name = cpuModelText(machine.cpu_model)
+  const cores = `${machine.cpu_cores ?? '–'} cores`
+  return name === null ? cores : `${name} · ${cores}`
+}
+
 /** What the machine is, one plain row each: the facts the old Overview tab showed. */
 export function factRows(machine: Machine, now: number): SoftwareRow[] {
   const row = (label: string, value: string): SoftwareRow => ({ label, value, old: false })
@@ -75,7 +83,7 @@ export function factRows(machine: Machine, now: number): SoftwareRow[] {
     row('Status', machine.state),
     row('Address', machine.ip ?? 'unknown'),
     row('System', `${osName(machine.os)} · ${system}`),
-    row('CPU', `${machine.cpu_cores ?? '–'} cores`),
+    row('CPU', cpuRowText(machine)),
     row('Memory', `${formatMb(machine.free_ram_mb)} free of ${formatMb(machine.ram_total_mb)}`),
     row('Disk', `${formatGb(machine.free_disk_gb)} free of ${formatGb(machine.disk_total_gb)}`),
     row('GPU', gpuText(machine.gpu)),

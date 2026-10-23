@@ -53,7 +53,7 @@ export interface FakeParent {
 
 function studio(): Json {
   return {
-    id: 'mac-studio', name: 'mac-studio', state: 'online', os: 'macos', arch: 'arm64', ip: '192.168.1.20', cpu_cores: 14, ram_total_mb: 36864, disk_total_gb: 494,
+    id: 'mac-studio', name: 'mac-studio', state: 'online', os: 'macos', arch: 'arm64', ip: '192.168.1.20', cpu_cores: 14, cpu_model: 'Apple M4 Max', ram_total_mb: 36864, disk_total_gb: 494,
     free_ram_mb: 21400, free_disk_gb: 402, gpu: [], capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }, last_seen: new Date().toISOString(),
     settings: { profile: 'custom', labels: [], notes: '', allow_gpu: true, public_chat: false }, problems: [], workloads: [], bundle_version: null,
     agent_version: null, engine: { name: 'apple', version: null, ready: true },
