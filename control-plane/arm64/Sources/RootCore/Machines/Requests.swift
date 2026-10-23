@@ -90,7 +90,9 @@ public struct FactsReport: Equatable {
         freeRamMb = try object.int("free_ram_mb", range: 0...100_000_000)
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
         gpu = try object.objects("gpu", allowed: ["vendor", "model", "memory_mb"], maxCount: Self.maxGpus).map(Self.gpuInfo)
-        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit"])
+        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal"])
+        // The Linux helper says `terminal: true` since it serves the console route (4e92697). The panel finds the console by trying it, so only the shape is checked.
+        if caps.has("terminal") { _ = try caps.bool("terminal") }
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"),
                                     gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false)
