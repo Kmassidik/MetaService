@@ -91,6 +91,10 @@ test('workload body is what the Root expects', () => {
   expect(workloadBody({ ...good, gpuMode: 'none' })).toEqual({ name: 'demo', kind: 'vm', cpu: 2, ram_mb: 2048, disk_gb: 20 })
   expect(workloadBody({ ...good, kind: 'container', gpuMode: 'container', machine: 'rtx' })).toEqual({ name: 'demo', kind: 'container', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'container', machine: 'rtx' })
   expect(workloadBody({ ...good, kind: 'vm', gpuMode: 'container' })).not.toHaveProperty('gpu_mode')
+  expect(workloadBody({ ...good, kind: 'container', gpuMode: 'shared', gpuMemoryGb: '6' })).toEqual({ name: 'demo', kind: 'container', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'container', gpu_memory_gb: 6 })
+  expect(workloadBody({ ...good, kind: 'vm', gpuMode: 'shared', gpuMemoryGb: 6 })).not.toHaveProperty('gpu_memory_gb')
+  expect(workloadBody({ ...good, kind: 'container', gpuMode: 'container', gpuMemoryGb: 6 })).not.toHaveProperty('gpu_memory_gb')
+  expect(workloadBody({ ...good, kind: 'container', gpuMode: 'none', gpuMemoryGb: 6 })).not.toHaveProperty('gpu_mode')
 })
 
 test('the image is sent as bundle only when it is not Blank, and the page never sends an image name', () => {

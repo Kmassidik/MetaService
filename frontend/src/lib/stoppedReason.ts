@@ -14,6 +14,12 @@ export interface StoppedReason {
   /** Null when the helper could not tell. */
   exit_code: number | null
   log_tail: string
+  /** Only on a reason the Root names (for example `gpu_memory_over_limit`); left out for the Mac reasons. */
+  code?: string
+  /** Plain words from the Root for a named reason; text only, never markup. */
+  message?: string
+  used_gb?: number | null
+  limit_gb?: number | null
 }
 
 /** Why a stopped VM stopped: the helper's reason, the panel's own stop, or a stop nobody can explain yet. */
@@ -106,14 +112,42 @@ const cleanTail = (raw: string): string => lastLines(raw, MAX_REASON_LINES, MAX_
 /** The reason a machine gave for a failed order, cleaned and capped again. It may hold the last lines a VM printed, so it is text only. */
 export const cleanFailureText = (raw: string): string => lastLines(raw, MAX_FAILURE_LINES, MAX_FAILURE_BYTES)
 
-/** The reason in the promised shape, cleaned again, or null when the value is not one. */
+/** The code of the reason the Root named for a VM stopped by the helper because it stayed over its GPU memory limit. */
+export const GPU_OVER_LIMIT_CODE = 'gpu_memory_over_limit'
+export const GPU_OVER_LIMIT_HINT = 'Its GPU memory limit is still booked. Start it again, or delete it to free the booking.'
+
+type Fields = Record<string, unknown>
+
+const optionalGb = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+/** The fields only a named reason has. A reason without a code (the Mac reasons) gets none, so its shape stays as it was. */
+function namedFields(value: Fields): Pick<StoppedReason, 'code' | 'message' | 'used_gb' | 'limit_gb'> | Record<string, never> {
+  if (typeof value.code !== 'string') return {}
+  const message = typeof value.message === 'string' ? { message: plainText(value.message) } : {}
+  return { code: value.code, ...message, used_gb: optionalGb(value.used_gb), limit_gb: optionalGb(value.limit_gb) }
+}
+
+/** The exit code (null when missing for a named reason), or undefined when it is not readable. */
+function readExitCode(value: Fields, named: boolean): number | null | undefined {
+  const exitCode = value.exit_code
+  if (exitCode === null || (named && exitCode === undefined)) return null
+  return typeof exitCode === 'number' && Number.isInteger(exitCode) ? exitCode : undefined
+}
+
+/** The log tail (empty when missing for a named reason), or undefined when it is not readable. */
+function readLogTail(value: Fields, named: boolean): string | undefined {
+  if (typeof value.log_tail === 'string') return cleanTail(value.log_tail)
+  return named && value.log_tail === undefined ? '' : undefined
+}
+
+/** The reason in the promised shape, cleaned again, or null when the value is not one. A reason with a `code` may leave out the exit code and the log. */
 export function readStoppedReason(value: unknown): StoppedReason | null {
   if (!isRecord(value)) return null
-  const { exit_code: exitCode, log_tail: tail } = value
-  if (typeof tail !== 'string') return null
-  if (exitCode === null) return { exit_code: null, log_tail: cleanTail(tail) }
-  if (typeof exitCode !== 'number' || !Number.isInteger(exitCode)) return null
-  return { exit_code: exitCode, log_tail: cleanTail(tail) }
+  const named = typeof value.code === 'string'
+  const exitCode = readExitCode(value, named)
+  const tail = readLogTail(value, named)
+  if (exitCode === undefined || tail === undefined) return null
+  return { exit_code: exitCode, log_tail: tail, ...namedFields(value) }
 }
 
 export const exitCodeText = (code: number | null): string => (code === null ? 'The exit code is not known.' : `Exit code ${code}.`)

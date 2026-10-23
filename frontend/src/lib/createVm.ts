@@ -144,10 +144,10 @@ export function machineDefaults(machine: Machine | undefined): SizeDefaults {
   }
 }
 
-/** The form after a machine is picked: its size card and numbers (what the machine gives a new VM, Medium without any) and a kind it runs. The name and image are kept. */
+/** The form after a machine is picked: its size card and numbers (what the machine gives a new VM, Medium without any) and a kind it runs. The name and image are kept; the GPU memory number starts over, for the new card. */
 export function pickMachine(form: NewVmForm, machine: Machine | undefined): NewVmForm {
   const { key, ...sizes } = initialSize(machine, machineDefaults(machine))
-  return { ...form, ...sizes, size: key, machine: machine?.id ?? '', kind: kindAfterPick(machine ? machineChoice(machine) : undefined, form.kind) }
+  return { ...form, ...sizes, gpuMemoryGb: undefined, size: key, machine: machine?.id ?? '', kind: kindAfterPick(machine ? machineChoice(machine) : undefined, form.kind) }
 }
 
 /** A form with nothing typed, as it is when a machine (or none) is picked. */

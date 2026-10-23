@@ -22,6 +22,8 @@ export interface Capabilities {
   container: boolean
   gpu_in_vm: boolean
   gpu_in_container: boolean
+  /** True when the helper can limit a container's GPU memory; false or left out for an older helper. */
+  gpu_memory_limit?: boolean
 }
 
 /** What the Add machine form saved for a machine. */
@@ -67,6 +69,8 @@ export interface Workload {
   bundle_version?: string | null
   /** Only on a VM that stopped by itself: why, as the machine reported it. Null otherwise. Text from inside the VM: read it with `readStoppedReason`, never trust its shape. */
   stopped_reason?: unknown
+  /** The GPU memory limit booked for this VM, in GB; null or left out when it has none. Read it with `readGpuMemoryGb`. */
+  gpu_memory_gb?: unknown
   /** How the VM came up: with systemd, or plain (no systemd). Null when the machine does not say. */
   init_mode?: 'systemd' | 'plain' | null
   /** The app being installed in, or installed in, the VM. Null or left out when there is none. */
@@ -125,6 +129,8 @@ export interface Machine {
   free_disk_gb?: number | null
   gpu: Gpu[]
   capabilities?: Capabilities
+  /** The card's memory booked for VMs; null or left out unless the machine has an NVIDIA card it can share. Read it with `readGpuBooking`. */
+  gpu_booking?: unknown
   last_seen?: string | null
   bundle_version?: string | null
   problems?: Problem[]
@@ -325,8 +331,10 @@ export interface WorkloadForm {
   ramGb: FormNumber
   diskGb: FormNumber
   machine?: string
-  /** `container` when the person chose to share the machine's GPU; left out or `none` otherwise. */
+  /** `container` (the whole card, no limit) or `shared` (a limit on its memory) when the person chose the GPU; left out or `none` otherwise. */
   gpuMode?: string
+  /** The GB of GPU memory typed for a shared partition (a number or its text); undefined until the choice is made. */
+  gpuMemoryGb?: FormNumber
   /** The catalog id of the image to start from (`blank` when none is picked); sent only when it is not `blank`. */
   bundle?: string
 }

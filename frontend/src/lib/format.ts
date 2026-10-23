@@ -108,9 +108,16 @@ export function workloadProblem(form: WorkloadForm): string | null {
 
 const LABELS: Record<LimitedField, string> = { cpu: 'CPU', ramGb: 'RAM (GB)', diskGb: 'Disk (GB)' }
 
+/** The GPU keys of the order: none for No GPU; `gpu_mode` for the whole card; `gpu_mode` and `gpu_memory_gb` for a shared partition. Only a container can have them. */
+function gpuFields(form: WorkloadForm): Record<string, unknown> {
+  if (form.kind !== 'container') return {}
+  if (form.gpuMode === 'shared') return { gpu_mode: 'container', gpu_memory_gb: Number(form.gpuMemoryGb) }
+  return form.gpuMode === 'container' ? { gpu_mode: 'container' } : {}
+}
+
 export function workloadBody(form: WorkloadForm): Record<string, unknown> {
   const body = { name: form.name, kind: form.kind, cpu: Number(form.cpu), ram_mb: Math.round(Number(form.ramGb) * 1024), disk_gb: Number(form.diskGb) }
-  const withGpu = form.gpuMode === 'container' && form.kind === 'container' ? { ...body, gpu_mode: 'container' } : body
+  const withGpu = { ...body, ...gpuFields(form) }
   const bundle = imageBundle(form.bundle)
   const withImage = bundle === undefined ? withGpu : { ...withGpu, bundle }
   return form.machine ? { ...withImage, machine: form.machine } : withImage

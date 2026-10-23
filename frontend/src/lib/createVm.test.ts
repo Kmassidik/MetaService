@@ -142,6 +142,11 @@ test('picking another machine fills in its sizes and keeps what was typed', () =
   expect(pickMachine({ ...typed, size: 'custom', cpu: 9 }, machine({ id: 'plain' }))).toMatchObject({ size: 'medium', cpu: 2, machine: 'plain' })
 })
 
+test('picking another machine starts the GPU memory number over', () => {
+  const typed = { ...blankForm(undefined), gpuMode: 'shared', gpuMemoryGb: 12 }
+  expect(pickMachine(typed, machine({ id: 'm' })).gpuMemoryGb).toBeUndefined()
+})
+
 test('a containers-only machine\'s blank form starts as a container', () => {
   expect(blankForm(fleet[4])).toMatchObject({ kind: 'container', machine: 'box' })
 })

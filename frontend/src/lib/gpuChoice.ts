@@ -1,7 +1,8 @@
 // The GPU part of the new-VM form and of a machine's page: what to offer (or say) for a machine and a kind, and how a workload shows that it has the GPU. Pure functions, no DOM, no network.
+import { readGpuBooking, type GpuBooking } from './gpuBooking.ts'
 import type { Machine, Workload } from './types.ts'
 
-export type GpuMode = 'none' | 'container'
+export type GpuMode = 'none' | 'container' | 'shared'
 
 /** What the form shows about the GPU. `nothing`: no GPU on that machine (or a Mac), so there is no GPU line at all. */
 export type GpuOffer =
@@ -24,19 +25,63 @@ export interface GpuOption {
   caption: string | null
 }
 
+export const SHARED_LABEL = "Shared partition — limit this VM's GPU memory"
+export const HELPER_TOO_OLD_REASON = 'Update the helper on this machine first.'
+export const FULLY_BOOKED_REASON = "The card's memory is fully booked."
+export const CANNOT_BOOK_REASON = 'This machine cannot book GPU memory.'
+export const DEFAULT_LIMIT_GB = 4
+export const MIN_LIMIT_GB = 1
+export const SHARED_LIMIT_HINT = 'The limit stays booked for this VM even while it is stopped.'
+export const OVER_LIMIT_WARNING = 'If the VM stays over its limit for about 15 seconds it is stopped.'
+
 export const GPU_OPTIONS: readonly GpuOption[] = [
   { value: 'none', label: 'No GPU — CPU compute only', disabled: false, caption: 'No GPU is given to this VM.' },
-  { value: 'container', label: "GPU in a container — uses the machine's GPU", disabled: false, caption: "The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit." },
-  { value: 'shared', label: 'Shared partition — coming soon', disabled: true, caption: null },
+  { value: 'container', label: 'GPU in a container — the whole card, no limit', disabled: false, caption: "The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit." },
+  { value: 'shared', label: SHARED_LABEL, disabled: true, caption: "The container can use only the GPU memory you set below. That memory is booked for it on the card." },
   { value: 'passthrough', label: 'Dedicated passthrough — coming soon (needs virtualization on the machine)', disabled: true, caption: null },
-  { value: 'custom', label: 'Custom partition — coming soon', disabled: true, caption: null },
 ]
+
+/** Whether "Shared partition" can be picked on the machine: with the card's booking, or why not (null: the container line already says why). */
+export type SharedPartition = { available: true; booking: GpuBooking } | { available: false; reason: string | null }
+
+/** The most GB a new VM can still book: the whole GB of the card that is free. */
+export const freeWholeGb = (booking: GpuBooking): number => Math.floor(booking.free_gb)
+
+/** Shared partition is open exactly when GPU in a container is, the helper can limit memory, the machine reports a booking and at least 1 GB is free. */
+export function sharedPartition(machine: Machine | undefined, offer: GpuOffer): SharedPartition {
+  if (offer.show !== 'choice') return { available: false, reason: null }
+  if (machine?.capabilities?.gpu_memory_limit !== true) return { available: false, reason: HELPER_TOO_OLD_REASON }
+  const booking = readGpuBooking(machine.gpu_booking)
+  if (booking === null) return { available: false, reason: CANNOT_BOOK_REASON }
+  return freeWholeGb(booking) >= MIN_LIMIT_GB ? { available: true, booking } : { available: false, reason: FULLY_BOOKED_REASON }
+}
+
+/** What the number starts at: 4 GB, or all that is free when that is less. */
+export const defaultGpuMemory = (booking: GpuBooking): number => Math.min(DEFAULT_LIMIT_GB, freeWholeGb(booking))
+
+/** What is wrong with the number typed for a shared partition, or null (also null while the choice is not shared). */
+export function gpuMemoryProblem(mode: string | undefined, value: unknown, sharing: SharedPartition): string | null {
+  if (mode !== 'shared' || !sharing.available) return null
+  const free = freeWholeGb(sharing.booking)
+  const gb = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof gb !== 'number' || !Number.isInteger(gb) || gb < MIN_LIMIT_GB) return `GPU memory must be a whole number of GB, ${MIN_LIMIT_GB} or more.`
+  return gb > free ? `Only ${free} GB of the card's ${sharing.booking.total_gb} GB is still free to book.` : null
+}
+
+/** "N GB of the card's M GB is still free to book. The limit stays booked ..." */
+export const gpuMemoryHint = (booking: GpuBooking): string => `${freeWholeGb(booking)} GB of the card's ${booking.total_gb} GB is still free to book. ${SHARED_LIMIT_HINT}`
 
 /** The sentence under the select for the mode that is picked. */
 export const gpuCaption = (mode: string | undefined): string => GPU_OPTIONS.find((option) => option.value === (mode ?? 'none'))?.caption ?? ''
 
-/** The lines of the GPU select for this offer: "GPU in a container" can be picked only while the offer is a real choice. */
-export const gpuLines = (offer: GpuOffer): GpuOption[] => GPU_OPTIONS.map((option) => (option.value === 'container' ? { ...option, disabled: offer.show !== 'choice' } : option))
+/** The lines of the GPU select: "GPU in a container" can be picked only while the offer is a real choice, "Shared partition" only while it is available (else its reason is in brackets). */
+export function gpuLines(offer: GpuOffer, sharing: SharedPartition): GpuOption[] {
+  return GPU_OPTIONS.map((option) => {
+    if (option.value === 'container') return { ...option, disabled: offer.show !== 'choice' }
+    if (option.value !== 'shared') return option
+    return { ...option, disabled: !sharing.available, label: sharing.available || sharing.reason === null ? option.label : `${option.label} (${sharing.reason})` }
+  })
+}
 
 /** The plain sentence under the GPU select: what the picked mode means, or why the container line cannot be picked. */
 export function gpuNote(offer: GpuOffer, mode: string | undefined): string {
@@ -61,9 +106,11 @@ export function gpuOffer(machine: Machine | undefined, kind: string): GpuOffer {
   return { show: 'needs_toolkit', text: NEEDS_TOOLKIT_TEXT }
 }
 
-/** The mode to send: the GPU only when it was chosen and the offer is still a choice (a changed kind or machine drops it). */
-export function gpuModeToSend(offer: GpuOffer, chosen: string | undefined): GpuMode {
-  return offer.show === 'choice' && chosen === 'container' ? 'container' : 'none'
+/** The mode to send: the GPU only when it was chosen and the offer is still a choice (a changed kind or machine drops it); a shared partition also needs it to be available. */
+export function gpuModeToSend(offer: GpuOffer, chosen: string | undefined, sharing: SharedPartition): GpuMode {
+  if (offer.show !== 'choice') return 'none'
+  if (chosen === 'shared') return sharing.available ? 'shared' : 'none'
+  return chosen === 'container' ? 'container' : 'none'
 }
 
 /** True when a workload was given the GPU (shown as a small badge). */
