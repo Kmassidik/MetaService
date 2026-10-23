@@ -349,19 +349,6 @@ paths:
         '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    post:
-      summary: Root endpoint for the panel (operator write). Starts the install now, without waiting for the heartbeat or the minute after a failure. Answers the same shape as the read, with state installing. 409 not_running when the VM is stopped, 409 no_app when the VM has no app wanted.
-      security: []
-      parameters:
-        - { name: machine, in: path, required: true, schema: { type: string } }
-        - { $ref: '#/components/parameters/WorkloadId' }
-      responses:
-        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: 'the VM is not running (code not_running) or has no app wanted (code no_app)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/update-helper:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
     post:
