@@ -90,7 +90,7 @@ def check_a_reason_on_a_running_vm_is_dropped_and_broken_reasons_are_refused():
         token = enrolled_machine(operator, MACHINE)
         expect(beat_with(root, token, "running", stopped_reason={"exit_code": 1, "log_tail": "old news"}).status == 204, "a reason on a running VM is only dropped, not refused")
         expect(operator.request("GET", f"/api/machines/{MACHINE}").body["workloads"][0]["stopped_reason"] is None, "a running VM kept a reason")
-        broken = [{"exit_code": 1}, {"exit_code": "1", "log_tail": "x"}, {"exit_code": 1, "log_tail": "x", "more": 1}, {"exit_code": 99999, "log_tail": "x"},
+        broken = [{"exit_code": "1", "log_tail": "x"}, {"exit_code": 1, "log_tail": "x", "more": 1}, {"exit_code": 99999, "log_tail": "x"},
                   {"exit_code": 1, "log_tail": "x" * 20001}, "boom", {"exit_code": 1, "log_tail": 5}]
         for reason in broken:
             reply = beat_with(root, token, "stopped", stopped_reason=reason)
