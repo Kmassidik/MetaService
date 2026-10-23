@@ -27,6 +27,15 @@ GPU_INSIDE = {
 NOT_GIVEN = {"gpu_visible": False, "how": "none", "detail": "", "note": "No GPU was given to this one."}
 # What the machine has prepared: the stock image is always there.
 BLANK_IMAGE = {"id": "blank", "ready": True, "built_at": None}
+# The CPU models a VM can be given, as in Proxmox's Processors window: host first, the machine's own CPU, which every VM got before.
+HOST_CPU_MODEL = "host"
+CPU_MODELS = (HOST_CPU_MODEL, "EPYC", "EPYC-Rome", "EPYC-Milan", "EPYC-Genoa", "Skylake-Server", "Icelake-Server")
+# The CPU flags a VM can have switched on or off. nested-virt is svm on AMD and vmx on Intel, so only an x86 machine offers it.
+NESTED_VIRT = "nested-virt"
+CPU_FLAGS = (NESTED_VIRT, "aes")
+X86 = "x86_64"
+# Every CPU setting a helper of this build offers, as --cpu-options turns them on: MachineSpec(**CPU_OPTIONS).
+CPU_OPTIONS = {"cpu_models": CPU_MODELS, "cpu_topology": True, "cpu_flags": CPU_FLAGS, "cpu_limit": True}
 
 
 @dataclass
@@ -47,6 +56,12 @@ class MachineSpec:
     gpu_inside: str = "nvidia-smi"
     # A helper of this build can cap and watch the GPU memory of a container; it says so only when containers can use the card at all. False plays an older helper.
     gpu_memory_limit: bool = True
+    # The CPU settings a VM can be given (models, more than one socket, flags) and a hard cap on a container's CPU time. The defaults say nothing about them,
+    # as every helper did before; CPU_OPTIONS is a helper of this build. The VM settings are offered only with VMs and the cap only with containers.
+    cpu_models: tuple = ()
+    cpu_topology: bool = False
+    cpu_flags: tuple = ()
+    cpu_limit: bool = False
     images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
     serves_images: bool = True
     # A helper of this build installs apps (OpenClaw, Hermes) into a running VM and says so in GET /v1/images. False plays an older helper: no app entries, no route.
@@ -95,7 +110,7 @@ class FakeEngine:
         self.ssh_install_mode = "works"
         self.ssh_install_delay = 0.0
         self.apps = FakeApps()
-        # Every create request this helper accepted, as received, so a test can see what the parent really sent.
+        # Every create request this helper accepted, as received, so a test can see what the parent really sent. The CPU settings are only here: the workload list does not carry them.
         self.created_requests = []
         self._ids = itertools.count(1)
         self._lock = threading.Lock()
@@ -116,11 +131,28 @@ class FakeEngine:
                 "vm": spec.vm, "container": spec.container,
                 "gpu_in_vm": spec.gpu_in_vm, "gpu_in_container": spec.gpu_in_container,
                 "gpu_memory_limit": spec.gpu_in_container and spec.gpu_memory_limit,
+                **self._cpu_offer(),
             },
             "agent_version": self.agent_version,
             "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},
             **({"agent_build": self.agent_build} if self.agent_build is not None else {}),
         }
+
+    def cpu_offer(self):
+        """The CPU settings this helper offers, exactly as its facts announce them."""
+        with self._lock:
+            return self._cpu_offer()
+
+    def _cpu_offer(self):
+        """What is not offered is left out, as a helper from before these settings says nothing (the contract reads that as host only, one socket, no flags, no cap)."""
+        spec = self.spec
+        offer = {
+            "cpu_models": list(spec.cpu_models) if spec.vm else [],
+            "cpu_topology": spec.vm and spec.cpu_topology,
+            "cpu_flags": [flag for flag in spec.cpu_flags if spec.vm and (flag != NESTED_VIRT or spec.arch == X86)],
+            "cpu_limit": spec.container and spec.cpu_limit,
+        }
+        return {name: value for name, value in offer.items() if value}
 
     def _free_ram(self):
         running = sum(w["ram_mb"] for w in self._workloads.values() if w["state"] == "running")

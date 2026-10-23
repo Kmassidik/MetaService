@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from agent.fake.apps import MODES as APP_INSTALL_MODES
 from agent.fake.apps import AppInstallFailed
-from agent.fake.engine import NotFound, Refused, SshdInstallFailed
+from agent.fake.engine import HOST_CPU_MODEL, NotFound, Refused, SshdInstallFailed
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
@@ -20,6 +20,9 @@ MAX_INSTALL_DELAY_SECONDS = 10
 ID_PATTERN = r"[a-z0-9][a-z0-9-]{0,62}"
 JSON_TYPE = "application/json"
 SECRET_BODY_MESSAGE = "the body must be {\"keys\": [up to 20 key lines]}"
+# The kind each CPU setting of a create belongs to, and the cap's unit: 100 is one whole CPU.
+CPU_FIELD_KINDS = {"cpu_sockets": "vm", "cpu_type": "vm", "cpu_flags": "vm", "cpu_limit_percent": "container"}
+PERCENT_PER_CPU = 100
 
 
 # Only these refusals carry the numbers behind them (the Refusal schema); any other 409 is a plain Error.
@@ -152,6 +155,7 @@ class AgentHandler(BaseHTTPRequestHandler):
     def create_workload(self):
         body = self._body("WorkloadCreate")
         self._check_gpu_memory_limit(body)
+        self._check_cpu_options(body)
         record = self.engine.create(body)
         self._send(202, _accepted(record))
 
@@ -162,6 +166,28 @@ class AgentHandler(BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_input", "gpu_memory_gb can only be set on a container with gpu_mode container")
         if not (self.engine.spec.gpu_in_container and self.engine.spec.gpu_memory_limit):
             raise ApiError(400, "invalid_input", "this helper cannot limit GPU memory")
+
+    def _check_cpu_options(self, body):
+        """The CPU settings of Proxmox's Processors window: each only on its kind and only when this helper offers it, the sockets dividing `cpu` and the cap
+        at most `cpu` x 100. The schema has already checked each value on its own."""
+        for name, kind in CPU_FIELD_KINDS.items():
+            if name in body and body["kind"] != kind:
+                raise ApiError(400, "invalid_input", f"{name} can only be set when kind is {kind}")
+        offer, cpu = self.engine.cpu_offer(), body["cpu"]
+        if "cpu_sockets" in body and not offer.get("cpu_topology"):
+            raise ApiError(400, "invalid_input", "this helper cannot spread a VM's CPUs over sockets")
+        if "cpu_sockets" in body and cpu % body["cpu_sockets"]:
+            raise ApiError(400, "invalid_input", f"cpu ({cpu}) must be a multiple of cpu_sockets ({body['cpu_sockets']})")
+        models = offer.get("cpu_models", [HOST_CPU_MODEL])
+        if "cpu_type" in body and body["cpu_type"] not in models:
+            raise ApiError(400, "invalid_input", "cpu_type must be one of this helper's CPU models: " + ", ".join(models))
+        for flag in body.get("cpu_flags", {}):
+            if flag not in offer.get("cpu_flags", []):
+                raise ApiError(400, "invalid_input", f"this helper cannot switch the CPU flag {flag}")
+        if "cpu_limit_percent" in body and not offer.get("cpu_limit"):
+            raise ApiError(400, "invalid_input", "this helper cannot cap a container's CPU time")
+        if body.get("cpu_limit_percent", 0) > cpu * PERCENT_PER_CPU:
+            raise ApiError(400, "invalid_input", f"cpu_limit_percent can be at most cpu x {PERCENT_PER_CPU} ({cpu * PERCENT_PER_CPU} here)")
 
     def start_workload(self, id):
         self._send(202, _accepted(self.engine.set_state(self._command_id(), id, "start", "running")))
