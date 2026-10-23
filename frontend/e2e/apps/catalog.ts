@@ -17,7 +17,7 @@ export const DESKTOP = { width: 1280, height: 800 }
 const RAPID_CLICKS = 5
 const SLOW_MS = 700
 const SETTLE_MS = 1600
-const FRAMEWORK_ROWS_WITH_CATALOG = 7
+const FRAMEWORK_ROWS_WITH_CATALOG = 3
 const PLAIN_BODY = '{"name":"plain-box","kind":"vm","cpu":2,"ram_mb":4096,"disk_gb":40,"machine":"studio"}'
 
 interface LogoView {
