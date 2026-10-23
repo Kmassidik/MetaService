@@ -1,5 +1,6 @@
 // What the All VMs page shows: every VM of every machine as one row, narrowed to one machine, sorted, with a count. Pure functions, no DOM, no network.
 import { appChip, type AppChip } from './appInstall.ts'
+import { readGpuMemoryGb } from './gpuBooking.ts'
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
@@ -18,6 +19,8 @@ export interface VmRow {
   diskGb: number
   /** True when it was given the machine's GPU. */
   gpu: boolean
+  /** The GPU memory limit booked for it, in GB; null when it has none. */
+  gpuLimitGb: number | null
   /** Why it stopped, when it stopped by itself and the machine said why. */
   note: StopNote | null
   /** True when it runs without systemd. */
@@ -50,6 +53,7 @@ export function vmRows(machines: Machine[]): VmRow[] {
       ramMb: workload.ram_mb,
       diskGb: workload.disk_gb,
       gpu: hasGpu(workload),
+      gpuLimitGb: readGpuMemoryGb(workload.gpu_memory_gb),
       note: reasonNote(readStoppedReason(workload.stopped_reason)),
       plain: isPlainMode(workload),
       app: appChip(workload.app),

@@ -8,6 +8,7 @@
   import ProcessesModal from './ProcessesModal.svelte'
   import { getMachineHistory, getMachineStats } from '../../lib/api.ts'
   import { appendPoint, DEFAULT_INTERVAL_SECONDS, mergeHistory, pointFromReading, pointsFromHistory, type LivePoint } from '../../lib/liveSeries.ts'
+  import { readGpuBooking } from '../../lib/gpuBooking.ts'
   import { processesFromReply } from '../../lib/processList.ts'
   import { pollIntervalMs, reservedText } from '../../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../../lib/statsPoll.ts'
@@ -97,7 +98,7 @@
     {/snippet}
   </MonitorHeader>
   {#if historyFailed}<p class="note" role="status">{HISTORY_FAILED}</p>{/if}
-  {#if stats}<LiveCards {stats} {points} {intervalSeconds} {grey} />{/if}
+  {#if stats}<LiveCards {stats} {points} {intervalSeconds} {grey} booking={readGpuBooking(machine.gpu_booking)} />{/if}
   <p class="reserved" data-testid="reserved">{reservedText(machine.workloads)}</p>
 </section>
 

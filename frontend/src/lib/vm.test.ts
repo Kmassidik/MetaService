@@ -41,3 +41,10 @@ test('Monitoring says why there are no numbers', () => {
   expect(monitoringMessage('stopped')).toBe('● stopped — no live metrics')
   expect(monitoringMessage('running')).toBe('no live metrics reported yet')
 })
+
+test('the Overview has a GPU memory limit row only for a VM that has one' , () => {
+  const labels = (value: Parameters<typeof workload>[0]) => vmFacts(machine, workload(value), undefined).map((fact) => [fact.label, fact.value])
+  expect(labels({ gpu_memory_gb: 4 })).toContainEqual(['GPU memory limit', '4 GB (booked)'])
+  expect(labels({ gpu_memory_gb: null }).map(([label]) => label)).not.toContain('GPU memory limit')
+  expect(labels({}).map(([label]) => label)).not.toContain('GPU memory limit')
+})

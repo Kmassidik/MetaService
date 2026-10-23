@@ -3,11 +3,12 @@
   // Only what was readable is drawn; the history is in the charts above. NVIDIA also lists the programs that hold GPU memory.
   import Bar from './Bar.svelte'
   import MetricCard from './MetricCard.svelte'
+  import { bookingPercent, bookingText, type GpuBooking } from '../../lib/gpuBooking.ts'
   import { gpuFacts, MAC_NOTE, memoryText, NO_PROGRAMS_TEXT, showsMacNote, vendorLabel } from '../../lib/gpuView.ts'
   import { formatBytes, formatPercent, percentOf } from '../../lib/stats.ts'
   import type { StatsGpu } from '../../lib/types.ts'
 
-  let { gpus }: { gpus: StatsGpu[] } = $props()
+  let { gpus, booking = null }: { gpus: StatsGpu[]; booking?: GpuBooking | null } = $props()
   const memoryPercent = (gpu: StatsGpu) => (gpu.memory_used_bytes !== null && gpu.memory_total_bytes ? percentOf(gpu.memory_used_bytes, gpu.memory_total_bytes) : null)
 </script>
 
@@ -39,6 +40,12 @@
       {/if}
     </div>
   {/each}
+  {#if booking !== null}
+    <div class="booking" data-testid="gpu-booking">
+      <div class="line"><span>{bookingText(booking)}</span></div>
+      <Bar percent={bookingPercent(booking)} label="GPU memory booked for VMs" />
+    </div>
+  {/if}
   {#if showsMacNote(gpus)}<p class="note" data-testid="gpu-mac-note">{MAC_NOTE}</p>{/if}
 </MetricCard>
 
@@ -50,6 +57,7 @@
   .chip { flex: none; padding: 1px 6px; border: 1px solid var(--line); background: var(--surface-2); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m60); }
   .name, .pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .line { font-size: 11px; color: var(--m60); }
+  .booking { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
   .programs { display: grid; gap: 3px; margin-top: 4px; }
   h4 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--m50); }
   ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }

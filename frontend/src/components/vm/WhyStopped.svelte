@@ -1,8 +1,9 @@
 <script lang="ts">
   // "Why it stopped": the exit code and the last lines the VM printed, as plain text in a code box with a Copy button, or one sentence when the machine did not say why.
+  // A reason the Root names as a GPU memory over-limit stop shows its message and a hint, and the exit code and log only when present.
   // The log lines come from inside the VM, so they are only ever shown as text. `compact` folds it into a small "Why it stopped" line for table rows.
   import CopyButton from '../connect/CopyButton.svelte'
-  import { exitCodeText, stopNoteText, type StopNote, type StoppedReason } from '../../lib/stoppedReason.ts'
+  import { exitCodeText, GPU_OVER_LIMIT_CODE, GPU_OVER_LIMIT_HINT, stopNoteText, type StopNote, type StoppedReason } from '../../lib/stoppedReason.ts'
 
   let { note, compact = false }: { note: StopNote; compact?: boolean } = $props()
   const copyText = (reason: StoppedReason) => `${exitCodeText(reason.exit_code)}\n${reason.log_tail}`.trim()
@@ -14,8 +15,17 @@
   {/if}
 {/snippet}
 
+{#snippet overLimit(reason: StoppedReason)}
+  <p class="said" data-why-code={reason.code}>{reason.message}</p>
+  <p class="said hint">{GPU_OVER_LIMIT_HINT}</p>
+  {#if reason.exit_code !== null}<p class="said">{exitCodeText(reason.exit_code)}</p>{/if}
+  {@render lines(reason)}
+{/snippet}
+
 {#snippet body()}
-  {#if note.kind === 'reason'}
+  {#if note.kind === 'reason' && note.reason.code === GPU_OVER_LIMIT_CODE}
+    {@render overLimit(note.reason)}
+  {:else if note.kind === 'reason'}
     <p class="said">{exitCodeText(note.reason.exit_code)}</p>
     {@render lines(note.reason)}
   {:else}

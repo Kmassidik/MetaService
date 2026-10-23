@@ -1,5 +1,6 @@
 // What the VM page shows, worked out from a machine and one of its VMs. The page copies the MAAS detail page, so the names here follow its tabs and rows.
 import { bundleFlag, formatGb, formatMb } from './format.ts'
+import { LIMIT_ROW_LABEL, limitRowText, readGpuMemoryGb } from './gpuBooking.ts'
 import { vmServers } from './deployments.ts'
 import type { BuildingServer } from './building.ts'
 import type { Machine, Workload } from './types.ts'
@@ -40,12 +41,15 @@ export interface VmFact {
 
 /** The rows of the Overview tab (MAAS: ID, Status, Bundle, Runtime, Specs, SSH domain). The SSH domain row has no MetaService data, so Address and Machine take its place. */
 export function vmFacts(machine: Machine, workload: Workload, pinned: string | null | undefined): VmFact[] {
+  const limit = readGpuMemoryGb(workload.gpu_memory_gb)
+  const limitRow = limit === null ? [] : [{ label: LIMIT_ROW_LABEL, value: limitRowText(limit) }]
   return [
     { label: 'ID', value: workload.id },
     { label: 'Status', value: null },
     { label: 'Ruvio', value: bundleFlag(workload.bundle_version, pinned).text.replace(/^no chat$/, 'not installed') },
     { label: 'Runtime', value: workload.kind },
     { label: 'Specs', value: specsText(workload) },
+    ...limitRow,
     { label: 'Address', value: workload.address ?? '— none yet —' },
     { label: 'Machine', value: machine.name },
   ]

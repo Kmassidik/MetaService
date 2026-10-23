@@ -1,6 +1,7 @@
 <script lang="ts">
   // The VMs of every machine in one table. Each row opens the VM's own page; the machine name opens the machine's page.
   import GpuBadge from '../GpuBadge.svelte'
+  import GpuLimitChip from '../GpuLimitChip.svelte'
   import StatePill from '../StatePill.svelte'
   import VmActions from './VmActions.svelte'
   import AppChip from '../vm/AppChip.svelte'
@@ -31,6 +32,7 @@
           <td data-label="State">
             <div class="state">
               <StatePill state={vmTone(row.state)} label={row.state} />
+              {#if row.gpuLimitGb !== null}<GpuLimitChip gb={row.gpuLimitGb} />{/if}
               {#if row.app}<AppChip chip={row.app} />{/if}
               {#if row.note}<WhyStopped note={row.note} compact />{/if}
               {#if row.plain}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}

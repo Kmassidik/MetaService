@@ -13,11 +13,13 @@
   import TerminalButton from '../vms/TerminalButton.svelte'
   import VmActions from '../vms/VmActions.svelte'
   import GpuBadge from '../GpuBadge.svelte'
+  import GpuLimitChip from '../GpuLimitChip.svelte'
   import AppChip from '../vm/AppChip.svelte'
   import WhyStopped from '../vm/WhyStopped.svelte'
   import { appChip } from '../../lib/appInstall.ts'
   import { isPlainMode, PLAIN_MODE_TEXT, readStoppedReason, reasonNote } from '../../lib/stoppedReason.ts'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
+  import { readGpuMemoryGb } from '../../lib/gpuBooking.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
@@ -86,9 +88,10 @@
       {@const workload = workloadOf(server)}
       {@const note = noteOf(workload)}
       {@const chip = appChip(workload.app)}
+      {@const limit = readGpuMemoryGb(workload.gpu_memory_gb)}
       <div class="card">
         <div class="ch">
-          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if chip}<AppChip {chip} />{/if}</div>
+          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
           {#if note}<WhyStopped {note} compact />{/if}
@@ -107,10 +110,11 @@
           {@const workload = workloadOf(server)}
           {@const note = noteOf(workload)}
           {@const chip = appChip(workload.app)}
+      {@const limit = readGpuMemoryGb(workload.gpu_memory_gb)}
           <tr>
             <td class="c-name" data-label="Name"><a href={vmHref(machine.id, server.id)}>{server.display}</a><small class="vm-id mono">{server.id}</small></td>
             <td data-label="Status">
-              <span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if chip}<AppChip {chip} />{/if}
+              <span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}
               {#if note}<WhyStopped {note} compact />{/if}
               {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
             </td>

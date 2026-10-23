@@ -10,10 +10,11 @@
   import DiskPanel from './DiskPanel.svelte'
   import GpuCharts from './charts/GpuCharts.svelte'
   import GpuPanel from './GpuPanel.svelte'
+  import type { GpuBooking } from '../../lib/gpuBooking.ts'
   import type { LivePoint } from '../../lib/liveSeries.ts'
   import type { MachineStats } from '../../lib/types.ts'
 
-  let { stats, points, intervalSeconds, grey }: { stats: MachineStats; points: readonly LivePoint[]; intervalSeconds: number; grey: boolean } = $props()
+  let { stats, points, intervalSeconds, grey, booking = null }: { stats: MachineStats; points: readonly LivePoint[]; intervalSeconds: number; grey: boolean; booking?: GpuBooking | null } = $props()
   const hasGpu = $derived(stats.gpus.length > 0)
 </script>
 
@@ -29,7 +30,7 @@
   </div>
   <div class="band" class:single={!hasGpu} data-testid="band-network">
     <NetworkCard {points} {intervalSeconds} />
-    {#if hasGpu}<GpuPanel gpus={stats.gpus} />{/if}
+    {#if hasGpu}<GpuPanel gpus={stats.gpus} {booking} />{/if}
   </div>
   {#if hasGpu}<GpuCharts gpus={stats.gpus} {points} {intervalSeconds} />{/if}
   <div class="band single" data-testid="band-volumes"><DiskPanel disks={stats.disks} /></div>

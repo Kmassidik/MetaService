@@ -65,3 +65,8 @@ test('a row finds its machine and VM again, and nothing when they are gone', () 
   expect(findVm(fleet, { machineId: 'zeta', id: 'w-404' })).toBeNull()
   expect(findVm(fleet, { machineId: 'gone', id: 'w-1' })).toBeNull()
 })
+
+test('a VM with a GPU memory limit has it in its row, and one without has none', () => {
+  const rows = vmRows([machine({ id: 'g', name: 'g', workloads: [workload({ id: 'a', name: 'a', gpu_memory_gb: 4 }), workload({ id: 'b', name: 'b', gpu_memory_gb: null }), workload({ id: 'c', name: 'c', gpu_memory_gb: 'four' }), workload({ id: 'd', name: 'd' })] })])
+  expect(rows.map((row) => row.gpuLimitGb)).toEqual([4, null, null, null])
+})
