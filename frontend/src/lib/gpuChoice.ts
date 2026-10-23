@@ -12,15 +12,32 @@ export type GpuOffer =
 
 export const VM_GPU_TEXT = 'A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.'
 export const NEEDS_TOOLKIT_TEXT = 'This machine needs the NVIDIA container toolkit first'
-export const NO_GPU_LABEL = 'No GPU'
-export const SHARE_GPU_LABEL = "Share the machine's GPU"
-export const GPU_EXPLAINED = 'A container shares the machine, so it can use the same GPU as other work on it.'
 const NVIDIA = 'nvidia'
-const MAC = 'macos'
+export const MAC_OS = 'macos'
+
+/** One line of the GPU select. The "coming soon" lines are shown so the plan is visible, but are never picked and never sent. */
+export interface GpuOption {
+  value: string
+  label: string
+  disabled: boolean
+  /** The plain sentence under the select while this line is picked; null for the lines that cannot be picked. */
+  caption: string | null
+}
+
+export const GPU_OPTIONS: readonly GpuOption[] = [
+  { value: 'none', label: 'No GPU — CPU compute only', disabled: false, caption: 'No GPU is given to this VM.' },
+  { value: 'container', label: "GPU in a container — uses the machine's GPU", disabled: false, caption: "The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit." },
+  { value: 'shared', label: 'Shared partition — coming soon', disabled: true, caption: null },
+  { value: 'passthrough', label: 'Dedicated passthrough — coming soon (needs virtualization on the machine)', disabled: true, caption: null },
+  { value: 'custom', label: 'Custom partition — coming soon', disabled: true, caption: null },
+]
+
+/** The sentence under the select for the mode that is picked. */
+export const gpuCaption = (mode: string | undefined): string => GPU_OPTIONS.find((option) => option.value === (mode ?? 'none'))?.caption ?? ''
 
 /** The NVIDIA card a Linux machine reports, or null. Macs never count: Apple's container tool gives no GPU to containers as far as we know. */
 export function nvidiaCard(machine: Machine | undefined): string | null {
-  if (!machine || machine.os === MAC) return null
+  if (!machine || machine.os === MAC_OS) return null
   return machine.gpu.find((card) => card.vendor === NVIDIA)?.model ?? null
 }
 

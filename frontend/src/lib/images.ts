@@ -6,6 +6,9 @@ export const STOCK_IMAGE = 'blank'
 const STOCK_TITLE = 'Blank (plain Ubuntu)'
 const STOCK_DESCRIPTION = 'Ubuntu 24.04 with the usual server tools. Nothing else.'
 const NOT_YET = 'not available yet'
+const TAG_DEFAULT = 'Default'
+const TAG_COMING_SOON = 'Coming soon'
+const TAG_WAITING = 'Waiting'
 
 export type ImageState = 'ready' | 'planned'
 export type ImageHelper = 'answered' | 'old_helper' | 'unreachable'
@@ -36,6 +39,8 @@ export interface ImageOption {
   id: string
   title: string
   disabled: boolean
+  /** True while the image is only planned (not built yet), as opposed to waiting to be prepared on this machine. */
+  planned: boolean
   /** What the image is, shown under its card while it can be picked. */
   description: string
   reason: string | null
@@ -86,12 +91,13 @@ export function parseMachineImages(raw: unknown): MachineImages {
   return { helper: oneOf(HELPERS, raw.helper, 'helper'), images }
 }
 
-const STOCK_OPTION: ImageOption = { id: STOCK_IMAGE, title: STOCK_TITLE, disabled: false, description: STOCK_DESCRIPTION, reason: null }
+const STOCK_OPTION: ImageOption = { id: STOCK_IMAGE, title: STOCK_TITLE, disabled: false, planned: false, description: STOCK_DESCRIPTION, reason: null }
 
 const option = (entry: MachineImage): ImageOption => ({
   id: entry.id,
   title: entry.title,
   disabled: !entry.available,
+  planned: entry.state === 'planned',
   description: entry.description,
   reason: entry.reason,
 })
@@ -99,17 +105,26 @@ const option = (entry: MachineImage): ImageOption => ({
 /** What the cards list. Before the answer arrives, or when it cannot be read, only Blank (it works on every machine). */
 export const imageOptions = (answer: MachineImages | null): ImageOption[] => (answer === null ? [STOCK_OPTION] : answer.images.map(option))
 
-/** One Image card: the name, one short line under it (the reason when the image cannot be picked, else what it is). */
+/** One row of the Image dropdown: the name, one short line under it (the reason when the image cannot be picked, else what it is), and a small tag. */
 export interface ImageCard {
   id: string
   title: string
   caption: string
   disabled: boolean
+  /** The small chip on the right: Default for Blank, Coming soon or Waiting for an image that cannot be picked; null otherwise. */
+  tag: string | null
+  /** The address of the image's logo, once there is one; the badge shows the first letter without it. */
+  logo?: string
 }
 
-/** The cards of the Image row, in the catalog's order. */
+function imageTag(entry: ImageOption): string | null {
+  if (entry.disabled) return entry.planned ? TAG_COMING_SOON : TAG_WAITING
+  return entry.id === STOCK_IMAGE ? TAG_DEFAULT : null
+}
+
+/** The rows of the Image dropdown, in the catalog's order. */
 export const imageCards = (options: ImageOption[]): ImageCard[] =>
-  options.map((entry) => ({ id: entry.id, title: entry.title, caption: entry.disabled ? (entry.reason ?? NOT_YET) : entry.description, disabled: entry.disabled }))
+  options.map((entry) => ({ id: entry.id, title: entry.title, caption: entry.disabled ? (entry.reason ?? NOT_YET) : entry.description, disabled: entry.disabled, tag: imageTag(entry) }))
 
 /** The image to keep after the list changed (another machine, a new answer): the current one when it can still be picked, else Blank. */
 export function imageAfterChange(options: ImageOption[], current: string): string {

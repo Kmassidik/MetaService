@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { blankForm, kindAfterPick, machineChoices, machineDefaults, machineOptions, pickMachine, preselectedMachine, runtimeCards, startingMachine, unavailableNotes } from './createVm.ts'
+import { blankForm, kindAfterPick, machineChoices, machineDefaults, machineOptions, pickMachine, preselectedMachine, runtimeCards, startingMachine, unavailableNotes, unavailableSummary } from './createVm.ts'
 import { machine } from './testing.ts'
 
 const caps = (vm: boolean, container: boolean) => ({ vm, container, gpu_in_vm: false, gpu_in_container: false })
@@ -20,8 +20,24 @@ test('every machine is listed, sorted by name', () => {
   expect(machineChoices(fleet).map((entry) => entry.id)).toEqual(['box', 'new', 'none', 'off', 'sick', 'working', 'zed'])
 })
 
-test('a ready machine is pickable and its label is its name', () => {
-  expect(choice('zed')).toMatchObject({ label: 'zed', disabled: false, reason: null })
+test('a ready machine is pickable and its label says what it runs', () => {
+  expect(choice('zed')).toMatchObject({ label: 'zed (VMs and containers)', disabled: false, reason: null })
+})
+
+test('the label ends with the free disk when the machine reported it, and a GPU node says so', () => {
+  const card = { vendor: 'nvidia', model: 'NVIDIA GeForce RTX 5090' }
+  const labels = machineChoices([
+    machine({ id: 'a', name: 'a', os: 'linux', free_disk_gb: 420.4, capabilities: caps(true, true) }),
+    machine({ id: 'b', name: 'b', os: 'linux', free_disk_gb: 55, capabilities: caps(false, true), gpu: [card] }),
+    machine({ id: 'c', name: 'c', state: 'offline', free_disk_gb: 10 }),
+    machine({ id: 'd', name: 'd', free_disk_gb: null }),
+  ]).map((entry) => entry.label)
+  expect(labels).toEqual(['a (VMs and containers) — 420GB free', 'b (containers only, gpu node) — 55GB free', 'c (offline) — 10GB free', 'd'])
+})
+
+test('the collapsed line counts the machines that cannot take a VM', () => {
+  expect(unavailableSummary(3)).toBe("3 machines can't take a VM")
+  expect(unavailableSummary(1)).toBe("1 machine can't take a VM")
 })
 
 test('an offline machine is disabled and says offline', () => {
@@ -59,7 +75,7 @@ test('the runtime cards grey out the one the picked machine cannot run, with the
   expect(only[1]?.reason).toBe('This machine runs containers only')
   const both = runtimeCards(choice('zed'))
   expect(both.map((card) => card.label)).toEqual(['Container', 'VM'])
-  expect(both.map((card) => card.caption)).toEqual(['fast stop & wake', 'full VM · classic'])
+  expect(both.map((card) => card.caption)).toEqual(['fast stop & wake', 'full VM, classic'])
   expect(both.every((card) => !card.disabled && card.reason === null)).toBe(true)
   expect(runtimeCards(undefined).every((card) => !card.disabled)).toBe(true)
 })

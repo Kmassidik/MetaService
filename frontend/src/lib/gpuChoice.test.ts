@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { gpuModeToSend, gpuOffer, hasGpu, needsToolkit, nvidiaCard, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT } from './gpuChoice.ts'
+import { GPU_OPTIONS, gpuCaption, gpuModeToSend, gpuOffer, hasGpu, needsToolkit, nvidiaCard, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT } from './gpuChoice.ts'
 import { machine, workload } from './testing.ts'
 
 const card = { vendor: 'nvidia', model: 'NVIDIA GeForce RTX 5090' }
@@ -54,4 +54,26 @@ test('the machine page note appears only for a card the containers cannot use ye
   const note = toolkitNote(noToolkit)
   expect(note?.title).toContain('RTX 5090')
   expect(note?.fix).toContain('apt-get install -y nvidia-container-toolkit')
+})
+
+test('the GPU select lists the real mode and three planned ones that can never be picked', () => {
+  expect(GPU_OPTIONS.map((option) => `${option.value}:${option.disabled ? 'off' : 'on'}`)).toEqual(['none:on', 'container:on', 'shared:off', 'passthrough:off', 'custom:off'])
+  expect(GPU_OPTIONS.map((option) => option.label)).toEqual([
+    'No GPU — CPU compute only',
+    "GPU in a container — uses the machine's GPU",
+    'Shared partition — coming soon',
+    'Dedicated passthrough — coming soon (needs virtualization on the machine)',
+    'Custom partition — coming soon',
+  ])
+})
+
+test('the line under the GPU select explains the mode that is picked', () => {
+  expect(gpuCaption(undefined)).toBe('No GPU is given to this VM.')
+  expect(gpuCaption('container')).toBe("The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit.")
+  expect(gpuCaption('shared')).toBe('')
+})
+
+test('a planned mode is never sent, even if it reached the form', () => {
+  const offer = gpuOffer(rtx, 'container')
+  expect(['shared', 'passthrough', 'custom'].map((mode) => gpuModeToSend(offer, mode))).toEqual(['none', 'none', 'none'])
 })

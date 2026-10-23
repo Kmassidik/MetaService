@@ -1,4 +1,5 @@
 // What the Create VM window needs to know about the machines: which can take a new VM right now and why not, which kinds each can run, and the form's starting values. Pure functions, no DOM, no network.
+import { nvidiaCard } from './gpuChoice.ts'
 import { STOCK_IMAGE } from './images.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import type { Machine, WorkloadForm, WorkloadKind } from './types.ts'
@@ -10,7 +11,7 @@ export type NewVmForm = WorkloadForm & { machine: string; size: SizeKey }
 export interface MachineChoice {
   id: string
   name: string
-  /** What the dropdown shows: the name, and the reason in brackets when there is one. */
+  /** What the dropdown shows: the name, what it can run (or why it cannot take a VM) in brackets, and its free disk. */
   label: string
   /** True when no new VM can be made on this machine right now. */
   disabled: boolean
@@ -39,6 +40,8 @@ const REASON_CONTAINERS_ONLY = 'containers only'
 const REASON_NOTHING = 'cannot run VMs or containers'
 const REASON_NO_VM = 'This machine runs containers only'
 const REASON_NO_CONTAINER = 'This machine cannot run containers'
+const NOTE_BOTH_KINDS = 'VMs and containers'
+const NOTE_GPU_NODE = 'gpu node'
 const MB_PER_GB = 1024
 
 /** The reason this machine cannot take a new VM now, or null. */
@@ -49,6 +52,24 @@ function blockingReason(machine: Machine, vm: boolean, container: boolean): stri
   return vm || container ? null : REASON_NOTHING
 }
 
+/** What is true of a machine and worth a word in the list: the kinds it runs (only when it said so) and a GPU. */
+function kindNotes(machine: Machine, vm: boolean, container: boolean): string[] {
+  const kinds = machine.capabilities?.vm === true && machine.capabilities.container === true ? [NOTE_BOTH_KINDS] : []
+  const only = container && !vm ? [REASON_CONTAINERS_ONLY] : []
+  const gpu = nvidiaCard(machine) === null ? [] : [NOTE_GPU_NODE]
+  return [...only, ...kinds, ...gpu]
+}
+
+/** "zeus (VMs and containers, gpu node) — 420GB free": the name, the bracket, and the free disk when the machine reported it. */
+function machineLabel(machine: Machine, blocking: string | null, vm: boolean, container: boolean): string {
+  const notes = blocking === null ? kindNotes(machine, vm, container) : [blocking]
+  const free = typeof machine.free_disk_gb === 'number' ? ` — ${Math.round(machine.free_disk_gb)}GB free` : ''
+  return `${machine.name}${notes.length > 0 ? ` (${notes.join(', ')})` : ''}${free}`
+}
+
+/** The one line that stands for the notes under the host select: "3 machines can't take a VM". */
+export const unavailableSummary = (count: number): string => `${count} ${count === 1 ? 'machine' : 'machines'} can't take a VM`
+
 export function machineChoice(machine: Machine): MachineChoice {
   // A machine that has not reported what it can run is not guessed about: the parent refuses what does not fit.
   const vm = machine.capabilities?.vm ?? true
@@ -58,7 +79,7 @@ export function machineChoice(machine: Machine): MachineChoice {
   return {
     id: machine.id,
     name: machine.name,
-    label: reason ? `${machine.name} (${reason})` : machine.name,
+    label: machineLabel(machine, blocking, vm, container),
     disabled: blocking !== null,
     reason,
     detail: machine.problems?.[0]?.message ?? null,
@@ -81,7 +102,7 @@ export function runtimeCards(choice: MachineChoice | undefined): RuntimeCard[] {
   const containerAllowed = choice?.container ?? true
   return [
     { kind: 'container', label: 'Container', caption: 'fast stop & wake', disabled: !containerAllowed, reason: containerAllowed ? null : REASON_NO_CONTAINER },
-    { kind: 'vm', label: 'VM', caption: 'full VM · classic', disabled: !vmAllowed, reason: vmAllowed ? null : REASON_NO_VM },
+    { kind: 'vm', label: 'VM', caption: 'full VM, classic', disabled: !vmAllowed, reason: vmAllowed ? null : REASON_NO_VM },
   ]
 }
 
