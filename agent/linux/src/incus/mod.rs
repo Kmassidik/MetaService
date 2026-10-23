@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub use list::{launch_arguments, parse_list};
+pub use list::{gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments};
 pub use runner::{ProcessRunner, Runner};
 
 const PREFIX: &str = "ms-";
@@ -92,6 +92,22 @@ impl IncusEngine {
         Err(EngineError::Failed(format!("the machine did not reach {want:?} in time")))
     }
 
+    /// Runs the create calls in order. A GPU container cannot be launched in one call (Incus refuses to add a device that no profile has),
+    /// so it is initialised, given its GPU, then started.
+    fn start_new_instance(&self, id: &str, request: &CreateRequest, image: &str) -> Result<(), EngineError> {
+        if !list::needs_gpu_device_steps(request) {
+            return self.runner.run(&launch_arguments(id, request, image), SLOW).map(|_| ());
+        }
+        self.runner.run(&init_arguments(id, request, image), SLOW)?;
+        self.runner.run(&gpu_device_arguments(id), QUICK)?;
+        self.runner.run(&start_arguments(id), SLOW).map(|_| ())
+    }
+
+    /// Removes an instance whose create did not finish, so no stopped ghost stays behind. Its own failure is not worth hiding the original one.
+    fn discard_half_made(&self, id: &str) {
+        let _ = self.runner.run(&args(&["delete", &name_of(id), "--force"]), QUICK);
+    }
+
     fn require(&self, id: &str) -> Result<Workload, EngineError> {
         self.find(id)?.ok_or(EngineError::NotFound)
     }
@@ -120,11 +136,11 @@ impl Engine for IncusEngine {
 
     fn create(&self, id: &str, request: &CreateRequest) -> Result<Workload, EngineError> {
         let image = request.image.clone().unwrap_or_else(|| self.default_image.clone());
-        if let Err(error) = self.runner.run(&launch_arguments(id, request, &image), SLOW) {
-            let _ = self.runner.run(&args(&["delete", &name_of(id), "--force"]), QUICK);
+        if let Err(error) = self.start_new_instance(id, request, &image) {
+            self.discard_half_made(id);
             return Err(error);
         }
-        self.wait_for(id, State::Running).inspect_err(|_| { let _ = self.runner.run(&args(&["delete", &name_of(id), "--force"]), QUICK); })
+        self.wait_for(id, State::Running).inspect_err(|_| self.discard_half_made(id))
     }
 
     fn set_running(&self, id: &str, running: bool) -> Result<(), EngineError> {

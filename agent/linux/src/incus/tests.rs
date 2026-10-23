@@ -17,8 +17,7 @@ fn launch_arguments_are_one_fixed_shape() {
     }
     let container = launch_arguments("w-abc", &request(Kind::Container, GpuMode::None), "images:ubuntu/24.04");
     assert!(!container.contains(&"--vm".to_string()) && !container.iter().any(|a| a.contains("nvidia")));
-    let gpu = launch_arguments("w-abc", &request(Kind::Container, GpuMode::Container), "x");
-    assert!(gpu.contains(&"nvidia.runtime=true".to_string()) && gpu.contains(&"gpu0,type=gpu".to_string()));
+    let gpu = init_arguments("w-abc", &request(Kind::Container, GpuMode::Container), "x");
     for flag in ["--privileged", "security.privileged", "raw.lxc", "--target", "-p"] {
         assert!(!vm.iter().chain(&gpu).any(|a| a.contains(flag)), "{flag}");
     }
@@ -167,4 +166,99 @@ fn installing_the_toolkit_later_is_noticed_without_a_restart() {
     assert!(!engine.capabilities().gpu_in_container);
     write_program(&folder, "nvidia-ctk", 0);
     assert!(engine.capabilities().gpu_in_container);
+}
+
+const IMAGE: &str = "images:ubuntu/24.04";
+const SETTINGS: [&str; 9] = [
+    "limits.cpu=4", "limits.memory=8192MiB", "user.metaservice.id=w-abc", "user.metaservice.name=demo", "user.metaservice.kind=container",
+    "user.metaservice.cpu=4", "user.metaservice.ram_mb=8192", "user.metaservice.disk_gb=50", "user.metaservice.gpu_mode=none",
+];
+
+fn expected_creation(verb: &str, vm: bool, settings: &[&str], extra: &[&str]) -> Vec<String> {
+    let mut list = args(&[verb, IMAGE, "ms-w-abc"]);
+    if vm { list.push("--vm".into()); }
+    for setting in settings { list.extend(args(&["-c", setting])); }
+    list.extend(args(&["-d", "root,size=50GiB"]));
+    list.extend(args(extra));
+    list
+}
+
+#[test]
+fn a_container_without_gpu_and_a_vm_keep_their_exact_launch_arguments() {
+    let container = launch_arguments("w-abc", &request(Kind::Container, GpuMode::None), IMAGE);
+    assert_eq!(container, expected_creation("launch", false, &SETTINGS, &[]));
+    let mut vm_settings = SETTINGS;
+    (vm_settings[4], vm_settings[8]) = ("user.metaservice.kind=vm", "user.metaservice.gpu_mode=none");
+    assert_eq!(launch_arguments("w-abc", &request(Kind::Vm, GpuMode::None), IMAGE), expected_creation("launch", true, &vm_settings, &[]));
+    let mut passthrough = vm_settings;
+    passthrough[8] = "user.metaservice.gpu_mode=passthrough";
+    assert_eq!(launch_arguments("w-abc", &request(Kind::Vm, GpuMode::Passthrough), IMAGE), expected_creation("launch", true, &passthrough, &[]));
+}
+
+#[test]
+fn the_gpu_container_steps_are_init_device_add_start() {
+    let init = init_arguments("w-abc", &request(Kind::Container, GpuMode::Container), IMAGE);
+    let mut settings = SETTINGS;
+    settings[8] = "user.metaservice.gpu_mode=container";
+    assert_eq!(init, expected_creation("init", false, &settings, &["-c", "nvidia.runtime=true"]));
+    assert_eq!(gpu_device_arguments("w-abc"), args(&["config", "device", "add", "ms-w-abc", "gpu0", "gpu"]));
+    assert_eq!(start_arguments("w-abc"), args(&["start", "ms-w-abc"]));
+}
+
+/// Answers every call, except that the call starting with the given words fails.
+struct FailingAt {
+    calls: Mutex<Vec<Vec<String>>>,
+    failing: Vec<String>,
+}
+
+const RUNNING_WITH_ADDRESS: &str = r#"[{"name":"ms-w-abc","status":"Running","config":{"user.metaservice.id":"w-abc","user.metaservice.name":"demo","user.metaservice.kind":"container","user.metaservice.cpu":"4","user.metaservice.ram_mb":"8192","user.metaservice.disk_gb":"50"},"state":{"network":{"eth0":{"addresses":[{"family":"inet","address":"10.0.0.2","scope":"global"}]}}}}]"#;
+
+impl Runner for FailingAt {
+    fn run_with_input(&self, arguments: &[String], _input: &[u8], timeout: Duration) -> Result<String, EngineError> {
+        self.run(arguments, timeout)
+    }
+
+    fn run(&self, arguments: &[String], _timeout: Duration) -> Result<String, EngineError> {
+        self.calls.lock().unwrap().push(arguments.to_vec());
+        if !self.failing.is_empty() && arguments.starts_with(&self.failing) { return Err(EngineError::Failed(format!("{} failed", self.failing.join(" ")))); }
+        Ok(if arguments[0] == "list" { RUNNING_WITH_ADDRESS.into() } else { String::new() })
+    }
+}
+
+/// An engine over a runner that fails the call starting with `failing` (nothing fails when it is empty).
+fn creating_engine(failing: &[&str]) -> (IncusEngine, Arc<FailingAt>) {
+    let runner = Arc::new(FailingAt { calls: Mutex::new(Vec::new()), failing: args(failing) });
+    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+    (IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), IMAGE.into(), 1), runner)
+}
+
+#[test]
+fn gpu_container_never_adds_its_device_through_launch() {
+    let (engine, runner) = creating_engine(&[]);
+    engine.create("w-abc", &request(Kind::Container, GpuMode::Container)).unwrap();
+    let calls = runner.calls.lock().unwrap();
+    assert!(!calls.iter().any(|call| call[0] == "launch" || call.contains(&"gpu0,type=gpu".to_string())), "{calls:?}");
+}
+
+#[test]
+fn a_gpu_container_is_created_in_order_init_device_add_start() {
+    let (engine, runner) = creating_engine(&[]);
+    engine.create("w-abc", &request(Kind::Container, GpuMode::Container)).unwrap();
+    let calls = runner.calls.lock().unwrap();
+    let verbs: Vec<&str> = calls.iter().map(|call| call[0].as_str()).take(3).collect();
+    assert_eq!(verbs, ["init", "config", "start"]);
+    assert_eq!(calls[1], gpu_device_arguments("w-abc"));
+}
+
+
+#[test]
+fn a_failed_gpu_container_step_deletes_the_half_made_instance_and_returns_its_error() {
+    for failing in [vec!["init"], vec!["config", "device", "add"], vec!["start"]] {
+        let (engine, runner) = creating_engine(&failing);
+        let failing = args(&failing);
+        let error = engine.create("w-abc", &request(Kind::Container, GpuMode::Container)).unwrap_err();
+        assert_eq!(error, EngineError::Failed(format!("{} failed", failing.join(" "))));
+        let calls = runner.calls.lock().unwrap();
+        assert_eq!(calls.last().unwrap(), &args(&["delete", "ms-w-abc", "--force"]), "{failing:?}");
+    }
 }

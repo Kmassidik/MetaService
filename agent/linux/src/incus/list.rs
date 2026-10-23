@@ -4,9 +4,40 @@ use crate::models::{GpuMode, Kind, State, Workload};
 use crate::validate::CreateRequest;
 use serde_json::Value;
 
+/// The container runtime flag a GPU container needs at create time.
+const NVIDIA_RUNTIME_SETTING: &str = "nvidia.runtime=true";
+/// The device name and type the GPU is added under, after the container exists.
+const GPU_DEVICE_NAME: &str = "gpu0";
+const GPU_DEVICE_TYPE: &str = "gpu";
+
+/// True when the container gets its GPU through `init` + `device add` + `start` (a launch cannot add a device that no profile has).
+pub fn needs_gpu_device_steps(request: &CreateRequest) -> bool {
+    request.kind == Kind::Container && request.gpu_mode == GpuMode::Container
+}
+
 /// The arguments of one `incus launch`. All values are numbers or checked words.
 pub fn launch_arguments(id: &str, request: &CreateRequest, image: &str) -> Vec<String> {
-    let mut list = vec!["launch".to_string(), image.to_string(), name_of(id)];
+    creation_arguments("launch", id, request, image)
+}
+
+/// The arguments of `incus init`: the same instance as a launch, left stopped. A GPU container also gets the NVIDIA runtime here.
+pub fn init_arguments(id: &str, request: &CreateRequest, image: &str) -> Vec<String> {
+    let mut list = creation_arguments("init", id, request, image);
+    if request.gpu_mode == GpuMode::Container { list.extend(args(&["-c", NVIDIA_RUNTIME_SETTING])); }
+    list
+}
+
+/// The arguments that add the GPU to an existing container.
+pub fn gpu_device_arguments(id: &str) -> Vec<String> {
+    vec!["config".into(), "device".into(), "add".into(), name_of(id), GPU_DEVICE_NAME.into(), GPU_DEVICE_TYPE.into()]
+}
+
+pub fn start_arguments(id: &str) -> Vec<String> {
+    vec!["start".into(), name_of(id)]
+}
+
+fn creation_arguments(verb: &str, id: &str, request: &CreateRequest, image: &str) -> Vec<String> {
+    let mut list = vec![verb.to_string(), image.to_string(), name_of(id)];
     if request.kind == Kind::Vm { list.push("--vm".into()); }
     let settings = [
         format!("limits.cpu={}", request.cpu), format!("limits.memory={}MiB", request.ram_mb), format!("user.metaservice.id={id}"), format!("user.metaservice.name={}", request.name),
@@ -20,9 +51,6 @@ pub fn launch_arguments(id: &str, request: &CreateRequest, image: &str) -> Vec<S
     }
     list.push("-d".into());
     list.push(format!("root,size={}GiB", request.disk_gb));
-    if request.gpu_mode == GpuMode::Container {
-        list.extend(args(&["-c", "nvidia.runtime=true", "-d", "gpu0,type=gpu"]));
-    }
     list
 }
 
