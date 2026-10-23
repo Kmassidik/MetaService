@@ -27,7 +27,10 @@ export interface MachineChoice {
 export interface RuntimeCard {
   kind: WorkloadKind
   label: string
-  caption: string
+  /** What the kind is, in a sentence or two. */
+  description: string
+  /** The small chip on the row; null when there is nothing to say. */
+  tag: string | null
   disabled: boolean
   /** Why the card is greyed out; null when it can be picked. */
   reason: string | null
@@ -43,6 +46,9 @@ const REASON_NO_CONTAINER = 'This machine cannot run containers'
 const NOTE_BOTH_KINDS = 'VMs and containers'
 const NOTE_GPU_NODE = 'gpu node'
 const MB_PER_GB = 1024
+export const CONTAINER_DESCRIPTION = "Fast stop and wake. Shares the machine's core, so it starts in seconds and uses little memory. Best for agents and apps."
+export const VM_DESCRIPTION = 'A full computer with its own core: a stronger wall, slower start, more memory. Needs virtualization on the machine.'
+const TAG_RECOMMENDED = 'Recommended'
 
 /** The reason this machine cannot take a new VM now, or null. */
 function blockingReason(machine: Machine, vm: boolean, container: boolean): string | null {
@@ -101,8 +107,8 @@ export function runtimeCards(choice: MachineChoice | undefined): RuntimeCard[] {
   const vmAllowed = choice?.vm ?? true
   const containerAllowed = choice?.container ?? true
   return [
-    { kind: 'container', label: 'Container', caption: 'fast stop & wake', disabled: !containerAllowed, reason: containerAllowed ? null : REASON_NO_CONTAINER },
-    { kind: 'vm', label: 'VM', caption: 'full VM, classic', disabled: !vmAllowed, reason: vmAllowed ? null : REASON_NO_VM },
+    { kind: 'container', label: 'Container', description: CONTAINER_DESCRIPTION, tag: TAG_RECOMMENDED, disabled: !containerAllowed, reason: containerAllowed ? null : REASON_NO_CONTAINER },
+    { kind: 'vm', label: 'VM', description: VM_DESCRIPTION, tag: null, disabled: !vmAllowed, reason: vmAllowed ? null : REASON_NO_VM },
   ]
 }
 

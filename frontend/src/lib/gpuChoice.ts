@@ -10,7 +10,7 @@ export type GpuOffer =
   | { show: 'vm_text'; text: string }
   | { show: 'needs_toolkit'; text: string }
 
-export const VM_GPU_TEXT = 'A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.'
+export const VM_GPU_TEXT = "GPU in a VM is coming soon. It needs the machine's virtualization (SVM) switched on in its BIOS and the card passed through to one VM. Choose Container to use the GPU today."
 export const NEEDS_TOOLKIT_TEXT = 'This machine needs the NVIDIA container toolkit first'
 const NVIDIA = 'nvidia'
 export const MAC_OS = 'macos'
@@ -34,6 +34,15 @@ export const GPU_OPTIONS: readonly GpuOption[] = [
 
 /** The sentence under the select for the mode that is picked. */
 export const gpuCaption = (mode: string | undefined): string => GPU_OPTIONS.find((option) => option.value === (mode ?? 'none'))?.caption ?? ''
+
+/** The lines of the GPU select for this offer: "GPU in a container" can be picked only while the offer is a real choice. */
+export const gpuLines = (offer: GpuOffer): GpuOption[] => GPU_OPTIONS.map((option) => (option.value === 'container' ? { ...option, disabled: offer.show !== 'choice' } : option))
+
+/** The plain sentence under the GPU select: what the picked mode means, or why the container line cannot be picked. */
+export function gpuNote(offer: GpuOffer, mode: string | undefined): string {
+  if (offer.show === 'choice') return gpuCaption(mode)
+  return offer.show === 'nothing' ? '' : offer.text
+}
 
 /** The NVIDIA card a Linux machine reports, or null. Macs never count: Apple's container tool gives no GPU to containers as far as we know. */
 export function nvidiaCard(machine: Machine | undefined): string | null {

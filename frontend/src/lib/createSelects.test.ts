@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { badgeFace, runtimeCaption, runtimeOptions, sizeOptions } from './createSelects.ts'
-import { machineChoices, runtimeCards } from './createVm.ts'
+import { badgeFace, runtimeCaption, runtimeRows, sizeOptions } from './createSelects.ts'
+import { CONTAINER_DESCRIPTION as CONTAINER_TEXT, VM_DESCRIPTION, machineChoices, runtimeCards } from './createVm.ts'
 import { sizeCards } from './vmSize.ts'
 import { machine } from './testing.ts'
 
@@ -23,21 +23,27 @@ test('a size the machine cannot hold is disabled with the reason in brackets', (
   expect(lines[3]?.disabled).toBe(false)
 })
 
-test('the runtime select names both kinds, and the one the machine cannot run says why in brackets', () => {
+test('the runtime dropdown describes both kinds, Container recommended', () => {
   const both = machineChoices([machine({ id: 'a', name: 'a', capabilities: caps(true, true) })])[0]
-  expect(runtimeOptions(runtimeCards(both)).map((line) => line.label)).toEqual(['Container — fast stop & wake', 'VM — full VM, classic'])
+  const rows = runtimeRows(runtimeCards(both))
+  expect(rows.map((row) => [row.id, row.title, row.tag, row.disabled, row.glyph])).toEqual([['container', 'Container', 'Recommended', false, 'container'], ['vm', 'VM', null, false, 'vm']])
+  expect(rows[0]?.caption).toBe("Fast stop and wake. Shares the machine's core, so it starts in seconds and uses little memory. Best for agents and apps.")
+  expect(rows[1]?.caption).toBe('A full computer with its own core: a stronger wall, slower start, more memory. Needs virtualization on the machine.')
+})
+
+test('the kind the machine cannot run is greyed out and gives its reason as the caption', () => {
   const only = machineChoices([machine({ id: 'b', name: 'b', capabilities: caps(false, true) })])[0]
-  expect(runtimeOptions(runtimeCards(only))[1]).toEqual({ value: 'vm', label: 'VM — full VM, classic (this machine runs containers only)', disabled: true })
+  expect(runtimeRows(runtimeCards(only))[1]).toEqual({ id: 'vm', title: 'VM', caption: 'This machine runs containers only', disabled: true, tag: null, glyph: 'vm' })
 })
 
 test("the line under the runtime select follows the choice, and a Mac adds that both run in Apple's small VM", () => {
-  expect(runtimeCaption('container', 'linux')).toBe("Shares the machine's core: starts in seconds, uses little memory.")
-  expect(runtimeCaption('vm', 'linux')).toBe('A whole separate computer with its own core: stronger wall, slower start.')
-  expect(runtimeCaption('container', 'macos')).toBe("Shares the machine's core: starts in seconds, uses little memory. On a Mac both run inside Apple's own small VM.")
+  expect(runtimeCaption('container', 'linux')).toBe(CONTAINER_TEXT)
+  expect(runtimeCaption('vm', 'linux')).toBe(VM_DESCRIPTION)
+  expect(runtimeCaption('container', 'macos')).toBe(`${CONTAINER_TEXT} On a Mac both run inside Apple's own small VM.`)
 })
 
 test('an image square shows its logo when it has one, else the first letter', () => {
   expect(badgeFace('openclaw', '/logos/openclaw.svg')).toEqual({ kind: 'logo', src: '/logos/openclaw.svg' })
   expect(badgeFace('openclaw', undefined)).toEqual({ kind: 'letter', text: 'O' })
-  expect(badgeFace('Blank (plain Ubuntu)', undefined)).toEqual({ kind: 'letter', text: 'B' })
+  expect(badgeFace('Alpha', undefined)).toEqual({ kind: 'letter', text: 'A' })
 })

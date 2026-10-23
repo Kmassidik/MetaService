@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { GPU_OPTIONS, gpuCaption, gpuModeToSend, gpuOffer, hasGpu, needsToolkit, nvidiaCard, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT } from './gpuChoice.ts'
+import { GPU_OPTIONS, gpuCaption, gpuLines, gpuModeToSend, gpuNote, gpuOffer, hasGpu, needsToolkit, nvidiaCard, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT } from './gpuChoice.ts'
 import { machine, workload } from './testing.ts'
 
 const card = { vendor: 'nvidia', model: 'NVIDIA GeForce RTX 5090' }
@@ -12,9 +12,9 @@ test('a machine with a card and the toolkit offers the choice for a container', 
   expect(gpuOffer(rtx, 'container')).toEqual({ show: 'choice', card: 'NVIDIA GeForce RTX 5090' })
 })
 
-test('for a VM there is only the plain text, never a control', () => {
+test('for a VM the offer is the plain text, and the container line cannot be picked', () => {
   expect(gpuOffer(rtx, 'vm')).toEqual({ show: 'vm_text', text: VM_GPU_TEXT })
-  expect(VM_GPU_TEXT).toBe('A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.')
+  expect(VM_GPU_TEXT).toBe("GPU in a VM is coming soon. It needs the machine's virtualization (SVM) switched on in its BIOS and the card passed through to one VM. Choose Container to use the GPU today.")
 })
 
 test('a card without the toolkit says the machine needs it first', () => {
@@ -76,4 +76,19 @@ test('the line under the GPU select explains the mode that is picked', () => {
 test('a planned mode is never sent, even if it reached the form', () => {
   const offer = gpuOffer(rtx, 'container')
   expect(['shared', 'passthrough', 'custom'].map((mode) => gpuModeToSend(offer, mode))).toEqual(['none', 'none', 'none'])
+})
+
+test('the GPU select is listed for every machine with a card, and the container line can be picked only when it is a real choice', () => {
+  const container = (offer: ReturnType<typeof gpuOffer>) => gpuLines(offer).find((line) => line.value === 'container')?.disabled
+  expect(container(gpuOffer(rtx, 'container'))).toBe(false)
+  expect(container(gpuOffer(rtx, 'vm'))).toBe(true)
+  expect(container(gpuOffer(noToolkit, 'container'))).toBe(true)
+  expect(gpuLines(gpuOffer(rtx, 'vm')).map((line) => [line.value, line.disabled])).toEqual([['none', false], ['container', true], ['shared', true], ['passthrough', true], ['custom', true]])
+})
+
+test('the sentence under the select explains the choice, or why the container line is off', () => {
+  expect(gpuNote(gpuOffer(rtx, 'container'), 'none')).toBe('No GPU is given to this VM.')
+  expect(gpuNote(gpuOffer(rtx, 'vm'), 'none')).toBe(VM_GPU_TEXT)
+  expect(gpuNote(gpuOffer(noToolkit, 'container'), undefined)).toBe(NEEDS_TOOLKIT_TEXT)
+  expect(gpuNote(gpuOffer(mac, 'vm'), undefined)).toBe('')
 })

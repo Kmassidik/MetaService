@@ -75,7 +75,7 @@ test('the runtime cards grey out the one the picked machine cannot run, with the
   expect(only[1]?.reason).toBe('This machine runs containers only')
   const both = runtimeCards(choice('zed'))
   expect(both.map((card) => card.label)).toEqual(['Container', 'VM'])
-  expect(both.map((card) => card.caption)).toEqual(['fast stop & wake', 'full VM, classic'])
+  expect(both.map((card) => card.tag)).toEqual(['Recommended', null])
   expect(both.every((card) => !card.disabled && card.reason === null)).toBe(true)
   expect(runtimeCards(undefined).every((card) => !card.disabled)).toBe(true)
 })
