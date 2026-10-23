@@ -49,14 +49,19 @@ public struct MachineStore: @unchecked Sendable {
     }
 
     /// Changes the name the panel shows. The id (what every link and record uses) stays.
+    /// Names are compared without regard to capitals, so "Mac Studio" and "mac studio" are one name.
     public func rename(id: String, to name: String) throws {
-        let changed: Int
-        do {
-            changed = try database.execute("UPDATE machines SET name = ? WHERE id = ?", [.text(name), .text(id)])
-        } catch let error as DatabaseError where error.isConstraint {
-            throw MachineError.exists
+        try database.transaction {
+            let others = try database.query("SELECT name FROM machines WHERE id != ?", [.text(id)]).map { $0.string("name") }
+            guard !others.contains(where: { MachineDisplayName.comparable($0) == MachineDisplayName.comparable(name) }) else { throw MachineError.exists }
+            let changed: Int
+            do {
+                changed = try database.execute("UPDATE machines SET name = ? WHERE id = ?", [.text(name), .text(id)])
+            } catch let error as DatabaseError where error.isConstraint {
+                throw MachineError.exists
+            }
+            guard changed == 1 else { throw MachineError.notFound }
         }
-        guard changed == 1 else { throw MachineError.notFound }
     }
 
     public func remove(id: String) throws {

@@ -58,10 +58,12 @@ final class MachineSettingsPatchTests: XCTestCase {
     }
 
     func testHostileTextIsRefusedOrKeptAsPlainTextInEveryTextField() throws {
-        let patterned = ["name", "subdomain", "vm_image", "ai_model"]
+        let patterned = ["subdomain", "vm_image", "ai_model"]
         for key in patterned {
             for text in Self.hostile { XCTAssertThrowsError(try patch([key: text]), "\(key): \(text.prefix(20))") }
         }
+        let legalAsDisplayName: Set<String> = ["a b", "Ünïcode", "--privileged"]
+        for text in Self.hostile where !legalAsDisplayName.contains(text) { XCTAssertThrowsError(try patch(["name": text]), "name: \(text.prefix(20))") }
         for text in Self.hostile { XCTAssertThrowsError(try patch(["labels": [text]]), "label: \(text.prefix(20))") }
         for text in Self.hostile where text.count <= MachineSettings.maxNotes {
             XCTAssertEqual(try applied(["notes": text]).notes, text, "notes are free text, stored as given")

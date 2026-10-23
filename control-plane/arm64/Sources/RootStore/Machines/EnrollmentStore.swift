@@ -13,8 +13,10 @@ public struct EnrollmentStore {
     public init(_ database: Database) { self.database = database }
 
     public func create(machineName: String, expectedIp: String? = nil, now: Date) throws -> (token: String, expires: Date) {
-        let existing = try database.query("SELECT 1 AS found FROM machines WHERE name = ?", [.text(machineName)])
-        guard existing.isEmpty else { throw EnrollmentError.machineExists }
+        let existing = try database.query("SELECT id, name FROM machines")
+        let wanted = MachineDisplayName.comparable(machineName)
+        let taken = existing.contains { $0.string("id") == machineName || MachineDisplayName.comparable($0.string("name")) == wanted }
+        guard !taken else { throw EnrollmentError.machineExists }
         let token = Tokens.random()
         let expires = now.addingTimeInterval(Self.lifetime)
         try database.execute("INSERT INTO enrollments (token_hash, machine_name, created_at, expires_at, expected_ip) VALUES (?, ?, ?, ?, ?)",

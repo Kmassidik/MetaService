@@ -21,7 +21,7 @@ public struct MachineSettingsPatch {
         guard !parsed.keys.isEmpty else { throw InputError("say at least one thing to change") }
         object = parsed
         changed = parsed.keys.sorted()
-        name = parsed.has("name") ? try parsed.id("name") : nil
+        name = parsed.has("name") ? try MachineDisplayName.checked(parsed.string("name", maxLength: MachineDisplayName.maxLength * 2, minLength: 1)) : nil
         _ = try applying(to: MachineSettings())
     }
 
