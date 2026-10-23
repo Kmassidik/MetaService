@@ -1041,8 +1041,8 @@ components:
         image: { type: string, pattern: '^[a-z0-9][a-z0-9._:/-]{0,127}$' }
         bundle: { $ref: '#/components/schemas/ImageId' }
         gpu_memory_gb: { type: integer, minimum: 1, maximum: 1024, description: 'Optional. Caps the GPU memory this container may use, in GB. Only with kind container and gpu_mode container, else 400. The helper watches it and stops a container that stays over. Absent: the whole card is shared. The Root sends it only to a helper that says `gpu_memory_limit: true`.' }
-        cpu_sockets: { type: integer, minimum: 1, maximum: 8, description: 'Optional. How many sockets the VM''s CPUs are spread over; `cpu` must be a multiple of it (cores per socket = cpu / cpu_sockets). Only with kind vm and on a helper that says `cpu_topology: true`, else 400. Absent or 1: the engine''s own layout, as before. The Root sends it only when it is 2 or more.' }
-        cpu_type: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$', description: 'Optional. The CPU model the VM sees, one of the helper''s `cpu_models`, else 400. Only with kind vm. Absent or `host`: the machine''s own CPU, as before. The Root sends it only when it is not `host`.' }
+        cpu_sockets: { type: integer, minimum: 1, maximum: 8, description: 'Optional. How many sockets the VM''s CPUs are spread over; `cpu` must be a multiple of it (cores per socket = cpu / cpu_sockets). Only with kind vm (a container with it is a 400 whatever the value) and on a helper that says `cpu_topology: true`, else 400. Absent or 1: the engine''s own layout, as before. The Root sends it only when it is 2 or more.' }
+        cpu_type: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$', description: 'Optional. The CPU model the VM sees: one of the helper''s `cpu_models` (a helper that does not say them offers `host` only), else 400. Only with kind vm (a container with it is a 400 whatever the value). Absent or `host`: the machine''s own CPU, as before. The Root sends it only when it is not `host`.' }
         cpu_flags:
           type: object
           minProperties: 1
@@ -1050,8 +1050,8 @@ components:
           properties:
             nested-virt: { type: string, enum: ['on', 'off'] }
             aes: { type: string, enum: ['on', 'off'] }
-          description: 'Optional. CPU flags switched on or off for the VM; a flag left out keeps what the CPU model gives. Each key must be in the helper''s `cpu_flags`, else 400. Only with kind vm.'
-        cpu_limit_percent: { type: integer, minimum: 10, maximum: 6400, description: 'Optional. A hard cap on the container''s CPU time, in percent of one core (150 is one and a half cores); at most `cpu` x 100. Only with kind container and on a helper that says `cpu_limit: true`, else 400. Absent: no cap.' }
+          description: 'Optional. CPU flags switched on or off for the VM; a flag left out keeps what the CPU model gives. Each key must be in the helper''s `cpu_flags`, else 400; an empty object is a 400. Only with kind vm.'
+        cpu_limit_percent: { type: integer, minimum: 10, maximum: 6400, description: 'Optional. A hard cap on the container''s CPU time, in percent of one core (150 is one and a half cores); at most `cpu` x 100. Only with kind container (a VM with it is a 400) and on a helper that says `cpu_limit: true`, else 400. Absent: no cap.' }
     ImageId:
       type: string
       pattern: '^[a-z0-9][a-z0-9-]{0,31}$'
