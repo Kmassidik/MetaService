@@ -102,7 +102,7 @@ paths:
         '426': { description: upgrade required (preflight without upgrade headers; every check passed) }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: 'the workload is not running (code not_running) or already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the workload is not running (code not_running), already has a console (code console_open), or is a VM without the incus guest agent so it cannot be entered (code no_agent, with a plain reason)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/workloads/{id}/gpu-check:
     post:
       summary: >
@@ -929,6 +929,7 @@ components:
             gpu_in_vm: { type: boolean }
             gpu_in_container: { type: boolean, description: 'True only when an NVIDIA card was found AND NVIDIA''s container toolkit works on the machine, looked at again each time (so installing the toolkit needs no restart). A card without the toolkit is not a `problem`: the machine still makes VMs and containers.' }
             gpu_memory_limit: { type: boolean, description: 'Optional (absent means false). True when the helper can cap and watch the GPU memory of a container (`gpu_memory_gb` on create). Always equal to `gpu_in_container`. The Root refuses a limit on a machine that does not say true.' }
+            terminal: { type: boolean, description: 'Optional (absent means false). True when the helper serves the console route `GET /v1/workloads/{id}/terminal`. The Linux helper says true; the macOS helper may say true too. Added without a version change.' }
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'

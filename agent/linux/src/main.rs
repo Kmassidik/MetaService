@@ -4,6 +4,7 @@ mod budget;
 mod build;
 mod bundle;
 mod config;
+mod console;
 mod engine;
 mod enroll;
 mod facts;

@@ -1,10 +1,11 @@
 //! Workloads as Incus instances: VMs and containers, one engine. Every call is the `incus` program with a fixed argument list;
 //! nothing a user typed can become a flag, because names and ids are checked against the id pattern and the image against the image pattern first.
+mod attach;
 mod list;
 mod runner;
 
 use crate::apps::{self, App};
-use crate::engine::Engine;
+use crate::engine::{AttachCommand, Engine};
 use crate::gpu;
 use crate::models::{Capabilities, EngineError, EngineIdentity, Kind, Problem, State, Workload};
 use crate::preflight::{self, HostProbe, NoHostChecks};
@@ -16,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub use list::{gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments, GPU_STOP_CODE_KEY, GPU_STOP_USED_KEY};
+pub use attach::NO_AGENT_MESSAGE;
 pub use runner::{ProcessRunner, Runner};
 
 const PREFIX: &str = "ms-";
@@ -210,6 +212,14 @@ impl Engine for IncusEngine {
     fn install_app(&self, id: &str, app: App) -> Result<String, EngineError> {
         self.require(id)?;
         self.runner.run_with_input(&apps::incus_call(&name_of(id)), app.script().as_bytes(), apps::INSTALL_TIMEOUT)
+    }
+
+    fn attach(&self, id: &str) -> Result<AttachCommand, EngineError> {
+        let workload = self.require(id)?;
+        if workload.kind == Kind::Vm {
+            self.exec_within(id, &attach::agent_probe(), &[], QUICK).map_err(|_| EngineError::Failed(attach::NO_AGENT_MESSAGE.into()))?;
+        }
+        Ok(AttachCommand { program: self.runner.program(), arguments: attach::arguments(&name_of(id)) })
     }
 
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError> {

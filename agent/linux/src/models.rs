@@ -89,16 +89,20 @@ pub struct Capabilities {
     pub gpu_in_container: bool,
 }
 
+/// This helper serves the console route (`GET /v1/workloads/{id}/terminal`), so it always says `terminal: true`.
+const HAS_CONSOLE: bool = true;
+
 /// `gpu_memory_limit` is not stored: it is true exactly when `gpu_in_container` is (the watchdog needs the same NVIDIA card and toolkit).
 impl Serialize for Capabilities {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut out = serializer.serialize_struct("Capabilities", 5)?;
+        let mut out = serializer.serialize_struct("Capabilities", 6)?;
         out.serialize_field("vm", &self.vm)?;
         out.serialize_field("container", &self.container)?;
         out.serialize_field("gpu_in_vm", &self.gpu_in_vm)?;
         out.serialize_field("gpu_in_container", &self.gpu_in_container)?;
         out.serialize_field("gpu_memory_limit", &self.gpu_in_container)?;
+        out.serialize_field("terminal", &HAS_CONSOLE)?;
         out.end()
     }
 }
@@ -220,6 +224,7 @@ mod tests {
             let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu }).unwrap();
             assert_eq!(json["gpu_memory_limit"], gpu);
             assert_eq!(json["gpu_in_container"], gpu);
+            assert_eq!(json["terminal"], true);
         }
     }
 

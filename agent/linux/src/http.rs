@@ -27,13 +27,14 @@ pub struct App {
     pub service: Arc<Service>,
     pub token: String,
     pub bad_token_limit: u32,
+    pub consoles: crate::console::Consoles,
     stats: Monitor,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32) -> Arc<App> {
-        Arc::new(App { service, token, bad_token_limit, stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
     }
 
     fn locked_out(&self, ip: IpAddr) -> bool {
@@ -60,6 +61,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads", get(list).post(create))
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
+        .route("/v1/workloads/:id/terminal", get(crate::console::terminal))
         .route("/v1/workloads/:id/gpu-check", post(gpu_check))
         .route("/v1/workloads/:id/ssh-keys", put(ssh_keys))
         .route("/v1/workloads/:id/app", put(app_install))
@@ -107,7 +109,7 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
 
 // ---- replies
 
-fn error(status: StatusCode, code: &str, message: &str) -> Response {
+pub(crate) fn error(status: StatusCode, code: &str, message: &str) -> Response {
     (status, Json(json!({"error": {"code": code, "message": message}}))).into_response()
 }
 
@@ -115,7 +117,7 @@ fn refusal(r: &Refusal) -> Response {
     (StatusCode::CONFLICT, Json(json!({"error": {"code": r.code, "message": r.message, "resource": r.resource, "needed": r.needed, "free": r.free}}))).into_response()
 }
 
-fn failure(failure: Failure) -> Response {
+pub(crate) fn failure(failure: Failure) -> Response {
     match failure {
         Failure::Refused(r) => refusal(&r),
         Failure::NotFound => error(StatusCode::NOT_FOUND, "not_found", "no such thing"),

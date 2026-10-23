@@ -39,7 +39,7 @@ fn service_over(machine: Arc<Mutex<Reading>>) -> Arc<Service> {
 }
 
 fn request(command_id: &str, disk_gb: u64) -> CreateRequest {
-    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Container, cpu: 1, ram_mb: 512, disk_gb, gpu_mode: GpuMode::None, image: None }
+    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Container, cpu: 1, ram_mb: 512, disk_gb, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None }
 }
 
 #[tokio::test]

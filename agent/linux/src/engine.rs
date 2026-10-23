@@ -8,6 +8,13 @@ use crate::validate::CreateRequest;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+/// The program that gives a person a shell inside a workload, as a program path and its arguments. It never goes through a shell of ours.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AttachCommand {
+    pub program: String,
+    pub arguments: Vec<String>,
+}
+
 pub trait Engine: Send + Sync {
     fn capabilities(&self) -> Capabilities;
     /// What this engine is, for the facts: a short name and its version, or None when it cannot tell. Never guessed.
@@ -34,6 +41,9 @@ pub trait Engine: Send + Sync {
     fn install_sshd(&self, id: &str) -> Result<InstallReport, EngineError>;
     /// Runs the app's constant installer script inside the workload (script on standard input, no request data) and returns what it printed.
     fn install_app(&self, id: &str, app: App) -> Result<String, EngineError>;
+    /// What to run on a pty to get an interactive shell inside the workload. The workload must exist; a VM must also answer inside (it has the guest agent),
+    /// else this is an error that says so. The command comes only from the engine and the helper's own id, never from a caller.
+    fn attach(&self, id: &str) -> Result<AttachCommand, EngineError>;
     /// Like `exec` with no environment, for a quick look inside that must not hang: the engine gives it a short time limit.
     fn quick_exec(&self, id: &str, arguments: &[String]) -> Result<String, EngineError> {
         self.exec(id, arguments, &[])
@@ -52,6 +62,8 @@ pub struct SimulatedEngine {
     installs: Mutex<usize>,
     /// The pretend app installs, per workload.
     pub apps: SimulatedApps,
+    /// What a console runs on the host instead of a real workload's shell (tests change it).
+    attach: Mutex<AttachCommand>,
 }
 
 /// What a simulated install of the SSH server does when the server is missing.
@@ -62,10 +74,12 @@ pub enum SimulatedInstall {
 }
 
 pub const SIMULATED_ENGINE: &str = "simulated";
+/// The simulated engine has no workloads to enter, so a console runs this program on the host.
+const SIMULATED_SHELL: &str = "/bin/sh";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
-        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0), apps: SimulatedApps::new() }
+        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0), apps: SimulatedApps::new(), attach: Mutex::new(AttachCommand { program: SIMULATED_SHELL.into(), arguments: vec![] }) }
     }
 
     /// What every later apply reports about sshd, as the workload's image would decide it.
@@ -84,6 +98,12 @@ impl SimulatedEngine {
     /// How many installs were asked for.
     pub fn install_calls(&self) -> usize {
         *self.installs.lock().unwrap()
+    }
+
+    /// What every later console runs.
+    #[cfg(test)]
+    pub fn set_attach(&self, program: &str, arguments: &[&str]) {
+        *self.attach.lock().unwrap() = AttachCommand { program: program.into(), arguments: arguments.iter().map(|a| a.to_string()).collect() };
     }
 
     pub fn written_ssh_keys(&self, id: &str) -> Option<Vec<u8>> {
@@ -161,6 +181,11 @@ impl Engine for SimulatedEngine {
     fn install_app(&self, id: &str, app: App) -> Result<String, EngineError> {
         self.change(id, |_| {})?;
         Ok(self.apps.run(id, app))
+    }
+
+    fn attach(&self, id: &str) -> Result<AttachCommand, EngineError> {
+        self.change(id, |_| {})?;
+        Ok(self.attach.lock().unwrap().clone())
     }
 
     fn exec(&self, id: &str, _arguments: &[String], _environment: &[(String, String)]) -> Result<String, EngineError> {

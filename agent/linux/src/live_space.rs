@@ -57,7 +57,7 @@ mod tests {
     use std::sync::Arc;
 
     fn workload(disk: u64, state: State) -> Workload {
-        Workload { id: "w".into(), name: "n".into(), kind: Kind::Vm, state, cpu: 1, ram_mb: 1024, disk_gb: disk, gpu_mode: GpuMode::None, address: None, bundle_version: None }
+        Workload { id: "w".into(), name: "n".into(), kind: Kind::Vm, state, cpu: 1, ram_mb: 1024, disk_gb: disk, gpu_mode: GpuMode::None, address: None, bundle_version: None, gpu_memory_gb: None, stopped_reason: None }
     }
 
     fn reading(ram: u64, disk: u64) -> Option<Reading> {

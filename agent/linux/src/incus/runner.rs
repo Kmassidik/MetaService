@@ -7,7 +7,14 @@ use std::time::{Duration, Instant};
 /// The most a program may print before we stop reading (it then runs into the time limit and is stopped).
 const MAX_OUTPUT_BYTES: u64 = 4 * 1024 * 1024;
 
+/// The name `incus` is looked up by when a runner has no path of its own (scripted runners in tests).
+pub const DEFAULT_PROGRAM: &str = "incus";
+
 pub trait Runner: Send + Sync {
+    /// The program this runner starts, for callers that must start it themselves on a pty.
+    fn program(&self) -> String {
+        DEFAULT_PROGRAM.into()
+    }
     fn run(&self, arguments: &[String], timeout: Duration) -> Result<String, EngineError>;
     /// Like `run`, with `input` sent on the program's standard input (never in the arguments).
     fn run_with_input(&self, arguments: &[String], input: &[u8], timeout: Duration) -> Result<String, EngineError>;
@@ -19,6 +26,10 @@ pub struct ProcessRunner {
 }
 
 impl Runner for ProcessRunner {
+    fn program(&self) -> String {
+        self.path.clone()
+    }
+
     fn run(&self, arguments: &[String], timeout: Duration) -> Result<String, EngineError> {
         self.call(arguments, None, timeout)
     }
