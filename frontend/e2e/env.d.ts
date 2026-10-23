@@ -8,4 +8,6 @@ interface Window {
   __xss?: number
   /** Set by hostile text in a GPU check answer if the panel ever ran it. */
   __gpuxss?: number
+  /** Set by hostile text in a GPU over-limit stop reason if the panel ever ran it. */
+  __limitxss?: number
 }

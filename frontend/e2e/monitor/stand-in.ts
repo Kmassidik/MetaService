@@ -82,7 +82,7 @@ function extrasOf(kind: Kind, call: number, total: number): { cpu: Json; top: Js
   }
 }
 
-function reading(call: number, id: string, withProcesses: boolean): Json {
+export function reading(call: number, id: string, withProcesses: boolean): Json {
   const kind = kindOf(id)
   const cores = kind.threads
   const used = (8 + (call % 8)) * GIB

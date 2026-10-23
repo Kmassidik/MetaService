@@ -3,8 +3,8 @@ import type { Browse } from './page.ts'
 
 const IMAGES_WAIT_MS = 10000
 const UNREADABLE_NOTE = 'could not be read'
-/** Install on top lists None and the four planned frameworks before the machine's catalog has answered; the catalog's own frameworks come after. */
-const ROWS_BEFORE_THE_ANSWER = 5
+/** Install on top lists only None before the machine's catalog has answered; the catalog's own frameworks come after. */
+const ROWS_BEFORE_THE_ANSWER = 1
 
 export const NAME = '#vm-create-name'
 export const PICKER = '#vm-create-machine'
