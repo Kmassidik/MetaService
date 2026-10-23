@@ -16,6 +16,11 @@ public actor SimulatedEngine: Engine {
     /// What each install of the SSH server ran: the program arguments.
     public private(set) var sshInstallRuns: [[String]] = []
 
+    /// How an install of an app goes (set by tests), which apps each VM has, and what each install ran: the program arguments, and the script on standard input.
+    private var appBehaviour: SimulatedAppInstall = .works
+    private var installedApps: Set<String> = []
+    public private(set) var appInstallRuns: [(arguments: [String], input: Data)] = []
+
     public init(capabilities: Capabilities = Capabilities(vm: true, container: true, gpuInVm: false, gpuInContainer: false)) {
         self.capabilities = capabilities
     }
@@ -90,6 +95,34 @@ public actor SimulatedEngine: Engine {
         sshKeys[id] = keys
         return SshKeysResult(applied: keys.count, sshd: sshdState)
     }
+
+    /// How every later install of a missing app goes.
+    public func setAppInstall(_ behaviour: SimulatedAppInstall) { appBehaviour = behaviour }
+
+    public func hasApp(_ app: AppKind, id: String) -> Bool { installedApps.contains(Self.appKey(app, id)) }
+
+    public func installApp(id: String, app: AppKind) async throws -> String {
+        guard let found = store[id] else { throw EngineError.notFound }
+        guard found.state == .running else { throw EngineError.notRunning }
+        appInstallRuns.append((arguments: AppInstallCall.arguments(id: id), input: Data(app.script.utf8)))
+        guard !hasApp(app, id: id) else { return SimulatedAppInstall.output(app, installed: false) }
+        switch appBehaviour {
+        case .works: return finishInstall(app, id: id)
+        case .delay(let seconds):
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            return finishInstall(app, id: id)
+        case .fails(let failure): return SimulatedAppInstall.failureOutput(app, failure)
+        case .garbage: return "something else entirely\n"
+        case .breaks: throw EngineError.failed("engine-detail-xyz")
+        }
+    }
+
+    private func finishInstall(_ app: AppKind, id: String) -> String {
+        installedApps.insert(Self.appKey(app, id))
+        return SimulatedAppInstall.output(app, installed: true)
+    }
+
+    private static func appKey(_ app: AppKind, _ id: String) -> String { "\(id)/\(app.rawValue)" }
 
     /// Tests type into a plain /bin/sh on this machine.
     public func attach(id: String) async throws -> [String] {

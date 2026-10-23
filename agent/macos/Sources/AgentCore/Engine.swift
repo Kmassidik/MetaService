@@ -25,6 +25,9 @@ public protocol Engine: Sendable {
     /// Installs (when missing), locks to keys only, and starts the SSH server inside one running VM, with a fixed script and no request data. The keys were written before.
     /// Throws `SshdFailure` when the server could not be made to listen, `notFound` for an unknown VM and `notRunning` for one that is not running.
     func installSshd(id: String) async throws -> SshdInstallReport
+    /// Runs the app's constant installer script (OpenClaw or Hermes) inside one running VM, on standard input, with no request data, and returns what it printed.
+    /// Throws `notFound` for an unknown VM, `notRunning` for one that is not running, and `failed` when the run breaks or takes too long.
+    func installApp(id: String, app: AppKind) async throws -> String
     /// The program and arguments that open an interactive shell inside the workload, to be run in a pty. The first item is the program. No shell string, no user text.
     func attach(id: String) async throws -> [String]
 }

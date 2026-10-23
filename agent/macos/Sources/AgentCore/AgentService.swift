@@ -38,7 +38,7 @@ public protocol BundleInstalling: Sendable {
 
 /// Everything the Agent does, in one place, on top of an Engine. HTTP and the system probes live outside of it.
 public actor AgentService {
-    private let engine: Engine
+    let engine: Engine
     private var budget: SpaceBudget
     private let specs: MachineSpecs
     private let agentVersion: String

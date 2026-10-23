@@ -16,6 +16,7 @@ struct AgentRoutes {
         router.post("/v1/workloads/{id}/start") { request, context in try await self.change(request, context, start: true) }
         router.post("/v1/workloads/{id}/stop") { request, context in try await self.change(request, context, start: false) }
         router.put("/v1/workloads/{id}/ssh-keys", use: sshKeys)
+        router.put("/v1/workloads/{id}/app", use: installApp)
         router.delete("/v1/workloads/{id}", use: delete)
         router.post("/v1/bundle/install", use: installBundle)
         router.post("/v1/bundle/uninstall", use: uninstallBundle)
@@ -42,6 +43,13 @@ struct AgentRoutes {
         let id = try Self.workloadId(context)
         let body = try SshKeysRequest(body: try await Self.body(request))
         return try Json.response(try await service.applySshKeys(id: id, keys: body.keys, installSshd: body.installSshd))
+    }
+
+    /// Puts OpenClaw or Hermes on top of one running VM. The body is only the choice between the two constant scripts.
+    private func installApp(_ request: Request, context: AgentContext) async throws -> Response {
+        let id = try Self.workloadId(context)
+        let body = try AppInstallRequest(body: try await Self.body(request))
+        return try Json.response(try await service.installApp(id: id, app: body.app))
     }
 
     private func installBundle(_ request: Request, context: AgentContext) async throws -> Response {

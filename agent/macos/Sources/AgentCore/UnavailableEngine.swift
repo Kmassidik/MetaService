@@ -26,6 +26,7 @@ public struct UnavailableEngine: Engine {
     public func exec(id: String, arguments: [String], environment: [String: String]) async throws -> String { throw EngineError.notFound }
     public func applySshKeys(id: String, keys: [String]) async throws -> SshKeysResult { throw EngineError.notFound }
     public func installSshd(id: String) async throws -> SshdInstallReport { throw EngineError.notFound }
+    public func installApp(id: String, app: AppKind) async throws -> String { throw EngineError.notFound }
     public func attach(id: String) async throws -> [String] { throw EngineError.notFound }
 
     private var unavailable: EngineError { .failed(problem.message) }
