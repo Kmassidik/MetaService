@@ -28,7 +28,7 @@
 </script>
 
 {#if offer.show !== 'nothing'}
-  <FieldBlock label="GPU acceleration" forId={SELECT_ID}>
+  <FieldBlock label="GPU" forId={SELECT_ID}>
     <SelectBox id={SELECT_ID} value={form.gpuMode ?? 'none'} {options} describedBy="{SELECT_ID}-caption" onpick={(mode) => (form.gpuMode = gpuModeToSend(offer, mode, sharing))} />
     <p class="note" id="{SELECT_ID}-caption" data-gpu-note={offer.show}>
       {gpuNote(offer, form.gpuMode)}{#if offer.show === 'needs_toolkit' && machine}. <a href={machineHref(machine.id)}>Open the machine's page</a> to see how.{/if}

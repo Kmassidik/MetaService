@@ -32,11 +32,11 @@
 </span>
 
 <style>
-  .badge { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; color: var(--m70); }
-  .badge.letter { background: var(--inverse-bg); color: var(--inverse-text); font: 700 12px var(--mono); }
+  .badge { flex: none; display: inline-grid; place-items: center; width: var(--badge-size, 28px); height: var(--badge-size, 28px); color: var(--m70); }
+  .badge.letter { background: var(--inverse-bg); color: var(--inverse-text); font: 700 calc(var(--badge-size, 28px) * .43) var(--mono); }
   .badge.letter.muted { background: var(--reserve-bg); color: var(--m60); }
   img { width: 100%; height: 100%; object-fit: contain; }
   .muted img { opacity: .45; filter: grayscale(1); }
-  svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  svg { width: 80%; height: 80%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .muted svg { opacity: .6; }
 </style>

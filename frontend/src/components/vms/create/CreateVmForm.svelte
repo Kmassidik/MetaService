@@ -1,15 +1,20 @@
 <script lang="ts">
-  // The inside of the Create VM window: the host, then server image, install on top, size, runtime and GPU, an optional name, and the footer. It is built fresh each time the window opens.
+  // The inside of the Create VM window, laid out like Proxmox's windows: two columns of labelled rows. The host and an optional name, server image and install on top, runtime and GPU;
+  // then the size, the processors (sockets, cores and CPU type, or a CPU limit for a container), memory and disk; then a VM's extra CPU flags, and the footer.
+  // It is built fresh each time the window opens or is reset.
   import { onMount, tick } from 'svelte'
   import ActionButton from '../../ActionButton.svelte'
   import GpuChoice from '../../GpuChoice.svelte'
+  import CpuFlagsTable from './CpuFlagsTable.svelte'
   import FieldBlock from './FieldBlock.svelte'
   import ImageSections from './ImageSections.svelte'
   import MachinePick from './MachinePick.svelte'
+  import ProcessorFields from './ProcessorFields.svelte'
   import RuntimeSelect from './RuntimeSelect.svelte'
   import SizeSelect from './SizeSelect.svelte'
   import { ActionState } from '../../../lib/action.svelte.ts'
   import { ApiError, createWorkload, getMachineImages, refusalText } from '../../../lib/api.ts'
+  import { cpuAfterChange, cpuOffer, cpuProblem } from '../../../lib/cpuOptions.ts'
   import { blankForm, machineChoices, machineOptions, pickMachine, runtimeCards, startingMachine, type NewVmForm } from '../../../lib/createVm.ts'
   import { gpuMemoryProblem, gpuOffer, sharedPartition } from '../../../lib/gpuChoice.ts'
   import { nameProblem, workloadBody, workloadProblem } from '../../../lib/format.ts'
@@ -60,7 +65,8 @@
   const runtimes = $derived(runtimeCards(picked))
   const sizeReason = $derived(sizes.find((card) => card.key === form.size)?.reason ?? null)
   const gpuProblem = $derived(gpuMemoryProblem(form.gpuMode, form.gpuMemoryGb, sharedPartition(pickedMachine, gpuOffer(pickedMachine, form.kind))))
-  const problem = $derived(workloadProblem({ ...form, name: form.name || EXAMPLE_GENERATED_NAME }) ?? sizeReason ?? gpuProblem)
+  const offer = $derived(cpuOffer(pickedMachine))
+  const problem = $derived(workloadProblem({ ...form, name: form.name || EXAMPLE_GENERATED_NAME }) ?? sizeReason ?? gpuProblem ?? cpuProblem(form, offer))
   const ready = $derived(picked !== undefined && !picked.disabled && problem === null)
 
   $effect(() => {
@@ -82,6 +88,13 @@
     form.bundle = imageAfterChange(images, form.bundle ?? STOCK_IMAGE)
   })
 
+  // Another machine can take a CPU choice away (more sockets, a CPU type, a flag, a limit): it goes back to the default, the way the GPU choice does.
+  $effect(() => {
+    const kept = cpuAfterChange(form, offer)
+    const same = kept.cpuSockets === form.cpuSockets && kept.cpuType === form.cpuType && kept.cpuLimit === form.cpuLimit && JSON.stringify(kept.cpuFlags) === JSON.stringify(form.cpuFlags)
+    if (!same) Object.assign(form, kept)
+  })
+
   async function loadImages(machine: string) {
     const ask = ++latestImageAsk
     imageAnswer = null
@@ -95,7 +108,7 @@
     }
   }
 
-  /** The machine select, or the first card when the machine is already fixed. */
+  /** The machine select, or the name box when the machine is already fixed. */
   async function focusFirstControl() {
     await tick()
     formElement?.querySelector<HTMLElement>(FIRST_CONTROL)?.focus()
@@ -127,13 +140,19 @@
   <div class="scroll">
   <fieldset disabled={action.busy}>
     <MachinePick id={MACHINE_ID} options={machineOptions(choices, only?.id ?? null)} value={form.machine} locked={only !== null} onpick={pickMachineById} />
-    <ImageSections serverId={IMAGE_ID} frameworkId={FRAMEWORK_ID} options={images} bundle={form.bundle} unreadable={imagesUnreadable} onpick={(bundle) => (form.bundle = bundle)} />
-    <SizeSelect id={SIZE_ID} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
-    <RuntimeSelect id={RUNTIME_ID} cards={runtimes} chosen={form.kind} os={pickedMachine?.os} onpick={(kind) => (form.kind = kind)} />
-    <GpuChoice bind:form machine={pickedMachine} />
-    <FieldBlock label="Instance name" note="(optional)" forId={NAME_ID}>
+    <FieldBlock label="Name" note="(optional)" forId={NAME_ID}>
       <input id={NAME_ID} bind:value={form.name} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder={NAME_EXAMPLE} aria-invalid={form.name !== '' && nameProblem(form.name) !== null ? 'true' : 'false'} />
     </FieldBlock>
+    <ImageSections serverId={IMAGE_ID} frameworkId={FRAMEWORK_ID} options={images} bundle={form.bundle} unreadable={imagesUnreadable} onpick={(bundle) => (form.bundle = bundle)} />
+    <RuntimeSelect id={RUNTIME_ID} cards={runtimes} chosen={form.kind} os={pickedMachine?.os} onpick={(kind) => (form.kind = kind)} />
+    <GpuChoice bind:form machine={pickedMachine} />
+    <hr />
+    <SizeSelect id={SIZE_ID} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
+    <ProcessorFields bind:form {offer} machine={pickedMachine} />
+    {#if form.kind === 'vm'}
+      <hr />
+      <CpuFlagsTable bind:form {offer} {machines} />
+    {/if}
   </fieldset>
   </div>
   <footer>
@@ -149,12 +168,16 @@
   /* The window's title bar and padding take this much of the screen; the form keeps the rest, scrolls its fields inside it, and leaves the footer in view. */
   form { --window-chrome: 130px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100dvh - var(--window-chrome)); }
   .scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: -4px; padding: 4px; }
-  fieldset { display: grid; gap: 24px; border: 0; margin: 0; padding: 0; min-width: 0; }
-  input { min-height: 44px; padding: 0 12px; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 400 14px var(--mono); min-width: 0; }
-  input:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; border-color: var(--line-strong); }
+  /* Two columns of rows, as in Proxmox; a thin line between the groups. One column when the window is narrow. */
+  fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 28px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  hr { grid-column: 1 / -1; width: 100%; margin: 2px 0; border: 0; border-top: 1px solid var(--reserve-line); }
+  input { min-height: 32px; padding: 0 9px; border: 1px solid var(--reserve-line); border-radius: 0; background: var(--surface); color: var(--text); font: 400 13px var(--sans); min-width: 0; }
+  input:hover { border-color: var(--m50); }
+  input:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 1px; border-color: var(--line-strong); }
   input[aria-invalid='true'] { border-color: var(--danger); }
   footer { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; flex: none; padding-top: 14px; border-top: 1px solid var(--line); }
   .hint { flex: 1 1 200px; margin: 0; font: 12px/1.5 var(--mono); color: var(--m50); }
   .hint.bad { color: var(--danger); }
   .buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+  @media (max-width: 720px) { fieldset { grid-template-columns: minmax(0, 1fr); } }
 </style>
