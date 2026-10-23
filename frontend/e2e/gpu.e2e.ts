@@ -83,7 +83,7 @@ async function choiceByMachineAndKind(b: Browse, base: string): Promise<void> {
 
   await openCreate(b, base, 'rtx-notoolkit')
   line = await gpuLine(b)
-  const link = await b.run(() => document.querySelector<HTMLAnchorElement>('[data-gpu-note=toolkit] a')?.getAttribute('href') ?? '')
+  const link = await b.run(() => document.querySelector<HTMLAnchorElement>('[data-gpu-note=needs_toolkit] a')?.getAttribute('href') ?? '')
   check('a card without the toolkit keeps the select, with "GPU in a container" off, says the machine needs the toolkit first and links to the machine page', line.options.length === 5 && containerLineIsOff(line) && line.caption.startsWith(TOOLKIT_TEXT) && link === '#/machines/details?id=rtx-notoolkit', JSON.stringify({ line, link }))
   await b.shot('gpu-create-no-toolkit.png')
 
@@ -201,6 +201,10 @@ async function onAPhone(b: Browse, base: string): Promise<void> {
   await openCreate(b, base, 'rtx-pc')
   check('Create VM with the GPU choice has no sideways scrolling on a phone', await noSideScroll())
   await b.shot('gpu-create-container-phone.png', true)
+  await openCreate(b, base, 'gpu-server')
+  await pickKind(b, 'vm')
+  check('the GPU select with the coming-soon caption for a VM has no sideways scrolling on a phone', await noSideScroll())
+  await b.shot('gpu-create-vm-phone.png', true)
   await openCreate(b, base, 'rtx-notoolkit')
   await b.shot('gpu-create-no-toolkit-phone.png', true)
   await checkOne(b, base, CHECK_IDS.devices)
