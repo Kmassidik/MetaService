@@ -134,9 +134,11 @@ export async function frameworkSelect(b: Browse): Promise<void> {
     check(`${machine}: None is selected and can be picked; ${appsReady ? 'OpenClaw and Hermes can be picked too' : 'every other row is disabled'}`, list.rows[0]?.selected === true && !list.rows[0].disabled && list.rows.slice(1, pickable).every((row) => !row.disabled && !row.selected) && list.rows.slice(pickable).every((row) => row.disabled && !row.selected), JSON.stringify(list.rows))
     if (appsReady) check(`${machine}: OpenClaw and Hermes carry the Installs on start tag, because the helper can install them`, list.rows[1]?.tag === 'Installs on start' && list.rows[2]?.tag === 'Installs on start', JSON.stringify(list.rows.slice(1, 3)))
     else check(`${machine}: OpenClaw and Hermes give their catalog reasons and a Coming soon tag`, list.rows[1]?.caption === COMING_SOON && list.rows[2]?.caption === WAITING_FOR_PIN && list.rows[1].tag === 'Coming soon' && list.rows[2].tag === 'Coming soon', JSON.stringify(list.rows.slice(1, 3)))
-    await b.page.click('dialog[open] [role=listbox] [role=option][aria-disabled=true]')
-    const after = await imageState(b, FRAMEWORK)
-    check(`${machine}: clicking a disabled framework selects nothing`, after.expanded && after.rows[0]?.selected === true)
+    if (!appsReady) {
+      await b.page.click('dialog[open] [role=listbox] [role=option][aria-disabled=true]')
+      const after = await imageState(b, FRAMEWORK)
+      check(`${machine}: clicking a disabled framework selects nothing`, after.expanded && after.rows[0]?.selected === true)
+    }
     if (machine === HELPER_MACHINE) await b.shot('vms-create-framework-menu.png')
     await closeWindow(b)
   }

@@ -66,7 +66,7 @@ const picturesLoaded = (b: Browse) => b.until(() => [...document.querySelectorAl
 export async function logosRendered(b: Browse): Promise<void> {
   await openCreate(b, `#/vms/create?machine=${HELPER_MACHINE}`)
   await b.page.waitForSelector(IMAGE, { timeout: SHORT_WAIT_MS })
-  await b.until((trigger) => Number(document.querySelector(trigger)?.getAttribute('data-count')) === 7, { timeout: SHORT_WAIT_MS }, FRAMEWORK)
+  await b.until((trigger) => Number(document.querySelector(trigger)?.getAttribute('data-count')) === 3, { timeout: SHORT_WAIT_MS }, FRAMEWORK)
   await openedMenu(b, IMAGE)
   await picturesLoaded(b)
   const server = await badgeReports(b, '#vm-create-image-menu')
@@ -126,7 +126,7 @@ export async function dropdownPictures(b: Browse): Promise<void> {
     await b.page.setViewport(size)
     await openCreate(b, `#/vms/create?machine=${HELPER_MACHINE}`)
     await b.page.waitForSelector(IMAGE, { timeout: SHORT_WAIT_MS })
-    await b.until((trigger) => Number(document.querySelector(trigger)?.getAttribute('data-count')) === 7, { timeout: SHORT_WAIT_MS }, FRAMEWORK)
+    await b.until((trigger) => Number(document.querySelector(trigger)?.getAttribute('data-count')) === 3, { timeout: SHORT_WAIT_MS }, FRAMEWORK)
     await b.shot(`vms-create-default-agent${suffix}.png`)
     for (const [trigger, name] of [[IMAGE, 'server'], [FRAMEWORK, 'framework'], [RUNTIME, 'runtime']] as const) {
       await openedMenu(b, trigger)
