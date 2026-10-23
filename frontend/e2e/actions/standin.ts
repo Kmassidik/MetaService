@@ -6,6 +6,7 @@ import { extname, join } from 'node:path'
 import { panelDist } from '../support/paths.ts'
 import { wait } from '../support/net.ts'
 import { createBundleBook } from './bundleBook.ts'
+import { createAppBook, type AppBook } from './appBook.ts'
 import { createSshKeyBook, type BookAnswer, type SshKeyBook } from './sshKeyBook.ts'
 
 const CSRF = 'test-token'
@@ -15,6 +16,11 @@ const SETTINGS_CALL = /^\/api\/machines\/([^/]+)\/settings$/
 const RETRY_SEGMENT = 'retry'
 const MACHINE_PAGE = /^\/api\/machines\/([^/]+)$/
 const SSH_KEYS_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/ssh-keys(?:\/([^/]+))?$/
+const APP_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/app(\/retry)?$/
+const IMAGES_CALL = /^\/api\/machines\/([^/]+)\/images$/
+/** The fleet has vm1 to vm4, so the first VM a test creates is vm5. */
+const FIRST_CREATED_NUMBER = 5
+const CREATE_PATH ='/api/workloads'
 const VM_CALL =/^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/(start|stop|delete)$/
 
 export interface Behaviour {
@@ -35,6 +41,10 @@ export interface StandIn {
   settingsPatches: Json[]
   /** The SSH keys of each VM and the switches that change what the answers say. */
   sshKeys: SshKeyBook
+  /** The apps installed inside VMs and the image catalog that offers them. */
+  apps: AppBook
+  /** The raw text of every body POSTed to create a VM, in order. */
+  createBodies: string[]
   reset: () => void
   close: () => void
 }
@@ -96,6 +106,35 @@ export async function startStandIn(): Promise<StandIn> {
   const settingsPatches: Json[] = []
   const bundles = createBundleBook()
   const sshKeys = createSshKeyBook()
+  const apps = createAppBook()
+  const createBodies: string[] = []
+
+  /** The machine list as the parent sends it: every VM that has an app carries it in `app`. */
+  const listed = (): Json[] => machines.map((owner) => ({ ...owner, workloads: (Array.isArray(owner.workloads) ? owner.workloads : []).map((entry: Json) => ({ ...entry, app: apps.summary(String(entry.id)) })) }))
+
+  /** Makes the VM a create asks for on its machine, running, with the app started when the request names one, and answers with the order. */
+  async function createCall(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readJson(request)
+    createBodies.push(JSON.stringify(body))
+    await wait(apps.delayMs)
+    const owner = machines.find((entry) => entry.id === body.machine)
+    const workloads: Json[] = Array.isArray(owner?.workloads) ? owner.workloads : []
+    const made = vm(`vm${FIRST_CREATED_NUMBER + createBodies.length - 1}`, 'running')
+    workloads.push({ ...made, name: String(body.name) })
+    if (typeof body.bundle === 'string') apps.begin(String(made.id), body.bundle)
+    send(response, 202, order('create', `order-create-${createBodies.length}`))
+  }
+
+  /** Answers the app routes of a VM: read the state (GET) or install again (POST .../retry). */
+  async function appCall(response: ServerResponse, match: RegExpExecArray): Promise<void> {
+    const [, machineId = '', vmId = '', retried] = match
+    const owner = machines.find((entry) => entry.id === machineId)
+    const workloads: Json[] = Array.isArray(owner?.workloads) ? owner.workloads : []
+    const running = workloads.find((entry) => entry.id === vmId)?.state === 'running'
+    const result = retried === undefined ? apps.view(vmId) : apps.retry(vmId, running)
+    await wait(apps.delayMs)
+    send(response, result.status, result.body)
+  }
 
   /** Answers an SSH-keys call from the book: list (GET), add (POST) or remove (DELETE one key). */
   async function sshKeysCall(request: IncomingMessage, response: ServerResponse, match: RegExpExecArray): Promise<void> {
@@ -182,6 +221,11 @@ export async function startStandIn(): Promise<StandIn> {
     if (path === '/api/session') return send(response, 200, { username: 'kurnia', csrf_token: CSRF })
     if (path === '/api/auth/status') return send(response, 200, { configured: true, signedIn: true, min_password_length: 8 })
     const posted = request.method === 'POST'
+    if (path === CREATE_PATH && posted) return createCall(request, response)
+    const appRoute = APP_CALL.exec(path)
+    if (appRoute) return appCall(response, appRoute)
+    const imagesRoute = IMAGES_CALL.exec(path)
+    if (imagesRoute) return send(response, 200, apps.images())
     const keysRoute = SSH_KEYS_CALL.exec(path)
     if (keysRoute) return sshKeysCall(request, response, keysRoute)
     const settingsRoute = SETTINGS_CALL.exec(path)
@@ -192,7 +236,7 @@ export async function startStandIn(): Promise<StandIn> {
     if (bundle && posted) return bundleCall(request, response, bundle)
     if (path === '/api/bundles/pin' && posted) return pinCall(request, response)
     if (path === '/api/bundles/rollback' && posted) return answer('rollback', 'rollback', response, bundles.rollback)
-    if (path === '/api/machines') return send(response, 200, { machines })
+    if (path === '/api/machines') return send(response, 200, { machines: listed() })
     const detail = MACHINE_PAGE.exec(path)
     const shown = machines.find((entry) => entry.id === detail?.[1])
     if (shown) return send(response, 200, shown)
@@ -218,8 +262,12 @@ export async function startStandIn(): Promise<StandIn> {
     calls,
     settingsPatches,
     sshKeys,
+    apps,
+    createBodies,
     reset() {
       machines = fleet()
+      apps.reset()
+      createBodies.length = 0
       bundles.reset()
       sshKeys.reset()
       calls.length = 0
