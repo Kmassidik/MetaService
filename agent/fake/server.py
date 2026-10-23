@@ -150,8 +150,18 @@ class AgentHandler(BaseHTTPRequestHandler):
         self._send(200, {"workloads": self.engine.workloads()})
 
     def create_workload(self):
-        record = self.engine.create(self._body("WorkloadCreate"))
+        body = self._body("WorkloadCreate")
+        self._check_gpu_memory_limit(body)
+        record = self.engine.create(body)
         self._send(202, _accepted(record))
+
+    def _check_gpu_memory_limit(self, body):
+        if "gpu_memory_gb" not in body:
+            return
+        if body["kind"] != "container" or body.get("gpu_mode", "none") != "container":
+            raise ApiError(400, "invalid_input", "gpu_memory_gb can only be set on a container with gpu_mode container")
+        if not (self.engine.spec.gpu_in_container and self.engine.spec.gpu_memory_limit):
+            raise ApiError(400, "invalid_input", "this helper cannot limit GPU memory")
 
     def start_workload(self, id):
         self._send(202, _accepted(self.engine.set_state(self._command_id(), id, "start", "running")))
@@ -254,6 +264,14 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.engine.quit_by_itself(id, body["exit_code"], body["log_tail"])
         self._send(204)
 
+    def gpu_usage(self):
+        """Test tool, not part of the contract: simulates the watchdog. Body: {"workload": id, "used_gb": number}. Over the VM's limit it stops the VM with a reason."""
+        body = self._tool_body({"workload": str, "used_gb": (int, float)})
+        if isinstance(body["used_gb"], bool) or body["used_gb"] < 0:
+            raise ApiError(400, "invalid_input", "used_gb must be a number of GB, 0 or more")
+        self.engine.report_gpu_usage(body["workload"], body["used_gb"])
+        self._send(204)
+
     def create_fails(self):
         """Test tool, not part of the contract: every later create fails with this reason. Body: {"error": text or null}."""
         self.engine.fail_creates_with(self._tool_body({"error": (str, type(None))})["error"])
@@ -309,6 +327,7 @@ ROUTES = [
     ("GET", rf"/v1/commands/(?P<id>{ID_PATTERN})", AgentHandler.get_command),
     ("POST", rf"/fake/workloads/(?P<id>{ID_PATTERN})/quit", AgentHandler.quit_by_itself),
     ("POST", r"/fake/create-fails", AgentHandler.create_fails),
+    ("POST", r"/fake/gpu-usage", AgentHandler.gpu_usage),
     ("GET", rf"/fake/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.show_ssh_keys),
     ("POST", r"/fake/ssh-sshd", AgentHandler.set_sshd),
     ("POST", r"/fake/ssh-install", AgentHandler.set_ssh_install),

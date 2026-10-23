@@ -928,6 +928,7 @@ components:
             container: { type: boolean }
             gpu_in_vm: { type: boolean }
             gpu_in_container: { type: boolean, description: 'True only when an NVIDIA card was found AND NVIDIA''s container toolkit works on the machine, looked at again each time (so installing the toolkit needs no restart). A card without the toolkit is not a `problem`: the machine still makes VMs and containers.' }
+            gpu_memory_limit: { type: boolean, description: 'Optional (absent means false). True when the helper can cap and watch the GPU memory of a container (`gpu_memory_gb` on create). Always equal to `gpu_in_container`. The Root refuses a limit on a machine that does not say true.' }
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'
@@ -979,6 +980,7 @@ components:
         address: { type: string, nullable: true }
         bundle_version: { type: string, nullable: true }
         stopped_reason: { $ref: '#/components/schemas/StoppedReason' }
+        gpu_memory_gb: { type: integer, nullable: true, minimum: 1, maximum: 1024, description: 'Optional. The GPU memory limit of this container in GB; null or absent when it shares the whole card.' }
         init_mode:
           type: string
           enum: [systemd, plain]
@@ -988,15 +990,19 @@ components:
     StoppedReason:
       type: object
       nullable: true
-      required: [exit_code, log_tail]
       additionalProperties: false
       description: >
+        Every field is optional. A VM that quit by itself has `exit_code` and `log_tail`; a container the helper stopped because it stayed over its GPU memory limit has `code` (`gpu_memory_over_limit`), `message`, `used_gb` and `limit_gb`.
         Optional, only on a workload that is stopped (or failed) and that the helper did not stop on request. Why it stopped, as the helper found it.
         `log_tail` is text from inside the VM: at most 12 lines and 2048 bytes, escape sequences and control characters removed. It is data, never markup.
         The Root cleans and caps it again, keeps it with the workload, and drops it as soon as the workload runs again or is gone.
       properties:
         exit_code: { type: integer, nullable: true, minimum: -1000, maximum: 1000 }
         log_tail: { type: string, maxLength: 20000 }
+        code: { type: string, pattern: '^[a-z0-9_]{1,64}$', description: 'Why, as a short code, for example `gpu_memory_over_limit`.' }
+        message: { type: string, maxLength: 20000, description: 'The reason in plain words. Text, never markup; the Root cleans it and keeps at most 300 bytes.' }
+        used_gb: { type: number, minimum: 0, maximum: 1000000 }
+        limit_gb: { type: number, minimum: 0, maximum: 1000000 }
     WorkloadList:
       type: object
       required: [workloads]
@@ -1019,6 +1025,7 @@ components:
         gpu_mode: { type: string, enum: [none, container, passthrough], default: none }
         image: { type: string, pattern: '^[a-z0-9][a-z0-9._:/-]{0,127}$' }
         bundle: { $ref: '#/components/schemas/ImageId' }
+        gpu_memory_gb: { type: integer, minimum: 1, maximum: 1024, description: 'Optional. Caps the GPU memory this container may use, in GB. Only with kind container and gpu_mode container, else 400. The helper watches it and stops a container that stays over. Absent: the whole card is shared. The Root sends it only to a helper that says `gpu_memory_limit: true`.' }
     ImageId:
       type: string
       pattern: '^[a-z0-9][a-z0-9-]{0,31}$'

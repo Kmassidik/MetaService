@@ -45,12 +45,17 @@ class MachineSpec:
     gpu_in_vm: bool = False
     gpu_in_container: bool = False
     gpu_inside: str = "nvidia-smi"
+    # A helper of this build can cap and watch the GPU memory of a container; it says so only when containers can use the card at all. False plays an older helper.
+    gpu_memory_limit: bool = True
     images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
     serves_images: bool = True
     # A helper of this build installs apps (OpenClaw, Hermes) into a running VM and says so in GET /v1/images. False plays an older helper: no app entries, no route.
     serves_apps: bool = True
     # What the helper says about the SSH server in a VM after it wrote the keys: running, installed (not running) or missing (the helper had to add it, or could not).
     sshd: str = "running"
+
+
+GPU_OVER_LIMIT_CODE = "gpu_memory_over_limit"
 
 
 class Refused(Exception):
@@ -110,6 +115,7 @@ class FakeEngine:
             "capabilities": {
                 "vm": spec.vm, "container": spec.container,
                 "gpu_in_vm": spec.gpu_in_vm, "gpu_in_container": spec.gpu_in_container,
+                "gpu_memory_limit": spec.gpu_in_container and spec.gpu_memory_limit,
             },
             "agent_version": self.agent_version,
             "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},
@@ -166,6 +172,19 @@ class FakeEngine:
         with self._lock:
             workload = self._get(workload_id)
             workload.update(state="stopped", stopped_reason={"exit_code": exit_code, "log_tail": log_tail})
+
+    def report_gpu_usage(self, workload_id, used_gb):
+        """The watchdog's test hook: a container that uses more GPU memory than its limit is stopped, with the reason a real helper reports."""
+        with self._lock:
+            workload = self._get(workload_id)
+            limit = workload.get("gpu_memory_gb")
+            if limit is None or used_gb <= limit or workload["state"] != "running":
+                return False
+            workload.update(state="stopped", stopped_reason={
+                "code": GPU_OVER_LIMIT_CODE, "used_gb": used_gb, "limit_gb": limit,
+                "message": f"The container used {used_gb:g} GB of GPU memory and its limit is {limit} GB, so it was stopped.",
+            })
+            return True
 
     def set_sshd(self, state):
         """What every later apply reports about the VM's SSH server (running, installed or missing)."""
@@ -265,6 +284,7 @@ class FakeEngine:
             "id": f"wl-{next(self._ids)}", "name": body["name"], "kind": body["kind"], "state": "running",
             "cpu": body["cpu"], "ram_mb": body["ram_mb"], "disk_gb": body["disk_gb"],
             "gpu_mode": body.get("gpu_mode", "none"), "address": None, "bundle_version": None,
+            "gpu_memory_gb": body.get("gpu_memory_gb"),
         }
 
     def set_state(self, command_id, workload_id, command_type, state):

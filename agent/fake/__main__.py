@@ -29,12 +29,13 @@ def main():
     parser.add_argument("--gpus", default="", help="comma separated kinds, one GPU each, for /v1/stats: " + ", ".join(GPU_KINDS))
     parser.add_argument("--nvidia", choices=["toolkit", "no-toolkit"], help="the facts report an NVIDIA card; with the container toolkit containers can use it, without it they cannot")
     parser.add_argument("--gpu-inside", choices=sorted(GPU_INSIDE), default="nvidia-smi", help="what the GPU check finds inside a container")
+    parser.add_argument("--no-gpu-limit", action="store_true", help="play a helper that cannot limit GPU memory (does not announce gpu_memory_limit)")
     parser.add_argument("--agent-build", default=DEFAULT_AGENT_BUILD, help="the build (64 lowercase hex digits) the facts report; 'none' reports no build, like an older helper")
     args = parser.parse_args()
     token = pathlib.Path(args.token_file).read_text().strip()
     has_card = args.nvidia is not None
     card = [{"vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768}] if has_card else []
-    spec = MachineSpec(vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside)
+    spec = MachineSpec(vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside, gpu_memory_limit=not args.no_gpu_limit)
     build = None if args.agent_build == "none" else args.agent_build
     server = make_server(FakeEngine(spec, agent_build=build), token, args.host, args.port, FakeStats(cores=args.cores, gpu=args.gpu or has_card, gpus=parse_kinds(args.gpus), physical=args.physical, extras=args.extras))
     print(f"Fake Agent on http://{args.host}:{server.server_address[1]}")
