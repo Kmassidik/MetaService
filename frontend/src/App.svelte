@@ -282,7 +282,7 @@
   {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={startConsoleVm} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
   <ConfirmDialog open={deleting !== null} {...deleteCopy} onconfirm={confirmDelete} onClose={() => (deleting = null)} />
-  <RenameMachineDialog machine={renaming} onSaved={refresh} onClose={() => (renaming = null)} />
+  {#if renaming}<RenameMachineDialog machine={renaming} onSaved={refresh} onClose={() => (renaming = null)} />{/if}
   <RemoveMachineDialog machine={removing} info={removingRemote} onconfirm={confirmRemove} onClose={() => (removing = null)} />
 {/if}
 
