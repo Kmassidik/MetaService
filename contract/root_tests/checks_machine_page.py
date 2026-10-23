@@ -6,7 +6,7 @@ from contract.root_tests.support import Browser, enrolled_machine, expect, good_
 
 HOSTILE = ["'; DROP TABLE machines;--", "<script>alert(1)</script>", "$(reboot)", "`id`", "../../etc/passwd", "line\nbreak", "nul\u0000byte", "x" * 1000, "{@html x}", "--privileged",
            "a b", "; reboot", "%s%n", "Ünïcode", "", " "]
-TEXT_FIELDS = ["name", "subdomain", "vm_image", "ai_model"]
+TEXT_FIELDS = ["subdomain", "vm_image", "ai_model"]
 NUMBER_FIELDS = ["ram_reserve_mb", "disk_reserve_gb", "ram_allowance_mb", "disk_allowance_gb", "vm_max_running", "vm_cpu", "vm_ram_mb", "vm_disk_gb"]
 HOSTILE_NUMBERS = ["12", "1; reboot", True, 1.5, [1], {"a": 1}, -1, 99_999_999_999_999_999, "<script>"]
 NEW_KEYS = {"agent_version", "engine", "box", "agent_port", "ruvio"}
@@ -110,6 +110,57 @@ def check_a_change_can_rename_the_machine_but_not_to_another_machines_name():
         expect(_machine(operator)["name"] == "studio", "a refused rename changed the name")
 
 
+LEGAL_DISPLAY_NAMES = ["Mac Studio", "Luca's PC (RTX)", "R&D box_2.0", "Ünïcode Café"]
+REFUSED_DISPLAY_NAMES = ["a b\"c';rm -rf ~;", "<b>x</b>", "$(reboot)", "`id`", "../../etc/passwd", "line\nbreak", "nul\u0000byte", " lead", "trail ", "two  spaces", "x" * 49, "", "{@html x}", "😀"]
+
+
+def check_a_machine_can_be_given_a_name_with_spaces_capitals_and_marks_and_keeps_its_id():
+    with running() as root:
+        operator = Browser(root)
+        enrolled_machine(operator, "mini")
+        for name in LEGAL_DISPLAY_NAMES:
+            expect(_patch(operator, {"name": name}).status == 200, f"{name!r} was refused")
+            machine = _machine(operator)
+            expect(machine["name"] == name and machine["id"] == "mini", f"name {machine['name']!r} id {machine['id']!r}")
+            listed = operator.request("GET", "/api/machines").body["machines"]
+            expect(any(m["name"] == name and m["id"] == "mini" for m in listed), "the list did not show the new name")
+
+
+def check_a_display_name_that_differs_only_in_capitals_is_a_clash_and_a_hostile_one_is_refused():
+    with running() as root:
+        operator = Browser(root)
+        enrolled_machine(operator, "mini")
+        enrolled_machine(operator, "dgx")
+        expect(_patch(operator, {"name": "Mac Studio"}).status == 200, "the first rename failed")
+        clash = _patch(operator, {"name": "mac STUDIO"}, name="dgx")
+        expect(clash.status == 409 and clash.body["error"]["code"] == "machine_exists", f"clash: {clash.status} {clash.raw[:100]!r}")
+        expect(clash.body["error"]["message"] == "another machine already has that name", f"words: {clash.raw[:120]!r}")
+        expect(_patch(operator, {"name": "mac studio"}).status == 200, "a machine may change the capitals of its own name")
+        for text in REFUSED_DISPLAY_NAMES:
+            expect(_patch(operator, {"name": text}).status == 400, f"{text[:20]!r} was accepted")
+        expect(_machine(operator)["name"] == "mac studio" and _machine(operator, "dgx")["name"] == "dgx", "a refused rename changed a name")
+
+
+def check_a_new_machine_cannot_be_invited_under_a_display_name_in_other_capitals():
+    with running() as root:
+        operator = Browser(root)
+        enrolled_machine(operator, "mini")
+        _patch(operator, {"name": "Studio"})
+        invite = operator.write("POST", "/api/enrollments", {"name": "studio"})
+        expect(invite.status == 409, f"invite for a taken display name gave {invite.status}")
+
+
+def check_a_rename_is_audited_by_id_and_the_display_name_never_reaches_the_log():
+    with running() as root:
+        operator = Browser(root)
+        enrolled_machine(operator, "mini")
+        _patch(operator, {"name": "Luca's PC (RTX)"})
+        entries = operator.request("GET", "/api/audit").body["entries"]
+        change = next((e for e in entries if e["action"] == "machine.settings"), None)
+        expect(change is not None and change["target"] == "mini", f"audit: {[(e['action'], e['target']) for e in entries]}")
+        expect("Luca" not in json.dumps(entries), "the display name reached the audit log")
+
+
 def check_hostile_text_in_every_text_field_is_refused_and_changes_nothing():
     with running() as root:
         operator = Browser(root)
@@ -202,4 +253,6 @@ CHECKS = [
     check_hostile_text_in_every_text_field_is_refused_and_changes_nothing, check_hostile_notes_are_kept_as_plain_text_and_too_long_notes_are_refused,
     check_hostile_values_in_every_number_and_flag_field_are_refused, check_fields_outside_the_allow_list_are_refused,
     check_the_settings_route_has_the_same_guards_as_every_operator_write, check_a_change_is_audited_by_field_name_and_never_by_value,
+    check_a_machine_can_be_given_a_name_with_spaces_capitals_and_marks_and_keeps_its_id, check_a_display_name_that_differs_only_in_capitals_is_a_clash_and_a_hostile_one_is_refused,
+    check_a_new_machine_cannot_be_invited_under_a_display_name_in_other_capitals, check_a_rename_is_audited_by_id_and_the_display_name_never_reaches_the_log,
 ]
