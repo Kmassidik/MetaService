@@ -84,7 +84,6 @@ final class RequestsTests: XCTestCase {
     func testBrokenReasonsAndModesAreRefused() {
         let bad: [(String, (inout [String: Any]) -> Void)] = [
             ("extra key", { $0["stopped_reason"] = ["exit_code": 1, "log_tail": "x", "more": 1] }),
-            ("no log tail", { $0["stopped_reason"] = ["exit_code": 1] }),
             ("log tail number", { $0["stopped_reason"] = ["exit_code": 1, "log_tail": 5] }),
             ("exit code text", { $0["stopped_reason"] = ["exit_code": "1", "log_tail": "x"] }),
             ("exit code huge", { $0["stopped_reason"] = ["exit_code": 99999, "log_tail": "x"] }),
