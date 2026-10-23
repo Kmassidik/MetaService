@@ -65,6 +65,12 @@ export function sizeCards(machine: Machine | undefined): SizeCard[] {
 
 const sameSize = (left: VmSize, right: VmSize): boolean => left.cpu === right.cpu && left.ramGb === right.ramGb && left.diskGb === right.diskGb
 
+/** The size line that matches numbers typed in the boxes: the preset with exactly these numbers, else Custom. */
+export function matchingSize(cpu: unknown, ramGb: unknown, diskGb: unknown): SizeKey {
+  const typed: VmSize = { cpu: Number(cpu), ramGb: Number(ramGb), diskGb: Number(diskGb) }
+  return SIZE_PRESETS.find((preset) => sameSize(preset, typed))?.key ?? 'custom'
+}
+
 /** What "A new VM gets" on a machine's Environment tab holds, only the parts it has. */
 export type SizeDefaults = Partial<VmSize>
 

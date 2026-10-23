@@ -24,7 +24,18 @@ export interface Capabilities {
   gpu_in_container: boolean
   /** True when the helper can limit a container's GPU memory; false or left out for an older helper. */
   gpu_memory_limit?: boolean
+  /** The CPU models a VM can be given, `host` first; left out when the helper offers only the machine's own CPU. */
+  cpu_models?: string[]
+  /** True when a VM can be given more than one socket. */
+  cpu_topology?: boolean
+  /** The CPU flags a VM can have switched on or off. */
+  cpu_flags?: string[]
+  /** True when a container can get a hard cap on its CPU time. */
+  cpu_limit?: boolean
 }
+
+/** The CPU flags the Create VM window can switch, as the helpers name them. */
+export type CpuFlagId = 'nested-virt' | 'aes'
 
 /** What the Add machine form saved for a machine. */
 export interface MachineSettings {
@@ -337,6 +348,14 @@ export interface WorkloadForm {
   gpuMemoryGb?: FormNumber
   /** The catalog id of the image to start from (`blank` when none is picked); sent only when it is not `blank`. */
   bundle?: string
+  /** VMs: the sockets the CPUs are spread over (cores per socket = cpu / sockets); 1 or undefined is the engine's own layout. */
+  cpuSockets?: FormNumber
+  /** VMs: the CPU model; undefined or `host` is the machine's own CPU. */
+  cpuType?: string | undefined
+  /** VMs: the flags switched on or off; a flag left out keeps what the CPU model gives. */
+  cpuFlags?: Partial<Record<CpuFlagId, 'on' | 'off'>> | undefined
+  /** Containers: the hard cap on CPU time, in cores (1.5 is one and a half); empty for no cap. */
+  cpuLimit?: FormNumber
 }
 
 /** Step one of Connect: the SSH host key a computer shows, to confirm before any login. */
