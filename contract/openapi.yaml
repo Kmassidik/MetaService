@@ -334,21 +334,6 @@ paths:
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 'the VM is not running (code not_running) or has no app wanted (code no_app)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    get:
-      summary: >
-        Root endpoint for the panel (operator read). The app wanted inside one VM and how setting it up stands. `state` is none (no app wanted, or wanted and not started yet), installing, ready or failed.
-        An install older than 30 minutes is read as failed ("Setting up the app did not finish. The parent may have restarted. Try again."). `log_tail` is plain text, to be shown as text only.
-        The machine list (GET /api/machines) carries the same on each workload as `app`: { name, state, message } or null.
-      security: []
-      parameters:
-        - { name: machine, in: path, required: true, schema: { type: string } }
-        - { $ref: '#/components/parameters/WorkloadId' }
-      responses:
-        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppView' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/update-helper:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
     post:
