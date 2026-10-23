@@ -49,7 +49,10 @@ const memoryState = (b: Browse) =>
 
 const createDisabled = (b: Browse) => b.isDisabled('Create VM')
 
+/** After a good Create the form goes; the progress window may follow (it only stays while the order is working), so close whatever is left open. */
 async function waitForClosed(b: Browse): Promise<void> {
+  await b.until(() => document.querySelector('dialog[open] form[aria-label="Create VM"]') === null, { timeout: SHORT_WAIT_MS })
+  await b.page.keyboard.press('Escape')
   await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
 }
 
