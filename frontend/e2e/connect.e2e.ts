@@ -15,6 +15,7 @@ import { browse, type Browse } from './support/page.ts'
 import { SCAN_PREFIX, scanSettings, startRoot } from './support/root.ts'
 import { startSshd } from './support/sshd.ts'
 import { findRow, labelsAligned, readRows } from './support/checkRows.ts'
+import { expandAll } from './machine/environment.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import type { Requirement } from '../src/lib/types.ts'
 
@@ -285,6 +286,7 @@ async function installAndFollow(b: Browse, box: string): Promise<void> {
 async function machinePage(b: Browse): Promise<void> {
   await openMachine(b, root.base, NAME)
   await openTab(b, 'Environment')
+  await expandAll(b)
   await b.until(() => /tunnel\s*SSH tunnel · connected/i.test(document.body.innerText), { timeout: 30000 })
   check('the Environment tab says its SSH tunnel is connected, and where the helper is installed', /helper folder\s*[^\n]*metaservice-box/i.test(await b.text()))
   await b.shot('connect-machine-page.png')

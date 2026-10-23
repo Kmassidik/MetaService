@@ -3,7 +3,7 @@
 // Needs: a built panel (set PANEL_DIST to its folder; `bunx vite build --outDir <dir>`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/machine-page.e2e.ts
 import puppeteer, { type Page } from 'puppeteer-core'
-import { barFollowsChanges, phoneOneColumn, rapidSave, twoColumns } from './machine/environment.ts'
+import { barFollowsChanges, editsInClosedRows, errorOpensRow, expandAll, openRow, opening, phoneRows, rapidSave, rowsAtFirst } from './machine/environment.ts'
 import { startFakeParent } from './machine/fake-parent.ts'
 import { SHORT_WAIT_MS, changeField, expectNoSideScroll, fieldError, fieldValue, openMachine, openTab, pressSwitch, saveDisabled, softwareValue, switchState, untilSwitch } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
@@ -53,6 +53,7 @@ async function keyboardAndLinks(b: Browse) {
 }
 
 async function facts(b: Browse) {
+  await expandAll(b)
   const shown = await b.text()
   check('Environment has the facts of the real mac-studio record', /ID\s*mac-studio/i.test(shown) && /CPU\s*14 cores/i.test(shown) && /of 36 GB/.test(shown) && /of 494 GB/.test(shown) && /System\s*macOS · Apple Silicon/i.test(shown), shown.slice(0, 600))
   check('Environment says what the machine can run', shown.includes('Can run: VMs and containers · GPU in a VM: no · GPU in a container: no'))
@@ -84,7 +85,11 @@ async function ruvioOnAndOff(b: Browse, commands: string[]) {
 }
 
 async function saving(page: Page, b: Browse, patches: unknown[]) {
-  await twoColumns(page, b)
+  await rowsAtFirst(page, b)
+  await opening(page, b)
+  await editsInClosedRows(b)
+  await errorOpensRow(b)
+  await expandAll(b)
   await barFollowsChanges(b)
   await changeField(b, 'vmCpu', '65')
   check('a CPU above the parent\'s limit is refused in the page, with its range', ((await fieldError(b, 'vmCpu')) ?? '').includes('between 1 and 64') && (await saveDisabled(b)))
@@ -104,12 +109,13 @@ async function saving(page: Page, b: Browse, patches: unknown[]) {
   await openTab(b, 'Activity')
   await openTab(b, 'Environment')
   check('the saved values are still there after leaving and coming back', (await fieldValue(b, 'vmCpu')) === '4' && (await fieldValue(b, 'subdomain')) === 'studio' && (await fieldValue(b, 'labels')) === 'lab, gpu')
+  await expandAll(b)
   await changeField(b, 'name', 'mac-mini')
   await b.click('Save')
   await b.until(() => !!document.querySelector('[aria-label="Save bar"] .aline.bad'), { timeout: SHORT_WAIT_MS })
   check('the parent\'s refusal text is shown in the save bar when it refuses', (await b.text()).includes('another machine already has that name'))
   check('the form stays as typed after a refusal, ready to fix', (await fieldValue(b, 'name')) === 'mac-mini' && !(await saveDisabled(b)))
-  await phoneOneColumn(page, b)
+  await phoneRows(page, b)
 }
 
 async function pictures(page: Page, b: Browse, base: string) {
@@ -133,6 +139,7 @@ async function noChatBuilt(page: Page, b: Browse, base: string) {
   await openMachine(b, base, 'mac-studio')
   await openTab(b, 'Environment')
   await b.until(() => !!document.querySelector('button[role=switch]'), { timeout: SHORT_WAIT_MS })
+  await openRow(b, 'Ruvio')
   const state = await switchState(b)
   check('with no chat built the Ruvio switch is off and disabled', state?.on === false && state.disabled === true)
   check('it says "no chat is built on the parent"', (await b.text()).includes('no chat is built on the parent'))

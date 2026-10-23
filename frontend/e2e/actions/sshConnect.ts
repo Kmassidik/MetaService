@@ -3,6 +3,7 @@
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
+import { openRow } from '../machine/environment.ts'
 import { SHORT_WAIT_MS } from '../machine/steps.ts'
 import { fresh, openTable } from './guard.ts'
 import { DESKTOP, freshWithKeys, MACHINE_VMS, noSideScroll, openKeys, PHONE, VM_PAGE } from './ssh.ts'
@@ -48,6 +49,7 @@ async function noCommandReasons(b: Browse, standin: StandIn): Promise<void> {
 async function jumpFromEnvironment(b: Browse, standin: StandIn): Promise<void> {
   await freshWithKeys(b, standin, ENVIRONMENT)
   await b.page.waitForSelector('#env-sshJump')
+  await openRow(b, 'Names')
   const start = await field(b)
   check('the Environment tab has the SSH address field with the exact help text', start.label === 'SSH address' && start.value === '' && start.hint === HELP, JSON.stringify(start))
   await b.type('#env-sshJump', 'studio.example.com')
@@ -76,6 +78,7 @@ async function jumpFromEnvironment(b: Browse, standin: StandIn): Promise<void> {
 
   await b.go(ENVIRONMENT)
   await b.page.waitForSelector('#env-sshJump')
+  await openRow(b, 'Names')
   await b.until((wanted) => document.querySelector<HTMLInputElement>('#env-sshJump')?.value === wanted, { timeout: SHORT_WAIT_MS }, OWN_JUMP)
   await b.type('#env-sshJump', '')
   await b.click('Save')

@@ -1,6 +1,7 @@
 // The chat bundle: pinning a version, turning Ruvio on for a machine, upgrading by a newer pin, and rolling back.
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
+import { expandAll } from '../machine/environment.ts'
 import { openTab, pressSwitch, untilSwitch } from '../machine/steps.ts'
 import { startAgent, type World } from './world.ts'
 
@@ -27,6 +28,7 @@ export async function bundleScenario(b: Browse, world: World): Promise<void> {
     await b.go(`#/machines/details?id=${MACHINE}`)
     await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, MACHINE)
     await openTab(b, 'Environment')
+    await expandAll(b)
     await b.until(() => document.querySelector<HTMLButtonElement>('button[role=switch]')?.disabled === false, { timeout: SHORT_WAIT_MS })
     await pressSwitch(b)
     await untilSwitch(b, true)

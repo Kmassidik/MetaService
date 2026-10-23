@@ -4,6 +4,7 @@
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/helper-update.e2e.ts
 import puppeteer, { type Page } from 'puppeteer-core'
 import { startFakeParent, type HelperScenario } from './machine/fake-parent.ts'
+import { expandAll } from './machine/environment.ts'
 import { SHORT_WAIT_MS, expectNoSideScroll, openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
 import { browse, type Browse } from './support/page.ts'
@@ -33,6 +34,7 @@ const helperRow = (b: Browse) => b.run(() => {
 async function openEnvironment(b: Browse, base: string) {
   await openMachine(b, base, 'mac-studio')
   await openTab(b, 'Environment')
+  await expandAll(b)
   await b.until(() => !!document.querySelector('section[aria-label=Software] .helper'), { timeout: SHORT_WAIT_MS })
 }
 
