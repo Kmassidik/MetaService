@@ -211,8 +211,6 @@ class AgentHandler(BaseHTTPRequestHandler):
     def put_app(self, id):
         if not self.engine.spec.serves_apps:
             raise ApiError(404, "not_found", "no such path")
-        if not self.engine.spec.serves_apps:
-            raise ApiError(404, "not_found", "no such path")
         body = self._body("AppInstall")
         self._send(200, self.engine.install_app(id, body["app"]))
 

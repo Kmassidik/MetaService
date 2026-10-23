@@ -151,7 +151,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the installer failed (code app_install_failed)', content: { application/json: { schema: { $ref: '#/components/schemas/AppInstallError' } } } }
-  /v1/workloads/{id}/app:
     put:
       summary: >
         Installs an app (OpenClaw or Hermes) inside ONE running VM, with constant installer scripts that download the vendor's official installer. Optional, added without a version change
@@ -351,8 +350,6 @@ paths:
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 'the VM is not running (code not_running) or has no app wanted (code no_app)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-  /api/machines/{machine}/workloads/{workload}/app:
-    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
     get:
       summary: >
         Root endpoint for the panel (operator read). The app wanted inside one VM and how setting it up stands. `state` is none (no app wanted, or wanted and not started yet), installing, ready or failed.
@@ -368,8 +365,6 @@ paths:
         '403': { description: 'wrong Host', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: 'too many requests (code rate_limited)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-  /api/machines/{machine}/workloads/{workload}/app/retry:
-    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie, Host, Origin and CSRF checked like every operator write) } ]
     post:
       summary: Root endpoint for the panel (operator write). Starts the install now, without waiting for the heartbeat or the minute after a failure. Answers the same shape as the read, with state installing. 409 not_running when the VM is stopped, 409 no_app when the VM has no app wanted.
       security: []
@@ -802,46 +797,7 @@ components:
       required: [app, state, message, log_tail, version, started_at]
       additionalProperties: false
       properties:
-        app: { type: string, enum: [openclaw, hermes], nullable: true, description: 'null when no app is wanted in this VM' }
-        state: { type: string, enum: [none, installing, ready, failed] }
-        message: { type: string, nullable: true, maxLength: 300, description: 'plain reason, only while failed' }
-        log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed, only while failed; render as text only' }
-        version: { type: string, nullable: true, maxLength: 64 }
-        started_at: { type: integer, nullable: true, description: 'seconds since 1970, when the last install began' }
-    AppInstall:
-      type: object
-      required: [app]
-      additionalProperties: false
-      properties:
-        app: { type: string, enum: [openclaw, hermes] }
-    AppInstalled:
-      type: object
-      required: [app, installed, version, installer_sha256]
-      additionalProperties: false
-      properties:
-        app: { type: string, enum: [openclaw, hermes] }
-        installed: { type: boolean, description: 'false: the app was there already and nothing changed' }
-        version: { type: string, nullable: true, maxLength: 64 }
-        installer_sha256: { type: string, nullable: true, pattern: '^[0-9a-f]{64}$', description: 'SHA-256 of the installer script that ran' }
-    AppInstallError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message, log_tail]
-          additionalProperties: false
-          properties:
-            code: { type: string, enum: [app_install_failed] }
-            message: { type: string, minLength: 1, description: plain words }
-            log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed; plain text' }
-    AppView:
-      type: object
-      required: [app, state, message, log_tail, version, started_at]
-      additionalProperties: false
-      properties:
-        app: { type: string, enum: [openclaw, hermes], nullable: true, description: 'null when no app is wanted in this VM' }
+        app: { type: string, enum: [openclaw, hermes, null], nullable: true, description: 'null when no app is wanted in this VM' }
         state: { type: string, enum: [none, installing, ready, failed] }
         message: { type: string, nullable: true, maxLength: 300, description: 'plain reason, only while failed' }
         log_tail: { type: array, maxItems: 12, items: { type: string, maxLength: 200 }, description: 'the last lines the installer printed, only while failed; render as text only' }
@@ -1086,7 +1042,6 @@ components:
               id: { $ref: '#/components/schemas/ImageId' }
               ready: { type: boolean }
               built_at: { type: string, maxLength: 64, nullable: true, description: when it was built (ISO 8601), null for the stock image }
-              caption: { type: string, maxLength: 200, nullable: true, description: 'optional. For `openclaw` and `hermes` on a helper that installs apps: ready is true and the caption is "Installs after the VM starts, about 2 minutes". An older helper keeps ready false.' }
               caption: { type: string, maxLength: 200, nullable: true, description: 'optional. For `openclaw` and `hermes` on a helper that installs apps: ready is true and the caption is "Installs after the VM starts, about 2 minutes". An older helper keeps ready false.' }
     ImageCatalog:
       type: object
