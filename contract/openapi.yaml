@@ -231,7 +231,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: 'wrong Origin, Host or CSRF token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 'no such machine or VM (code not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: 'the VM is not running (code not_running), the machine's helper does not say `terminal` in its capabilities and the machine is not a Mac (code not_supported, "Update the helper on this machine to use the terminal."), or it already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the VM is not running (code not_running), the helper of the machine does not say `terminal` in its capabilities and the machine is not a Mac (code not_supported, "Update the helper on this machine to use the terminal."), or it already has a console (code console_open)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: '4 consoles are open in total (code too_many_consoles)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the machine is offline (code unreachable)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/machines/{machine}/workloads/{workload}/gpu-check:
