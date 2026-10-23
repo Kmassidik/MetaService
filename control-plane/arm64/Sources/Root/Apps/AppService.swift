@@ -47,10 +47,10 @@ final class AppService: @unchecked Sendable {
         return try currentView(machine: machine, workload: workload)
     }
 
-    /// A create that asked for an app has succeeded: remember the wish, and start the install as the new VM runs.
+    /// A create that asked for an app has succeeded: remember the wish and start the install. The new VM may not be in the parent's list until the next heartbeat,
+    /// so it is not looked up: a VM that is not running answers 409 and the install waits for the heartbeat that shows it running.
     func created(app: String, machine: String, workload: String) {
         guard AppCatalog.isApp(app), (try? apps.recordIntent(app: app, workload: workload, machine: machine, now: clock.now)) != nil else { return }
-        guard (try? requireVM(machine: machine, workload: workload).state) == Self.runningState else { return }
         applier.start(machine: machine, workload: workload)
     }
 
