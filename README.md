@@ -72,6 +72,24 @@ Once `PUBLIC_BASE_URL` is set the panel answers only under that name. The API to
 - Adding another computer on the same network from the panel: Connect over SSH (password once, or the parent's key), read-only Verify, "What will change", then Install into an isolated folder (`~/metaservice-box`). The parent keeps an SSH tunnel to it, shows connected or offline, and removal puts the computer back exactly as it was. Tested on this laptop only.
 - Built but not switched on: the own-user install on Linux (needs sudo) and the WireGuard transport. Both are unit-tested and unverified on real hardware.
 - Not yet: the chat's files, connected apps and routines.
+- CPU settings in Create VM, as in Proxmox's Processors window: sockets, a CPU type and CPU flags for a VM on a Linux machine, and a CPU limit for a container. A Mac gives a VM its own CPU. A Linux machine offers them only when it can make VMs (see below).
+
+## A Linux machine that makes VMs
+
+A Linux machine makes VMs with Incus, and only when its CPU's virtualization is switched on. Containers do not need it, so a machine without it still runs containers and the panel calls it "containers only".
+
+1. In the computer's BIOS, switch on **SVM Mode** (AMD) or **Intel Virtualization Technology** (VT-x, Intel). Only the BIOS can do this; Linux cannot turn it on later.
+2. After the restart, start the helper again. An install in a folder does not start by itself after a restart: run `~/metaservice-box/start.sh`.
+3. Check that the machine can make VMs:
+   - `ls /dev/kvm` lists a device.
+   - `dmesg | grep -i kvm` does not say "disabled by bios".
+   - `incus info | grep -A1 driver` says `lxc | qemu`. Without `qemu`, install QEMU and OVMF for Incus (on Ubuntu: `sudo apt install qemu-system-x86 ovmf`), then restart Incus with `sudo systemctl restart incus`.
+4. In the panel, press **Update helper** on that machine, so it runs a helper that offers the CPU settings.
+
+Create VM then offers, on that machine:
+- the CPU types its QEMU knows (Type, with the Vendor beside each);
+- `nested-virt` and `aes` (Extra CPU flags);
+- more than one socket, on Incus 7.1 or 7.0.1 LTS and later.
 
 ## Test
 
