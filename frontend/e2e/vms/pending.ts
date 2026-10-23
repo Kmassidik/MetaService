@@ -67,6 +67,7 @@ async function creatingFromTheWindow(b: Browse, stand: Stand): Promise<void> {
   await untilCardSays(b, GOOD_VM, 'Waiting for the machine…')
   const text = await cardText(b, GOOD_VM)
   check('right after Create the window closes, All VMs is behind it, and a card names the VM and its machine and says it is waiting for the machine', text.includes(GOOD_VM) && text.includes(MACHINE) && /waiting for the machine…/i.test(text) && b.page.url().endsWith('#/vms'), text)
+  await b.until(() => document.querySelectorAll('ul.pending ol.steps').length === 1, { timeout: SHORT_WAIT_MS })
   check('the card shows three steps with the current one marked', (await b.run(() => document.querySelectorAll('ul.pending li[data-pending] ol.steps li').length)) === 3 && (await b.run(() => document.querySelectorAll('ul.pending li[aria-current="step"], ul.pending li [aria-current="step"]').length)) === 1)
   await owlShown(b, 'busy', 'the Creating card')
   await owlAbsent(b, 'emptyVms', 'All VMs while the first VM is being made')

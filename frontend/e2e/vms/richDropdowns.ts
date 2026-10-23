@@ -11,7 +11,7 @@ const MAC_MACHINE = 'mac-mini'
 const HELPER_MACHINE = 'agent-mac'
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
-const LOGO_SIZE_PX = 28
+const LOGO_SIZE_PX = 22
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
 const FRAMEWORK_ROWS_WITH_LOGOS = 2
 const SERVER_ROWS_WITH_LOGOS = 6
@@ -70,7 +70,7 @@ export async function logosRendered(b: Browse): Promise<void> {
   await openedMenu(b, IMAGE)
   await picturesLoaded(b)
   const server = await badgeReports(b, '#vm-create-image-menu')
-  check('every server operating system row shows a loaded logo picture, 28 px, decorative, contained', server.length === SERVER_ROWS_WITH_LOGOS && server.every((badge) => badge.kind === 'logo' && badge.loaded && badge.box === LOGO_SIZE_PX && badge.alt === '' && badge.hidden === 'true' && badge.fit === 'contain'), JSON.stringify(server))
+  check('every server operating system row shows a loaded logo picture, 22 px, decorative, contained', server.length === SERVER_ROWS_WITH_LOGOS && server.every((badge) => badge.kind === 'logo' && badge.loaded && badge.box === LOGO_SIZE_PX && badge.alt === '' && badge.hidden === 'true' && badge.fit === 'contain'), JSON.stringify(server))
   check('a logo badge has no letter and no coloured or dark box behind it', server.every((badge) => badge.letters === '' && badge.background === TRANSPARENT), JSON.stringify(server))
   await b.page.keyboard.press('Escape')
   await openedMenu(b, FRAMEWORK)
