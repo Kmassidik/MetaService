@@ -3,6 +3,7 @@
   import GpuBadge from '../GpuBadge.svelte'
   import StatePill from '../StatePill.svelte'
   import VmActions from './VmActions.svelte'
+  import AppChip from '../vm/AppChip.svelte'
   import WhyStopped from '../vm/WhyStopped.svelte'
   import { PLAIN_MODE_TEXT } from '../../lib/stoppedReason.ts'
   import { formatGb, formatMb } from '../../lib/format.ts'
@@ -30,6 +31,7 @@
           <td data-label="State">
             <div class="state">
               <StatePill state={vmTone(row.state)} label={row.state} />
+              {#if row.app}<AppChip chip={row.app} />{/if}
               {#if row.note}<WhyStopped note={row.note} compact />{/if}
               {#if row.plain}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
             </div>

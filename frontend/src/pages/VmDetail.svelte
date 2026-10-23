@@ -7,6 +7,7 @@
   import VmDanger from '../components/vm/VmDanger.svelte'
   import Owl from '../components/Owl.svelte'
   import GpuBadge from '../components/GpuBadge.svelte'
+  import VmSoftware from '../components/vm/VmSoftware.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
   import { hasGpu } from '../lib/gpuChoice.ts'
   import { machineHref } from '../lib/routes.ts'
@@ -70,6 +71,7 @@
   <div class="tabbody">
     {#if tab === 'overview'}
       <VmOverview {machine} {workload} {server} {pinned} {note} onInstall={() => onInstall(machine, workload)} />
+      {#if workload.app}{#key workload.id}<VmSoftware machineId={machine.id} workloadId={workload.id} />{/key}{/if}
       {#if hasGpu(workload)}{#key workload.id}<VmGpu machineId={machine.id} workloadId={workload.id} />{/key}{/if}
     {:else if tab === 'monitoring'}
       <VmMonitoring state={workload.state} />
