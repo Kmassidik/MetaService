@@ -10,6 +10,7 @@ mod facts;
 mod files;
 mod gpu;
 mod gpu_check;
+mod gpu_watch;
 #[cfg(test)]
 mod gpu_service_tests;
 mod heartbeat;
@@ -79,12 +80,23 @@ fn root_address(config: &Config) -> Option<String> {
     enroll::valid_root(settings["root"].as_str()?).ok()
 }
 
+fn find_incus(config: &Config) -> Result<String, String> {
+    config.incus_path.clone().or_else(|| ["/usr/bin/incus", "/usr/local/bin/incus", "/run/current-system/sw/bin/incus"].iter().find(|p| std::path::Path::new(p).is_file()).map(|p| p.to_string()))
+        .filter(|p| std::path::Path::new(p).is_file()).ok_or_else(|| "the `incus` program was not found; install Incus or pass --incus-path".to_string())
+}
+
+/// Starts the GPU memory watchdog when this machine runs Incus and has an NVIDIA card it can read.
+fn start_gpu_watch(config: &Config, specs: &models::Specs) -> Result<(), String> {
+    let Some(nvidia_smi) = facts::find_nvidia_smi().filter(|_| !specs.gpu.is_empty() && config.engine != "simulated") else { return Ok(()) };
+    gpu_watch::spawn(Arc::new(incus::ProcessRunner { path: find_incus(config)? }), nvidia_smi);
+    Ok(())
+}
+
 fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine::Engine>, String> {
     if config.engine == "simulated" {
         return Ok(Arc::new(engine::SimulatedEngine::new(engine::default_capabilities())));
     }
-    let path = config.incus_path.clone().or_else(|| ["/usr/bin/incus", "/usr/local/bin/incus", "/run/current-system/sw/bin/incus"].iter().find(|p| std::path::Path::new(p).is_file()).map(|p| p.to_string()))
-        .filter(|p| std::path::Path::new(p).is_file()).ok_or("the `incus` program was not found; install Incus or pass --incus-path")?;
+    let path = find_incus(config)?;
     let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false };
     let backups = config.backup_dir.clone().unwrap_or_else(|| config.state_dir.join("backups"));
     Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty())))
@@ -105,6 +117,7 @@ fn run(config: Config) -> Result<(), String> {
     budget.reserve_ram_pinned = config.reserve_ram_mb.is_some();
     budget.reserve_disk_pinned = config.reserve_disk_gb.is_some();
     let engine = make_engine(&config, &specs)?;
+    start_gpu_watch(&config, &specs)?;
     let supervisor = (std::env::var("MS_NO_CHAT").is_err()).then(|| config.python_path.clone().or_else(bundle::find_python)).flatten()
         .map(|python| supervisor::Supervisor::new(python, config.state_dir.join("chat.log")));
     let installer = bundle::BundleInstaller::new(config.clone(), engine.clone(), root.clone(), machine_token.clone(), supervisor.clone());

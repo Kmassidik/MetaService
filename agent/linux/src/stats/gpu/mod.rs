@@ -5,7 +5,7 @@ mod intel;
 mod nvidia;
 mod sysfs;
 
-pub use nvidia::QUERY_TIMEOUT;
+pub use nvidia::{query_pid_memory, PidMemory, QUERY_TIMEOUT};
 
 use super::model::{GpuStats, MAX_GPUS};
 use std::collections::HashSet;

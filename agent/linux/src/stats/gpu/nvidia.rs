@@ -14,6 +14,9 @@ const CARD_ARGUMENTS: [&str; 2] = [
     "--format=csv,noheader,nounits",
 ];
 const PROGRAM_ARGUMENTS: [&str; 2] = ["--query-compute-apps=gpu_uuid,process_name,used_memory", "--format=csv,noheader,nounits"];
+/// The same program list with the process id, for the memory watchdog (it ties a program to its container by the id).
+const PID_PROGRAM_ARGUMENTS: [&str; 2] = ["--query-compute-apps=gpu_uuid,pid,process_name,used_memory", "--format=csv,noheader,nounits"];
+const PID_PROGRAM_FIELDS: usize = 4;
 const CARD_FIELDS: usize = 10;
 const PROGRAM_FIELDS: usize = 3;
 const BYTES_PER_MIB: u64 = 1024 * 1024;
@@ -81,6 +84,27 @@ fn run(program: &str, arguments: &[&str], timeout: Duration) -> Option<String> {
     let mut text = String::new();
     child.stdout.take()?.read_to_string(&mut text).ok()?;
     status.success().then_some(text)
+}
+
+/// A program on a card: its process id and the memory it holds in MiB.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct PidMemory {
+    pub pid: u32,
+    pub used_mib: u64,
+}
+
+/// Every program on every card with its process id. None when the program does not run, fails, or is too slow.
+pub fn query_pid_memory(program: &str, timeout: Duration) -> Option<Vec<PidMemory>> {
+    run(program, &PID_PROGRAM_ARGUMENTS, timeout).map(|text| parse_pid_memory(&text))
+}
+
+/// Lines like `GPU-aaa, 4242, python3, 1024`. A line without a number for the id or the memory (`[N/A]`) is left out.
+pub fn parse_pid_memory(text: &str) -> Vec<PidMemory> {
+    text.lines().filter_map(|line| {
+        let fields: Vec<&str> = line.split(',').map(str::trim).collect();
+        if fields.len() != PID_PROGRAM_FIELDS { return None; }
+        Some(PidMemory { pid: fields[1].parse().ok()?, used_mib: fields[3].parse().ok()? })
+    }).collect()
 }
 
 pub fn parse(text: &str) -> Vec<Card> {
@@ -155,6 +179,13 @@ mod tests {
         std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn pid_memory_lines() {
+        let parsed = parse_pid_memory("GPU-aaa, 4242, /usr/bin/python3, 1024\nGPU-aaa, 77, worker, [N/A]\nGPU-bbb, x, y, 5\nshort, 1\nGPU-bbb, 9, a, b, 7\nGPU-bbb, 9, name, 300\n");
+        assert_eq!(parsed, [PidMemory { pid: 4242, used_mib: 1024 }, PidMemory { pid: 9, used_mib: 300 }]);
+        assert!(parse_pid_memory("").is_empty());
     }
 
     #[test]
