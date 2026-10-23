@@ -68,10 +68,11 @@ public struct MachineSettings: Codable, Equatable {
         self.sshJump = sshJump
     }
 
-    /// What the machine may be used for: with GPU use switched off, the machine does not offer its GPU to VMs or containers.
+    /// What the machine may be used for: with GPU use switched off, the machine does not offer its GPU to VMs or containers. Its CPU settings stay as offered.
     public func limiting(_ capabilities: Capabilities?) -> Capabilities? {
         guard !allowGpu, let capabilities else { return capabilities }
-        return Capabilities(vm: capabilities.vm, container: capabilities.container, gpuInVm: false, gpuInContainer: false, gpuMemoryLimit: capabilities.gpuMemoryLimit)
+        return Capabilities(vm: capabilities.vm, container: capabilities.container, gpuInVm: false, gpuInContainer: false, gpuMemoryLimit: capabilities.gpuMemoryLimit,
+                            cpuModels: capabilities.cpuModels, cpuTopology: capabilities.cpuTopology, cpuFlags: capabilities.cpuFlags, cpuLimit: capabilities.cpuLimit)
     }
 
     /// True when the machine already runs as many VMs as it was allowed.

@@ -39,23 +39,40 @@ public struct Capabilities: Equatable, Codable {
     public let gpuInContainer: Bool
     /// The helper can cap and watch the GPU memory of a container. Helpers older than this feature do not say, which reads as false.
     public let gpuMemoryLimit: Bool
+    /// The CPU models a VM can be given, `host` first. Helpers older than the CPU settings do not say, which reads as the host CPU only.
+    public let cpuModels: [String]
+    /// A VM can be given more than one socket. False for older helpers.
+    public let cpuTopology: Bool
+    /// The CPU flags a VM can have switched on or off (`nested-virt`, `aes`). None for older helpers.
+    public let cpuFlags: [String]
+    /// A container can get a hard cap on its CPU time. False for older helpers.
+    public let cpuLimit: Bool
 
-    public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, gpuMemoryLimit: Bool = false) {
+    public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, gpuMemoryLimit: Bool = false,
+                cpuModels: [String] = CpuSettings.defaultModels, cpuTopology: Bool = false, cpuFlags: [String] = [], cpuLimit: Bool = false) {
         self.vm = vm
         self.container = container
         self.gpuInVm = gpuInVm
         self.gpuInContainer = gpuInContainer
         self.gpuMemoryLimit = gpuMemoryLimit
+        self.cpuModels = cpuModels
+        self.cpuTopology = cpuTopology
+        self.cpuFlags = cpuFlags
+        self.cpuLimit = cpuLimit
     }
 
-    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit }
+    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit, cpuModels, cpuTopology, cpuFlags, cpuLimit }
 
-    /// Capabilities saved before this feature have no `gpuMemoryLimit`.
+    /// Capabilities saved before a feature leave out its fields: no `gpuMemoryLimit`, no CPU settings.
     public init(from decoder: Decoder) throws {
         let box = try decoder.container(keyedBy: CodingKeys.self)
         self.init(vm: try box.decode(Bool.self, forKey: .vm), container: try box.decode(Bool.self, forKey: .container),
                   gpuInVm: try box.decode(Bool.self, forKey: .gpuInVm), gpuInContainer: try box.decode(Bool.self, forKey: .gpuInContainer),
-                  gpuMemoryLimit: try box.decodeIfPresent(Bool.self, forKey: .gpuMemoryLimit) ?? false)
+                  gpuMemoryLimit: try box.decodeIfPresent(Bool.self, forKey: .gpuMemoryLimit) ?? false,
+                  cpuModels: try box.decodeIfPresent([String].self, forKey: .cpuModels) ?? CpuSettings.defaultModels,
+                  cpuTopology: try box.decodeIfPresent(Bool.self, forKey: .cpuTopology) ?? false,
+                  cpuFlags: try box.decodeIfPresent([String].self, forKey: .cpuFlags) ?? [],
+                  cpuLimit: try box.decodeIfPresent(Bool.self, forKey: .cpuLimit) ?? false)
     }
 }
 
@@ -90,12 +107,17 @@ public struct FactsReport: Equatable {
         freeRamMb = try object.int("free_ram_mb", range: 0...100_000_000)
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
         gpu = try object.objects("gpu", allowed: ["vendor", "model", "memory_mb"], maxCount: Self.maxGpus).map(Self.gpuInfo)
-        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal"])
+        let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal",
+                                                               "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit"])
         // The Linux helper says `terminal: true` since it serves the console route (4e92697). The panel finds the console by trying it, so only the shape is checked.
         if caps.has("terminal") { _ = try caps.bool("terminal") }
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"),
-                                    gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false)
+                                    gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false,
+                                    cpuModels: caps.has("cpu_models") ? try CpuSettings.offeredModels(caps) : CpuSettings.defaultModels,
+                                    cpuTopology: caps.has("cpu_topology") ? try caps.bool("cpu_topology") : false,
+                                    cpuFlags: caps.has("cpu_flags") ? try CpuSettings.offeredFlags(caps) : [],
+                                    cpuLimit: caps.has("cpu_limit") ? try caps.bool("cpu_limit") : false)
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
         agentVersion = try ReportedVersion.optional(object, "agent_version")
         engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil
@@ -226,9 +248,18 @@ public struct CreateWorkloadOperatorRequest: Equatable {
     public let bundle: String
     /// The GPU memory this container may use, in GB. Nil: the whole card is shared, nothing is booked.
     public let gpuMemoryGb: Int?
+    /// How many sockets the VM's CPUs are spread over. Nil: one, as before.
+    public let cpuSockets: Int?
+    /// The CPU model the VM sees, one its machine lists. Nil: `host`, the machine's own CPU.
+    public let cpuType: String?
+    /// CPU flags switched `on` or `off` for the VM, by name. Nil: what the CPU type gives.
+    public let cpuFlags: [String: String]?
+    /// A hard cap on the container's CPU time, in percent of one core. Nil: no cap.
+    public let cpuLimitPercent: Int?
 
     public init(body: Data) throws {
-        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "bundle", "gpu_memory_gb"])
+        let object = try StrictObject(data: body, allowed: ["name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "machine", "bundle", "gpu_memory_gb",
+                                                            "cpu_sockets", "cpu_type", "cpu_flags", "cpu_limit_percent"])
         name = try object.id("name")
         kind = try object.choice("kind", among: ["vm", "container"])
         cpu = try object.int("cpu", range: 1...64)
@@ -239,15 +270,25 @@ public struct CreateWorkloadOperatorRequest: Equatable {
         bundle = object.has("bundle") ? try Self.knownBundle(object) : ImageCatalog.blankId
         gpuMemoryGb = object.has("gpu_memory_gb") ? try object.int("gpu_memory_gb", range: GpuBooking.allowedGb) : nil
         guard gpuMemoryGb == nil || gpuMode == "container" else { throw InputError("gpu_memory_gb can only be set when gpu_mode is container") }
+        cpuSockets = try CpuSettings.sockets(object, kind: kind, cpu: cpu)
+        cpuType = try CpuSettings.type(object, kind: kind)
+        cpuFlags = try CpuSettings.flags(object, kind: kind)
+        cpuLimitPercent = try CpuSettings.limitPercent(object, kind: kind, cpu: cpu)
     }
 
     /// The same wish, pinned to the machine the parent chose for it.
     public func placed(on machine: String) -> CreateWorkloadOperatorRequest {
-        CreateWorkloadOperatorRequest(name: name, kind: kind, cpu: cpu, ramMb: ramMb, diskGb: diskGb, gpuMode: gpuMode, machine: machine, bundle: bundle, gpuMemoryGb: gpuMemoryGb)
+        CreateWorkloadOperatorRequest(name: name, kind: kind, cpu: cpu, ramMb: ramMb, diskGb: diskGb, gpuMode: gpuMode, machine: machine, bundle: bundle, gpuMemoryGb: gpuMemoryGb,
+                                      cpuSockets: cpuSockets, cpuType: cpuType, cpuFlags: cpuFlags, cpuLimitPercent: cpuLimitPercent)
     }
 
-    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, machine: String?, bundle: String, gpuMemoryGb: Int? = nil) {
+    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, machine: String?, bundle: String, gpuMemoryGb: Int? = nil,
+                cpuSockets: Int? = nil, cpuType: String? = nil, cpuFlags: [String: String]? = nil, cpuLimitPercent: Int? = nil) {
         self.gpuMemoryGb = gpuMemoryGb
+        self.cpuSockets = cpuSockets
+        self.cpuType = cpuType
+        self.cpuFlags = cpuFlags
+        self.cpuLimitPercent = cpuLimitPercent
         self.name = name
         self.kind = kind
         self.cpu = cpu

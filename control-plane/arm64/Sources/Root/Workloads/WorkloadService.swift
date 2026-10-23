@@ -88,12 +88,17 @@ final class WorkloadService: @unchecked Sendable {
     }
 
     private static func wish(of request: CreateWorkloadOperatorRequest) -> PlacementWish {
-        PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine, gpuMemoryGb: request.gpuMemoryGb)
+        PlacementWish(kind: request.kind, gpuMode: request.gpuMode, ramMb: request.ramMb, diskGb: request.diskGb, onlyMachine: request.machine, gpuMemoryGb: request.gpuMemoryGb,
+                      cpuSockets: request.cpuSockets, cpuType: request.cpuType, cpuFlags: request.cpuFlags, cpuLimitPercent: request.cpuLimitPercent)
     }
 
     private static func createDetail(_ request: CreateWorkloadOperatorRequest, command: String) -> [String: String] {
         var detail = ["name": request.name, "command": command]
         detail["gpu_memory_gb"] = request.gpuMemoryGb.map(String.init)
+        detail["cpu_sockets"] = request.cpuSockets.map(String.init)
+        detail["cpu_type"] = request.cpuType
+        detail["cpu_flags"] = request.cpuFlags.map(CpuSettings.flagsText)
+        detail["cpu_limit_percent"] = request.cpuLimitPercent.map(String.init)
         return detail
     }
 
