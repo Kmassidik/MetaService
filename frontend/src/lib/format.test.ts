@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, nameProblem, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag } from './format.ts'
+import { relativeTime, formatMb, formatGb, osName, archName, usedPercent, nameProblem, machineNameProblem, sourceProblem, sourceName, workloadProblem, workloadBody, commandOutcome, commandName, bundleFlag } from './format.ts'
 import { command } from './testing.ts'
 
 const now = Date.parse('2026-10-09T12:00:00Z')
@@ -49,6 +49,21 @@ test('nameProblem matches the Root rule', () => {
   for (const bad of ['', 'Upper', 'has space', '-lead', 'semi;colon', '../x', 'a'.repeat(64), "x'; DROP TABLE machines;--", '<script>']) {
     expect(nameProblem(bad)).not.toBe(null)
   }
+})
+
+// The same cases as the parent's MachineDisplayNameTests, so the page and the Root agree.
+const LEGAL_MACHINE_NAMES = ['Mac Studio', "Luca's PC (RTX)", 'mac-mini', 'R&D box_2.0', 'Ünïcode Café', '1', 'a', 'x'.repeat(48)]
+const REFUSED_MACHINE_NAMES = ['', ' ', ' lead', 'trail ', 'two  spaces', 'a\tb', 'line\nbreak', 'nul\u0000byte', '<b>x</b>', 'a"b', 'a`b', 'a$b', 'a;b', 'a/b', 'a\\b', 'a{b}', 'a|b',
+  'a b"c\';rm -rf ~;', '...', '- - -', '😀', 'Mac 😀', 'x'.repeat(49), 'a:b', 'a=b', 'a%b']
+
+test('machineNameProblem accepts what the parent accepts', () => {
+  for (const name of LEGAL_MACHINE_NAMES) expect(machineNameProblem(name)).toBe(null)
+})
+
+test('machineNameProblem refuses what the parent refuses, in plain words', () => {
+  for (const name of REFUSED_MACHINE_NAMES) expect(machineNameProblem(name)).not.toBe(null)
+  expect(machineNameProblem('a;b')).toBe("Use letters, numbers, spaces and - _ . ( ) ' &, up to 48 characters.")
+  expect(machineNameProblem('')).toBe('Give the machine a name.')
 })
 
 test('source messages', () => {

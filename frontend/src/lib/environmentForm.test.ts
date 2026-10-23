@@ -109,8 +109,10 @@ test('formErrors of the default record is empty', () => {
 
 test('formErrors names the name field with the machine-name rule', () => {
   expect(formErrors(form({ name: '' })).name).toBe('Give the machine a name.')
-  expect(formErrors(form({ name: 'Big Name' })).name).toContain('lowercase')
-  expect(formErrors(form({ name: 'a'.repeat(64) })).name).toContain('63')
+  expect(formErrors(form({ name: 'Big Name' })).name).toBeUndefined()
+  expect(formErrors(form({ name: 'Luca\'s PC (RTX)' })).name).toBeUndefined()
+  expect(formErrors(form({ name: 'a;b' })).name).toContain('up to 48 characters')
+  expect(formErrors(form({ name: 'a'.repeat(49) })).name).toContain('up to 48 characters')
 })
 
 test('formErrors refuses a reserve that is not below the allowance, like the parent', () => {

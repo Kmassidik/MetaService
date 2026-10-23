@@ -2,6 +2,8 @@
   // One machine, not one VM: how it is doing right now (Live), the VMs on it, what it is and how it is set (Environment), and what has happened on it (Activity).
   import Owl from '../components/Owl.svelte'
   import StatePill from '../components/StatePill.svelte'
+  import IconButton from '../components/IconButton.svelte'
+  import { MACHINE_ICONS, RENAME_LABEL } from '../lib/machineIcons.ts'
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
@@ -28,6 +30,7 @@
     chatsBuilt: number
     onCreate: (machine: Machine) => void
     onRemove: (machine: Machine) => void
+    onRename: (machine: Machine) => void
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
@@ -38,7 +41,7 @@
     onChanged: () => void
   }
 
-  let { machine, remote, commands, pending, route, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
+  let { machine, remote, commands, pending, route, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onRename, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
   /** The tab the person picked; empty until they pick one, so the address decides which tab opens. */
   let picked: MachineTab | null = $state(null)
   const tab = $derived(picked ?? machineTabFromRoute(route))
@@ -70,7 +73,7 @@
 {:else}
   <div class="phead">
     <div>
-      <div class="titleline"><h1 class="name">{machine.name}</h1><StatePill state={machine.state} />{#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}</div>
+      <div class="titleline"><h1 class="name">{machine.name}</h1><IconButton label={RENAME_LABEL} subject={machine.name} icon={MACHINE_ICONS.pencil} text="Rename" onclick={() => onRename(machine)} /><StatePill state={machine.state} />{#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}</div>
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › {machine.id}</div>
     </div>
     <div class="sp">

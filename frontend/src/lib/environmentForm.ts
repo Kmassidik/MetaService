@@ -1,6 +1,6 @@
 // The Environment tab's form: what it starts with, whether each field is acceptable, and what to send on Save.
 // The ranges and patterns are the parent's own (MachineSettings.swift in RootCore), so a refused value never leaves the page.
-import { nameProblem } from './format.ts'
+import { machineNameProblem } from './format.ts'
 import type { Machine, MachineSettingsPatch } from './types.ts'
 
 interface NumberRule {
@@ -137,7 +137,7 @@ function collect(entries: [FormField, string | null][]): FormErrors {
 /** Every field that cannot be saved as it is, with the reason. Empty when the form is fine. */
 export function formErrors(form: EnvForm): FormErrors {
   return collect([
-    ['name', nameProblem(form.name)],
+    ['name', machineNameProblem(form.name)],
     ['labels', labelsProblem(form.labels)],
     ['notes', notesProblem(form.notes)],
     ...NUMBER_FIELDS.map((field): [FormField, string | null] => [field, numberProblem(field, form[field])]),

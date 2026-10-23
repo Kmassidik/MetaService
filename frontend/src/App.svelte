@@ -18,6 +18,7 @@
   import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
   import RemoveMachineDialog from './components/RemoveMachineDialog.svelte'
+  import RenameMachineDialog from './components/RenameMachineDialog.svelte'
   import CreateVmDialog from './components/vms/CreateVmDialog.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import { deleteVmCopy } from './lib/confirmCopy.ts'
@@ -61,6 +62,7 @@
   const createOpen = $derived(loaded && (creating || createVmOpen(route)))
   let deleting = $state<{ machine: Machine; workload: Workload } | null>(null)
   let removing = $state<Machine | null>(null)
+  let renaming = $state<Machine | null>(null)
   let remoteInfos = $state<RemoteMachineInfo[]>([])
   const removingRemote = $derived(remoteInfos.find((info) => info.machine === removing?.id) ?? null)
   const vmHandlers: VmActionHandlers = { onAct: act, onInstall: install, onOpenChat: openChat, onDelete: (machine, workload) => (deleting = { machine, workload }) }
@@ -256,9 +258,9 @@
       {#if page === 'machines' && detailId && vmId}
         <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} {commands} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines' && detailId}
-        <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onAdd={goFind} onConnect={startConnect} />
+        <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} />
       {:else if page === 'vms'}
         <VmsList {machines} {route} {banner} {pending} handlers={vmHandlers} />
       {:else if page === 'usage'}
@@ -280,6 +282,7 @@
   {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={startConsoleVm} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
   <ConfirmDialog open={deleting !== null} {...deleteCopy} onconfirm={confirmDelete} onClose={() => (deleting = null)} />
+  <RenameMachineDialog machine={renaming} onSaved={refresh} onClose={() => (renaming = null)} />
   <RemoveMachineDialog machine={removing} info={removingRemote} onconfirm={confirmRemove} onClose={() => (removing = null)} />
 {/if}
 

@@ -1,5 +1,7 @@
 <script lang="ts">
   import StatePill from './StatePill.svelte'
+  import IconButton from './IconButton.svelte'
+  import { MACHINE_ICONS, RENAME_LABEL } from '../lib/machineIcons.ts'
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
@@ -8,7 +10,7 @@
 
   import type { Machine } from '../lib/types.ts'
 
-  let { machine, now, pinned, onRemove }: { machine: Machine; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void } = $props()
+  let { machine, now, pinned, onRemove, onRename }: { machine: Machine; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void } = $props()
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
@@ -58,6 +60,7 @@
   <div class="acts">
     <a class="btn line sm" href={machineHref(machine.id)}>Open</a>
     <span class="id seen">seen {relativeTime(machine.last_seen, now)}</span>
+    <IconButton label={RENAME_LABEL} subject={machine.name} icon={MACHINE_ICONS.pencil} text="Rename" onclick={() => onRename(machine)} />
     <button class="btn danger sm del" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
   </div>
 </article>

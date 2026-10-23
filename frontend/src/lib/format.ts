@@ -58,6 +58,18 @@ export function nameProblem(name: string): string | null {
   return null
 }
 
+/** The name a person gives a machine to read ("Mac Studio"). The same rule as the parent's MachineDisplayName; the machine id never changes with it. */
+export const MACHINE_NAME_MAX = 48
+export const MACHINE_NAME_RULE = "Use letters, numbers, spaces and - _ . ( ) ' &, up to 48 characters."
+const MACHINE_NAME_PATTERN = /^[\p{L}\p{M}0-9 _.()'&-]+$/u
+const MACHINE_NAME_NEEDS = /[\p{L}0-9]/u
+export function machineNameProblem(name: string): string | null {
+  if (!name) return 'Give the machine a name.'
+  const wrongShape = name !== name.trim() || name.includes('  ') || !MACHINE_NAME_PATTERN.test(name) || !MACHINE_NAME_NEEDS.test(name)
+  if (wrongShape || Array.from(name).length > MACHINE_NAME_MAX) return MACHINE_NAME_RULE
+  return null
+}
+
 const SOURCE_LABELS: Record<string, string> = { router: 'Router', nmap: 'Network scan', agent_probe: 'Agent check', arp: 'Network' }
 const SOURCE_PROBLEMS: Record<string, string> = {
   not_configured: 'not set up',

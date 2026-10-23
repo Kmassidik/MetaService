@@ -151,12 +151,19 @@ export async function startStandIn(): Promise<StandIn> {
     send(response, result.status, result.body)
   }
 
+  /** The parent's rule: another machine with the same name in other capitals is a clash. */
+  const clashes = (owner: Json, name: string): boolean => machines.some((entry) => entry !== owner && String(entry.name).toLowerCase() === name.toLowerCase())
+
   /** Saves the settings the Environment tab sends (null clears one) and answers with the machine, as the parent does. The ssh_jump setting also changes the command the SSH keys answers give. */
   async function settingsCall(request: IncomingMessage, response: ServerResponse, match: RegExpExecArray): Promise<void> {
     const owner = machines.find((entry) => entry.id === match[1])
     if (!owner || request.method !== 'PATCH') return send(response, 404, { error: { code: 'not_found', message: 'no such machine' } })
     const patch = await readJson(request)
     settingsPatches.push(patch)
+    await wait(behaviour.delayMs)
+    const taken = typeof patch.name === 'string' && clashes(owner, patch.name)
+    if (taken) return send(response, 409, { error: { code: 'machine_exists', message: 'another machine already has that name' } })
+    if (typeof patch.name === 'string') owner.name = patch.name
     const settings: Json = isJson(owner.settings) ? owner.settings : {}
     for (const [key, value] of Object.entries(patch)) {
       if (key === 'name') continue

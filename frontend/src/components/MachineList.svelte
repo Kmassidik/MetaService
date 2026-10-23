@@ -3,7 +3,7 @@
   import MachineRow from './MachineRow.svelte'
   import type { Machine } from '../lib/types.ts'
 
-  let { machines, now, pinned, onRemove, onAdd }: { machines: Machine[]; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onAdd: () => void } = $props()
+  let { machines, now, pinned, onRemove, onRename, onAdd }: { machines: Machine[]; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onAdd: () => void } = $props()
 </script>
 
 {#if machines.length === 0}
@@ -15,7 +15,7 @@
 {:else}
   <section class="grid" aria-label="Machines">
     {#each machines as machine (machine.id)}
-      <MachineRow {machine} {now} {pinned} {onRemove} />
+      <MachineRow {machine} {now} {pinned} {onRemove} {onRename} />
     {/each}
   </section>
 {/if}
