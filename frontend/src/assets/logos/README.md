@@ -5,10 +5,9 @@ Bundled with the panel (the page's content security policy allows only its own f
 | File | Source | Licence |
 |---|---|---|
 | ubuntu, debian, fedora, rockylinux, almalinux, alpinelinux, docker, python, nodedotjs, ollama (`.svg`) | Simple Icons, https://github.com/simple-icons/simple-icons | CC0 |
-| openclaw.svg | Dashboard Icons, https://github.com/homarr-labs/dashboard-icons | licence to be confirmed |
-| hermes.svg | An icon library (LobeHub-style set) | licence to be confirmed |
+| openclaw.svg, hermes.webp | The MAAS project (the owner's own earlier project), copied as they are | the owner's own files |
 
 The Simple Icons files are single-colour paths; the brand colour was added as a `fill` attribute on the root `<svg>`.
-The Hermes file had its fixed width, height and style attributes removed so it scales with its box; its `viewBox` is kept.
+The two MAAS files are used unchanged: `openclaw.svg` is the red lobster (no script, no outside reference) and `hermes.webp` is a 400x400 portrait picture.
 
 All names and logos are trademarks of their owners and are shown only to identify the software.
