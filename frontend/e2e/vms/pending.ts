@@ -2,7 +2,7 @@
 // The parent's answers about the orders are played by the test (so each stage can be looked at as long as needed); the machine and its heartbeats are real.
 import type { HTTPRequest, Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
-import { NAME, imageListArrived } from '../support/createVm.ts'
+import { NAME, closeProgress, imageListArrived } from '../support/createVm.ts'
 import { noSideScroll, owlAbsent, owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
@@ -63,7 +63,7 @@ async function submitCreate(b: Browse, name: string): Promise<void> {
 async function creatingFromTheWindow(b: Browse, stand: Stand): Promise<void> {
   stand.order = newOrder('rc-e2e-1', GOOD_VM, 'queued')
   await submitCreate(b, GOOD_VM)
-  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
+  await closeProgress(b)
   await untilCardSays(b, GOOD_VM, 'Waiting for the machine…')
   const text = await cardText(b, GOOD_VM)
   check('right after Create the window closes, All VMs is behind it, and a card names the VM and its machine and says it is waiting for the machine', text.includes(GOOD_VM) && text.includes(MACHINE) && /waiting for the machine…/i.test(text) && b.page.url().endsWith('#/vms'), text)
@@ -119,7 +119,7 @@ async function listedByTheMachine(b: Browse, world: World, token: string): Promi
 async function aFailedOrder(b: Browse, stand: Stand): Promise<void> {
   stand.order = newOrder('rc-e2e-2', BAD_VM, 'failed', { finished_at: new Date().toISOString(), result: { error: 'the machine could not create the workload' } })
   await submitCreate(b, BAD_VM)
-  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
+  await closeProgress(b)
   await untilCardSays(b, BAD_VM, 'Could not make the VM')
   const text = await cardText(b, BAD_VM)
   check('a failed order keeps its card with the helper\'s reason in a sentence and a Dismiss button', /The machine could not create the workload\./.test(text) && /Dismiss/.test(text), text)

@@ -1,7 +1,7 @@
 // The Create VM window (over All VMs): which machines can be picked and why not, the Container card greyed out on a containers-only machine, the same validation as before,
 // the parent's refusal shown with the typed values kept, a VM made on the simulated helper that closes the window and shows up, the old links, Escape and the X, and the machine page's button opening it with its machine locked.
 import { check } from '../support/check.ts'
-import { CREATE_FORM, NAME, PICKER, SIZE, choose, createDisabled, fieldValue, imageListArrived, lines, pickerValue, selectValue, setField } from '../support/createVm.ts'
+import { CREATE_FORM, NAME, PICKER, SIZE, choose, closeProgress, createDisabled, fieldValue, imageListArrived, lines, pickerValue, selectValue, setField } from '../support/createVm.ts'
 import { owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
 import { createAVm } from '../panel/workloads.ts'
@@ -142,8 +142,8 @@ export async function refusedThenMade(b: Browse): Promise<void> {
   await setField(b, 'RAM', '1')
   await b.type(NAME, MADE_VM)
   await b.click('Create VM')
-  await closed(b)
-  check('after Create the window closes and the address is plain All VMs', (await addressIs(b, '#/vms')) && (await heading(b)) === 'All VMs')
+  await closeProgress(b)
+  check('after Create the progress window closes and the address is plain All VMs', (await addressIs(b, '#/vms')) && (await heading(b)) === 'All VMs')
   await b.until((name) => document.body.innerText.includes(name), { timeout: MADE_WAIT_MS }, MADE_VM)
   check('the new VM shows on the page behind (as the Creating card or already as a row)', (await b.text()).includes(MADE_VM))
 }

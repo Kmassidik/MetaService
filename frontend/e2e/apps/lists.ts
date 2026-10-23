@@ -3,7 +3,7 @@
 import { fresh, openTable } from '../actions/guard.ts'
 import type { StandIn } from '../actions/standin.ts'
 import { check } from '../support/check.ts'
-import { FRAMEWORK, NAME, choose } from '../support/createVm.ts'
+import { FRAMEWORK, NAME, choose, closeProgress } from '../support/createVm.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
 import { DESKTOP, MACHINE_VMS, openCreateWindow, PHONE, SHORT_WAIT_MS } from './catalog.ts'
@@ -52,7 +52,7 @@ async function createClawVm(b: Browse): Promise<void> {
   await b.type(NAME, 'claw-box')
   await choose(b, FRAMEWORK, 'openclaw')
   await b.click('Create VM')
-  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
+  await closeProgress(b)
 }
 
 /** A new VM shows Installing OpenClaw… in the Table, the Cards and All VMs; when the install ends it shows OpenClaw ready. */

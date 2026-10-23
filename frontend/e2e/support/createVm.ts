@@ -117,3 +117,14 @@ export const createFormCount = (b: Browse): Promise<{ forms: number; openDialogs
 /** The machine's list of images has arrived (or the page gave up on it and said so): a test about to press Create waits for it, the way a person would not click while the form is still moving. */
 export const imageListArrived = (b: Browse) =>
   b.until((root, note, before) => Number(document.querySelector(root)?.getAttribute('data-count')) > before || document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: IMAGES_WAIT_MS }, FRAMEWORK, UNREADABLE_NOTE, ROWS_BEFORE_THE_ANSWER)
+
+/** The progress window that opens when an order was accepted. */
+export const PROGRESS = 'dialog[open] [data-create-progress]'
+const PROGRESS_WAIT_MS = 10000
+
+/** Waits for the progress window and closes it with Escape, the way a person who does not want to watch does. The VM goes on being made behind it. */
+export async function closeProgress(b: Browse): Promise<void> {
+  await b.page.waitForSelector(PROGRESS, { timeout: PROGRESS_WAIT_MS })
+  await b.page.keyboard.press('Escape')
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: PROGRESS_WAIT_MS })
+}

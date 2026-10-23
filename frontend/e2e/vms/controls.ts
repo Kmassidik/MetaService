@@ -2,7 +2,7 @@
 // An empty name gets a generated one, five quick clicks send one order that carries the choices, and on a phone nothing scrolls sideways while the footer stays in reach.
 import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
-import { CREATE_FORM, NAME, RUNTIME, SIZE, captionOf, choose, createFormCount, fieldValue, imageListArrived, imageState, lines, openedMenu, selectValue, setField } from '../support/createVm.ts'
+import { CREATE_FORM, NAME, RUNTIME, SIZE, captionOf, choose, closeProgress, createFormCount, fieldValue, imageListArrived, imageState, lines, openedMenu, selectValue, setField } from '../support/createVm.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from '../panel/machines.ts'
 import { closeWithEscape, openCreate } from './create.ts'
@@ -170,7 +170,7 @@ export async function generatedNameAndOneOrder(b: Browse): Promise<void> {
       if (!(button instanceof HTMLButtonElement)) throw new Error('no Create VM button')
       for (let press = 0; press < times; press++) button.click()
     }, QUICK_CLICKS)
-    await closed(b)
+    await closeProgress(b)
   })
   check(`${QUICK_CLICKS} quick clicks on Create VM send ONE request`, bodies.length === 1, `${bodies.length}`)
   const sent: unknown = JSON.parse(bodies[0] ?? '{}')

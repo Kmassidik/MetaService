@@ -45,6 +45,10 @@ export interface StandIn {
   apps: AppBook
   /** The raw text of every body POSTed to create a VM, in order. */
   createBodies: string[]
+  /** When `order` is set, a create answers with it (and makes no VM), and the order list holds it: the test plays the parent's order by hand and moves the VMs with `putVm`. */
+  script: { order: Json | null }
+  /** Sets or replaces one VM of a machine, as the machine's next heartbeat would. */
+  putVm: (machine: string, entry: Json) => void
   reset: () => void
   close: () => void
 }
@@ -108,6 +112,7 @@ export async function startStandIn(): Promise<StandIn> {
   const sshKeys = createSshKeyBook()
   const apps = createAppBook()
   const createBodies: string[] = []
+  const script: { order: Json | null } = { order: null }
 
   /** The machine list as the parent sends it: every VM that has an app carries it in `app`. */
   const listed = (): Json[] => machines.map((owner) => ({ ...owner, workloads: (Array.isArray(owner.workloads) ? owner.workloads : []).map((entry: Json) => ({ ...entry, app: apps.summary(String(entry.id)) })) }))
@@ -116,6 +121,7 @@ export async function startStandIn(): Promise<StandIn> {
   async function createCall(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const body = await readJson(request)
     createBodies.push(JSON.stringify(body))
+    if (script.order) return send(response, 202, { command: script.order })
     await wait(apps.delayMs)
     const owner = machines.find((entry) => entry.id === body.machine)
     const workloads: Json[] = Array.isArray(owner?.workloads) ? owner.workloads : []
@@ -247,7 +253,7 @@ export async function startStandIn(): Promise<StandIn> {
     const detail = MACHINE_PAGE.exec(path)
     const shown = machines.find((entry) => entry.id === detail?.[1])
     if (shown) return send(response, 200, shown)
-    if (path === '/api/commands') return send(response, 200, { commands: [] })
+    if (path === '/api/commands') return send(response, 200, { commands: script.order ? [script.order] : [] })
     if (path === '/api/bundles') return send(response, 200, bundles.overview())
     if (path === '/api/brain') return send(response, 200, { configured: true, usage: [] })
     if (path === '/api/remote/machines') return send(response, 200, { machines: [] })
@@ -271,7 +277,14 @@ export async function startStandIn(): Promise<StandIn> {
     sshKeys,
     apps,
     createBodies,
+    script,
+    putVm(machineId, entry) {
+      const owner = machines.find((candidate) => candidate.id === machineId)
+      const kept = (Array.isArray(owner?.workloads) ? owner.workloads : []).filter((existing: Json) => existing.id !== entry.id)
+      if (owner) owner.workloads = [...kept, entry]
+    },
     reset() {
+      script.order = null
       machines = fleet()
       apps.reset()
       createBodies.length = 0

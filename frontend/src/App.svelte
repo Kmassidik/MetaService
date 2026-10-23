@@ -19,6 +19,7 @@
   import ConnectMachine from './components/ConnectMachine.svelte'
   import RemoveMachineDialog from './components/RemoveMachineDialog.svelte'
   import RenameMachineDialog from './components/RenameMachineDialog.svelte'
+  import CreateProgress from './components/vms/CreateProgress.svelte'
   import CreateVmDialog from './components/vms/CreateVmDialog.svelte'
   import ConfirmDialog from './components/ConfirmDialog.svelte'
   import { deleteVmCopy } from './lib/confirmCopy.ts'
@@ -27,7 +28,8 @@
   import Terminal from './components/Terminal.svelte'
   import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
   import { stopNote } from './lib/stoppedReason.ts'
-  import { dismissedOrders, sessionOrders } from './lib/pendingStore.svelte.ts'
+  import { dismissedOrders, sessionOrders, stopWatching, watchedOrder } from './lib/pendingStore.svelte.ts'
+  import { progressView } from './lib/createProgress.ts'
   import { mergeOrders, pendingVms } from './lib/pendingVms.ts'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
@@ -72,7 +74,8 @@
   const consoleMachine = $derived(machines.find((machine) => machine.id === openConsoleTarget?.machine))
   const consoleVm = $derived(consoleMachine?.workloads.find((workload) => workload.id === openConsoleTarget?.workload) ?? null)
   const consoleNote = $derived(consoleMachine && consoleVm ? stopNote(consoleMachine.id, consoleVm, commands) : null)
-  const making = $derived(pending.some((entry) => entry.stage !== 'failed'))
+  const progress = $derived(progressView(mergeOrders(commands, sessionOrders()), machines, watchedOrder()))
+  const making = $derived(pending.some((entry) => entry.stage !== 'failed') || progress?.progress.status === 'working')
 
   $effect(() => {
     if (!making) return
@@ -281,6 +284,7 @@
   <ChatLink link={openLink} onClose={() => (openLink = null)} />
   {#if openConsoleTarget}<Terminal machine={openConsoleTarget.machine} workload={openConsoleTarget.workload} name={openConsoleTarget.name} onclose={closeConsole} vm={consoleVm} note={consoleNote} onstart={startConsoleVm} onchanged={refresh} />{/if}
   <CreateVmDialog open={createOpen} {machines} {route} only={creatingOn} onClose={closeCreate} onCreated={refresh} />
+  <CreateProgress view={progress} onClose={stopWatching} />
   <ConfirmDialog open={deleting !== null} {...deleteCopy} onconfirm={confirmDelete} onClose={() => (deleting = null)} />
   {#if renaming}<RenameMachineDialog machine={renaming} onSaved={refresh} onClose={() => (renaming = null)} />{/if}
   <RemoveMachineDialog machine={removing} info={removingRemote} onconfirm={confirmRemove} onClose={() => (removing = null)} />

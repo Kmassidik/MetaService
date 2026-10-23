@@ -7,6 +7,7 @@ const REMEMBERED_ORDERS = 20
 
 let made = $state<Command[]>([])
 let dismissed = $state<string[]>([])
+let watched = $state<string | null>(null)
 
 /** The orders made or followed in this session. */
 export const sessionOrders = (): Command[] => made
@@ -18,11 +19,20 @@ export function trackOrder(order: Command): void {
   made = [order, ...made.filter((entry) => entry.id !== order.id)].slice(0, REMEMBERED_ORDERS)
 }
 
-/** Remembers the order inside the parent's answer to a create. False when the answer could not be read. */
+/** The order whose progress window is open, or null when none is. */
+export const watchedOrder = (): string | null => watched
+
+/** Closes the progress window. The order itself goes on in the background. */
+export function stopWatching(): void {
+  watched = null
+}
+
+/** Remembers the order inside the parent's answer to a create, and opens its progress window. False when the answer could not be read. */
 export function trackCreateAnswer(answer: unknown): boolean {
   const order = parseCommand(answer)
   if (!order) return false
   trackOrder(order)
+  watched = order.id
   return true
 }
 

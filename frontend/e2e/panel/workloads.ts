@@ -1,6 +1,6 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
 import { check } from '../support/check.ts'
-import { NAME, PICKER, SIZE, choose, createDisabled, createFormCount, imageListArrived, setField } from '../support/createVm.ts'
+import { NAME, PICKER, SIZE, choose, closeProgress, createDisabled, createFormCount, imageListArrived, setField } from '../support/createVm.ts'
 import { expandAll } from '../machine/environment.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
@@ -54,7 +54,7 @@ export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
     return select?.value === 'agent-mac' && select.options.length === 1 && select.disabled
   }, PICKER))
   await b.click('Create VM')
-  await b.until(() => !document.querySelector('dialog[open]'), { timeout: SHORT_WAIT_MS })
+  await closeProgress(b)
 }
 
 async function itsActivity(b: Browse): Promise<void> {
