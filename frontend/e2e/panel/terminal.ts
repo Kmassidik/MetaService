@@ -5,6 +5,7 @@ import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
 import { terminalButtonsScenario } from './terminal-buttons.ts'
+import { terminalLinuxScenario } from './terminal-linux.ts'
 import { createAVm } from './workloads.ts'
 import { startAgent, type World } from './world.ts'
 
@@ -131,6 +132,7 @@ export async function terminalScenario(b: Browse, world: World): Promise<void> {
     await reconnectsWithANewTicket(b, tickets)
     await closesWithTheButton(b)
     await terminalButtonsScenario(b, world)
+    await terminalLinuxScenario(b, world)
   } finally {
     agent.kill()
   }

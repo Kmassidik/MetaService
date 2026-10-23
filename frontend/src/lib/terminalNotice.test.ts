@@ -22,7 +22,8 @@ test('the list can be a few seconds old: a VM the parent says is not running but
 })
 
 test('the other refusals are said in plain words, and none of them offers Start', () => {
-  expect(terminalNotice(refused('not_supported'), 'running')).toEqual({ text: 'Terminals work on Mac machines only for now.', why: false, canStart: false })
+  expect(terminalNotice(refused('not_supported'), 'running')).toEqual({ text: 'Update the helper on this machine to use the terminal.', why: false, canStart: false })
+  expect(terminalNotice(refused('no_agent'), 'running')).toEqual({ text: 'This VM has no incus agent, so the terminal cannot open.', why: false, canStart: false })
   expect(terminalNotice(refused('unreachable'), 'running')).toEqual({ text: 'The machine is offline, so this VM cannot be reached right now.', why: false, canStart: false })
   expect(terminalNotice(refused('too_many_consoles'), 'running')).toEqual({ text: 'Too many terminals are open. Close one and try again.', why: false, canStart: false })
   expect(terminalNotice(refused('console_open'), 'running')).toEqual({ text: 'This VM already has a terminal open. Close it and try again.', why: false, canStart: false })
@@ -60,6 +61,11 @@ test('a shell that ends when the list already shows the VM stopped says it has s
 test('a deleted VM and a machine that went offline are said in plain words', () => {
   expect(terminalNotice(closed('the VM was deleted', 5000), null)).toEqual({ text: 'This VM was deleted.', why: false, canStart: false })
   expect(terminalNotice(closed('the machine is offline', 5000), 'running')).toEqual({ text: 'The machine went offline, so the terminal was closed.', why: false, canStart: false })
+})
+
+test('the helper refusing to open (no incus agent in the VM, a console already open) is said in plain words and never as a dead VM', () => {
+  expect(terminalNotice(closed('this VM has no incus agent, so the console cannot open', 100), 'running')).toEqual({ text: 'This VM has no incus agent, so the terminal cannot open.', why: false, canStart: false })
+  expect(terminalNotice(closed('this workload already has a console', 100), 'running')).toEqual({ text: 'This VM already has a terminal open. Close it and try again.', why: false, canStart: false })
 })
 
 test('the other ways a terminal ends (idle, too long, closed by the person) keep the status line', () => {

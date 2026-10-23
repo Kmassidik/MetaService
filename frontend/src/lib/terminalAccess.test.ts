@@ -16,10 +16,42 @@ test('a VM that is not running for another reason says it is not running', () =>
   }
 })
 
-test('only Mac machines have a terminal for now, and that wins over the VM being stopped', () => {
-  const linux = machine({ os: 'linux', arch: 'x86_64' })
-  expect(terminalAccess(linux, workload())).toEqual({ allowed: false, text: 'Mac machines only for now', title: 'The console is only available on Mac machines for now.' })
-  expect(terminalAccess(linux, workload({ state: 'stopped' }))).toMatchObject({ text: 'Mac machines only for now' })
+const CAPS = { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false }
+const UPDATE_TEXT = 'Update the helper to use the terminal'
+const linux = (terminal?: boolean) => machine({ os: 'linux', arch: 'x86_64', capabilities: terminal === undefined ? CAPS : { ...CAPS, terminal } })
+
+test('a Linux machine whose helper says terminal can open a terminal in a container', () => {
+  expect(terminalAccess(linux(true), workload({ kind: 'container' }))).toEqual({ allowed: true })
+})
+
+test('a Linux machine without the flag says to update the helper, and that wins over the container being stopped', () => {
+  for (const flag of [undefined, false]) {
+    expect(terminalAccess(linux(flag), workload({ kind: 'container' })), String(flag)).toEqual({ allowed: false, text: UPDATE_TEXT, title: 'Update the helper on this machine to use the terminal.' })
+  }
+  expect(terminalAccess(linux(false), workload({ kind: 'container', state: 'stopped' }))).toMatchObject({ text: UPDATE_TEXT })
+})
+
+test('a Linux machine with no capabilities at all (never reported) says to update the helper', () => {
+  expect(terminalAccess(machine({ os: 'linux', arch: 'x86_64' }), workload({ kind: 'container' }))).toMatchObject({ allowed: false, text: UPDATE_TEXT })
+})
+
+test('an old Mac helper without the flag keeps its terminal', () => {
+  expect(terminalAccess(machine({ capabilities: CAPS }), workload())).toEqual({ allowed: true })
+  expect(terminalAccess(machine({ capabilities: { ...CAPS, terminal: false } }), workload())).toEqual({ allowed: true })
+})
+
+test('a VM on a Linux machine is off with "Containers only for now", even when the helper has a console', () => {
+  expect(terminalAccess(linux(true), workload({ kind: 'vm' }))).toEqual({ allowed: false, text: 'Containers only for now', title: 'The terminal works in containers for now. A VM on a Linux machine has not been tried yet.' })
+})
+
+test('a VM on a Mac with the flag still opens', () => {
+  expect(terminalAccess(machine({ capabilities: { ...CAPS, terminal: true } }), workload({ kind: 'vm' }))).toEqual({ allowed: true })
+})
+
+test('an offline Linux machine with a console says it is offline; a stopped or starting container says so', () => {
+  expect(terminalAccess({ ...linux(true), state: 'offline' }, workload({ kind: 'container' }))).toMatchObject({ text: 'Machine is offline' })
+  expect(terminalAccess(linux(true), workload({ kind: 'container', state: 'stopped' }))).toMatchObject({ text: 'VM is stopped' })
+  expect(terminalAccess(linux(true), workload({ kind: 'container', state: 'provisioning' }))).toMatchObject({ text: 'VM is not running' })
 })
 
 test('an offline Mac cannot be reached', () => {

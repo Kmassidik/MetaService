@@ -52,7 +52,7 @@ final class TerminalService: @unchecked Sendable {
             throw ApiFailure.notFound
         }
         guard let vm = machine.workloads.first(where: { $0.id == key.workload }) else { throw ApiFailure.notFound }
-        guard TerminalSupport.isSupported(machineOS: machine.os ?? "") else { throw ApiFailure(status: .conflict, code: "not_supported", message: TerminalSupport.message) }
+        guard TerminalSupport.isSupported(machineOS: machine.os ?? "", capabilities: machine.capabilities) else { throw ApiFailure(status: .conflict, code: "not_supported", message: TerminalSupport.message) }
         guard machine.state != "offline" else { throw ApiFailure(status: .badGateway, code: "unreachable", message: "the machine is offline") }
         guard vm.state == "running" else { throw ApiFailure(status: .conflict, code: "not_running", message: "the VM is not running") }
     }

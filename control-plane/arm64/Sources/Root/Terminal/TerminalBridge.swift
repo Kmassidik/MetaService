@@ -32,13 +32,21 @@ struct TerminalBridge: Sendable {
                 await ended.set(await pipe(key, browserIn: inbound, browserOut: outbound, helperIn: helperIn, helperOut: helperOut))
             }
         } catch let error as WebSocketClientError where error == .init(.webSocketUpgradeFailed) {
-            await ended.set(.vmUnavailable)
+            await ended.set(await refusalReason(key))
         } catch {
             await ended.set(.machineOffline)
         }
         let reason = await ended.value ?? .machineOffline
         await Self.close(outbound, reason)
         return reason
+    }
+
+    /// The helper refused the upgrade. Asking the same route without upgrade headers gets its plain answer (409 not_running, console_open, no_agent), which says why.
+    private func refusalReason(_ key: ConsoleKey) async -> CloseReason {
+        let path = "/v1/workloads/\(key.workload)/terminal"
+        guard let reply = try? await client.call(machine: key.machine, method: "GET", path: path) else { return .vmUnavailable }
+        let error = reply.json?["error"] as? [String: Any]
+        return HelperRefusal.reason(code: error?["code"] as? String)
     }
 
     static func close(_ outbound: WebSocketOutboundWriter, _ reason: CloseReason) async {

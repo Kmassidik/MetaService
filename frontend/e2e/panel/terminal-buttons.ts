@@ -19,7 +19,7 @@ const CLOSE_SETTLE_MS = 1500
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 
-interface ButtonFacts { found: boolean; disabled: boolean; label: string }
+export interface ButtonFacts { found: boolean; disabled: boolean; label: string }
 
 /** A Terminal button inside the row, card or list item that holds this VM's name. */
 const FIND_BUTTON = (scope: string, vm: string) => {
@@ -28,8 +28,8 @@ const FIND_BUTTON = (scope: string, vm: string) => {
   return { found: button !== undefined && button !== null, disabled: button?.disabled ?? false, label: button?.getAttribute('aria-label') ?? '' }
 }
 
-const facts = (b: Browse, scope: string, vm: string): Promise<ButtonFacts> => b.run(FIND_BUTTON, scope, vm)
-const press = (b: Browse, scope: string, vm: string) =>
+export const facts = (b: Browse, scope: string, vm: string): Promise<ButtonFacts> => b.run(FIND_BUTTON, scope, vm)
+export const press = (b: Browse, scope: string, vm: string) =>
   b.run((where, name) => [...document.querySelectorAll<HTMLElement>(where)].find((entry) => entry.innerText.includes(name))?.querySelector<HTMLButtonElement>('button[aria-label^="Terminal"]')?.click(), scope, vm)
 
 async function addAStoppedMac(world: World): Promise<void> {
@@ -96,7 +96,7 @@ async function disabledOnes(b: Browse): Promise<void> {
   const stopped = await facts(b, rows, STOPPED_VM)
   check('a stopped VM has a Terminal button that is off and says "VM is stopped"', stopped.found && stopped.disabled && /VM is stopped/.test(stopped.label), JSON.stringify(stopped))
   const notMac = await facts(b, rows, NON_MAC_VM)
-  check('a VM on a machine that is not a Mac has a Terminal button that is off and says "Mac machines only for now"', notMac.found && notMac.disabled && /Mac machines only for now/.test(notMac.label), JSON.stringify(notMac))
+  check('a VM on a Linux machine without the terminal flag has a Terminal button that is off and says "Update the helper to use the terminal"', notMac.found && notMac.disabled && /Update the helper to use the terminal/.test(notMac.label), JSON.stringify(notMac))
   await b.shot('terminal-buttons-all-vms.png')
   await b.page.setViewport(PHONE)
   await b.until(() => document.documentElement.scrollWidth <= window.innerWidth, { timeout: SHORT_WAIT_MS })
@@ -109,7 +109,7 @@ async function disabledOnes(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const onMachinePage = await facts(b, 'tbody tr', NON_MAC_VM)
-  check('on the machine page of a non-Mac machine the Terminal button is off with its reason', onMachinePage.found && onMachinePage.disabled && /Mac machines only for now/.test(onMachinePage.label), JSON.stringify(onMachinePage))
+  check('on the machine page of a Linux machine without the flag the Terminal button is off with its reason', onMachinePage.found && onMachinePage.disabled && /Update the helper to use the terminal/.test(onMachinePage.label), JSON.stringify(onMachinePage))
   await b.shot('terminal-buttons-machine-page.png')
   await b.page.setViewport(PHONE)
   await b.shot('terminal-buttons-machine-page-phone.png', true)

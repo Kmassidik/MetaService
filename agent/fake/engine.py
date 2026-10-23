@@ -62,6 +62,8 @@ class MachineSpec:
     cpu_topology: bool = False
     cpu_flags: tuple = ()
     cpu_limit: bool = False
+    # A helper of this build serves the console and says so in the capabilities. False plays an older helper (no `terminal` entry): the Root still lets an old Mac in, and tells a Linux machine to update.
+    terminal: bool = True
     images: list = field(default_factory=lambda: [dict(BLANK_IMAGE)])
     serves_images: bool = True
     # A helper of this build installs apps (OpenClaw, Hermes) into a running VM and says so in GET /v1/images. False plays an older helper: no app entries, no route.
@@ -132,6 +134,7 @@ class FakeEngine:
                 "gpu_in_vm": spec.gpu_in_vm, "gpu_in_container": spec.gpu_in_container,
                 "gpu_memory_limit": spec.gpu_in_container and spec.gpu_memory_limit,
                 **self._cpu_offer(),
+                **({"terminal": True} if spec.terminal else {}),
             },
             "agent_version": self.agent_version,
             "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},

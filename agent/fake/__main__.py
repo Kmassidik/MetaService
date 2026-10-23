@@ -31,15 +31,23 @@ def main():
     parser.add_argument("--gpu-inside", choices=sorted(GPU_INSIDE), default="nvidia-smi", help="what the GPU check finds inside a container")
     parser.add_argument("--no-gpu-limit", action="store_true", help="play a helper that cannot limit GPU memory (does not announce gpu_memory_limit)")
     parser.add_argument("--cpu-options", action="store_true", help="play a helper with the CPU settings of Proxmox's Processors window (announces cpu_models, cpu_topology, cpu_flags and cpu_limit)")
+    parser.add_argument("--os", choices=["linux", "macos"], default="linux", help="the system the facts report")
+    parser.add_argument("--no-terminal", action="store_true", help="play an older helper that does not say it serves the console (no `terminal` in the capabilities)")
+    parser.add_argument("--workload", action="append", default=[], metavar="NAME:KIND", help="start with a running workload of this name and kind (vm or container); the first one is wl-1 and so on; can be repeated")
     parser.add_argument("--agent-build", default=DEFAULT_AGENT_BUILD, help="the build (64 lowercase hex digits) the facts report; 'none' reports no build, like an older helper")
     args = parser.parse_args()
     token = pathlib.Path(args.token_file).read_text().strip()
     has_card = args.nvidia is not None
     card = [{"vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768}] if has_card else []
     cpu_options = CPU_OPTIONS if args.cpu_options else {}
-    spec = MachineSpec(vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside, gpu_memory_limit=not args.no_gpu_limit, **cpu_options)
+    spec = MachineSpec(os=args.os, arch="arm64" if args.os == "macos" else "x86_64", vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside,
+                       gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, **cpu_options)
     build = None if args.agent_build == "none" else args.agent_build
-    server = make_server(FakeEngine(spec, agent_build=build), token, args.host, args.port, FakeStats(cores=args.cores, gpu=args.gpu or has_card, gpus=parse_kinds(args.gpus), physical=args.physical, extras=args.extras))
+    engine = FakeEngine(spec, agent_build=build)
+    for number, text in enumerate(args.workload, start=1):
+        name, _, kind = text.partition(":")
+        engine.create({"command_id": f"start-{number}", "name": name, "kind": kind or "container", "cpu": 1, "ram_mb": 512, "disk_gb": 1})
+    server = make_server(engine, token, args.host, args.port, FakeStats(cores=args.cores, gpu=args.gpu or has_card, gpus=parse_kinds(args.gpus), physical=args.physical, extras=args.extras))
     print(f"Fake Agent on http://{args.host}:{server.server_address[1]}")
     server.serve_forever()
 

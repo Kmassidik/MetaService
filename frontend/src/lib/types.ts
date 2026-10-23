@@ -32,6 +32,8 @@ export interface Capabilities {
   cpu_flags?: string[]
   /** True when a container can get a hard cap on its CPU time. */
   cpu_limit?: boolean
+  /** True when the helper serves the web terminal; left out by an older helper (a Mac is still allowed by its system). */
+  terminal?: boolean
 }
 
 /** The CPU flags the Create VM window can switch, as the helpers name them. */

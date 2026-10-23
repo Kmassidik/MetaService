@@ -12,10 +12,10 @@ const MIN_GAP_PX = 12
 const PHONE = { width: 400, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 const SHORT_WAIT_MS = 8000
-/** vm1 of the stand-in is running and has no chat: Terminal (off: the stand-in is not a Mac), Stop, Install chat, then Delete. */
-const VM1_ROW_LABELS = ['Terminal: Mac machines only for now vm1', 'SSH keys vm1', 'Stop vm1', 'Install chat vm1', 'Delete vm1']
+/** vm1 of the stand-in is running and has no chat: Terminal (off: the stand-in's helper does not say it serves a terminal), Stop, Install chat, then Delete. */
+const VM1_ROW_LABELS = ['Terminal: Update the helper to use the terminal vm1', 'SSH keys vm1', 'Stop vm1', 'Install chat vm1', 'Delete vm1']
 /** What the tooltip of each of those says: the short word, without the VM's name. */
-const VM1_ROW_TIPS = ['Terminal: Mac machines only for now', 'SSH keys', 'Stop', 'Install chat', 'Delete']
+const VM1_ROW_TIPS = ['Terminal: Update the helper to use the terminal', 'SSH keys', 'Stop', 'Install chat', 'Delete']
 const ROW_BUTTONS = '.vm-acts button'
 
 interface Geometry {
