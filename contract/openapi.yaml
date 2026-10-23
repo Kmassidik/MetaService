@@ -151,22 +151,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: 'the installer failed (code app_install_failed)', content: { application/json: { schema: { $ref: '#/components/schemas/AppInstallError' } } } }
-    put:
-      summary: >
-        Installs an app (OpenClaw or Hermes) inside ONE running VM, with constant installer scripts that download the vendor's official installer. Optional, added without a version change
-        (a helper without it answers 404 or 400, and the Root then shows the app as failed with "update the helper"). Helpers that have it say `ready: true` for `openclaw` and `hermes` in GET /v1/images.
-        Idempotent: `installed` is false when the app was there already and nothing changed. The body holds exactly one field, `app`; an unknown field or value is a 400 invalid_input.
-        The VM must be running (409 not_running). A long call (up to 25 minutes; the Root waits that long). `version` and `installer_sha256` (lowercase hex SHA-256 of the installer script that ran) are null when unknown.
-        A failed install is a 502 `app_install_failed` with a plain-words message and `log_tail`: at most 12 strings of at most 200 characters, the last lines the installer printed (plain text, no secrets). Nothing else is returned.
-      parameters: [ { $ref: '#/components/parameters/WorkloadId' } ]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstall' } } } }
-      responses:
-        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/AppInstalled' } } } }
-        '400': { $ref: '#/components/responses/Invalid' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: 'the VM is not running (code not_running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '502': { description: 'the installer failed (code app_install_failed)', content: { application/json: { schema: { $ref: '#/components/schemas/AppInstallError' } } } }
   /v1/bundle/install:
     post:
       summary: Install or upgrade the chat bundle on the machine or in a workload
