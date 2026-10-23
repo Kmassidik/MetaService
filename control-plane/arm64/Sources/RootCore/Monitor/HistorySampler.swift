@@ -13,7 +13,7 @@ public struct SampledMachine: Equatable, Sendable {
 }
 
 /// Where the sampler gets its machines and readings. The real one goes through the shared reading (so the sampler and a person watching together
-/// never call a helper more than once per four seconds); a test gives a fake.
+/// never call a helper more than once per 1.5 seconds); a test gives a fake.
 public protocol HistorySource: Sendable {
     func machines() async -> [SampledMachine]
     /// A good reading without the process list and when the parent got it, or nil when the helper did not answer.

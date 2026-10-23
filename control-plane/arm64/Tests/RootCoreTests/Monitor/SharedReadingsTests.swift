@@ -28,10 +28,10 @@ final class SharedReadingsTests: XCTestCase {
         return (SharedReadings<Int>(clock: clock), clock, Counter())
     }
 
-    func testTwoAskersInsideFourSecondsCostOneHelperCall() async {
+    func testTwoAskersInsideTheSharedReadingWindowCostOneHelperCall() async {
         let (readings, clock, counter) = make()
         let first = await readings.read("mini") { await counter.fetch() }
-        clock.advance(3.9)
+        clock.advance(1.4)
         let second = await readings.read("mini") { await counter.fetch() }
         let calls = await counter.calls
         XCTAssertEqual(calls, 1)
@@ -51,19 +51,37 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertNil(held.value, "nobody asked for 40 seconds: the last numbers are dropped, as before the sampler existed")
     }
 
-    func testTheSamplerAndAPersonShareOneCallInsideFourSeconds() async {
+    func testTheSamplerAndAPersonShareOneCallInsideTheSharedReadingWindow() async {
         let (readings, clock, counter) = make()
         _ = await readings.read("mini", keepsAlive: false) { await counter.fetch() }
-        clock.advance(2)
+        clock.advance(1)
         _ = await readings.read("mini") { await counter.fetch() }
         let calls = await counter.calls
         XCTAssertEqual(calls, 1)
     }
 
-    func testAfterFourSecondsTheHelperIsAskedAgain() async {
+    func testAfterTheSharedReadingWindowTheHelperIsAskedAgain() async {
         let (readings, clock, counter) = make()
         _ = await readings.read("mini") { await counter.fetch() }
         clock.advance(4.0)
+        _ = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testTwoReadsOneSecondApartShareOneHelperCall() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        clock.advance(1)
+        _ = await readings.read("mini") { await counter.fetch() }
+        let calls = await counter.calls
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testTwoReadsTwoSecondsApartMakeTwoHelperCalls() async {
+        let (readings, clock, counter) = make()
+        _ = await readings.read("mini") { await counter.fetch() }
+        clock.advance(2)
         _ = await readings.read("mini") { await counter.fetch() }
         let calls = await counter.calls
         XCTAssertEqual(calls, 2)
@@ -88,11 +106,11 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertEqual(calls, 2)
     }
 
-    func testAFailureIsKeptForFourSecondsToo() async {
+    func testAFailureIsKeptForTheSharedReadingWindowToo() async {
         let (readings, clock, counter) = make()
         await counter.set(.unreachable)
         let first = await readings.read("mini") { await counter.fetch() }
-        clock.advance(2)
+        clock.advance(1)
         _ = await readings.read("mini") { await counter.fetch() }
         let calls = await counter.calls
         XCTAssertEqual(calls, 1)
@@ -159,7 +177,7 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertEqual(calls, 2)
     }
 
-    func testOnceTheDetailedReadingIsHeldFurtherRequestsInsideFourSecondsCostNothing() async {
+    func testOnceTheDetailedReadingIsHeldFurtherRequestsInsideTheSharedReadingWindowCostNothing() async {
         let (readings, clock, counter) = make()
         _ = await readings.read("mini", detailed: false) { await counter.fetch() }
         clock.advance(1)
@@ -171,7 +189,7 @@ final class SharedReadingsTests: XCTestCase {
         XCTAssertEqual(calls, 2)
     }
 
-    func testAfterFourSecondsAPlainRequestRefreshesWithoutDetailAndDetailIsAskedForAgain() async {
+    func testAfterTheSharedReadingWindowAPlainRequestRefreshesWithoutDetailAndDetailIsAskedForAgain() async {
         let (readings, clock, counter) = make()
         _ = await readings.read("mini", detailed: true) { await counter.fetch() }
         clock.advance(4)
@@ -188,7 +206,7 @@ final class SharedReadingsTests: XCTestCase {
         clock.advance(1)
         _ = await readings.read("mini", detailed: true) { await counter.fetch() }
         let calls = await counter.calls
-        XCTAssertEqual(calls, 1, "a dead helper is left alone for four seconds whatever is asked")
+        XCTAssertEqual(calls, 1, "a dead helper is left alone for 1.5 seconds whatever is asked")
     }
 
     func testAskersWithDetailWhileAPlainCallIsRunningShareOneFollowUpCall() async {

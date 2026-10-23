@@ -4,7 +4,7 @@ import RootCore
 import RootStore
 
 /// The last hour of readings per machine, in memory. It asks the machines through the same shared reading as the stats route, so a person watching and the sampler together
-/// still cost a helper at most one call per four seconds.
+/// still cost a helper at most one call per 1.5 seconds.
 final class HistoryService: Sendable {
     private let machines: MachineStore
     private let clock: Clock

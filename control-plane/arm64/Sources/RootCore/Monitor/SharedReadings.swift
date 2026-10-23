@@ -36,9 +36,10 @@ extension Reading where Value == MachineStats {
 }
 
 /// One shared reading per machine, however many tabs ask (docs/monitor-contract.md, "Shared reading").
-/// A helper is called at most once per `refreshSeconds`; askers that arrive during a call wait for that call; a reading nobody asked for in `dropSeconds` is thrown away.
+/// A helper is called at most once per `sharedReadingSeconds`; askers that arrive during a call wait for that call; a reading nobody asked for in `dropSeconds` is thrown away.
 public actor SharedReadings<Value: Sendable> {
-    public static var refreshSeconds: TimeInterval { 4 }
+    /// Short enough that a person polling every 2 seconds gets a new helper reading each time, long enough that two browser tabs and the history sampler share one.
+    public static var sharedReadingSeconds: TimeInterval { 1.5 }
     public static var dropSeconds: TimeInterval { 30 }
 
     private struct Entry {
@@ -60,9 +61,9 @@ public actor SharedReadings<Value: Sendable> {
 
     public var heldCount: Int { entries.count }
 
-    /// The reading for a machine; calls `fetch` only when the shared one is older than `refreshSeconds` and nobody is already fetching.
+    /// The reading for a machine; calls `fetch` only when the shared one is older than `sharedReadingSeconds` and nobody is already fetching.
     /// `detailed` says the asker wants the extra part (the process list). A held detailed reading answers everybody; a held plain one does not answer a detailed
-    /// request, which then makes one call at once (a failed or old-helper reading is not repeated for it: a dead helper is left alone for `refreshSeconds`).
+    /// request, which then makes one call at once (a failed or old-helper reading is not repeated for it: a dead helper is left alone for `sharedReadingSeconds`).
     /// `keepsAlive` false is for a caller that is not a person watching (the history sampler): it shares the reading and its rate limit like anybody, but does not
     /// keep the reading from being dropped, so a machine nobody looks at still loses its held numbers after `dropSeconds`.
     public func read(_ key: String, detailed: Bool = false, keepsAlive: Bool = true, fetch: @escaping @Sendable () async -> ReadingOutcome<Value>) async -> Reading<Value> {
@@ -90,7 +91,7 @@ public actor SharedReadings<Value: Sendable> {
     private func needsCall(_ entry: Entry, _ detailed: Bool, _ now: Date) -> Bool {
         guard let attempted = entry.attemptedAt else { return true }
         let lacksDetail = detailed && !entry.detailed && entry.kind == .fresh
-        return lacksDetail || now.timeIntervalSince(attempted) >= Self.refreshSeconds
+        return lacksDetail || now.timeIntervalSince(attempted) >= Self.sharedReadingSeconds
     }
 
     private func finish(_ key: String, _ detailed: Bool, _ outcome: ReadingOutcome<Value>) {
