@@ -49,7 +49,7 @@ pub(crate) fn service_over(engine: Arc<dyn Engine>) -> Arc<Service> {
 }
 
 fn vm_request(command_id: &str) -> CreateRequest {
-    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Vm, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::None, image: None }
+    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Vm, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None }
 }
 
 /// A simulated machine with one running VM called `w-1`.

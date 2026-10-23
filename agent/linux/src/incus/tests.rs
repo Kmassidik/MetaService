@@ -5,7 +5,7 @@ use crate::validate::CreateRequest;
 use std::path::PathBuf;
 
 fn request(kind: Kind, gpu: GpuMode) -> CreateRequest {
-    CreateRequest { command_id: "c".into(), name: "demo".into(), kind, cpu: 4, ram_mb: 8192, disk_gb: 50, gpu_mode: gpu, image: None }
+    CreateRequest { command_id: "c".into(), name: "demo".into(), kind, cpu: 4, ram_mb: 8192, disk_gb: 50, gpu_mode: gpu, image: None, gpu_memory_gb: None }
 }
 
 #[test]
@@ -261,4 +261,35 @@ fn a_failed_gpu_container_step_deletes_the_half_made_instance_and_returns_its_er
         let calls = runner.calls.lock().unwrap();
         assert_eq!(calls.last().unwrap(), &args(&["delete", "ms-w-abc", "--force"]), "{failing:?}");
     }
+}
+
+#[test]
+fn a_limited_gpu_container_is_initialised_with_its_limit_and_never_launched() {
+    let limited = CreateRequest { gpu_memory_gb: Some(4), ..request(Kind::Container, GpuMode::Container) };
+    let init = init_arguments("w-abc", &limited, "images:ubuntu/24.04");
+    assert_eq!(&init[..3], ["init", "images:ubuntu/24.04", "ms-w-abc"]);
+    let has_pair = |value: &str| init.windows(2).any(|pair| pair[0] == "-c" && pair[1] == value);
+    assert!(has_pair("user.metaservice.gpu_memory_gb=4") && has_pair("nvidia.runtime=true"));
+    assert!(list::needs_gpu_device_steps(&limited), "init + device add + start, not launch");
+    let unlimited = init_arguments("w-abc", &request(Kind::Container, GpuMode::Container), "x");
+    assert!(!unlimited.iter().any(|a| a.contains("gpu_memory_gb")));
+}
+
+fn one_container(status: &str, extra: &str) -> String {
+    format!(r#"[{{"name":"ms-w-1","status":"{status}","config":{{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"container","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1","user.metaservice.gpu_mode":"container","user.metaservice.gpu_memory_gb":"4"{extra}}}}}]"#)
+}
+
+const STOP_RECORD: &str = r#","user.metaservice.gpu_stop_code":"gpu_memory_over_limit","user.metaservice.gpu_stop_used_mib":"5325""#;
+
+#[test]
+fn the_limit_and_the_watchdog_stop_are_read_back() {
+    let stopped = &parse_list(&one_container("Stopped", STOP_RECORD))[0];
+    assert_eq!(stopped.gpu_memory_gb, Some(4));
+    let reason = stopped.stopped_reason.as_ref().expect("reason");
+    assert_eq!((reason.code.as_deref(), reason.used_gb, reason.limit_gb), (Some("gpu_memory_over_limit"), Some(5.2), Some(4)));
+    assert_eq!(reason.message.as_deref(), Some("GPU memory was over its limit: used 5.2 GB, limit 4 GB."));
+    assert!(parse_list(&one_container("Running", STOP_RECORD))[0].stopped_reason.is_none(), "only while stopped");
+    assert!(parse_list(&one_container("Stopped", ""))[0].stopped_reason.is_none());
+    let plain = r#"[{"name":"ms-w-1","status":"Running","config":{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"container","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1"}}]"#;
+    assert_eq!(parse_list(plain)[0].gpu_memory_gb, None);
 }

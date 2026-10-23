@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub use list::{gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments};
+pub use list::{gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments, GPU_STOP_CODE_KEY, GPU_STOP_USED_KEY};
 pub use runner::{ProcessRunner, Runner};
 
 const PREFIX: &str = "ms-";
@@ -40,7 +40,8 @@ pub struct IncusEngine {
     version: Mutex<Option<String>>,
 }
 
-fn name_of(id: &str) -> String {
+/// The Incus instance name of a workload id.
+pub fn name_of(id: &str) -> String {
     format!("{PREFIX}{id}")
 }
 
@@ -103,6 +104,14 @@ impl IncusEngine {
         self.runner.run(&start_arguments(id), SLOW).map(|_| ())
     }
 
+    /// Forgets that the watchdog stopped this container, so a new start begins with a clean slate.
+    fn clear_gpu_stop_record(&self, id: &str) -> Result<(), EngineError> {
+        for key in [GPU_STOP_CODE_KEY, GPU_STOP_USED_KEY] {
+            self.runner.run(&args(&["config", "unset", &name_of(id), key]), QUICK)?;
+        }
+        Ok(())
+    }
+
     /// Removes an instance whose create did not finish, so no stopped ghost stays behind. Its own failure is not worth hiding the original one.
     fn discard_half_made(&self, id: &str) {
         let _ = self.runner.run(&args(&["delete", &name_of(id), "--force"]), QUICK);
@@ -144,7 +153,8 @@ impl Engine for IncusEngine {
     }
 
     fn set_running(&self, id: &str, running: bool) -> Result<(), EngineError> {
-        self.require(id)?;
+        let workload = self.require(id)?;
+        if running && workload.stopped_reason.is_some() { self.clear_gpu_stop_record(id)?; }
         let call = if running { args(&["start", &name_of(id)]) } else { args(&["stop", &name_of(id), "--timeout", STOP_SECONDS]) };
         self.runner.run(&call, SLOW)?;
         self.wait_for(id, if running { State::Running } else { State::Stopped }).map(|_| ())
@@ -213,3 +223,6 @@ impl Engine for IncusEngine {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod stop_record_tests;

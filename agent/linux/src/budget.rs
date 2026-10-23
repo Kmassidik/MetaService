@@ -111,11 +111,11 @@ mod tests {
     use crate::models::Workload;
 
     fn request(ram: u64, disk: u64, kind: Kind, gpu: GpuMode) -> CreateRequest {
-        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: gpu, image: None }
+        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: gpu, image: None, gpu_memory_gb: None }
     }
 
     fn workload(ram: u64, disk: u64, state: State) -> Workload {
-        Workload { id: "w".into(), name: "n".into(), kind: Kind::Vm, state, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: GpuMode::None, address: None, bundle_version: None }
+        Workload { id: "w".into(), name: "n".into(), kind: Kind::Vm, state, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: GpuMode::None, address: None, bundle_version: None, gpu_memory_gb: None, stopped_reason: None }
     }
 
     const ALL: Capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: true };

@@ -113,7 +113,7 @@ impl Engine for SimulatedEngine {
     fn create(&self, id: &str, request: &CreateRequest) -> Result<Workload, EngineError> {
         let made = Workload {
             id: id.to_string(), name: request.name.clone(), kind: request.kind, state: State::Running, cpu: request.cpu, ram_mb: request.ram_mb,
-            disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None,
+            disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None, gpu_memory_gb: request.gpu_memory_gb, stopped_reason: None,
         };
         self.store.lock().unwrap().insert(id.to_string(), made.clone());
         Ok(made)

@@ -41,6 +41,36 @@ pub struct Workload {
     pub gpu_mode: GpuMode,
     pub address: Option<String>,
     pub bundle_version: Option<String>,
+    /// The GPU memory limit in GB of a container that has one, else null.
+    pub gpu_memory_gb: Option<u32>,
+    /// Why the helper itself stopped this workload, while it is stopped. Left out otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stopped_reason: Option<StoppedReason>,
+}
+
+pub const GPU_OVER_LIMIT_CODE: &str = "gpu_memory_over_limit";
+const MIB_PER_GB: f64 = 1024.0;
+
+/// Why a workload is stopped. The watchdog fills `code`, `message`, `used_gb` and `limit_gb`.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct StoppedReason {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used_gb: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_gb: Option<u32>,
+}
+
+impl StoppedReason {
+    /// The reason for a stop by the GPU memory watchdog: `used_mib` is what the container's programs held, `limit_gb` its limit.
+    pub fn gpu_memory_over_limit(used_mib: u64, limit_gb: u32) -> StoppedReason {
+        let used_gb = (used_mib as f64 / MIB_PER_GB * 10.0).round() / 10.0;
+        let message = format!("GPU memory was over its limit: used {used_gb:.1} GB, limit {limit_gb} GB.");
+        StoppedReason { code: Some(GPU_OVER_LIMIT_CODE.into()), message: Some(message), used_gb: Some(used_gb), limit_gb: Some(limit_gb) }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -51,12 +81,26 @@ pub struct Gpu {
     pub memory_mb: Option<u64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Capabilities {
     pub vm: bool,
     pub container: bool,
     pub gpu_in_vm: bool,
     pub gpu_in_container: bool,
+}
+
+/// `gpu_memory_limit` is not stored: it is true exactly when `gpu_in_container` is (the watchdog needs the same NVIDIA card and toolkit).
+impl Serialize for Capabilities {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut out = serializer.serialize_struct("Capabilities", 5)?;
+        out.serialize_field("vm", &self.vm)?;
+        out.serialize_field("container", &self.container)?;
+        out.serialize_field("gpu_in_vm", &self.gpu_in_vm)?;
+        out.serialize_field("gpu_in_container", &self.gpu_in_container)?;
+        out.serialize_field("gpu_memory_limit", &self.gpu_in_container)?;
+        out.end()
+    }
 }
 
 /// What the machine is, measured once.
@@ -163,5 +207,28 @@ pub enum EngineError {
 impl From<std::io::Error> for EngineError {
     fn from(error: std::io::Error) -> Self {
         EngineError::Failed(error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_memory_limit_capability_follows_gpu_in_container() {
+        for gpu in [true, false] {
+            let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu }).unwrap();
+            assert_eq!(json["gpu_memory_limit"], gpu);
+            assert_eq!(json["gpu_in_container"], gpu);
+        }
+    }
+
+    #[test]
+    fn the_over_limit_reason_has_one_decimal() {
+        let reason = StoppedReason::gpu_memory_over_limit(5325, 4);
+        assert_eq!(reason.message.as_deref(), Some("GPU memory was over its limit: used 5.2 GB, limit 4 GB."));
+        assert_eq!((reason.used_gb, reason.limit_gb), (Some(5.2), Some(4)));
+        let json = serde_json::to_value(&reason).unwrap();
+        assert_eq!(json["code"], "gpu_memory_over_limit");
     }
 }

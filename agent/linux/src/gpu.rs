@@ -41,7 +41,7 @@ mod tests {
     }
 
     fn request(kind: Kind, gpu_mode: GpuMode) -> CreateRequest {
-        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode, image: None }
+        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode, image: None, gpu_memory_gb: None }
     }
 
     fn capabilities(gpu_in_container: bool) -> Capabilities {

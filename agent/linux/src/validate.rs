@@ -75,12 +75,17 @@ pub struct CreateRequest {
     pub disk_gb: u64,
     pub gpu_mode: GpuMode,
     pub image: Option<String>,
+    /// A GPU memory limit in GB, only for a container that shares the GPU.
+    pub gpu_memory_gb: Option<u32>,
 }
+
+const MAX_GPU_MEMORY_GB: u64 = 1024;
 
 impl CreateRequest {
     pub fn parse(body: &[u8]) -> Checked<CreateRequest> {
-        let object = Object::parse(body, &["command_id", "name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "image"])?;
+        let object = Object::parse(body, &["command_id", "name", "kind", "cpu", "ram_mb", "disk_gb", "gpu_mode", "image", "gpu_memory_gb"])?;
         let kind = if object.choice("kind", &["vm", "container"])? == "vm" { Kind::Vm } else { Kind::Container };
+        let gpu_mode = Self::gpu_mode(&object)?;
         Ok(CreateRequest {
             command_id: object.id("command_id")?,
             name: object.id("name")?,
@@ -88,9 +93,20 @@ impl CreateRequest {
             cpu: object.int("cpu", 1, 64)? as u32,
             ram_mb: object.int("ram_mb", 512, 1_048_576)?,
             disk_gb: object.int("disk_gb", 1, 100_000)?,
-            gpu_mode: Self::gpu_mode(&object)?,
+            gpu_mode,
             image: Self::image(&object)?,
+            gpu_memory_gb: Self::gpu_memory_gb(&object, kind, gpu_mode)?,
         })
+    }
+
+    fn gpu_memory_gb(object: &Object, kind: Kind, gpu_mode: GpuMode) -> Checked<Option<u32>> {
+        if !object.has("gpu_memory_gb") {
+            return Ok(None);
+        }
+        if kind != Kind::Container || gpu_mode != GpuMode::Container {
+            return Err("gpu_memory_gb is only allowed for a container with gpu_mode container".into());
+        }
+        Ok(Some(object.int("gpu_memory_gb", 1, MAX_GPU_MEMORY_GB)? as u32))
     }
 
     fn gpu_mode(object: &Object) -> Checked<GpuMode> {
@@ -194,6 +210,45 @@ mod tests {
         for raw in ["", "{", "null", "[]", "\"text\""] {
             assert!(CreateRequest::parse(raw.as_bytes()).is_err(), "{raw}");
         }
+    }
+
+    fn limited(change: impl FnOnce(&mut Value)) -> Checked<CreateRequest> {
+        create(|body| {
+            body["kind"] = json!("container");
+            body["gpu_mode"] = json!("container");
+            body["gpu_memory_gb"] = json!(4);
+            change(body);
+        })
+    }
+
+    #[test]
+    fn a_gpu_memory_limit_is_read_for_a_gpu_container_only() {
+        assert_eq!(limited(|_| {}).unwrap().gpu_memory_gb, Some(4));
+        assert_eq!(limited(|b| b["gpu_memory_gb"] = json!(1)).unwrap().gpu_memory_gb, Some(1));
+        assert_eq!(limited(|b| b["gpu_memory_gb"] = json!(1024)).unwrap().gpu_memory_gb, Some(1024));
+        assert_eq!(limited(|b| b["gpu_memory_gb"] = Value::Null).unwrap().gpu_memory_gb, None);
+        assert_eq!(limited(|b| { b.as_object_mut().unwrap().remove("gpu_memory_gb"); }).unwrap().gpu_memory_gb, None);
+        assert_eq!(create(|_| {}).unwrap().gpu_memory_gb, None);
+    }
+
+    #[test]
+    fn a_gpu_memory_limit_is_refused_when_it_does_not_fit() {
+        let refused: [(&str, Checked<CreateRequest>); 8] = [
+            ("zero", limited(|b| b["gpu_memory_gb"] = json!(0))),
+            ("too big", limited(|b| b["gpu_memory_gb"] = json!(1025))),
+            ("negative", limited(|b| b["gpu_memory_gb"] = json!(-1))),
+            ("fraction", limited(|b| b["gpu_memory_gb"] = json!(1.5))),
+            ("text", limited(|b| b["gpu_memory_gb"] = json!("4"))),
+            ("vm", limited(|b| b["kind"] = json!("vm"))),
+            ("no gpu", limited(|b| b["gpu_mode"] = json!("none"))),
+            ("passthrough", limited(|b| b["gpu_mode"] = json!("passthrough"))),
+        ];
+        for (label, result) in refused {
+            let message = result.expect_err(label);
+            assert!(message.contains("gpu_memory_gb"), "{label}: {message}");
+        }
+        let echoed = limited(|b| b["gpu_memory_gb"] = json!("secret-value")).unwrap_err();
+        assert!(!echoed.contains("secret-value"));
     }
 
     #[test]

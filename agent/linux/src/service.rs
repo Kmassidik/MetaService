@@ -199,7 +199,7 @@ impl Service {
         }
         space.budget.check(&request, &current, &capabilities, space.os_available_disk_gb).map_err(Failure::Refused)?;
         let id = new_workload_id();
-        let planned = Workload { id: id.clone(), name: request.name.clone(), kind: request.kind, state: State::Provisioning, cpu: request.cpu, ram_mb: request.ram_mb, disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None };
+        let planned = Workload { id: id.clone(), name: request.name.clone(), kind: request.kind, state: State::Provisioning, cpu: request.cpu, ram_mb: request.ram_mb, disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None, gpu_memory_gb: request.gpu_memory_gb, stopped_reason: None };
         self.flight.lock().unwrap().inflight.insert(id.clone(), planned);
         let started = Command { command_id: request.command_id.clone(), kind: CommandType::Create, state: CommandState::Running, workload_id: Some(id.clone()), result: None };
         self.ledger.record(started.clone());
