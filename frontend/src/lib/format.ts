@@ -1,4 +1,5 @@
 // Pure helpers for showing machine data. No DOM, no network, so they are easy to test.
+import { cpuFields } from './cpuOptions.ts'
 import { imageBundle } from './images.ts'
 import type { Command, WorkloadForm } from './types.ts'
 
@@ -117,7 +118,7 @@ function gpuFields(form: WorkloadForm): Record<string, unknown> {
 
 export function workloadBody(form: WorkloadForm): Record<string, unknown> {
   const body = { name: form.name, kind: form.kind, cpu: Number(form.cpu), ram_mb: Math.round(Number(form.ramGb) * 1024), disk_gb: Number(form.diskGb) }
-  const withGpu = { ...body, ...gpuFields(form) }
+  const withGpu = { ...body, ...gpuFields(form), ...cpuFields(form) }
   const bundle = imageBundle(form.bundle)
   const withImage = bundle === undefined ? withGpu : { ...withGpu, bundle }
   return form.machine ? { ...withImage, machine: form.machine } : withImage
