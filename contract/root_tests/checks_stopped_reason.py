@@ -12,6 +12,8 @@ ESCAPE = "\x1b"
 REASON_LOG = "[!!!!!!] Failed to mount API filesystems.\nExiting PID 1..."
 MAX_TAIL_BYTES = 2048
 MAX_TAIL_LINES = 12
+# The GPU-limit fields of a reason; the Root lists them as null when a helper did not send them.
+NO_GPU_REASON = {"code": None, "message": None, "used_gb": None, "limit_gb": None}
 FAIL_TEXT = "The VM did not start.\nTry 1, with systemd: it stopped right after it started (exit code 255)."
 
 
@@ -30,13 +32,13 @@ def check_a_vm_that_stopped_by_itself_shows_why_until_it_runs_again():
             helper.engine.quit_by_itself(vm, 255, REASON_LOG)
             beat()
             listed = machine_workloads(operator)[0]
-            expect(listed["state"] == "stopped" and listed["stopped_reason"] == {"exit_code": 255, "log_tail": REASON_LOG}, f"listed: {listed}")
+            expect(listed["state"] == "stopped" and listed["stopped_reason"] == {**NO_GPU_REASON, "exit_code": 255, "log_tail": REASON_LOG}, f"listed: {listed}")
             helper.engine.set_state("c-up", vm, "start", "running")
             beat()
             expect(machine_workloads(operator)[0]["stopped_reason"] is None, "the reason stayed after the VM ran again")
             helper.engine.quit_by_itself(vm, None, "gone quiet")
             beat()
-            expect(machine_workloads(operator)[0]["stopped_reason"] == {"exit_code": None, "log_tail": "gone quiet"}, "an unknown exit code must come back as null")
+            expect(machine_workloads(operator)[0]["stopped_reason"] == {**NO_GPU_REASON, "exit_code": None, "log_tail": "gone quiet"}, "an unknown exit code must come back as null")
             helper.engine.delete("c-del", vm)
             beat()
             expect(machine_workloads(operator) == [], "a deleted VM is still listed")

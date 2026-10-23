@@ -17,7 +17,8 @@ from contract.root_tests.support import Browser, expect, good_heartbeat, running
 MACHINE = "mini"
 REMOTE_MACHINE = "test-box"
 STATS_PATH = f"/api/machines/{MACHINE}/stats"
-REFRESH_SECONDS = 4
+# Same as SharedReadings.sharedReadingSeconds in the Root.
+REFRESH_SECONDS = 1.5
 IDLE_DROP_SECONDS = 30
 SETTLE_SECONDS = 0.3
 CONCURRENT_ASKERS = 20
@@ -123,7 +124,7 @@ def check_the_stats_route_needs_the_session_and_the_right_host_and_knows_its_mac
             helper.stop()
 
 
-def check_the_helper_is_asked_once_per_four_seconds_however_many_ask():
+def check_the_helper_is_asked_once_per_shared_reading_however_many_ask():
     with running() as root:
         operator = Browser(root)
         helper = machine_with_helper(operator, root)

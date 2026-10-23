@@ -96,7 +96,7 @@ def check_the_parent_fills_the_history_by_itself_without_asking_for_the_process_
             helper.stop()
 
 
-def check_a_person_watching_and_the_sampler_together_stay_inside_one_helper_call_per_four_seconds():
+def check_a_person_watching_and_the_sampler_together_stay_inside_one_helper_call_per_shared_reading():
     with running(env_text=FAST_SAMPLING) as root:
         operator = Browser(root)
         helper = machine_with_helper(operator, root, FakeStats(measuring_first=False))
