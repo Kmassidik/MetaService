@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test'
 import { formFromMachine, type EnvForm } from './environmentForm.ts'
 import { limitsSummary, machineSummary, namesSummary, ruvioSummary, softwareSummary, unsavedText, vmDefaultsSummary } from './environmentSummary.ts'
 import { machine } from './testing.ts'
+import type { Machine } from './types.ts'
 
-const form = (settings: NonNullable<Parameters<typeof machine>[0]['settings']> = {}, name = 'mac-studio'): EnvForm => formFromMachine(machine({ name, settings }))
+const form = (settings: NonNullable<Machine['settings']> = {}, name = 'mac-studio'): EnvForm => formFromMachine(machine({ name, settings }))
 const noBadWords = (text: string) => expect(text).not.toMatch(/undefined|null|NaN/)
 
 test('this machine: state, cores, memory and system', () => {

@@ -1,14 +1,12 @@
 <script lang="ts">
   // What is installed on the machine: the helper, the engine that makes VMs, and the tunnel the parent keeps to it. A value nobody reported says so.
-  import Section from './Section.svelte'
   import HelperRow from './HelperRow.svelte'
   import { NOT_REPORTED, type SoftwareRow } from '../../lib/environment.ts'
   import type { HelperView, OutcomeView } from '../../lib/helperUpdate.ts'
 
-  let { rows, newest = null, title = 'Software', helper = null, updating = false, outcome = null, onUpdate = () => {} }: {
+  let { rows, newest = null, helper = null, updating = false, outcome = null, onUpdate = () => {} }: {
     rows: SoftwareRow[]
     newest?: string | null
-    title?: string
     /** The Helper row and its button; left out where a machine has no helper to update. */
     helper?: HelperView | null
     updating?: boolean
@@ -17,20 +15,18 @@
   } = $props()
 </script>
 
-<Section {title}>
-  <dl class="kv">
-    {#each rows as row (row.label)}
-      <div>
-        <dt>{row.label}</dt>
-        <dd class:missing={row.value === NOT_REPORTED}>
-          {row.value}
-          {#if row.old}<span class="tag warn" title="Behind the newest helper version seen ({newest})">old</span>{/if}
-        </dd>
-      </div>
-    {/each}
-    {#if helper}<HelperRow {helper} {updating} {outcome} {onUpdate} />{/if}
-  </dl>
-</Section>
+<dl class="kv">
+  {#each rows as row (row.label)}
+    <div>
+      <dt>{row.label}</dt>
+      <dd class:missing={row.value === NOT_REPORTED}>
+        {row.value}
+        {#if row.old}<span class="tag warn" title="Behind the newest helper version seen ({newest})">old</span>{/if}
+      </dd>
+    </div>
+  {/each}
+  {#if helper}<HelperRow {helper} {updating} {outcome} {onUpdate} />{/if}
+</dl>
 
 <style>
   .kv { display: grid; gap: 0; margin: 0; }

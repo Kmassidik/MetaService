@@ -1,6 +1,8 @@
 <script lang="ts">
   // The Environment tab: what the machine is, what is on it, Ruvio on or off, limits, what a new VM gets, and names. One Save; changes apply to new VMs only.
   import { untrack } from 'svelte'
+  import CollapsibleSection from './CollapsibleSection.svelte'
+  import MachineAlerts from './MachineAlerts.svelte'
   import MachineFacts from './MachineFacts.svelte'
   import SoftwareSection from './SoftwareSection.svelte'
   import RuvioSection from './RuvioSection.svelte'
@@ -11,13 +13,17 @@
   import { ActionState } from '../../lib/action.svelte.ts'
   import { ApiError, machineExtras, updateHelper, updateMachineSettings } from '../../lib/api.ts'
   import { ruvioView, softwareRows } from '../../lib/environment.ts'
-  import { isDirty, undoneForm } from '../../lib/environmentDirty.ts'
+  import { dirtySections, errorSections, undoneForm, type EditableSection } from '../../lib/environmentDirty.ts'
   import { formErrors, formFromMachine, patchFor, sameForm } from '../../lib/environmentForm.ts'
+  import { limitsSummary, machineSummary, namesSummary, ruvioSummary, softwareSummary, vmDefaultsSummary } from '../../lib/environmentSummary.ts'
   import { failureView, helperView, outcomeView, type OutcomeView } from '../../lib/helperUpdate.ts'
   import type { MachineExtras } from '../../lib/machineDetail.ts'
   import type { Machine, RemoteMachineInfo } from '../../lib/types.ts'
 
   const POLL_WHILE_GOING_MS = 2000
+  const LOADING_SUMMARY = 'loading…'
+  const ROW_IDS = ['machine', 'software', 'ruvio', 'limits', 'vmDefaults', 'names'] as const
+  type RowId = (typeof ROW_IDS)[number]
 
   interface Props {
     machine: Machine
@@ -46,16 +52,29 @@
   let updating = $state(false)
   let updateOutcome: OutcomeView | null = $state(null)
   let asked = 0
+  /** Every row starts closed. Several may be open; a row with an error is held open by the row itself. */
+  let opened: Record<RowId, boolean> = $state({ machine: false, software: false, ruvio: false, limits: false, vmDefaults: false, names: false })
 
   const full = $derived<Machine>({ ...machine, ...(extras ?? {}) })
   const errors = $derived(formErrors(form))
-  const dirty = $derived(isDirty(form, loadedFrom))
+  const changedSections = $derived(dirtySections(form, loadedFrom))
+  const errorRows = $derived(errorSections(errors))
+  const dirty = $derived(changedSections.length > 0)
   const canSave = $derived(dirty && Object.keys(errors).length === 0 && !saveAction.busy)
   /** Unsaved changes, or the answer to the last Save for its moment on screen. */
   const showBar = $derived(dirty || saveAction.status !== 'idle')
   const view = $derived(ruvioView(full.ruvio, chatsBuilt, machine.state !== 'offline'))
   const rows = $derived(softwareRows(full, remote, newestHelper, now))
   const helper = $derived(helperView(full))
+  const changed = (section: EditableSection): boolean => changedSections.includes(section)
+  const failing = (section: EditableSection): boolean => errorRows.includes(section)
+  const allOpen = $derived(ROW_IDS.every((id) => opened[id]))
+
+  /** Opens every row, or closes every row that is not held open by an error. */
+  function toggleAll() {
+    const open = !allOpen
+    for (const id of ROW_IDS) opened[id] = open || errorRows.some((section) => section === id)
+  }
 
   /** Reads the parts of the machine that only its own page carries. Only the newest answer counts. */
   async function load() {
@@ -138,36 +157,48 @@
 
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
 <div class="env">
-  <div class="col">
-    <MachineFacts {machine} {now} />
-    {#if loaded}
-      <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
-    {:else}
-      <p class="loading" role="status">Loading…</p>
-    {/if}
-  </div>
-  <div class="col">
-    {#if loaded}
-      <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
-    {/if}
+  <MachineAlerts {machine} />
+  <div class="tools"><button class="expand" type="button" onclick={toggleAll}>{allOpen ? 'Collapse all' : 'Expand all'}</button></div>
+  <div class="rows">
+    <CollapsibleSection id="machine" title="This machine" summary={machineSummary(full)} bind:open={opened.machine}>
+      <MachineFacts {machine} {now} />
+    </CollapsibleSection>
+    <CollapsibleSection id="software" title="Software" summary={loaded ? softwareSummary(helper.status) : LOADING_SUMMARY} bind:open={opened.software}>
+      {#if loaded}
+        <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
+      {:else}
+        <p class="loading" role="status">Loading…</p>
+      {/if}
+    </CollapsibleSection>
+    <CollapsibleSection id="ruvio" title="Ruvio" intro="Ruvio is the chat. It is off until you turn it on." summary={loaded ? ruvioSummary(view.on, full.ruvio?.installed) : LOADING_SUMMARY} bind:open={opened.ruvio}>
+      {#if loaded}
+        <RuvioSection ruvio={full.ruvio} {view} onSwitch={() => switchRuvio(!view.on)} onUpdate={() => switchRuvio(true)} onOpen={() => onOpenChat(machine, null)} />
+      {/if}
+    </CollapsibleSection>
     <form aria-label="Settings" onsubmit={submit} novalidate>
-      <LimitsSection bind:form {errors} />
-      <VmDefaultsSection bind:form {errors} />
-      <NamesSection bind:form {errors} />
+      <CollapsibleSection id="limits" title="Limits" intro="Keep some of the machine free for itself, and cap what VMs may take." summary={limitsSummary(form)} changed={changed('limits')} error={failing('limits')} bind:open={opened.limits}>
+        <LimitsSection bind:form {errors} />
+      </CollapsibleSection>
+      <CollapsibleSection id="vmDefaults" title="A new VM gets" intro="Create a VM here starts with these sizes." summary={vmDefaultsSummary(form)} changed={changed('vmDefaults')} error={failing('vmDefaults')} bind:open={opened.vmDefaults}>
+        <VmDefaultsSection bind:form {errors} />
+      </CollapsibleSection>
+      <CollapsibleSection id="names" title="Names" summary={namesSummary(form)} changed={changed('names')} error={failing('names')} bind:open={opened.names}>
+        <NamesSection bind:form {errors} />
+      </CollapsibleSection>
       <!-- Lets Enter in a field save, as the visible Save button is in the bar below. -->
       <button class="sr-only" type="submit" tabindex="-1" aria-hidden="true"></button>
     </form>
   </div>
-  {#if showBar}<SaveBar action={saveAction} {canSave} onSave={save} onUndo={undo} />{/if}
+  {#if showBar}<SaveBar action={saveAction} {canSave} sections={changedSections.length} onSave={save} onUndo={undo} />{/if}
 </div>
 
 <style>
-  .env { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 820px; }
-  .col { min-width: 0; }
-  .loading { margin: 0 0 24px; color: var(--m50); font: 12px var(--mono); }
+  .env { max-width: 820px; }
+  .tools { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+  .expand { padding: 4px 0; border: 0; background: none; color: var(--m60); font: 12px var(--mono); text-decoration: underline; cursor: pointer; }
+  .expand:hover { color: var(--text); }
+  .expand:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; }
+  .rows { border-top: 1px solid var(--line); margin-bottom: 16px; }
+  .loading { margin: 0; color: var(--m50); font: 12px var(--mono); }
   .failure { max-width: 820px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--danger-note-line); border-left: 4px solid var(--danger-note-bar); background: var(--danger-note-bg); color: var(--danger-note-text); font-size: 13px; overflow-wrap: anywhere; }
-  /* Wide screen: what the machine is on the left, what you can change on the right, both starting at the same top edge. */
-  @media (min-width: 1100px) {
-    .env { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: 32px; align-items: start; max-width: none; }
-  }
 </style>

@@ -2,7 +2,6 @@
   // Ruvio (the chat) on this machine: one switch, off by default. Turning it off keeps its chat data.
   import ActionButton from '../ActionButton.svelte'
   import ActionLine from '../ActionLine.svelte'
-  import Section from './Section.svelte'
   import { lineOf } from '../../lib/action.ts'
   import { ActionState } from '../../lib/action.svelte.ts'
   import { reported, type RuvioView } from '../../lib/environment.ts'
@@ -30,26 +29,24 @@
   }
 </script>
 
-<Section title="Ruvio" intro="Ruvio is the chat. It is off until you turn it on.">
-  <div class="line">
-    <button class="switch" class:on={shownOn} type="button" role="switch" aria-checked={shownOn} aria-busy={saving.busy} aria-label="Ruvio on this machine" disabled={!view.canToggle || saving.busy} onclick={flip}><span class="knob"></span></button>
-    <div class="what">
-      <b>Ruvio on this machine: {view.status}</b>
-      {#if view.reason}<p class="reason">{view.reason}</p>{/if}
-      {#if saving.busy}<span class="saving">Saving…</span>{/if}
-      <ActionLine {line} failed={saving.status === 'failed'} />
-    </div>
+<div class="line">
+  <button class="switch" class:on={shownOn} type="button" role="switch" aria-checked={shownOn} aria-busy={saving.busy} aria-label="Ruvio on this machine" disabled={!view.canToggle || saving.busy} onclick={flip}><span class="knob"></span></button>
+  <div class="what">
+    <b>Ruvio on this machine: {view.status}</b>
+    {#if view.reason}<p class="reason">{view.reason}</p>{/if}
+    {#if saving.busy}<span class="saving">Saving…</span>{/if}
+    <ActionLine {line} failed={saving.status === 'failed'} />
   </div>
-  <dl class="kv">
-    <div><dt>Installed version</dt><dd class:missing={!ruvio?.installed}>{ruvio?.installed ?? 'not installed'}</dd></div>
-    <div><dt>Pinned version</dt><dd class:missing={!ruvio?.pinned}>{reported(ruvio?.pinned)}</dd></div>
-  </dl>
-  <div class="actions">
-    {#if view.canOpen}<button class="btn line sm" type="button" onclick={onOpen}>Open chat</button>{/if}
-    {#if view.canUpdate}<ActionButton variant="line" small label={`Update to ${ruvio?.pinned}`} busyLabel="Updating…" doneLabel="Updated" onrun={onUpdate} />{/if}
-  </div>
-  <p class="note">Turning Ruvio off stops the chat and keeps its chat data. Turning it on again brings the same data back.</p>
-</Section>
+</div>
+<dl class="kv">
+  <div><dt>Installed version</dt><dd class:missing={!ruvio?.installed}>{ruvio?.installed ?? 'not installed'}</dd></div>
+  <div><dt>Pinned version</dt><dd class:missing={!ruvio?.pinned}>{reported(ruvio?.pinned)}</dd></div>
+</dl>
+<div class="actions">
+  {#if view.canOpen}<button class="btn line sm" type="button" onclick={onOpen}>Open chat</button>{/if}
+  {#if view.canUpdate}<ActionButton variant="line" small label={`Update to ${ruvio?.pinned}`} busyLabel="Updating…" doneLabel="Updated" onrun={onUpdate} />{/if}
+</div>
+<p class="note">Turning Ruvio off stops the chat and keeps its chat data. Turning it on again brings the same data back.</p>
 
 <style>
   .line { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
