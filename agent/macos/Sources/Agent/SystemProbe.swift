@@ -3,7 +3,7 @@ import Foundation
 import AgentCore
 import MSCore
 
-/// What this Mac is. Measured once at start (the GPU list is slow to read), except the disk, which is asked each time.
+/// What this Mac is. Measured once at start (the GPU list is slow to read), except RAM and disk, which `readMachine` asks again each time.
 struct SystemProbe {
     let specs: MachineSpecs
 
@@ -18,10 +18,13 @@ struct SystemProbe {
                                                 ramTotalMb: Int(info.physicalMemory / UInt64(bytesPerMb)), diskTotalGb: diskGb(\.volumeTotalCapacity) ?? 1, gpu: gpu))
     }
 
-    /// Free space the file system reports for the boot volume, in GB, or nil if it cannot be read.
-    static func availableDiskGb() -> Int? {
-        guard let bytes = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage else { return nil }
-        return Int(bytes) / bytesPerGb
+    /// A fresh reading of RAM and the boot volume: one physical-memory read and one volume query, no external program. Nil when the volume cannot be read.
+    static func readMachine() -> MachineReading? {
+        let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]
+        guard let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: keys),
+              let total = values.volumeTotalCapacity,
+              let available = values.volumeAvailableCapacityForImportantUsage else { return nil }
+        return MachineReading(ramTotalMb: Int(ProcessInfo.processInfo.physicalMemory / UInt64(bytesPerMb)), diskTotalGb: total / bytesPerGb, diskAvailableGb: Int(available) / bytesPerGb)
     }
 
     private static func diskGb(_ key: KeyPath<URLResourceValues, Int?>) -> Int? {

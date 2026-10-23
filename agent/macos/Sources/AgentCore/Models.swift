@@ -47,6 +47,11 @@ public struct MachineSpecs: Equatable {
         self.diskTotalGb = diskTotalGb
         self.gpu = gpu
     }
+
+    /// The same machine with fresh RAM and disk totals.
+    public func withTotals(ramTotalMb: Int, diskTotalGb: Int) -> MachineSpecs {
+        MachineSpecs(os: os, arch: arch, cpuCores: cpuCores, ramTotalMb: ramTotalMb, diskTotalGb: diskTotalGb, gpu: gpu)
+    }
 }
 
 /// The facts the Root receives: the specs plus how much room is left for workloads.

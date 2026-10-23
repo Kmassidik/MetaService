@@ -79,7 +79,7 @@ func runAgent(_ config: AgentConfig) async throws {
     await installer.resume()
     stopOnSignal(supervisor)
     let service = AgentService(engine: engine, budget: budget, specs: probe.specs, agentVersion: AgentConfig.version, agentBuild: AgentBuild.ofRunningProgram(), ledger: ledger, installer: installer,
-                               osAvailableDiskGb: { SystemProbe.availableDiskGb() })
+                               readMachine: { SystemProbe.readMachine() })
     let router = Router(context: AgentContext.self)
     router.add(middleware: SecurityHeadersMiddleware())
     router.add(middleware: ErrorMiddleware())

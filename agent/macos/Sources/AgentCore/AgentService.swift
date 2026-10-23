@@ -41,9 +41,9 @@ public actor AgentService {
     let engine: Engine
     private var budget: SpaceBudget
     private let specs: MachineSpecs
+    private let readMachine: @Sendable () -> MachineReading?
     private let agentVersion: String
     private let agentBuild: String?
-    private let osAvailableDiskGb: @Sendable () -> Int?
     private let ledger: CommandLedger
     private var inflight: [String: Workload] = [:]
     private var deleting: Set<String> = []
@@ -54,7 +54,7 @@ public actor AgentService {
     public nonisolated(unsafe) var onChange: (@Sendable () -> Void)?
 
     public init(engine: Engine, budget: SpaceBudget, specs: MachineSpecs, agentVersion: String, agentBuild: String? = nil, ledger: CommandLedger = CommandLedger(), installer: BundleInstalling? = nil,
-                consoles: ConsoleRegistry = ConsoleRegistry(), osAvailableDiskGb: @escaping @Sendable () -> Int? = { nil }) {
+                consoles: ConsoleRegistry = ConsoleRegistry(), readMachine: @escaping @Sendable () -> MachineReading? = { nil }) {
         self.consoles = consoles
         self.installer = installer
         self.engine = engine
@@ -63,7 +63,15 @@ public actor AgentService {
         self.agentVersion = agentVersion
         self.agentBuild = agentBuild
         self.ledger = ledger
-        self.osAvailableDiskGb = osAvailableDiskGb
+        self.readMachine = readMachine
+    }
+
+    /// Reads the machine's totals again and updates the budget in place; used before every facts report and every create.
+    @discardableResult
+    private func refreshBudget() -> MachineReading? {
+        let reading = readMachine().flatMap(\.ifUsable)
+        budget = budget.after(reading)
+        return reading
     }
 
     // MARK: reading
@@ -75,7 +83,9 @@ public actor AgentService {
     public func facts() async throws -> Facts {
         let all = try await workloads()
         let engineInfo = EngineInfo(identity: await engine.identity(), ready: engine.problems.isEmpty)
-        return Facts(specs: specs, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities,
+        refreshBudget()
+        let fresh = specs.withTotals(ramTotalMb: budget.ramTotalMb, diskTotalGb: budget.diskTotalGb)
+        return Facts(specs: fresh, freeRamMb: budget.freeRamMb(workloads: all), freeDiskGb: budget.freeDiskGb(workloads: all), capabilities: engine.capabilities,
                      problems: engine.problems, agentVersion: agentVersion, engine: engineInfo, agentBuild: agentBuild)
     }
 
@@ -113,7 +123,8 @@ public actor AgentService {
     public func create(_ request: CreateWorkloadRequest) async throws -> Command {
         if let existing = ledger.find(request.commandId) { return existing }
         let current = try await workloads()
-        try budget.check(request, workloads: current, capabilities: engine.capabilities, osAvailableDiskGb: osAvailableDiskGb())
+        let reading = refreshBudget()
+        try budget.check(request, workloads: current, capabilities: engine.capabilities, osAvailableDiskGb: reading?.diskAvailableGb)
         let id = "w-" + Tokens.random(bytes: 5).lowercased().filter { $0.isLetter || $0.isNumber }.prefix(8)
         let planned = Workload(id: id, name: request.name, kind: request.kind, state: .provisioning, cpu: request.cpu, ramMb: request.ramMb,
                                diskGb: request.diskGb, gpuMode: request.gpuMode)
