@@ -42,7 +42,7 @@ fn gpu_service(gpu_in_container: bool) -> Arc<Service> {
 }
 
 fn gpu_container_request(command_id: &str) -> CreateRequest {
-    CreateRequest { command_id: command_id.into(), name: "gpu-box".into(), kind: Kind::Container, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::Container, image: None, gpu_memory_gb: None }
+    CreateRequest { command_id: command_id.into(), name: "gpu-box".into(), kind: Kind::Container, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::Container, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
 }
 
 #[tokio::test]

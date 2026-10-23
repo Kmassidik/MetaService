@@ -1,6 +1,7 @@
 //! The console end to end on the real HTTP and WebSocket code: the simulated engine runs a fake program (`cat`, `sleep`, `sh`) on a real pty instead of `incus exec`,
 //! so no Incus is needed. Also the refusals before the upgrade, and the Incus engine's attach with a scripted runner.
 use super::{attach_failure, Consoles};
+use crate::cpu::CpuOffer;
 use crate::engine::{default_capabilities, Engine, SimulatedEngine};
 use crate::http::{router, App};
 use crate::incus::{IncusEngine, Runner};
@@ -24,7 +25,7 @@ const WORKLOAD: &str = "w-box";
 type Client = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 fn request(kind: Kind) -> CreateRequest {
-    CreateRequest { command_id: "c-1".into(), name: "box".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None }
+    CreateRequest { command_id: "c-1".into(), name: "box".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
 }
 
 struct Machine {
@@ -201,7 +202,7 @@ fn incus(kind: &str, exec_works: bool) -> IncusEngine {
     let item = format!(
         r#"[{{"name":"ms-w-1","status":"Running","config":{{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"{kind}","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1"}},"state":null}}]"#
     );
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     IncusEngine::new(Arc::new(ScriptedIncus { list: item, exec_works }), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)
 }
 

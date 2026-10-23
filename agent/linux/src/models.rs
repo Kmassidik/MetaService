@@ -1,4 +1,5 @@
 //! The shapes the Root sees. Field names follow contract/openapi.yaml.
+use crate::cpu::CpuOffer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -87,22 +88,30 @@ pub struct Capabilities {
     pub container: bool,
     pub gpu_in_vm: bool,
     pub gpu_in_container: bool,
+    /// What a VM's processors can be given here: `cpu_models`, `cpu_topology` and `cpu_flags`.
+    pub cpu: CpuOffer,
 }
 
 /// This helper serves the console route (`GET /v1/workloads/{id}/terminal`), so it always says `terminal: true`.
 const HAS_CONSOLE: bool = true;
 
 /// `gpu_memory_limit` is not stored: it is true exactly when `gpu_in_container` is (the watchdog needs the same NVIDIA card and toolkit).
+/// `cpu_limit` is not stored either: Incus can cap the CPU time of any container (`limits.cpu.allowance`, in every version), so it follows `container`.
+/// The CPU fields are always sent, like the two above; a machine that offers nothing new says `[host]`, false, `[]`.
 impl Serialize for Capabilities {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut out = serializer.serialize_struct("Capabilities", 6)?;
+        let mut out = serializer.serialize_struct("Capabilities", 10)?;
         out.serialize_field("vm", &self.vm)?;
         out.serialize_field("container", &self.container)?;
         out.serialize_field("gpu_in_vm", &self.gpu_in_vm)?;
         out.serialize_field("gpu_in_container", &self.gpu_in_container)?;
         out.serialize_field("gpu_memory_limit", &self.gpu_in_container)?;
         out.serialize_field("terminal", &HAS_CONSOLE)?;
+        out.serialize_field("cpu_models", &self.cpu.models())?;
+        out.serialize_field("cpu_topology", &self.cpu.topology)?;
+        out.serialize_field("cpu_flags", self.cpu.flags())?;
+        out.serialize_field("cpu_limit", &self.container)?;
         out.end()
     }
 }
@@ -217,15 +226,28 @@ impl From<std::io::Error> for EngineError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn the_memory_limit_capability_follows_gpu_in_container() {
         for gpu in [true, false] {
-            let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu }).unwrap();
+            let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu, cpu: CpuOffer::HOST_ONLY }).unwrap();
             assert_eq!(json["gpu_memory_limit"], gpu);
             assert_eq!(json["gpu_in_container"], gpu);
             assert_eq!(json["terminal"], true);
         }
+    }
+
+    #[test]
+    fn the_cpu_capabilities_are_always_said_and_the_cap_follows_container() {
+        let plain = serde_json::to_value(Capabilities { vm: true, container: false, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY }).unwrap();
+        assert_eq!((&plain["cpu_models"], &plain["cpu_topology"], &plain["cpu_flags"], &plain["cpu_limit"]), (&json!(["host"]), &json!(false), &json!([]), &json!(false)));
+        let offer = CpuOffer::new("x86_64", Some((8, 0)), true, Some(crate::cpu::CpuVendor::Intel));
+        let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: offer }).unwrap();
+        assert_eq!(json["cpu_models"][0], "host");
+        assert!(json["cpu_models"].as_array().unwrap().contains(&json!("SapphireRapids")) && !json["cpu_models"].as_array().unwrap().contains(&json!("EPYC-Genoa")));
+        assert_eq!((&json["cpu_topology"], &json["cpu_flags"], &json["cpu_limit"]), (&json!(true), &json!(["nested-virt", "aes"]), &json!(true)));
+        assert_eq!(json.as_object().unwrap().len(), 10);
     }
 
     #[test]

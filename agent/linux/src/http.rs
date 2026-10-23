@@ -120,6 +120,7 @@ fn refusal(r: &Refusal) -> Response {
 pub(crate) fn failure(failure: Failure) -> Response {
     match failure {
         Failure::Refused(r) => refusal(&r),
+        Failure::Invalid(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
         Failure::NotFound => error(StatusCode::NOT_FOUND, "not_found", "no such thing"),
         Failure::Engine(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
         Failure::App(failed) => (StatusCode::BAD_GATEWAY, Json(json!({"error": {"code": crate::apps::ERROR_CODE, "message": failed.message, "log_tail": failed.log_tail}}))).into_response(),

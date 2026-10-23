@@ -3,8 +3,10 @@
 mod attach;
 mod list;
 mod runner;
+mod server;
 
 use crate::apps::{self, App};
+use crate::cpu::{CpuOffer, CpuVendor};
 use crate::engine::{AttachCommand, Engine};
 use crate::gpu;
 use crate::models::{Capabilities, EngineError, EngineIdentity, Kind, Problem, State, Workload};
@@ -16,9 +18,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub use list::{gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments, GPU_STOP_CODE_KEY, GPU_STOP_USED_KEY};
+pub use list::{cpu_model_arguments, gpu_device_arguments, init_arguments, launch_arguments, parse_list, start_arguments, GPU_STOP_CODE_KEY, GPU_STOP_USED_KEY};
 pub use attach::NO_AGENT_MESSAGE;
 pub use runner::{ProcessRunner, Runner};
+use server::ServerCpu;
 
 const PREFIX: &str = "ms-";
 pub const ENGINE_NAME: &str = "incus";
@@ -40,6 +43,10 @@ pub struct IncusEngine {
     gpu_found: bool,
     /// Asked for once the program answers, then remembered.
     version: Mutex<Option<String>>,
+    /// Who made this machine's CPU, read once at start. It decides what nested-virt is.
+    cpu_vendor: Option<CpuVendor>,
+    /// What the server says about VMs' processors (the QEMU version, sockets): asked for once it answers, then remembered.
+    server: Mutex<Option<ServerCpu>>,
 }
 
 /// The Incus instance name of a workload id.
@@ -53,7 +60,7 @@ fn args(items: &[&str]) -> Vec<String> {
 
 impl IncusEngine {
     pub fn new(runner: Arc<dyn Runner>, capabilities: Capabilities, backup_dir: PathBuf, default_image: String, wait_seconds: u64) -> Self {
-        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks), gpu_found: false, version: Mutex::new(None) }
+        IncusEngine { runner, capabilities, backup_dir, default_image, wait_seconds, probe: Arc::new(NoHostChecks), gpu_found: false, version: Mutex::new(None), cpu_vendor: None, server: Mutex::new(None) }
     }
 
     /// Lets the engine look at the host (the firewall) when it reports problems.
@@ -66,6 +73,23 @@ impl IncusEngine {
     pub fn with_gpu_found(mut self, found: bool) -> Self {
         self.gpu_found = found;
         self
+    }
+
+    /// Says who made this machine's CPU, so VMs can have nested-virt and aes switched on or off.
+    pub fn with_cpu_vendor(mut self, vendor: Option<CpuVendor>) -> Self {
+        self.cpu_vendor = vendor;
+        self
+    }
+
+    /// What a VM's processors can be given here. A server that cannot answer yet offers nothing that needs its word (models beyond host, sockets);
+    /// it is asked again next time, and the heartbeat goes on either way.
+    fn cpu_offer(&self) -> CpuOffer {
+        let mut known = self.server.lock().unwrap();
+        if known.is_none() {
+            *known = self.runner.run(&server::query_arguments(), QUICK).ok().and_then(|text| server::parse_server(&text));
+        }
+        let server = known.unwrap_or_default();
+        CpuOffer::new(std::env::consts::ARCH, server.qemu, server.topology, self.cpu_vendor)
     }
 
     fn exec_within(&self, id: &str, arguments: &[String], environment: &[(String, String)], limit: Duration) -> Result<String, EngineError> {
@@ -96,10 +120,11 @@ impl IncusEngine {
     }
 
     /// Runs the create calls in order. A GPU container cannot be launched in one call (Incus refuses to add a device that no profile has),
-    /// so it is initialised, given its GPU, then started.
+    /// so it is initialised, given its GPU, then started. A VM's CPU model and flags join its launch here, because they need this machine's CPU vendor.
     fn start_new_instance(&self, id: &str, request: &CreateRequest, image: &str) -> Result<(), EngineError> {
         if !list::needs_gpu_device_steps(request) {
-            return self.runner.run(&launch_arguments(id, request, image), SLOW).map(|_| ());
+            let launch = [launch_arguments(id, request, image), cpu_model_arguments(request, self.cpu_vendor)].concat();
+            return self.runner.run(&launch, SLOW).map(|_| ());
         }
         self.runner.run(&init_arguments(id, request, image), SLOW)?;
         self.runner.run(&gpu_device_arguments(id), QUICK)?;
@@ -126,7 +151,7 @@ impl IncusEngine {
 
 impl Engine for IncusEngine {
     fn capabilities(&self) -> Capabilities {
-        Capabilities { gpu_in_container: self.gpu_found && gpu::toolkit_ready(self.probe.as_ref()), ..self.capabilities }
+        Capabilities { gpu_in_container: self.gpu_found && gpu::toolkit_ready(self.probe.as_ref()), cpu: self.cpu_offer(), ..self.capabilities }
     }
 
     fn identity(&self) -> EngineIdentity {
@@ -236,3 +261,6 @@ mod tests;
 
 #[cfg(test)]
 mod stop_record_tests;
+
+#[cfg(test)]
+mod cpu_tests;

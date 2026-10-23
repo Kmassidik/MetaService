@@ -5,6 +5,9 @@ mod build;
 mod bundle;
 mod config;
 mod console;
+mod cpu;
+#[cfg(test)]
+mod cpu_service_tests;
 mod engine;
 mod enroll;
 mod facts;
@@ -98,9 +101,9 @@ fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine:
         return Ok(Arc::new(engine::SimulatedEngine::new(engine::default_capabilities())));
     }
     let path = find_incus(config)?;
-    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false, cpu: cpu::CpuOffer::HOST_ONLY };
     let backups = config.backup_dir.clone().unwrap_or_else(|| config.state_dir.join("backups"));
-    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty())))
+    Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty()).with_cpu_vendor(cpu::this_machines_vendor())))
 }
 
 fn run(config: Config) -> Result<(), String> {

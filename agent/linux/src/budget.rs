@@ -108,17 +108,18 @@ fn refusal(code: &'static str, message: &str, resource: &'static str, needed: u6
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::CpuOffer;
     use crate::models::Workload;
 
     fn request(ram: u64, disk: u64, kind: Kind, gpu: GpuMode) -> CreateRequest {
-        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: gpu, image: None, gpu_memory_gb: None }
+        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: gpu, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
     }
 
     fn workload(ram: u64, disk: u64, state: State) -> Workload {
         Workload { id: "w".into(), name: "n".into(), kind: Kind::Vm, state, cpu: 1, ram_mb: ram, disk_gb: disk, gpu_mode: GpuMode::None, address: None, bundle_version: None, gpu_memory_gb: None, stopped_reason: None }
     }
 
-    const ALL: Capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: true };
+    const ALL: Capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: true, cpu: CpuOffer::HOST_ONLY };
 
     fn budget() -> SpaceBudget {
         SpaceBudget { reserve_ram_mb: 8192, reserve_disk_gb: 100, margin_disk_gb: 20, ..SpaceBudget::new(32768, 1000) }
