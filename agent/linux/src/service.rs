@@ -1,6 +1,7 @@
 //! Everything the Agent does, on top of an Engine. HTTP and the system probes live outside of it.
 use crate::budget::SpaceBudget;
 use crate::live_space::{Current, LiveSpace, Reading};
+use crate::cpu;
 use crate::engine::Engine;
 use crate::gpu;
 use crate::gpu_check::{self, GpuCheck};
@@ -25,6 +26,8 @@ pub trait BundleInstalling: Send + Sync {
 
 pub enum Failure {
     Refused(Refusal),
+    /// The request asks for something this machine does not offer, in plain words. It is answered like a bad field (400 invalid_input).
+    Invalid(String),
     NotFound,
     Engine(#[allow(dead_code)] String),
     /// The SSH server could not be made to listen inside the VM (the keys were still written).
@@ -196,6 +199,9 @@ impl Service {
         let capabilities = self.capabilities().await;
         if let Some(refused) = gpu::refusal(&request, !self.specs.gpu.is_empty(), &capabilities) {
             return Err(Failure::Refused(refused));
+        }
+        if let Some(message) = cpu::not_offered(&request, &capabilities) {
+            return Err(Failure::Invalid(message.into()));
         }
         space.budget.check(&request, &current, &capabilities, space.os_available_disk_gb).map_err(Failure::Refused)?;
         let id = new_workload_id();

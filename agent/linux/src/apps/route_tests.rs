@@ -3,6 +3,7 @@ use super::script::{HERMES_SCRIPT, OPENCLAW_SCRIPT};
 use super::simulated::{SimulatedApp, SIMULATED_SHA256, SIMULATED_VERSION};
 use super::report::AppFailure;
 use super::{incus_call, INSTALL_TIMEOUT};
+use crate::cpu::CpuOffer;
 use crate::incus::{IncusEngine, Runner};
 use crate::models::*;
 use crate::ssh_keys_tests::{machine, send, service_over, TOKEN};
@@ -120,7 +121,7 @@ impl Runner for Recording {
 
 fn over(answer: Result<String, String>) -> (Arc<Recording>, Arc<crate::service::Service>) {
     let runner = Arc::new(Recording { calls: Mutex::new(Vec::new()), answer });
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     (runner.clone(), service_over(Arc::new(IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1))))
 }
 

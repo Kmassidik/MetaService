@@ -1,6 +1,7 @@
 //! What an Agent needs from the machine's virtualization layer. One implementation per platform; the logic above it is shared.
 use crate::apps::simulated::SimulatedApps;
 use crate::apps::App;
+use crate::cpu::CpuOffer;
 use crate::ssh_install::{InstallReport, SshdFailure};
 use crate::ssh_keys::{KeyList, Sshd};
 use crate::models::{Capabilities, EngineError, EngineIdentity, GpuMode, Kind, Problem, State, Workload};
@@ -195,7 +196,7 @@ impl Engine for SimulatedEngine {
 }
 
 pub fn default_capabilities() -> Capabilities {
-    Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }
+    Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY }
 }
 
 #[allow(dead_code)]

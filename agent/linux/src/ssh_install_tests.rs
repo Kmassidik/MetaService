@@ -1,5 +1,6 @@
 //! `install_sshd` on top of the SSH keys call: the fixed script, its report, the request flag, the failure answers, the order of the two `incus exec` calls and the time limits.
 //! The script is also run once under a throwaway root (every path rewritten into a temp folder, a stub `sshd`), so its config logic is exercised without touching a real system.
+use crate::cpu::CpuOffer;
 use crate::engine::SimulatedInstall;
 use crate::incus::{IncusEngine, Runner};
 use crate::models::*;
@@ -241,7 +242,7 @@ impl Runner for TwoCalls {
 }
 
 fn incus_over(runner: Arc<TwoCalls>) -> Arc<crate::service::Service> {
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     service_over(Arc::new(IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)))
 }
 

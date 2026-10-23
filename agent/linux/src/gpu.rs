@@ -29,6 +29,7 @@ pub fn refusal(request: &CreateRequest, gpu_found: bool, capabilities: &Capabili
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::CpuOffer;
     use crate::preflight::ProbeOutput;
 
     struct Answers(Vec<(&'static str, bool)>);
@@ -41,11 +42,11 @@ mod tests {
     }
 
     fn request(kind: Kind, gpu_mode: GpuMode) -> CreateRequest {
-        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode, image: None, gpu_memory_gb: None }
+        CreateRequest { command_id: "c".into(), name: "n".into(), kind, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
     }
 
     fn capabilities(gpu_in_container: bool) -> Capabilities {
-        Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container }
+        Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container, cpu: CpuOffer::HOST_ONLY }
     }
 
     #[test]

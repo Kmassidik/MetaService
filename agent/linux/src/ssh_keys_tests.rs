@@ -1,6 +1,7 @@
 //! SSH keys per VM, above the rules in `ssh_keys.rs`: the route's status codes, the service, the Incus engine's exact call (a recording runner), and the real
 //! process runner with a fake `incus` (standard input, time limit, output limit). Nothing real is touched.
 use crate::budget::SpaceBudget;
+use crate::cpu::CpuOffer;
 use crate::engine::{default_capabilities, Engine, SimulatedEngine};
 use crate::http::{router, App};
 use crate::incus::{IncusEngine, ProcessRunner, Runner};
@@ -49,7 +50,7 @@ pub(crate) fn service_over(engine: Arc<dyn Engine>) -> Arc<Service> {
 }
 
 fn vm_request(command_id: &str) -> CreateRequest {
-    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Vm, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None }
+    CreateRequest { command_id: command_id.into(), name: "box".into(), kind: Kind::Vm, cpu: 2, ram_mb: 2048, disk_gb: 10, gpu_mode: GpuMode::None, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
 }
 
 /// A simulated machine with one running VM called `w-1`.
@@ -197,7 +198,7 @@ impl Runner for Recording {
 }
 
 fn incus_over(runner: Arc<Recording>) -> Arc<Service> {
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     service_over(Arc::new(IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)))
 }
 

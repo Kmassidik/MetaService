@@ -5,7 +5,7 @@ use crate::validate::CreateRequest;
 use std::path::PathBuf;
 
 fn request(kind: Kind, gpu: GpuMode) -> CreateRequest {
-    CreateRequest { command_id: "c".into(), name: "demo".into(), kind, cpu: 4, ram_mb: 8192, disk_gb: 50, gpu_mode: gpu, image: None, gpu_memory_gb: None }
+    CreateRequest { command_id: "c".into(), name: "demo".into(), kind, cpu: 4, ram_mb: 8192, disk_gb: 50, gpu_mode: gpu, image: None, gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None }
 }
 
 #[test]
@@ -46,7 +46,7 @@ impl Runner for Scripted {
 
 fn engine_with(version_answer: Result<String, ()>) -> (IncusEngine, Arc<Scripted>) {
     let runner = Arc::new(Scripted { calls: Mutex::new(Vec::new()), version_answer });
-    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     (IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1), runner)
 }
 
@@ -142,7 +142,7 @@ fn fake_incus(with_smi: bool) -> (IncusEngine, PathBuf) {
     std::fs::write(&program, script).unwrap();
     std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
     let runner = Arc::new(ProcessRunner { path: program.display().to_string() });
-    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     (IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1), log)
 }
 
@@ -228,7 +228,7 @@ impl Runner for FailingAt {
 /// An engine over a runner that fails the call starting with `failing` (nothing fails when it is empty).
 fn creating_engine(failing: &[&str]) -> (IncusEngine, Arc<FailingAt>) {
     let runner = Arc::new(FailingAt { calls: Mutex::new(Vec::new()), failing: args(failing) });
-    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false };
+    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
     (IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), IMAGE.into(), 1), runner)
 }
 
