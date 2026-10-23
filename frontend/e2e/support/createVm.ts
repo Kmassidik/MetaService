@@ -1,57 +1,78 @@
-// How the browser tests read and drive the Create VM window: its cards are radio groups, so a test looks at the radios (value, checked, disabled, the text they are described by) and clicks the label like a person.
+// How the browser tests read and drive the Create VM window: its native selects (their lines, which are off, the caption under them) and the image dropdown (a button and a list of rows).
 import type { Browse } from './page.ts'
+
+const IMAGES_WAIT_MS = 10000
+const UNREADABLE_NOTE = 'could not be read'
 
 export const NAME = '#vm-create-name'
 export const PICKER = '#vm-create-machine'
-export const IMAGE_GROUP = 'vm-create-image'
-export const SIZE_GROUP = 'vm-create-size'
-export const RUNTIME_GROUP = 'vm-create-runtime'
+export const IMAGE = '#vm-create-image'
+export const IMAGE_MENU = '#vm-create-image-menu'
+export const SIZE = '#vm-create-size'
+export const RUNTIME = '#vm-create-runtime'
+export const GPU = '#vm-create-gpu'
 /** The one form of the window; no other page has a form with this name. */
 export const CREATE_FORM = 'form[aria-label="Create VM"]'
 
-export interface Card {
+export interface Line {
   value: string
-  checked: boolean
-  disabled: boolean
-  ariaDisabled: boolean
-  /** The words the radio is described by (its caption and its reason). */
-  described: string
-  /** Everything the card shows. */
   text: string
+  disabled: boolean
 }
 
-const radios = (group: string) => `dialog[open] input[type=radio][name="${group}"]`
+/** The lines of one of the window's native selects, in the order they are shown. */
+export const lines = (b: Browse, select: string): Promise<Line[]> =>
+  b.page.$$eval(`dialog[open] ${select} option`, (list) => list.flatMap((option) => (option instanceof HTMLOptionElement ? [{ value: option.value, text: option.textContent?.trim() ?? '', disabled: option.disabled }] : [])))
 
-/** The cards of one group, in the order they are shown. */
-export const cards = (b: Browse, group: string): Promise<Card[]> =>
-  b.page.$$eval(radios(group), (list) =>
-    list.flatMap((input) =>
-      input instanceof HTMLInputElement
-        ? [{
-            value: input.value,
-            checked: input.checked,
-            disabled: input.disabled,
-            ariaDisabled: input.getAttribute('aria-disabled') === 'true',
-            described: (input.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent ?? '').join(' ').trim(),
-            text: input.closest('label')?.textContent?.trim() ?? '',
-          }]
-        : [],
-    ),
-  )
+/** The value of one of the window's selects, or null when the window has none. */
+export const selectValue = (b: Browse, select: string): Promise<string | null> => b.run((selector) => document.querySelector<HTMLSelectElement>(`dialog[open] ${selector}`)?.value ?? null, select)
 
-/** "value:on|off" with ":picked" for the checked one, for comparing a whole group at a glance. */
-export const summary = (list: Card[]): string[] => list.map((card) => `${card.value}:${card.disabled ? 'off' : 'on'}${card.checked ? ':picked' : ''}`)
+/** "value:on|off" with ":picked" for the picked one, for comparing a whole select at a glance. */
+export async function summary(b: Browse, select: string): Promise<string[]> {
+  const picked = await selectValue(b, select)
+  return (await lines(b, select)).map((line) => `${line.value}:${line.disabled ? 'off' : 'on'}${line.value === picked ? ':picked' : ''}`)
+}
 
-/** Clicks the card's label, the way a person clicks the card. */
-export const pickCard = (b: Browse, group: string, value: string): Promise<void> =>
-  b.run((selector) => {
-    const label = document.querySelector(selector)?.closest('label')
-    if (!label) throw new Error(`no card ${selector}`)
-    label.click()
-  }, `${radios(group)}[value="${value}"]`)
+/** Picks a line of a select the way a person does (the page is told by a change event). */
+export async function choose(b: Browse, select: string, value: string): Promise<void> {
+  await b.page.select(`dialog[open] ${select}`, value)
+}
 
-/** The value of the picked card of a group, or null. */
-export const pickedCard = async (b: Browse, group: string): Promise<string | null> => (await cards(b, group)).find((card) => card.checked)?.value ?? null
+/** The plain line under a select (its caption), found by the id the select points to. */
+export const captionOf = (b: Browse, select: string): Promise<string> =>
+  b.run((selector) => document.getElementById(document.querySelector(`dialog[open] ${selector}`)?.getAttribute('aria-describedby') ?? '')?.textContent?.trim() ?? '', select)
+
+export interface ImageRow {
+  text: string
+  tag: string
+  selected: boolean
+  disabled: boolean
+  active: boolean
+}
+
+export interface ImageState {
+  expanded: boolean
+  trigger: string
+  rows: ImageRow[]
+}
+
+/** What the image dropdown shows right now: whether its list is open, the picked image on the button, and every row. */
+export const imageState = (b: Browse): Promise<ImageState> =>
+  b.run((trigger, menu) => {
+    const button = document.querySelector(`dialog[open] ${trigger}`)
+    const activeId = button?.getAttribute('aria-activedescendant')
+    return {
+      expanded: button?.getAttribute('aria-expanded') === 'true',
+      trigger: button?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      rows: [...document.querySelectorAll(`dialog[open] ${menu} [role=option]`)].map((row) => ({
+        text: row.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+        tag: row.querySelector('.chip')?.textContent?.trim() ?? '',
+        selected: row.getAttribute('aria-selected') === 'true',
+        disabled: row.getAttribute('aria-disabled') === 'true',
+        active: row.id === activeId,
+      })),
+    }
+  }, IMAGE, IMAGE_MENU)
 
 /** Sets one of the Custom boxes by its label (CPU, RAM, Disk), the way a person would (the page is told by an input event). */
 export const setField = (b: Browse, label: string, value: string): Promise<void> =>
@@ -75,9 +96,6 @@ export const createDisabled = (b: Browse): Promise<boolean> => b.run(() => [...d
 export const createFormCount = (b: Browse): Promise<{ forms: number; openDialogs: number; nameBoxes: number }> =>
   b.run((form) => ({ forms: document.querySelectorAll(form).length, openDialogs: document.querySelectorAll('dialog[open]').length, nameBoxes: document.querySelectorAll('#vm-create-name').length }), CREATE_FORM)
 
-const IMAGES_WAIT_MS = 10000
-const UNREADABLE_NOTE = 'could not be read'
-
-/** The window's Image cards have arrived (or the page gave up on the list and said so): a test about to press Create waits for it, the way a person would not click while the form is still moving. */
+/** The image list has arrived (or the page gave up on it and said so): a test about to press Create waits for it, the way a person would not click while the form is still moving. */
 export const imageListArrived = (b: Browse) =>
-  b.until((group, note) => document.querySelectorAll(`input[name="${group}"]`).length > 1 || document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: IMAGES_WAIT_MS }, IMAGE_GROUP, UNREADABLE_NOTE)
+  b.until((root, note) => Number(document.querySelector(root)?.getAttribute('data-images')) > 1 || document.querySelector('dialog[open]')?.textContent?.includes(note) === true, { timeout: IMAGES_WAIT_MS }, '[data-images]', UNREADABLE_NOTE)

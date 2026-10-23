@@ -1,6 +1,6 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
 import { check } from '../support/check.ts'
-import { NAME, PICKER, SIZE_GROUP, createDisabled, createFormCount, imageListArrived, pickCard, setField } from '../support/createVm.ts'
+import { NAME, PICKER, SIZE, choose, createDisabled, createFormCount, imageListArrived, setField } from '../support/createVm.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
 import { vmPageScenario } from './vm-page.ts'
@@ -111,11 +111,12 @@ async function stopStartDelete(b: Browse): Promise<void> {
 }
 
 async function aRequestThatFitsNowhere(b: Browse): Promise<void> {
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
   await b.click('＋ Create a VM here')
   await b.page.waitForSelector(`dialog[open] ${NAME}`)
   await imageListArrived(b)
   await b.page.type(`dialog[open] ${NAME}`, 'too-big')
-  await pickCard(b, SIZE_GROUP, 'custom')
+  await choose(b, SIZE, 'custom')
   await setField(b, 'RAM', TOO_MUCH_RAM_GB)
   await b.click('Create VM')
   await b.page.waitForSelector('dialog[open] .aline.bad', { timeout: SHORT_WAIT_MS })

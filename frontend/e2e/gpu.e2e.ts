@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core'
 import { CARD, CHECK_IDS, HOSTILE_DETAIL, REFUSED_CREATE, startGpuStandIn, type GpuStandIn } from './gpu/stand-in.ts'
 import { check, finish } from './support/check.ts'
 import { chromePath, panelDist } from './support/paths.ts'
-import { RUNTIME_GROUP, imageListArrived, pickCard } from './support/createVm.ts'
+import { GPU, RUNTIME, captionOf, choose, imageListArrived, lines, selectValue } from './support/createVm.ts'
 import { wait } from './support/net.ts'
 import { browse, type Browse } from './support/page.ts'
 
@@ -15,10 +15,18 @@ const SENT_TRIES = 50
 const SENT_PAUSE_MS = 200
 const SIZES = { desktop: { width: 1280, height: 1000 }, phone: { width: 400, height: 900 } }
 const PICKER = '#vm-create-machine'
-const GPU_RADIOS = 'fieldset[aria-label=GPU] input[type=radio]'
+const GPU_LINES = [
+  ['none', 'No GPU — CPU compute only', false],
+  ['container', "GPU in a container — uses the machine's GPU", false],
+  ['shared', 'Shared partition — coming soon', true],
+  ['passthrough', 'Dedicated passthrough — coming soon (needs virtualization on the machine)', true],
+  ['custom', 'Custom partition — coming soon', true],
+]
+const CONTAINER_CAPTION = "The container uses the machine's GPU together with the other containers on that machine. The share is a soft limit."
+const NO_GPU_CAPTION = 'No GPU is given to this VM.'
+const PLANNED_MODES = ['shared', 'passthrough', 'custom']
 const VM_TEXT = 'A VM cannot use the GPU yet: that needs virtualization turned on in the BIOS (SVM) and the card passed through to one VM.'
 const TOOLKIT_TEXT = 'This machine needs the NVIDIA container toolkit first'
-const SHARE_LABEL = "Share the machine's GPU"
 
 const openCreate = async (b: Browse, base: string, machine: string): Promise<void> => {
   await b.page.goto(`${base}/#/vms/create`, { waitUntil: 'networkidle0' })
@@ -34,45 +42,48 @@ async function untilSent(world: GpuStandIn, count: number): Promise<void> {
 }
 
 const pickKind = async (b: Browse, kind: string): Promise<void> => {
-  await pickCard(b, RUNTIME_GROUP, kind)
+  await choose(b, RUNTIME, kind)
   await b.run(() => new Promise((done) => requestAnimationFrame(done)))
 }
 
-/** What the form says about the GPU right now: the radios (if any), and the plain notes. */
-const gpuLine = (b: Browse) =>
-  b.run(() => ({
-    radios: [...document.querySelectorAll<HTMLInputElement>('fieldset[aria-label=GPU] input[type=radio]')].map((radio) => ({ label: radio.parentElement?.innerText.trim() ?? '', checked: radio.checked })),
-    notes: [...document.querySelectorAll<HTMLElement>('[data-gpu-note]')].map((note) => ({ kind: note.dataset.gpuNote ?? '', text: note.innerText.trim() })),
-  }))
+/** What the form says about the GPU right now: the select (if any) with its lines and caption, and the plain notes. */
+const gpuLine = async (b: Browse) => ({
+  options: await lines(b, GPU),
+  picked: await selectValue(b, GPU),
+  caption: (await b.page.$('dialog[open] #vm-create-gpu')) === null ? '' : await captionOf(b, GPU),
+  notes: await b.run(() => [...document.querySelectorAll<HTMLElement>('[data-gpu-note]')].map((note) => ({ kind: note.dataset.gpuNote ?? '', text: note.innerText.trim() }))),
+})
 
 const nothingAboutGpu = async (b: Browse): Promise<boolean> => {
   const line = await gpuLine(b)
-  return line.radios.length === 0 && line.notes.length === 0
+  return line.options.length === 0 && line.notes.length === 0
 }
 
 async function choiceByMachineAndKind(b: Browse, base: string): Promise<void> {
   await openCreate(b, base, 'rtx-pc')
   let line = await gpuLine(b)
-  check('a container-only PC with a card and the toolkit offers No GPU (chosen) and Share the machine\'s GPU', line.radios.length === 2 && line.radios[0]?.label === 'No GPU' && line.radios[0].checked && line.radios[1]?.label.startsWith(SHARE_LABEL) === true && line.radios[1].checked === false, JSON.stringify(line))
-  check('the choice names the card and says what sharing means in one line', line.radios[1]?.label.includes(CARD) === true && /A container shares the machine/.test(await b.text()))
+  check('a container-only PC with a card and the toolkit shows the GPU select: No GPU is picked, the real mode is on, the three planned ones are off', JSON.stringify(line.options.map((option) => [option.value, option.text, option.disabled])) === JSON.stringify(GPU_LINES) && line.picked === 'none', JSON.stringify(line))
+  check('the line under the select says what No GPU means', line.caption === NO_GPU_CAPTION)
+  await choose(b, GPU, 'container')
+  check('picking the real mode changes it to what sharing means', (await gpuLine(b)).caption === CONTAINER_CAPTION)
   check('there is no VM text for a container', line.notes.length === 0)
   await b.shot('gpu-create-container.png')
 
   await openCreate(b, base, 'gpu-server')
   await pickKind(b, 'vm')
   line = await gpuLine(b)
-  check('on a machine that runs VMs, the VM kind shows the plain text and no control', line.radios.length === 0 && line.notes.length === 1 && line.notes[0]?.kind === 'vm' && line.notes[0].text === VM_TEXT, JSON.stringify(line))
+  check('on a machine that runs VMs, the VM kind shows the plain text and no control', line.options.length === 0 && line.notes.length === 1 && line.notes[0]?.kind === 'vm' && line.notes[0].text === VM_TEXT, JSON.stringify(line))
   await b.shot('gpu-create-vm.png')
   await pickKind(b, 'container')
   line = await gpuLine(b)
-  check('switching to Container brings the choice and takes the text away', line.radios.length === 2 && line.notes.length === 0, JSON.stringify(line))
+  check('switching to Container brings the choice and takes the text away', line.options.length === 5 && line.notes.length === 0, JSON.stringify(line))
   await pickKind(b, 'vm')
   check('switching back to VM brings the text back', (await gpuLine(b)).notes[0]?.text === VM_TEXT)
 
   await openCreate(b, base, 'rtx-notoolkit')
   line = await gpuLine(b)
   const link = await b.run(() => document.querySelector<HTMLAnchorElement>('[data-gpu-note=toolkit] a')?.getAttribute('href') ?? '')
-  check('a card without the toolkit says the machine needs it first, with a link to the machine page and no control', line.radios.length === 0 && line.notes[0]?.text.startsWith(TOOLKIT_TEXT) === true && link === '#/machines/details?id=rtx-notoolkit', JSON.stringify({ line, link }))
+  check('a card without the toolkit says the machine needs it first, with a link to the machine page and no control', line.options.length === 0 && line.notes[0]?.text.startsWith(TOOLKIT_TEXT) === true && link === '#/machines/details?id=rtx-notoolkit', JSON.stringify({ line, link }))
   await b.shot('gpu-create-no-toolkit.png')
 
   for (const machine of ['mac-studio', 'plain-linux']) {
@@ -86,24 +97,36 @@ async function choiceByMachineAndKind(b: Browse, base: string): Promise<void> {
 async function whatTheFormSends(b: Browse, world: GpuStandIn): Promise<void> {
   await openCreate(b, world.base, 'rtx-pc')
   await b.type('#vm-create-name', 'gpu-job')
-  await b.page.click(`${GPU_RADIOS}[value=container]`)
+  await choose(b, GPU, 'container')
   await b.click('Create VM')
   await b.until((text) => document.body.innerText.includes(text), { timeout: SHORT_WAIT_MS }, REFUSED_CREATE.slice(0, 40))
   const sent = world.created.at(-1)
   check('choosing Share sends gpu_mode container for a container on that machine', sent?.gpu_mode === 'container' && sent.kind === 'container' && sent.machine === 'rtx-pc' && sent.name === 'gpu-job', JSON.stringify(sent))
-  check('the parent\'s plain refusal is shown as it is, and the choice is kept', (await b.text()).includes(REFUSED_CREATE) && (await gpuLine(b)).radios[1]?.checked === true)
+  check('the parent\'s plain refusal is shown as it is, and the choice is kept', (await b.text()).includes(REFUSED_CREATE) && (await gpuLine(b)).picked === 'container')
   await b.shot('gpu-create-refused.png')
 
-  await b.page.click(`${GPU_RADIOS}[value=none]`)
+  await choose(b, GPU, 'none')
   await b.click('Create VM')
   await untilSent(world, 2)
   await b.until(() => !document.querySelector('form[aria-label="Create VM"] [aria-busy=true]'), { timeout: SHORT_WAIT_MS })
   const plain = world.created.at(-1)
   check('No GPU sends no gpu_mode at all', world.created.length === 2 && plain !== undefined && !('gpu_mode' in plain), JSON.stringify(plain))
 
+  for (const mode of PLANNED_MODES) {
+    await openCreate(b, world.base, 'rtx-pc')
+    await b.page.$eval(`dialog[open] ${GPU}`, (select, wanted) => { if (select instanceof HTMLSelectElement) { select.value = wanted; select.dispatchEvent(new Event('change', { bubbles: true })) } }, mode)
+    await b.type('#vm-create-name', `planned-${mode}`)
+    const before = world.created.length
+    await b.click('Create VM')
+    await untilSent(world, before + 1)
+    const sentPlanned = world.created.at(-1)
+    check(`even if "${mode}" reached the form it is never sent: no gpu_mode in the request`, sentPlanned?.name === `planned-${mode}` && !('gpu_mode' in sentPlanned), JSON.stringify(sentPlanned))
+    await b.until(() => !document.querySelector('form[aria-label="Create VM"] [aria-busy=true]'), { timeout: SHORT_WAIT_MS })
+  }
+
   await openCreate(b, world.base, 'gpu-server')
   await pickKind(b, 'container')
-  await b.page.click(`${GPU_RADIOS}[value=container]`)
+  await choose(b, GPU, 'container')
   await pickKind(b, 'vm')
   await b.type('#vm-create-name', 'vm-after')
   await b.click('Create VM')

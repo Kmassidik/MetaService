@@ -9,10 +9,10 @@ import { check, finish } from './support/check.ts'
 import { chromePath } from './support/paths.ts'
 import { browse, type Browse } from './support/page.ts'
 import { resendHeartbeats, seed, startAgent, startWorld, stopWorld, type World } from './panel/world.ts'
-import { oneWindowFromEveryWayIn, cardsAreRadioGroups, customBoxes, generatedNameAndOneOrder, onAPhoneWithCards } from './vms/cards.ts'
-import { closeWithEscape, kindsOnAMachine, noMachinesYet, openCreate, openingAndClosing, preselectedAndValidated, refusedThenMade, thenInAllVms, theMachinePageButton, whoCanBePicked } from './vms/create.ts'
+import { disabledSizeAndRuntime, generatedNameAndOneOrder, onAPhoneWithSelects, oneWindowFromEveryWayIn, runtimeCaptions, sectionsInOrder, sizeSelect } from './vms/controls.ts'
+import { closeWithEscape, noMachinesYet, openCreate, openingAndClosing, preselectedAndValidated, refusedThenMade, thenInAllVms, theMachinePageButton, whoCanBePicked } from './vms/create.ts'
 import { addExtraMachines } from './vms/fleet.ts'
-import { createWithBlankIsAsBefore, hostileImageText, imageFollowsTheMachine, imageListFails, imageOnAPhone, imageSelect, recordCreateBodies } from './vms/images.ts'
+import { createWithBlankIsAsBefore, hostileImageText, imageFollowsTheMachine, imageListFails, imageMenuKeys, imageOnAPhone, imageSelect, recordCreateBodies } from './vms/images.ts'
 import { emptyStates, filtering, fullTable, openAllVms, openingARow } from './vms/list.ts'
 import { pendingScenario } from './vms/pending.ts'
 import { vmsIsOneLink, vmsLinkOnItsPages } from './vms/sidebar.ts'
@@ -91,12 +91,13 @@ try {
 
   await resendHeartbeats(world)
   await whoCanBePicked(b)
-  await kindsOnAMachine(b)
+  await sectionsInOrder(b)
+  await disabledSizeAndRuntime(b)
   await preselectedAndValidated(b)
   await openingAndClosing(b)
   await oneWindowFromEveryWayIn(b)
-  await cardsAreRadioGroups(b)
-  await customBoxes(b)
+  await sizeSelect(b)
+  await runtimeCaptions(b)
   helper = await startAgent(world)
   const createBodies = recordCreateBodies(page)
   await refusedThenMade(b)
@@ -105,13 +106,14 @@ try {
   await resendHeartbeats(world)
   await imageSelect(b)
   await imageFollowsTheMachine(b)
+  await imageMenuKeys(b)
   await hostileImageText(b)
   await imageListFails(b)
   await imageOnAPhone(b)
   await theMachinePageButton(b)
   await pendingScenario(b, world)
   await resendHeartbeats(world)
-  await onAPhoneWithCards(b)
+  await onAPhoneWithSelects(b)
   await onAPhone(b, world)
   createWithBlankIsAsBefore(createBodies)
 
