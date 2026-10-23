@@ -74,6 +74,7 @@ const expandAllLabel = (b: Browse) => b.run(() => document.querySelector<HTMLEle
 
 /** Opens every row with the link above the rows. */
 export async function expandAll(b: Browse): Promise<void> {
+  await b.until(() => document.querySelectorAll('.env section[aria-label]').length === 6, { timeout: SHORT_WAIT_MS })
   if ((await expandAllLabel(b)) === 'Expand all') await pressExpandAll(b)
   await b.until(() => [...document.querySelectorAll('.env section[aria-label] button.trigger')].every((head) => head.getAttribute('aria-expanded') === 'true'), { timeout: SHORT_WAIT_MS })
 }

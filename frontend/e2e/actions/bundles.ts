@@ -5,6 +5,7 @@ import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
+import { expandAll } from '../machine/environment.ts'
 import { buttonView, burst, fresh, openTable, waitForButton } from './guard.ts'
 import type { StandIn } from './standin.ts'
 
@@ -67,6 +68,7 @@ type Watch = ReturnType<typeof watchBundleRequests>
 
 async function openControl(b: Browse, standin: StandIn, control: Control): Promise<void> {
   await fresh(b, standin, control.hash)
+  if (control.hash === STUDIO_ENVIRONMENT) await expandAll(b)
   if (control.inTable) await openTable(b)
   await waitForButton(b, control.idle)
 }
@@ -91,6 +93,7 @@ const switchView = (b: Browse): Promise<SwitchView> =>
 
 async function openSwitch(b: Browse, standin: StandIn): Promise<void> {
   await fresh(b, standin, MINI_ENVIRONMENT)
+  await expandAll(b)
   await b.page.waitForSelector(`${SWITCH}:not([disabled])`, { timeout: SHORT_WAIT_MS })
 }
 

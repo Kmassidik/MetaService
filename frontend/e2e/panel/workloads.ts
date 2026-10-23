@@ -1,6 +1,7 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
 import { check } from '../support/check.ts'
 import { NAME, PICKER, SIZE, choose, createDisabled, createFormCount, imageListArrived, setField } from '../support/createVm.ts'
+import { expandAll } from '../machine/environment.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
 import { vmPageScenario } from './vm-page.ts'
@@ -31,6 +32,7 @@ async function openTheMachine(b: Browse): Promise<void> {
   check('the machine page has its breadcrumb and opens on Live', /Machines › agent-mac/.test(shown) && (await b.run(() => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim())) === 'Live')
   await b.shot('machine-detail.png')
   await openTab(b, 'Environment')
+  await expandAll(b)
   const facts = await b.text()
   check('the machine page shows its facts on the Environment tab', /ID\s*agent-mac/i.test(facts) && /Memory/i.test(facts))
   await openTab(b, 'Live')
