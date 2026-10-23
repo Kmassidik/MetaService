@@ -11,6 +11,7 @@
   import { ActionState } from '../../../lib/action.svelte.ts'
   import { ApiError, createWorkload, getMachineImages, refusalText } from '../../../lib/api.ts'
   import { blankForm, machineChoices, machineOptions, pickMachine, runtimeCards, startingMachine, type NewVmForm } from '../../../lib/createVm.ts'
+  import { gpuMemoryProblem, gpuOffer, sharedPartition } from '../../../lib/gpuChoice.ts'
   import { nameProblem, workloadBody, workloadProblem } from '../../../lib/format.ts'
   import { imageAfterChange, imageOptions, STOCK_IMAGE, type MachineImages } from '../../../lib/images.ts'
   import { trackCreateAnswer } from '../../../lib/pendingStore.svelte.ts'
@@ -58,7 +59,8 @@
   const sizes = $derived(sizeCards(pickedMachine))
   const runtimes = $derived(runtimeCards(picked))
   const sizeReason = $derived(sizes.find((card) => card.key === form.size)?.reason ?? null)
-  const problem = $derived(workloadProblem({ ...form, name: form.name || EXAMPLE_GENERATED_NAME }) ?? sizeReason)
+  const gpuProblem = $derived(gpuMemoryProblem(form.gpuMode, form.gpuMemoryGb, sharedPartition(pickedMachine, gpuOffer(pickedMachine, form.kind))))
+  const problem = $derived(workloadProblem({ ...form, name: form.name || EXAMPLE_GENERATED_NAME }) ?? sizeReason ?? gpuProblem)
   const ready = $derived(picked !== undefined && !picked.disabled && problem === null)
 
   $effect(() => {
