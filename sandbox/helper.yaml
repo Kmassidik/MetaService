@@ -1,0 +1,496 @@
+openapi: 3.0.3
+info:
+  title: MetaService Root-Agent contract, sandbox additions (DRAFT)
+  version: 1.3.0-sandbox-draft
+  description: >
+    DRAFT for review, nothing here is built. What a Linux helper adds so the Root can run sandboxes on it (see sandbox/README.md).
+    Everything is optional and added without a version change, like the other additions in contract/README.md: a helper without it answers 404
+    and says nothing about sandboxes in its facts, and the Root then places no sandbox on that machine. Once agreed, it moves into
+    contract/openapi.yaml, parent first (the parent refuses facts it does not know), then the helper.
+    Same rules as the rest of the contract: JSON only, unknown keys refused, the Root's command token on every call, and every response carries
+    X-MetaService-Contract. One exception: the port route (`/v1/sandboxes/{id}/ports/{port}/{path}`) carries the command token in
+    `X-MetaService-Token`, so the caller's own `Authorization` header can reach the program inside the sandbox untouched.
+    Times are UTC in the form 2026-10-24T09:30:00Z.
+servers:
+  - url: http://127.0.0.1:9101
+security:
+  - machineToken: []
+paths:
+  /v1/sandboxes:
+    get:
+      summary: The sandboxes on this machine that are not gone (starting, running, pausing, paused, resuming, stopping)
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: >
+        Make a sandbox from a template and answer once it is ready (its in-guest daemon answers), within 30 seconds. Synchronous, unlike workloads:
+        a sandbox is meant to start in well under a second. The Root picks the id, so a retry with the same id and the same body answers the same
+        sandbox (200) and never makes a second one; the same id with a different body is a 409 `id_taken`. A create that does not get ready in time
+        is removed again, leaving nothing behind, and answers 504 `start_timeout` with the last lines the sandbox printed.
+        Ready means: the helper wrote the sandbox id and the SHA-512 of `access_token` into Firecracker's metadata service (MMDS), then called
+        envd's `POST /init` from the machine with the token, `env_vars`, the current time and `defaultUser: user` (without it, commands run as root),
+        and envd answered. Every `/init` carries the token: one without it removes the token and opens the sandbox.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SandboxCreate' } } }
+      responses:
+        '200': { description: 'the same id and body were sent before; this is that sandbox', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '201': { description: 'made and ready', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: 'no room (`not_enough_room`), `template_not_ready`, or `id_taken`', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxRefusal' } } } }
+        '504': { description: 'it did not get ready in 30 seconds (`start_timeout`); it was removed', content: { application/json: { schema: { $ref: '#/components/schemas/StartFailure' } } } }
+  /v1/sandboxes/{id}:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    get:
+      summary: One sandbox
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: >
+        Stop the sandbox and remove everything it had (its process, disk, snapshot, network). Idempotent: a sandbox that is already gone answers 204 too.
+        A sandbox this helper never had is a 404. The `ended` event carries its final running time.
+      responses:
+        '204': { description: 'gone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/end:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    put:
+      summary: >
+        Change when the sandbox ends and what happens then. The helper keeps this itself and acts on it even when the Root cannot be reached,
+        so a sandbox never outlives its time because the parent was down.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SandboxEnd' } } }
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/pause:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    post:
+      summary: >
+        Save the whole sandbox (memory and disk) on this machine and stop it, so it uses no CPU or memory. Running programs carry on after a resume.
+        A paused sandbox can only be resumed on this machine. Pausing a paused sandbox answers 200 with no change.
+      responses:
+        '200': { description: 'paused', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'it is starting or stopping (`busy`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/sandboxes/{id}/resume:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    post:
+      summary: >
+        Start a paused sandbox again from where it was, and answer once it is ready. The helper calls envd's `/init` again (the clock moved on),
+        so the Root sends the access token again: the helper never stores it. Resuming a running sandbox only applies the new end.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SandboxResume' } } }
+      responses:
+        '200': { description: 'running', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'no room to run it again right now (`not_enough_room`)', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxRefusal' } } } }
+  /v1/sandboxes/{id}/metrics:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    get:
+      summary: CPU, memory and disk readings of one sandbox, one every 5 seconds while it runs, the last hour at most
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxMetrics' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/ports/{port}/{path}:
+    parameters:
+      - { $ref: '#/components/parameters/SandboxId' }
+      - name: port
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1, maximum: 65535 }
+      - name: path
+        in: path
+        required: true
+        description: The rest of the URL, slashes and query included, sent on to the program unchanged.
+        schema: { type: string }
+    get:
+      summary: >
+        The way into a sandbox. The helper passes the request (any method, WebSocket upgrades too) to `port` inside the sandbox and streams both ways
+        with no size limit and no buffering. This is how the in-guest daemon's commands and files and the sandbox's own web servers are reached.
+        The Root's token is in `X-MetaService-Token` and is removed before the request goes in; every other header passes through, `Authorization` included
+        (envd reads `Authorization: Basic` to pick the Linux user, and the sandbox's own web servers may use it too).
+        On port 49983 the helper refuses envd's internal routes (`/init`, `/freeze`, `/unfreeze`, `/collapse`, `/fsfreeze`, `/fsthaw`, `/upgrade`):
+        only the helper calls them, from the machine. An unknown, paused or ended sandbox, or a closed port, is a 502 with a code,
+        because E2B's SDKs read a 502 from envd's `/health` as "not running"; the Root passes it on as it is.
+        The same rules hold for POST, PUT, PATCH, DELETE, HEAD and OPTIONS.
+      security: [ { commandTokenHeader: [] } ]
+      responses:
+        '101': { description: 'WebSocket upgraded by the program inside' }
+        '200': { description: 'whatever the program inside answers (any status)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'one of envd''s internal routes (`internal_route`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'no such sandbox (`not_found`), it is paused (`paused`) or ended (`ended`), or nothing listens on that port inside (`port_closed`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      summary: Same as GET.
+      security: [ { commandTokenHeader: [] } ]
+      responses:
+        '200': { description: 'whatever the program inside answers (any status)' }
+  /v1/sandbox-events:
+    get:
+      summary: >
+        What happened to sandboxes on this machine, in order, after change number `after`. The Root reads it whenever `Facts.sandbox.changes` moved,
+        so it learns of sandboxes the helper ended by itself (timeout, out of memory, crash) and of the exact running time to count.
+        Kept for 24 hours or the last 10,000 events. When `after` is older than that, the answer is 410 `too_old` and the Root reads the full list instead.
+      parameters:
+        - { name: after, in: query, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 1000, default: 500 } }
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxEvents' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { description: 'events before this are no longer kept (`too_old`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/sandbox-templates:
+    get:
+      summary: The templates this machine has built or is building
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/TemplateList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/sandbox-templates/{template}:
+    parameters: [ { $ref: '#/components/parameters/TemplateId' } ]
+    put:
+      summary: >
+        Build a template on this machine: the image, then the steps, inside a builder sandbox (never on the machine itself, because a step is a program
+        we did not write), then boot it, run `start`, wait for `ready`, and save that moment as the snapshot every new sandbox starts from.
+        A long command (`template_build`, read with GET /v1/commands/{id}); the old build keeps serving until the new one is ready.
+        Each machine builds its own copy: a snapshot only starts on the kind of CPU and the Firecracker version it was made with.
+      parameters: [ { $ref: '#/components/parameters/CommandIdHeader' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TemplateBuild' } } }
+      responses:
+        '202': { description: 'accepted', content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: 'not enough disk (`not_enough_room`)', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxRefusal' } } } }
+    delete:
+      summary: Remove a template's builds from this machine. Refused while a sandbox made from it is still paused (409 `in_use`); running ones keep their own disk.
+      responses:
+        '204': { description: 'removed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'a paused sandbox still needs it (`in_use`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+components:
+  securitySchemes:
+    machineToken: { type: http, scheme: bearer }
+    commandTokenHeader: { type: apiKey, in: header, name: X-MetaService-Token }
+  parameters:
+    CommandIdHeader:
+      name: X-Command-Id
+      in: header
+      required: false
+      description: Same as in contract/openapi.yaml. Makes a retry safe. The same id never runs twice.
+      schema: { $ref: '#/components/schemas/Id' }
+    SandboxId:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/SandboxId' }
+    TemplateId:
+      name: template
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/TemplateId' }
+  responses:
+    Unauthorized: { description: 'missing or wrong token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Invalid: { description: 'input failed validation', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: 'no such thing', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      description: Same as Error in contract/openapi.yaml.
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: { type: string }
+            message: { type: string }
+    CommandAccepted:
+      description: 'Same as CommandAccepted in contract/openapi.yaml. The Command type enum there gains `template_build`.'
+      type: object
+      required: [command_id, state]
+      additionalProperties: false
+      properties:
+        command_id: { $ref: '#/components/schemas/Id' }
+        state: { type: string, enum: [queued, running, succeeded, failed] }
+    Id:
+      description: Same as Id in contract/openapi.yaml.
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    Time:
+      type: string
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+    SandboxId:
+      type: string
+      pattern: '^[a-z0-9]{20}$'
+      description: Made by the Root. Lowercase letters and digits only, so `49983-<id>.<domain>` is a valid host name.
+    TemplateId:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    BuildId:
+      type: string
+      pattern: '^[a-z0-9]{1,32}$'
+    FactsAdditions:
+      type: object
+      additionalProperties: false
+      description: >
+        Not a schema of its own: the two fields added to `Facts`. `capabilities.sandbox` (optional, absent means false) is true when this helper can run
+        sandboxes right now (Firecracker, /dev/kvm and a ready template). `sandbox` is there exactly when `capabilities.sandbox` is true.
+      properties:
+        capabilities_sandbox: { type: boolean }
+        sandbox: { $ref: '#/components/schemas/SandboxFacts' }
+    SandboxFacts:
+      type: object
+      required: [engine, max_running, running, paused, max_vcpu, max_ram_mb, max_disk_mb, booked, templates, changes]
+      additionalProperties: false
+      properties:
+        engine:
+          type: object
+          required: [name, version]
+          additionalProperties: false
+          properties:
+            name: { type: string, enum: [firecracker] }
+            version: { type: string, nullable: true, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$' }
+        max_running: { type: integer, minimum: 0, description: 'How many sandboxes may run at once here (set on the machine).' }
+        running: { type: integer, minimum: 0 }
+        paused: { type: integer, minimum: 0 }
+        max_vcpu: { type: integer, minimum: 1, description: 'The most vCPUs one sandbox may have here.' }
+        max_ram_mb: { type: integer, minimum: 256 }
+        max_disk_mb: { type: integer, minimum: 512 }
+        booked:
+          type: object
+          required: [vcpu, ram_mb, disk_mb]
+          additionalProperties: false
+          description: What running sandboxes hold (vCPU, memory) and what all of them hold on disk, paused ones included.
+          properties:
+            vcpu: { type: integer, minimum: 0 }
+            ram_mb: { type: integer, minimum: 0 }
+            disk_mb: { type: integer, minimum: 0 }
+        templates:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            required: [id, build, ready]
+            additionalProperties: false
+            properties:
+              id: { $ref: '#/components/schemas/TemplateId' }
+              build: { $ref: '#/components/schemas/BuildId' }
+              ready: { type: boolean }
+        changes: { type: integer, minimum: 0, description: 'The number of the last sandbox event. When it moves, the Root reads /v1/sandbox-events.' }
+    SandboxCreate:
+      type: object
+      required: [id, template, vcpu, ram_mb, disk_mb, end_at, on_end, internet, env_vars, access_token]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/SandboxId' }
+        template: { $ref: '#/components/schemas/TemplateId' }
+        vcpu: { type: integer, minimum: 1, maximum: 32 }
+        ram_mb: { type: integer, minimum: 256, maximum: 65536 }
+        disk_mb: { type: integer, minimum: 512, maximum: 102400 }
+        end_at: { $ref: '#/components/schemas/Time' }
+        on_end: { type: string, enum: [kill, pause] }
+        internet: { type: boolean, description: 'False: the sandbox reaches nothing outside itself. True: the internet only; the office network, this machine, other sandboxes and private addresses stay closed either way.' }
+        env_vars:
+          type: object
+          maxProperties: 100
+          additionalProperties: { type: string, maxLength: 16384 }
+          description: 'Set for every command run in the sandbox. Keys match ^[A-Za-z_][A-Za-z0-9_]{0,127}$.'
+        access_token:
+          type: string
+          minLength: 32
+          maxLength: 128
+          description: >
+            Secret. The Root derives it as hex(HMAC-SHA256(its own secret, sandbox id)), as E2B does, so it can hand the same token back on
+            connect without storing it. The helper puts hex(SHA-512(token)) in MMDS and sends the token to envd's `/init`; envd then refuses
+            calls without it (`X-Access-Token`). Never logged, never returned, never stored by the helper.
+    SandboxEnd:
+      type: object
+      required: [end_at, on_end]
+      additionalProperties: false
+      properties:
+        end_at: { $ref: '#/components/schemas/Time' }
+        on_end: { type: string, enum: [kill, pause] }
+    SandboxResume:
+      type: object
+      required: [end_at, on_end, access_token]
+      additionalProperties: false
+      properties:
+        end_at: { $ref: '#/components/schemas/Time' }
+        on_end: { type: string, enum: [kill, pause] }
+        access_token: { type: string, minLength: 32, maxLength: 128, description: 'The same token as at create. Never logged, never stored.' }
+    Sandbox:
+      type: object
+      required: [id, template, build, state, vcpu, ram_mb, disk_mb, internet, started_at, end_at, on_end, running_ms, daemon_version]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/SandboxId' }
+        template: { $ref: '#/components/schemas/TemplateId' }
+        build: { $ref: '#/components/schemas/BuildId' }
+        state: { type: string, enum: [starting, running, pausing, paused, resuming, stopping] }
+        vcpu: { type: integer, minimum: 1 }
+        ram_mb: { type: integer, minimum: 256 }
+        disk_mb: { type: integer, minimum: 512 }
+        internet: { type: boolean }
+        started_at: { $ref: '#/components/schemas/Time' }
+        end_at: { $ref: '#/components/schemas/Time' }
+        on_end: { type: string, enum: [kill, pause] }
+        running_ms: { type: integer, minimum: 0, description: 'All the time it has been running, in milliseconds (paused time not counted). Only grows.' }
+        daemon_version: { type: string, nullable: true, maxLength: 32, description: 'The in-guest daemon''s version, null when it did not say.' }
+        timings_ms:
+          type: object
+          additionalProperties: false
+          description: Optional. How long the last start or resume took, for the panel and for tuning.
+          properties:
+            restore: { type: integer, minimum: 0 }
+            ready: { type: integer, minimum: 0 }
+    SandboxList:
+      type: object
+      required: [sandboxes]
+      additionalProperties: false
+      properties:
+        sandboxes:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/Sandbox' }
+    SandboxEvents:
+      type: object
+      required: [events, last]
+      additionalProperties: false
+      properties:
+        last: { type: integer, minimum: 0, description: 'The number of the newest event this helper has.' }
+        events:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            required: [seq, at, id, kind, running_ms]
+            additionalProperties: false
+            properties:
+              seq: { type: integer, minimum: 1 }
+              at: { $ref: '#/components/schemas/Time' }
+              id: { $ref: '#/components/schemas/SandboxId' }
+              kind: { type: string, enum: [started, paused, resumed, ended] }
+              reason:
+                type: string
+                enum: [deleted, timeout, out_of_memory, crashed, helper_restart]
+                description: 'Only on `ended`. `helper_restart` means the helper found it left over after its own restart and removed it.'
+              running_ms: { type: integer, minimum: 0, description: 'The sandbox''s running time at that moment. The Root counts the difference from the last event it saw.' }
+    SandboxMetrics:
+      type: object
+      required: [samples]
+      additionalProperties: false
+      properties:
+        samples:
+          type: array
+          maxItems: 720
+          items:
+            type: object
+            required: [at, cpu_count, cpu_used_pct, mem_used_mb, mem_total_mb, disk_used_mb, disk_total_mb]
+            additionalProperties: false
+            properties:
+              at: { $ref: '#/components/schemas/Time' }
+              cpu_count: { type: integer, minimum: 1 }
+              cpu_used_pct: { type: number, minimum: 0, maximum: 100 }
+              mem_used_mb: { type: integer, minimum: 0 }
+              mem_total_mb: { type: integer, minimum: 0 }
+              disk_used_mb: { type: integer, minimum: 0 }
+              disk_total_mb: { type: integer, minimum: 0 }
+    SandboxRefusal:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [not_enough_room, template_not_ready, id_taken] }
+            message: { type: string }
+            resource: { type: string, enum: [slots, vcpu, ram_mb, disk_mb] }
+            needed: { type: integer, minimum: 0 }
+            free: { type: integer, minimum: 0 }
+    StartFailure:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, log_tail]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [start_timeout] }
+            message: { type: string }
+            log_tail:
+              type: array
+              maxItems: 12
+              items: { type: string, maxLength: 200 }
+    TemplateBuild:
+      type: object
+      required: [build, from, steps, start, ready, vcpu, ram_mb, disk_mb]
+      additionalProperties: false
+      properties:
+        build: { $ref: '#/components/schemas/BuildId' }
+        from:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9._/-]{0,199}@sha256:[0-9a-f]{64}$'
+          description: The base image, always pinned by its digest, for example docker.io/library/ubuntu@sha256:...
+        steps:
+          type: array
+          maxItems: 100
+          description: Run in order inside the builder sandbox, like a Dockerfile's RUN, ENV, WORKDIR and USER.
+          items:
+            type: object
+            minProperties: 1
+            maxProperties: 1
+            additionalProperties: false
+            properties:
+              run: { type: string, maxLength: 65536 }
+              env:
+                type: object
+                maxProperties: 100
+                additionalProperties: { type: string, maxLength: 16384 }
+              workdir: { type: string, maxLength: 4096 }
+              user: { type: string, pattern: '^[a-z_][a-z0-9_-]{0,31}$' }
+        start: { type: string, nullable: true, maxLength: 4096, description: 'Started once before the snapshot and still running in every new sandbox, for example a server. Null for none.' }
+        ready: { type: string, nullable: true, maxLength: 4096, description: 'A command that succeeds once `start` is ready; the snapshot is taken right after. Null means right after the daemon answers.' }
+        vcpu: { type: integer, minimum: 1, maximum: 32, description: 'What a sandbox from this template gets unless the create says otherwise.' }
+        ram_mb: { type: integer, minimum: 256, maximum: 65536 }
+        disk_mb: { type: integer, minimum: 512, maximum: 102400 }
+    TemplateList:
+      type: object
+      required: [templates]
+      additionalProperties: false
+      properties:
+        templates:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            required: [id, build, state, built_at, size_mb, message]
+            additionalProperties: false
+            properties:
+              id: { $ref: '#/components/schemas/TemplateId' }
+              build: { $ref: '#/components/schemas/BuildId' }
+              state: { type: string, enum: [building, ready, failed] }
+              built_at: { type: string, nullable: true, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' }
+              size_mb: { type: integer, minimum: 0 }
+              message: { type: string, nullable: true, maxLength: 300, description: 'Why a build failed, in plain words.' }

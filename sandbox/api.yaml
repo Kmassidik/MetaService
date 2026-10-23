@@ -1,0 +1,321 @@
+openapi: 3.0.3
+info:
+  title: MetaService Sandboxes API (DRAFT)
+  version: 0.1.0-draft
+  description: >
+    DRAFT for review, nothing here is built. The API a program calls, with a key, to make and drive sandboxes (see sandbox/README.md).
+
+
+    It is shaped like E2B's API on purpose, so E2B's own SDKs work with only two settings changed: `E2B_DOMAIN` (our sandbox domain)
+    and `E2B_API_KEY` (one of our keys). That is why its names are camelCase (`sandboxID`, `templateID`), unlike the snake_case of the rest
+    of MetaService, and why some fields exist only because the SDK reads them. The routes, fields and status codes are the ones E2B's SDKs
+    call and check, read in their code: JS 2.52.0 (what Oyenza runs) and the JS and Python 2.59.0 source. Only what we support is here;
+    any other route answers 404.
+
+
+    Everything inside a sandbox is reached at `https://{port}-{sandboxID}.{domain}`, not through this API. (The SDK's older
+    `E2B_SANDBOX_URL`, one address plus `E2b-Sandbox-Id` and `E2b-Sandbox-Port` headers, is deprecated there and not served in v1.)
+
+    - Port 49983 is the in-guest daemon (E2B's `envd`): commands, files, watching folders. It speaks envd's own protocol (Connect RPC with
+      JSON, plus GET /health and GET and POST /files), which this file does not repeat. Every call needs `X-Access-Token: {envdAccessToken}`;
+      `/files` also takes the SDK's signed URLs. `Authorization: Basic` picks the Linux user inside and passes through untouched.
+      envd's internal routes (`/init`, `/freeze`, `/unfreeze`, `/collapse`, `/fsfreeze`, `/fsthaw`, `/upgrade`) are refused from outside.
+
+    - Any other port is whatever the sandbox's own programs serve there (a web server, a dev server). Anyone with the address can reach it.
+
+    - An unknown, paused or ended sandbox, or a closed port, answers 502 with this file's Error body. The SDKs read a 502 from envd's
+      `/health` as "not running".
+
+
+    Teams and keys are made in the panel by an operator; they are not part of this API. A key belongs to a team, and the team's limits
+    (sandboxes at once, sizes, longest timeout and life, internet, templates) apply to every call. Errors use E2B's shape, `{ code, message }`,
+    where `code` repeats the HTTP status; every error carries that body, because the SDK checks `code` (a bare 404 is not enough).
+    The SDK turns 401, 429 and 503 into its own error types, and it retries a call on 429, 502, 503 and 504 (honouring Retry-After)
+    without an idempotency key. So a create that fails is undone before the answer goes out, and a retry never leaves a second sandbox running.
+servers:
+  - url: https://api.{domain}
+    variables:
+      domain:
+        default: sandbox.example.com
+        description: The sandbox domain (to be chosen). E2B's SDKs call https://api.{E2B_DOMAIN} unless E2B_API_URL says otherwise.
+security:
+  - ApiKeyAuth: []
+paths:
+  /v2/sandboxes:
+    post:
+      summary: Make a sandbox from a template
+      description: >
+        Answers once the sandbox is running and its daemon answers, normally in well under a second.
+        A setting we do not support yet (network rules beyond public ports, MCP, IAM, volumes, auto-resume, a pause without memory) is
+        refused with a 400 rather than ignored, so a program never gets weaker rules or different behaviour than it asked for.
+        The SDK parses the answer only on exactly 201.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/NewSandbox' } } }
+      responses:
+        '201': { description: 'running', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+        '403': { $ref: '#/components/responses/403' }
+        '404': { description: 'no such template, or not one this team may use', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { $ref: '#/components/responses/429' }
+        '503': { $ref: '#/components/responses/503' }
+    get:
+      summary: The team's sandboxes, running or paused, a page at a time
+      parameters:
+        - name: metadata
+          in: query
+          required: false
+          description: 'Only sandboxes whose metadata has all of these pairs, URL-encoded key=value pairs joined by & (the SDK sends URLSearchParams(pairs).toString()).'
+          schema: { type: string, maxLength: 2048 }
+        - name: state
+          in: query
+          required: false
+          description: 'Which states to list, comma-separated. Both when absent.'
+          style: form
+          explode: false
+          schema: { type: array, items: { $ref: '#/components/schemas/SandboxState' } }
+        - { name: startedAfter, in: query, required: false, description: 'Only sandboxes started after this time.', schema: { type: string, format: date-time } }
+        - { name: template, in: query, required: false, description: 'Only sandboxes from this template.', schema: { $ref: '#/components/schemas/TemplateID' } }
+        - { name: order, in: query, required: false, description: 'By start time.', schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: nextToken, in: query, required: false, description: 'From the previous page''s x-next-token header.', schema: { type: string, maxLength: 512 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 100 } }
+      responses:
+        '200':
+          description: ok
+          headers:
+            x-next-token: { description: 'Absent on the last page.', schema: { type: string } }
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ListedSandbox' } } } }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+  /sandboxes/{sandboxID}:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    get:
+      summary: One sandbox
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxDetail' } } } }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+    delete:
+      summary: Kill a sandbox, running or paused. Everything in it is gone.
+      responses:
+        '204': { description: gone }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+  /sandboxes/{sandboxID}/timeout:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    post:
+      summary: Set the sandbox to end (or pause) `timeout` seconds from now, sooner or later than before, within the team's longest life
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Timeout' } } }
+      responses:
+        '204': { description: set }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+        '403': { $ref: '#/components/responses/403' }
+        '404': { $ref: '#/components/responses/404' }
+  /sandboxes/{sandboxID}/pause:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    post:
+      summary: Save the whole sandbox (memory and disk) and stop it. Its files and running programs carry on after a connect.
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/Pause' } } }
+      responses:
+        '204': { description: paused }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '409': { description: 'already paused (the SDK then returns false)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v2/sandboxes/{sandboxID}/connect:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    post:
+      summary: Get a running sandbox, resuming it first if it is paused, and set its timeout
+      description: >
+        200 when it was already running, 201 when it was paused and has been resumed. A paused sandbox resumes on the machine that keeps it;
+        when that machine is offline or full, the answer is 503.
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/Connect' } } }
+      responses:
+        '200': { description: 'it was running', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '201': { description: 'it was paused and is running again', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+        '503': { $ref: '#/components/responses/503' }
+  /sandboxes/{sandboxID}/metrics:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    get:
+      summary: CPU, memory and disk of one sandbox, one reading every 5 seconds while it runs (the last hour at most)
+      parameters:
+        - { name: start, in: query, required: false, description: 'Unix seconds; readings from then on.', schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: end, in: query, required: false, description: 'Unix seconds; readings up to then.', schema: { type: integer, format: int64, minimum: 0 } }
+      responses:
+        '200':
+          description: ok
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SandboxMetric' } } } }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: One of the team's keys, made in the panel (the SDK sends it as X-API-KEY; header names are not case-sensitive). Shown once; the parent keeps only its SHA-256.
+  parameters:
+    sandboxID:
+      name: sandboxID
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/SandboxID' }
+  responses:
+    '400': { description: 'the request is not valid, or asks for something we do not support yet', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    '401': { description: 'no key, or a wrong or removed key', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    '403': { description: 'over one of the team''s limits (size, timeout, life, internet, template)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    '404': { description: 'no such sandbox, or not this team''s (the SDK turns it into SandboxNotFoundError)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    '429': { description: 'too many sandboxes at once for this team, or too many calls', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    '503': { description: 'no machine has room right now, or the machine that keeps a paused sandbox is offline; try again', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer, format: int32, description: 'The HTTP status again.' }
+        message: { type: string, description: 'What went wrong, in plain words.' }
+        error_code: { type: string, description: 'Optional. A short code for programs, for example team_limit or no_room.' }
+    SandboxID:
+      type: string
+      pattern: '^[a-z0-9]{20}$'
+      description: Lowercase letters and digits, so `{port}-{sandboxID}.{domain}` is a valid host name.
+    TemplateID:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+      description: A template's name, for example `base`.
+    SandboxState:
+      type: string
+      enum: [running, paused]
+    Metadata:
+      type: object
+      maxProperties: 50
+      additionalProperties: { type: string, maxLength: 512 }
+      description: 'The program''s own labels, kept with the sandbox and usable as a list filter. Keys are 1 to 64 characters.'
+    EnvVars:
+      type: object
+      maxProperties: 100
+      additionalProperties: { type: string, maxLength: 16384 }
+      description: 'Set for every command run in the sandbox. Keys match ^[A-Za-z_][A-Za-z0-9_]{0,127}$.'
+    Lifecycle:
+      type: object
+      required: [onTimeout, autoResume]
+      properties:
+        onTimeout: { type: string, enum: [kill, pause] }
+        autoResume: { type: boolean, enum: [false], description: 'Always false: traffic does not wake a paused sandbox yet.' }
+    NewSandbox:
+      type: object
+      required: [templateID]
+      description: Every field the SDK sends is listed, so none is silently dropped; the ones we do not support yet say what they accept.
+      properties:
+        templateID: { $ref: '#/components/schemas/TemplateID' }
+        timeout:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 300
+          description: >
+            Seconds until the sandbox ends (or pauses, with autoPause), at most the team's longest timeout. The SDK always sends it
+            (its default is 300); the default here only matters to plain HTTP callers.
+        autoPause: { type: boolean, default: false, description: 'Pause instead of ending when the timeout comes (the SDK''s lifecycle.onTimeout pause).' }
+        autoPauseMemory: { type: boolean, nullable: true, description: 'Not supported unless true or absent: a pause always keeps memory. false is a 400.' }
+        autoResume:
+          type: object
+          nullable: true
+          properties:
+            enabled: { type: boolean, enum: [false] }
+          description: 'Not supported yet: absent, null or { enabled false } only.'
+        allow_internet_access: { type: boolean, description: 'Snake case, as in E2B''s API. False means the sandbox reaches nothing outside itself. Absent means the team''s setting. True is a 403 when the team may not use the internet.' }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        envVars: { $ref: '#/components/schemas/EnvVars' }
+        network: { type: object, nullable: true, description: 'E2B''s finer network rules (allowOut, denyOut, dnsServers, egressProxy, maskRequestHost, httpsPorts, rules). Not supported yet: absent, null, {} or only allowPublicTraffic true (ports are public anyway).' }
+        iam: { type: object, nullable: true, description: 'Not supported: absent or null only.' }
+        mcp: { type: object, nullable: true, description: 'E2B''s MCP gateway. Not supported: absent or null only.' }
+        volumeMounts: { type: array, maxItems: 0, items: { type: object }, description: 'Volumes are not supported: absent or empty only.' }
+    Sandbox:
+      type: object
+      required: [templateID, sandboxID, clientID, envdVersion, envdAccessToken, domain]
+      properties:
+        templateID: { $ref: '#/components/schemas/TemplateID' }
+        sandboxID: { $ref: '#/components/schemas/SandboxID' }
+        alias: { type: string, description: 'The template''s name.' }
+        clientID: { type: string, description: 'Kept only because older SDKs read it; always the same value.' }
+        envdVersion: { type: string, description: 'The real version of the envd we ship, as plain X.Y.Z. The SDK kills a sandbox older than 0.1.0 and turns features on by version; 0.6.4 or later turns on all of them.' }
+        envdAccessToken: { type: string, description: 'Send it as X-Access-Token on every call to the daemon. Treat it like a password: it opens the sandbox. Returned by create and connect only, never by get or list.' }
+        trafficAccessToken: { type: string, nullable: true, description: 'Always null for now: public ports are open.' }
+        domain: { type: string, description: 'Our sandbox domain; the SDK builds {port}-{sandboxID}.{domain} from it.' }
+    SandboxDetail:
+      type: object
+      required: [templateID, sandboxID, clientID, startedAt, endAt, cpuCount, memoryMB, diskSizeMB, envdVersion, state, metadata, allowInternetAccess, lifecycle, domain, volumeMounts]
+      properties:
+        templateID: { $ref: '#/components/schemas/TemplateID' }
+        sandboxID: { $ref: '#/components/schemas/SandboxID' }
+        alias: { type: string }
+        clientID: { type: string }
+        startedAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time, description: 'When it ends or pauses, unless the timeout changes.' }
+        cpuCount: { type: integer, format: int32, minimum: 1 }
+        memoryMB: { type: integer, format: int32, minimum: 256 }
+        diskSizeMB: { type: integer, format: int32, minimum: 512 }
+        envdVersion: { type: string }
+        domain: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        state: { $ref: '#/components/schemas/SandboxState' }
+        allowInternetAccess: { type: boolean }
+        lifecycle: { $ref: '#/components/schemas/Lifecycle' }
+        network: { type: object, nullable: true, description: 'Always null for now.' }
+        volumeMounts: { type: array, maxItems: 0, items: { type: object }, description: 'Always empty.' }
+    ListedSandbox:
+      type: object
+      required: [templateID, sandboxID, clientID, startedAt, endAt, cpuCount, memoryMB, diskSizeMB, envdVersion, state, metadata]
+      properties:
+        templateID: { $ref: '#/components/schemas/TemplateID' }
+        sandboxID: { $ref: '#/components/schemas/SandboxID' }
+        alias: { type: string }
+        clientID: { type: string }
+        startedAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        cpuCount: { type: integer, format: int32, minimum: 1 }
+        memoryMB: { type: integer, format: int32, minimum: 256 }
+        diskSizeMB: { type: integer, format: int32, minimum: 512 }
+        envdVersion: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+        state: { $ref: '#/components/schemas/SandboxState' }
+    Timeout:
+      type: object
+      required: [timeout]
+      properties:
+        timeout: { type: integer, format: int32, minimum: 0, description: 'Seconds from now (the SDK rounds milliseconds up). 0 ends or pauses it right away.' }
+    Pause:
+      type: object
+      properties:
+        memory: { type: boolean, nullable: true, description: 'Keep memory too. Absent, null or true; false (a pause without memory) is a 400 for now.' }
+    Connect:
+      type: object
+      properties:
+        timeout: { type: integer, format: int32, minimum: 1, default: 300, description: 'Seconds from now, as in E2B''s API: absent means 300.' }
+        memory: { type: boolean, nullable: true, description: 'false asks for a reboot instead of a resume (the SDK''s onResume reboot); not supported yet, a 400.' }
+    SandboxMetric:
+      type: object
+      required: [timestamp, timestampUnix, cpuCount, cpuUsedPct, memUsed, memCache, memTotal, diskUsed, diskTotal]
+      properties:
+        timestamp: { type: string, format: date-time }
+        timestampUnix: { type: integer, format: int64 }
+        cpuCount: { type: integer, format: int32 }
+        cpuUsedPct: { type: number, format: float, minimum: 0, maximum: 100 }
+        memUsed: { type: integer, format: int64, description: Bytes. }
+        memCache: { type: integer, format: int64, description: Bytes of page cache inside the sandbox. }
+        memTotal: { type: integer, format: int64, description: Bytes. }
+        diskUsed: { type: integer, format: int64, description: Bytes. }
+        diskTotal: { type: integer, format: int64, description: Bytes. }
