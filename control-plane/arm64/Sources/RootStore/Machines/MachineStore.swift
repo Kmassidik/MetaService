@@ -63,6 +63,7 @@ public struct MachineStore: @unchecked Sendable {
         let removed = try database.execute("DELETE FROM machines WHERE id = ?", [.text(id)])
         guard removed == 1 else { throw MachineError.notFound }
         try SshKeyStore(database).forget(machine: id)
+        try AppStateStore(database).forget(machine: id)
     }
 
     // MARK: heartbeat
@@ -120,7 +121,7 @@ public struct MachineStore: @unchecked Sendable {
     }
 
     private func summary(_ row: Row, now: Date) throws -> MachineSummary {
-        let workloads = try workloadSummaries(machineId: row.string("id"))
+        let workloads = try workloadSummaries(machineId: row.string("id"), now: now)
         let lastSeen = row.optionalInt("last_seen").map { Date(timeIntervalSince1970: TimeInterval($0)) }
         let state = MachineStates.derive(lastSeen: lastSeen, now: now, workloadStates: workloads.map(\.state))
         return MachineSummary(
@@ -136,8 +137,10 @@ public struct MachineStore: @unchecked Sendable {
             state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads)
     }
 
-    private func workloadSummaries(machineId: String) throws -> [WorkloadSummary] {
-        try database.query("""
+    private func workloadSummaries(machineId: String, now: Date) throws -> [WorkloadSummary] {
+        let apps = try AppStateStore(database).records(machine: machineId)
+        let seconds = Int(now.timeIntervalSince1970)
+        return try database.query("""
             SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, stopped_reason_json, init_mode
             FROM workloads WHERE machine_id = ? ORDER BY name
             """, [.text(machineId)]).map {
@@ -145,7 +148,7 @@ public struct MachineStore: @unchecked Sendable {
                             cpu: $0.int("cpu"), ramMb: $0.int("ram_mb"), diskGb: $0.int("disk_gb"), gpuMode: $0.string("gpu_mode"),
                             address: $0.optionalString("address"), bundleVersion: $0.optionalString("bundle_version"),
                             stoppedReason: $0.optionalString("stopped_reason_json").flatMap { try? decoder.decode(StoppedReasonReport.self, from: Data($0.utf8)) },
-                            initMode: $0.optionalString("init_mode"))
+                            initMode: $0.optionalString("init_mode"), app: apps[$0.string("id")].map { WorkloadAppSummary($0.atTime(seconds)) })
         }
     }
 

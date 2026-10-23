@@ -134,6 +134,14 @@ public enum Migrations {
             ALTER TABLE workload_ssh_state ADD COLUMN sshd_message TEXT;
             ALTER TABLE workload_ssh_state ADD COLUMN sshd_since INTEGER;
             """) }),
+        // The app (OpenClaw, Hermes) an operator wants installed inside a VM, and how setting it up stands (none = wanted, not started; installing; ready; failed) with the plain message, the last installer lines and when it began. Keyed by machine and workload id, not tied to the workloads table.
+        (22, { try $0.exec("""
+            CREATE TABLE workload_app_state (
+              machine_id TEXT NOT NULL, workload_id TEXT NOT NULL, app TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'none', message TEXT, version TEXT, installer_sha256 TEXT,
+              log_tail_json TEXT NOT NULL DEFAULT '[]', started_at INTEGER, updated_at INTEGER NOT NULL,
+              PRIMARY KEY (machine_id, workload_id)
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

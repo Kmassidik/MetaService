@@ -17,9 +17,11 @@ public struct WorkloadSummary: Encodable, Equatable {
     public let stoppedReason: StoppedReasonReport?
     /// "systemd" or "plain" (no systemd); null when the helper does not say.
     public let initMode: String?
+    /// The app (OpenClaw, Hermes) wanted inside this VM and how setting it up stands. Null when none is wanted.
+    public var app: WorkloadAppSummary? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode
+        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode, app
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -36,6 +38,29 @@ public struct WorkloadSummary: Encodable, Equatable {
         try box.encode(bundleVersion, forKey: .bundleVersion)
         try box.encode(stoppedReason, forKey: .stoppedReason)
         try box.encode(initMode, forKey: .initMode)
+        try box.encode(app, forKey: .app)
+    }
+}
+
+/// What the machine list says about a VM's app: the name, how it stands (`none`, `installing`, `ready`, `failed`) and the plain message of a failure.
+public struct WorkloadAppSummary: Encodable, Equatable {
+    public let name: String
+    public let state: String
+    public let message: String?
+
+    init(_ record: AppRecord) {
+        name = record.app
+        state = record.phase.rawValue
+        message = record.message
+    }
+
+    enum CodingKeys: String, CodingKey { case name, state, message }
+
+    public func encode(to encoder: Encoder) throws {
+        var box = encoder.container(keyedBy: CodingKeys.self)
+        try box.encode(name, forKey: .name)
+        try box.encode(state, forKey: .state)
+        try box.encode(message, forKey: .message)
     }
 }
 

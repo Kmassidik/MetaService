@@ -211,6 +211,22 @@ public struct CreateWorkloadOperatorRequest: Equatable {
         bundle = object.has("bundle") ? try Self.knownBundle(object) : ImageCatalog.blankId
     }
 
+    /// The same wish, pinned to the machine the parent chose for it.
+    public func placed(on machine: String) -> CreateWorkloadOperatorRequest {
+        CreateWorkloadOperatorRequest(name: name, kind: kind, cpu: cpu, ramMb: ramMb, diskGb: diskGb, gpuMode: gpuMode, machine: machine, bundle: bundle)
+    }
+
+    public init(name: String, kind: String, cpu: Int, ramMb: Int, diskGb: Int, gpuMode: String, machine: String?, bundle: String) {
+        self.name = name
+        self.kind = kind
+        self.cpu = cpu
+        self.ramMb = ramMb
+        self.diskGb = diskGb
+        self.gpuMode = gpuMode
+        self.machine = machine
+        self.bundle = bundle
+    }
+
     private static func knownBundle(_ object: StrictObject) throws -> String {
         let id = try object.string("bundle", pattern: ImageCatalog.pattern, maxLength: 32, minLength: 1)
         guard ImageCatalog.entry(id: id) != nil else { throw InputError("bundle is not one of the listed images") }

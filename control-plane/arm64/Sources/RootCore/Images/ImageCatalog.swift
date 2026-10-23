@@ -59,8 +59,8 @@ public enum ImageCatalog {
 
     public static let entries: [ImageEntry] = [
         ImageEntry(id: blankId, title: "Blank (plain Ubuntu)", description: "Ubuntu 24.04 with the usual server tools. Nothing else.", state: .ready, reason: nil, pinnedVersion: nil, sha256: nil),
-        ImageEntry(id: "openclaw", title: "OpenClaw", description: "Blank, plus the OpenClaw assistant already installed.", state: .planned, reason: comingSoon, pinnedVersion: nil, sha256: nil),
-        ImageEntry(id: "hermes", title: "Hermes", description: "Blank, plus the Hermes assistant already installed.", state: .planned, reason: waitingForPin, pinnedVersion: nil, sha256: nil),
+        ImageEntry(id: "openclaw", title: "OpenClaw", description: "Blank, plus the OpenClaw assistant, installed right after the VM starts.", state: .planned, reason: comingSoon, pinnedVersion: nil, sha256: nil),
+        ImageEntry(id: "hermes", title: "Hermes", description: "Blank, plus the Hermes assistant, installed right after the VM starts.", state: .planned, reason: waitingForPin, pinnedVersion: nil, sha256: nil),
     ]
 
     public static func entry(id: String, in catalog: [ImageEntry] = entries) -> ImageEntry? {
@@ -76,6 +76,7 @@ public enum ImageCatalog {
     }
 
     /// What goes to a helper in the create command's `bundle` field. Blank sends nothing (that is today's request exactly, which every helper understands), and so does anything not ready.
+    /// An app is not an image: its catalog entry is never `ready`, so the VM is made from the stock image and the app is installed into it afterwards.
     public static func helperBundle(for id: String, in catalog: [ImageEntry] = entries) -> String? {
         guard id != blankId, let found = entry(id: id, in: catalog), found.isSelectable else { return nil }
         return found.id

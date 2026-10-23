@@ -5,7 +5,9 @@ public struct HelperImage: Equatable {
     public let id: String
     public let ready: Bool
 
-    static let keys: Set<String> = ["id", "ready", "built_at"]
+    static let requiredKeys: Set<String> = ["id", "ready", "built_at"]
+    static let allowedKeys: Set<String> = requiredKeys.union(["caption"])
+    static let longestCaption = 200
     static let maxImages = 16
     static let longestBuiltAt = 64
 
@@ -23,8 +25,14 @@ public struct HelperImage: Equatable {
     }
 
     private static func image(_ row: [String: Any]) -> HelperImage? {
-        guard Set(row.keys) == keys, let id = row["id"] as? String, id.wholeMatch(of: ImageCatalog.pattern) != nil, let ready = row["ready"] as? Bool, builtAtIsValid(row["built_at"]) else { return nil }
+        guard requiredKeys.isSubset(of: Set(row.keys)), Set(row.keys).isSubset(of: allowedKeys), captionIsValid(row["caption"]), let id = row["id"] as? String, id.wholeMatch(of: ImageCatalog.pattern) != nil, let ready = row["ready"] as? Bool, builtAtIsValid(row["built_at"]) else { return nil }
         return HelperImage(id: id, ready: ready)
+    }
+
+    private static func captionIsValid(_ value: Any?) -> Bool {
+        guard let value else { return true }
+        guard let text = value as? String else { return value is NSNull }
+        return text.count <= longestCaption
     }
 
     private static func builtAtIsValid(_ value: Any?) -> Bool {
@@ -49,6 +57,8 @@ public enum HelperImagesAnswer: Equatable {
         case .unreachable: return "unreachable"
         }
     }
+
+    var isUnreachable: Bool { self == .unreachable }
 
     func isReady(_ id: String) -> Bool {
         guard case .answered(let images) = self else { return false }
@@ -94,9 +104,17 @@ public struct MachineImagesReply: Encodable, Equatable {
     }
 
     private static func image(_ entry: ImageEntry, _ answer: HelperImagesAnswer) -> MachineImage {
+        guard !AppCatalog.isApp(entry.id) else { return app(entry, answer) }
         let ready = entry.id == ImageCatalog.blankId || answer.isReady(entry.id)
         let available = entry.isSelectable && ready
         return MachineImage(id: entry.id, title: entry.title, description: entry.description, state: entry.state, ready: ready, available: available, reason: reason(entry, ready: ready))
+    }
+
+    /// An app is installed after the VM starts, so it can be chosen exactly when the machine's helper says it is ready. A helper that does not say so is an older build.
+    private static func app(_ entry: ImageEntry, _ answer: HelperImagesAnswer) -> MachineImage {
+        let ready = answer.isReady(entry.id)
+        let reason = ready ? nil : (answer.isUnreachable ? entry.reason : AppCatalog.oldHelperReason)
+        return MachineImage(id: entry.id, title: entry.title, description: entry.description, state: ready ? .ready : .planned, ready: ready, available: ready, reason: reason)
     }
 
     private static func reason(_ entry: ImageEntry, ready: Bool) -> String? {

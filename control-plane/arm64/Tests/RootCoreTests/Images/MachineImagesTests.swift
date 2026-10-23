@@ -26,12 +26,46 @@ final class MachineImagesTests: XCTestCase {
         }
     }
 
-    func testPlannedEntriesAreNeverAvailableWhateverTheHelperSays() {
+    func testAnAppIsAvailableExactlyWhenTheHelperSaysItIsReady() {
         let claims = HelperImagesAnswer.answered([HelperImage(id: "openclaw", ready: true), HelperImage(id: "hermes", ready: true)])
         let images = MachineImagesReply.merge(claims).images
+        XCTAssertEqual(images.map(\.available), [true, true, true])
+        XCTAssertEqual(images.map(\.state), [.ready, .ready, .ready])
+        XCTAssertEqual(images.map(\.reason), [nil, nil, nil])
+    }
+
+    func testAnAppTheHelperDoesNotReportReadyKeepsAReasonThatSendsPeopleToUpdateTheHelper() {
+        let notReady = HelperImagesAnswer.answered([HelperImage(id: "openclaw", ready: false)])
+        for helper in [notReady, .oldHelper, .answered([])] {
+            let images = MachineImagesReply.merge(helper).images
+            XCTAssertEqual(images.map(\.available), [true, false, false], "\(helper)")
+            XCTAssertEqual(images[1].reason, "Update the helper on this machine first")
+            XCTAssertEqual(images[2].reason, "Update the helper on this machine first")
+            XCTAssertEqual(images[1].state, .planned)
+        }
+    }
+
+    func testAnUnreachableMachineKeepsTheCatalogsOwnReasonForApps() {
+        let images = MachineImagesReply.merge(.unreachable).images
         XCTAssertEqual(images.map(\.available), [true, false, false])
         XCTAssertEqual(images[1].reason, "Coming soon: needs the image to be prepared on the machine")
         XCTAssertEqual(images[2].reason, "Waiting for a pinned release and checksum")
+    }
+
+    func testACaptionIsAllowedAndReadStrictly() {
+        let captioned: [String: Any] = ["id": "openclaw", "ready": true, "built_at": NSNull(), "caption": "Installs after the VM starts, about 2 minutes"]
+        XCTAssertEqual(HelperImage.parse(["images": [captioned]]), [HelperImage(id: "openclaw", ready: true)])
+        var tooLong = captioned
+        tooLong["caption"] = String(repeating: "x", count: 201)
+        XCTAssertNil(HelperImage.parse(["images": [tooLong]]))
+        var notText = captioned
+        notText["caption"] = 5
+        XCTAssertNil(HelperImage.parse(["images": [notText]]))
+    }
+
+    func testAnAppIsNeverSentToAHelperAsAnImage() {
+        XCTAssertNil(ImageCatalog.helperBundle(for: "openclaw"))
+        XCTAssertNil(ImageCatalog.helperBundle(for: "hermes"))
     }
 
     func testTheReplyNamesWhoAnswered() {
@@ -41,11 +75,11 @@ final class MachineImagesTests: XCTestCase {
     }
 
     func testAReadyCatalogEntryNeedsTheMachineToHaveItToo() {
-        let entry = ImageEntry(id: "openclaw", title: "OpenClaw", description: "x", state: .ready, reason: nil, pinnedVersion: "1.0.0", sha256: String(repeating: "a", count: 64))
+        let entry = ImageEntry(id: "devbox", title: "Devbox", description: "x", state: .ready, reason: nil, pinnedVersion: "1.0.0", sha256: String(repeating: "a", count: 64))
         let missing = MachineImagesReply.merge(.answered([]), catalog: [entry]).images[0]
         XCTAssertEqual([missing.ready, missing.available], [false, false])
         XCTAssertEqual(missing.reason, "This machine has to prepare the image first")
-        let there = MachineImagesReply.merge(.answered([HelperImage(id: "openclaw", ready: true)]), catalog: [entry]).images[0]
+        let there = MachineImagesReply.merge(.answered([HelperImage(id: "devbox", ready: true)]), catalog: [entry]).images[0]
         XCTAssertEqual([there.ready, there.available], [true, true])
         XCTAssertNil(there.reason)
     }
