@@ -28,6 +28,7 @@ const NOT_YET = 'not available yet'
 const TAG_DEFAULT = 'Default'
 const TAG_COMING_SOON = 'Coming soon'
 const TAG_WAITING = 'Waiting'
+const TAG_INSTALLS_ON_START = 'Installs on start'
 const PREVIEW_SYSTEM_CAPTION = 'Coming soon: not tested on this machine yet'
 const PREVIEW_FRAMEWORK_CAPTION = 'Coming soon'
 const PREVIEW_PREFIX = 'preview-'
@@ -65,8 +66,9 @@ const logoOf = (id: string): string | undefined => {
 
 const previewCard = (preview: Preview, caption: string): RichCard => ({ id: `${PREVIEW_PREFIX}${preview.id}`, title: preview.title, caption, disabled: true, tag: TAG_COMING_SOON, logo: LOGOS[preview.logo] })
 
-function catalogTag(entry: ImageOption): string | null {
-  if (!entry.disabled) return null
+/** A framework the catalog lets the operator pick is installed inside the VM after it starts; one it does not is waiting or planned. */
+function catalogTag(entry: ImageOption): string {
+  if (!entry.disabled) return TAG_INSTALLS_ON_START
   return entry.planned ? TAG_COMING_SOON : TAG_WAITING
 }
 

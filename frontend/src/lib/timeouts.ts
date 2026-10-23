@@ -6,6 +6,8 @@ export const MIN_BUSY_MS = 400
 export const REQUEST_TIMEOUT_MS = 30_000
 /** The routes where the Root logs in to another computer over SSH and may work for minutes. */
 export const LONG_REQUEST_TIMEOUT_MS = 5 * 60_000
+/** While an app is being installed in a VM, its page asks how it goes this often. */
+export const APP_POLL_MS = 5_000
 /** The small success line next to a button stays this long. */
 export const SUCCESS_LINE_MS = 2_000
 

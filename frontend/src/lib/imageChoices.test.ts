@@ -52,7 +52,7 @@ test('None sends the stock image like before, and a framework the catalog makes 
   expect(bundleOfFramework(NO_FRAMEWORK)).toBe(STOCK_IMAGE)
   expect(imageBundle(bundleOfFramework(NO_FRAMEWORK))).toBeUndefined()
   const card = frameworkCards(openclawReady).find((entry) => entry.id === 'openclaw')
-  expect(card).toMatchObject({ disabled: false, caption: 'Blank, plus OpenClaw.', tag: null })
+  expect(card).toMatchObject({ disabled: false, caption: 'Blank, plus OpenClaw.', tag: 'Installs on start' })
   expect(imageBundle(bundleOfFramework('openclaw'))).toBe('openclaw')
   expect(imageAfterChange(openclawReady, 'openclaw')).toBe('openclaw')
   expect(imageAfterChange(real, 'openclaw')).toBe(STOCK_IMAGE)

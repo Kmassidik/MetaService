@@ -46,6 +46,13 @@ export interface MachineSettings {
   ssh_jump: string | null
 }
 
+/** The app (OpenClaw or Hermes) the parent installs inside a VM after it starts, as the machine list reports it. */
+export interface WorkloadApp {
+  name: string
+  state: 'installing' | 'ready' | 'failed'
+  message: string | null
+}
+
 export interface Workload {
   id: string
   name: string
@@ -62,6 +69,8 @@ export interface Workload {
   stopped_reason?: unknown
   /** How the VM came up: with systemd, or plain (no systemd). Null when the machine does not say. */
   init_mode?: 'systemd' | 'plain' | null
+  /** The app being installed in, or installed in, the VM. Null or left out when there is none. */
+  app?: WorkloadApp | null
 }
 
 /** The program a machine uses to make VMs, as the helper reports it. `version` is null when the engine could not tell. */

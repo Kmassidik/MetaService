@@ -23,6 +23,11 @@ test('a row carries the reason a stopped VM gave, read again, and whether it run
   expect(rows.map((row) => [row.id, row.note, row.plain])).toEqual([['a', { kind: 'reason', reason }, true], ['b', null, false], ['c', null, false]])
 })
 
+test('a row carries the chip of the app being installed in the VM, or none', () => {
+  const rows = vmRows([machine({ workloads: [workload({ id: 'a', name: 'a', app: { name: 'openclaw', state: 'installing', message: null } }), workload({ id: 'b', name: 'b', app: null }), workload({ id: 'c', name: 'c' })] })])
+  expect(rows.map((row) => [row.id, row.app?.text ?? null])).toEqual([['a', 'Installing OpenClaw…'], ['b', null], ['c', null]])
+})
+
 test('sorting ignores upper and lower case and does not change the machines it was given', () => {
   const mixed = [machine({ id: 'b', name: 'b', workloads: [workload({ name: 'Zed' }), workload({ id: 'w2', name: 'apple' })] })]
   expect(vmRows(mixed).map((row) => row.name)).toEqual(['apple', 'Zed'])

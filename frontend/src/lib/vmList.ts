@@ -1,4 +1,5 @@
 // What the All VMs page shows: every VM of every machine as one row, narrowed to one machine, sorted, with a count. Pure functions, no DOM, no network.
+import { appChip, type AppChip } from './appInstall.ts'
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
@@ -21,6 +22,8 @@ export interface VmRow {
   note: StopNote | null
   /** True when it runs without systemd. */
   plain: boolean
+  /** The chip for the app being installed in the VM; null when it has none. */
+  app: AppChip | null
 }
 
 const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning'])
@@ -49,6 +52,7 @@ export function vmRows(machines: Machine[]): VmRow[] {
       gpu: hasGpu(workload),
       note: reasonNote(readStoppedReason(workload.stopped_reason)),
       plain: isPlainMode(workload),
+      app: appChip(workload.app),
     })),
   )
   return rows.sort(compareRows)

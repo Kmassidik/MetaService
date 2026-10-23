@@ -3,7 +3,9 @@ import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
 import { parseUpdateResult } from './helperUpdate.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
+import { parseAppView, type AppView } from './appInstall.ts'
 import { parseMachineImages, type MachineImages } from './images.ts'
+import { UnreadableAnswer } from './unreadable.ts'
 import { LONG_REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, TIMEOUT_MESSAGE } from './timeouts.ts'
 import { parseSshKeyList } from './sshKeys.ts'
 import { statsPath } from './stats.ts'
@@ -174,6 +176,23 @@ export const removeSshKey = (machine: string, workload: string, keyId: string) =
 export function refusalText(error: ApiError): string {
   return error.numbers ? `${error.message}: needs ${error.numbers.needed} ${error.numbers.unit}, the best machine has ${error.numbers.free} free.` : error.message
 }
+
+const appPath = (machine: string, workload: string) => `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/app`
+
+/** The app routes answer with the whole view; an answer in another shape is an error, not an empty view. */
+async function appAnswer(method: Method, path: string): Promise<AppView> {
+  const data = await call<unknown>(method, path)
+  try {
+    return parseAppView(data)
+  } catch (error) {
+    if (error instanceof UnreadableAnswer) throw new ApiError(502, 'bad_reply', 'The Root gave an answer the panel cannot read.')
+    throw error
+  }
+}
+
+export const getWorkloadApp = (machine: string, workload: string) => appAnswer('GET', appPath(machine, workload))
+/** Starts the install of the VM's app again after it failed (409 `not_running` for a stopped VM, 409 `no_app` for a VM without one). */
+export const retryWorkloadApp = (machine: string, workload: string) => appAnswer('POST', `${appPath(machine, workload)}/retry`)
 
 export const bundleOverview = () => call<BundleOverview>('GET', '/api/bundles')
 export const pinBundle = (version: string) => call<unknown>('POST', '/api/bundles/pin', { version })
