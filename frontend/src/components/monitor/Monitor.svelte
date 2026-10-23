@@ -1,6 +1,6 @@
 <script lang="ts">
-  // The Live tab of a machine's page: what the machine is really doing, refreshed every 5 seconds while the browser tab is visible and Live is shown.
-  // The charts are full on the first look: the parent's last hour is fetched once, then a point is added from the page's own polling every 10 seconds.
+  // The Live tab of a machine's page: what the machine is really doing, refreshed every 2 seconds while the browser tab is visible and Live is shown (5 seconds after a failed ask).
+  // The charts are full on the first look: the parent's last hour is fetched once, then a point is added from the page's own polling every 10 seconds, however often it asks.
   // The list of programs is fetched and drawn only while its window is open.
   import { untrack } from 'svelte'
   import MonitorHeader from './MonitorHeader.svelte'
@@ -9,7 +9,7 @@
   import { getMachineHistory, getMachineStats } from '../../lib/api.ts'
   import { appendPoint, DEFAULT_INTERVAL_SECONDS, mergeHistory, pointFromReading, pointsFromHistory, type LivePoint } from '../../lib/liveSeries.ts'
   import { processesFromReply } from '../../lib/processList.ts'
-  import { MACHINE_PAGE_POLL_MS, reservedText } from '../../lib/stats.ts'
+  import { pollIntervalMs, reservedText } from '../../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../../lib/statsPoll.ts'
   import type { Machine, MachineStatsReply, StatsProcess } from '../../lib/types.ts'
 
@@ -75,7 +75,9 @@
     return untrack(() => {
       let running = true
       void loadHistory()
-      const stop = startPolling(browserEnvironment(), MACHINE_PAGE_POLL_MS, () => load(withProcesses, () => running))
+      const environment = browserEnvironment()
+      const wait = () => pollIntervalMs({ liveTabVisible: true, pageVisible: environment.isVisible(), failed })
+      const stop = startPolling(environment, wait, () => load(withProcesses, () => running))
       return () => {
         running = false
         stop()

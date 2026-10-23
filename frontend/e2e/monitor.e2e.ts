@@ -4,6 +4,7 @@
 import puppeteer, { type Page } from 'puppeteer-core'
 import { startStandIn, type StandIn } from './monitor/stand-in.ts'
 import { cardsAreBorderedAndEqualInHeight, chartsAreFullWithHistory, coresAreAlwaysShown, helpButtonsToggleTheExplanations, listIsNeverFetchedOrDrawnWhileTheWindowIsClosed, oneColumnWithoutSidewaysScroll, SIZES, topologyShowsCoresAndThreads, waitForNumbers, windowListsFifteenAndFilters, windowRefreshesWhileOpenAndStopsWhenClosed, windowSortsByCpuAndMemory } from './monitor/live-steps.ts'
+import { fastRefreshWhileWatching, setVisible } from './monitor/fast-poll-steps.ts'
 import { gpuOnTheLiveTab } from './monitor/gpu-steps.ts'
 import { openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
@@ -20,14 +21,6 @@ const SLACK_MS = 2500
 
 const cpuText = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('[data-testid=gauge-cpu]')?.innerText ?? '')
 const calls = (world: StandIn, id: string) => world.asked[id]?.length ?? 0
-
-async function setVisible(b: Browse, visible: boolean) {
-  await b.run((show) => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (show ? 'visible' : 'hidden') })
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => !show })
-    document.dispatchEvent(new Event('visibilitychange'))
-  }, visible)
-}
 
 async function numbersAppear(b: Browse, world: StandIn) {
   await openMachine(b, world.base, 'studio')
@@ -114,12 +107,6 @@ async function everyTabFitsAPhone(page: Page, b: Browse, world: StandIn) {
   await page.setViewport(SIZES.desktop)
 }
 
-async function pageAsksEveryFiveSeconds(world: StandIn) {
-  const stamps = world.asked.studio ?? []
-  const gaps = stamps.slice(1).map((stamp, index) => stamp - (stamps[index] ?? 0)).filter((gap) => gap > 3000)
-  check('the page asks about every 5 seconds', gaps.length > 0 && gaps.every((gap) => gap >= PAGE_POLL_MS - 500 && gap <= PAGE_POLL_MS + SLACK_MS), gaps.join(','))
-}
-
 async function oldHelper(b: Browse, world: StandIn) {
   await openMachine(b, world.base, 'oldbox')
   await b.until(() => document.body.innerText.includes('too old'), { timeout: SHORT_WAIT_MS })
@@ -199,12 +186,12 @@ try {
   await helpButtonsToggleTheExplanations(b)
   await oneColumnWithoutSidewaysScroll(page, b, 'studio')
   await listIsNeverFetchedOrDrawnWhileTheWindowIsClosed(b, world)
-  check('the history is asked once per page open, not with every 5 second poll', world.askedHistory.studio === historyAsked, `${historyAsked} then ${world.askedHistory.studio}`)
-  await pageAsksEveryFiveSeconds(world)
+  check('the history is asked once per page open, not with every 2 second poll', world.askedHistory.studio === historyAsked, `${historyAsked} then ${world.askedHistory.studio}`)
   await windowListsFifteenAndFilters(page, b, world)
   await windowSortsByCpuAndMemory(b)
   await windowRefreshesWhileOpenAndStopsWhenClosed(b, world)
   await hiddenTab(b, world)
+  await fastRefreshWhileWatching(page, b, world)
   await machinesWithoutGpu(page, b, world)
   await machinesWithOtherLayouts(page, b, world)
   await tabBarAndPolling(page, b, world)

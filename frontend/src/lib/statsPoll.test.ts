@@ -78,3 +78,27 @@ test('a slow answer is never overlapped by the next ask', async () => {
   expect(world.timers.size).toBe(1)
   stop()
 })
+
+test('the wait is asked before each run, and a null wait pauses until the tab is shown again', async () => {
+  const world = fakeEnvironment()
+  let calls = 0
+  let wait: number | null = 2000
+  const waits: number[] = []
+  const environment: PollEnvironment = { ...world.environment, setTimer: (run, ms) => { waits.push(ms); return world.environment.setTimer(run, ms) } }
+  const stop = startPolling(environment, () => wait, async () => { calls += 1 })
+  await settle()
+  expect(waits).toEqual([2000])
+  wait = 5000
+  world.fire()
+  await settle()
+  expect(waits).toEqual([2000, 5000])
+  wait = null
+  world.fire()
+  await settle()
+  expect(calls).toBe(3)
+  expect(world.timers.size).toBe(0)
+  world.setVisible(true)
+  await settle()
+  expect(calls).toBe(4)
+  stop()
+})

@@ -180,7 +180,7 @@ export async function windowSortsByCpuAndMemory(b: Browse) {
 export async function windowRefreshesWhileOpenAndStopsWhenClosed(b: Browse, world: StandIn) {
   const open = world.askedWithProcesses.studio?.length ?? 0
   await wait(PAGE_POLL_MS + SLACK_MS)
-  check('while the window is open the list is refreshed about every 5 s', (world.askedWithProcesses.studio?.length ?? 0) > open)
+  check('while the window is open the list is refreshed about every 2 s', (world.askedWithProcesses.studio?.length ?? 0) > open)
   await b.click('Close')
   await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
   check('closing removes the table from the page', !(await tableDrawn(b)))

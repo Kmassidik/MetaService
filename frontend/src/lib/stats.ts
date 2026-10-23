@@ -2,9 +2,27 @@
 import { formatGb, formatMb, relativeTime } from './format.ts'
 import type { MachineStatsReply, Workload } from './types.ts'
 
-/** How often a machine's own page asks for a reading, and how often the Machines list does. */
-export const MACHINE_PAGE_POLL_MS = 5000
+/** How often the Machines list asks for a reading. */
 export const LIST_POLL_MS = 15000
+/** How often a machine's page asks while a person watches its Live tab: the parent shares one helper reading per 1.5 s, so each ask gets a new one. */
+export const LIVE_FAST_POLL_MS = 2000
+/** The wait after a failed ask, so a parent that cannot answer is not asked every 2 seconds. */
+export const FAILED_POLL_MS = 5000
+
+export interface PollState {
+  /** The Live tab of the machine's page is the tab shown. */
+  liveTabVisible: boolean
+  /** The browser tab is shown (`document.visibilityState === 'visible'`). */
+  pageVisible: boolean
+  /** The last ask failed. */
+  failed: boolean
+}
+
+/** The wait before the next ask for the machine's page, or null when nobody is watching and nothing should be asked. */
+export function pollIntervalMs({ liveTabVisible, pageVisible, failed }: PollState): number | null {
+  if (!liveTabVisible || !pageVisible) return null
+  return failed ? FAILED_POLL_MS : LIVE_FAST_POLL_MS
+}
 /** The address of a machine's reading. `withProcesses` false asks the parent to leave the list of programs out, which spares the machine the scan. */
 export const statsPath = (id: string, withProcesses: boolean): string => `/api/machines/${encodeURIComponent(id)}/stats?processes=${withProcesses ? 1 : 0}`
 

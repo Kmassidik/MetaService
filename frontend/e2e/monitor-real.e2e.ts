@@ -1,5 +1,5 @@
 // The live monitor in a real browser against a REAL parent and the Fake Agent (agent/fake: changing numbers, 32 cores, a GPU, a hostile process name).
-// Proves the panel reads what the parent really sends: numbers appear and change, a hostile name stays text, the parent is asked about every 5 s,
+// Proves the panel reads what the parent really sends: numbers appear and change, a hostile name stays text, the parent is asked about every 2 s,
 // a hidden tab stops, and killing the helper turns the page to "offline, last seen" with the last numbers greyed (never zeros).
 // Needs: the parent build, a built panel, Google Chrome, `bun install` in frontend/. Run: SHOTS_DIR=<dir> bun e2e/monitor-real.e2e.ts
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -21,7 +21,7 @@ import { seed, startWorld, stopWorld, type World } from './panel/world.ts'
 const FAKE_PYTHON = process.env.FAKE_PYTHON ?? 'python3'
 const MACHINE = 'fake-box'
 const SHORT_WAIT_MS = 15000
-const PAGE_POLL_MS = 5000
+const PAGE_POLL_MS = 2000
 const SLACK_MS = 2500
 const HEARTBEAT_EVERY_MS = 5000
 const FAST_SAMPLING = 'HISTORY_INTERVAL_SECONDS=1'
@@ -114,7 +114,7 @@ try {
   await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
 
   const gaps = askedBeforeWindow.slice(1).map((time, index) => time - (askedBeforeWindow[index] ?? time)).filter((gap) => gap > 0)
-  check('the page asks the parent about every 5 seconds', gaps.length > 0 && gaps.every((gap) => gap >= PAGE_POLL_MS - 500 && gap <= PAGE_POLL_MS + SLACK_MS), gaps.join(','))
+  check('the page asks the parent about every 2 seconds', gaps.length > 0 && gaps.every((gap) => gap >= PAGE_POLL_MS - 500 && gap <= PAGE_POLL_MS + SLACK_MS), gaps.join(','))
 
   await page.setViewport(SIZES.phone)
   await wait(500)

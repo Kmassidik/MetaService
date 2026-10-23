@@ -20,11 +20,14 @@ export function browserEnvironment(): PollEnvironment {
   }
 }
 
+/** A fixed wait, or a function asked before each wait; it answers null when nothing should be asked until the tab changes. */
+export type PollInterval = number | (() => number | null)
+
 /**
- * Runs `load` now (when visible) and then `intervalMs` after each run ends, so two runs never overlap.
+ * Runs `load` now (when visible) and then the interval after each run ends, so two runs never overlap.
  * Returns the function that stops it for good.
  */
-export function startPolling(environment: PollEnvironment, intervalMs: number, load: () => Promise<void>): () => void {
+export function startPolling(environment: PollEnvironment, interval: PollInterval, load: () => Promise<void>): () => void {
   let timer: number | null = null
   let running = false
   let stopped = false
@@ -38,7 +41,9 @@ export function startPolling(environment: PollEnvironment, intervalMs: number, l
   const schedule = () => {
     clear()
     if (stopped || !environment.isVisible()) return
-    timer = environment.setTimer(tick, intervalMs)
+    const wait = typeof interval === 'number' ? interval : interval()
+    if (wait === null) return
+    timer = environment.setTimer(tick, wait)
   }
 
   async function tick() {

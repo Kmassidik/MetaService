@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import Owl from '../Owl.svelte'
-  import { formatUptime, MACHINE_PAGE_POLL_MS, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
+  import { formatUptime, LIVE_FAST_POLL_MS, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
   import type { MachineStatsReply } from '../../lib/types.ts'
 
-  const REFRESH_SECONDS = MACHINE_PAGE_POLL_MS / 1000
+  const REFRESH_SECONDS = LIVE_FAST_POLL_MS / 1000
 
   /** `actions` sits at the right, after the status note. */
   let { reply, failed, now, actions }: { reply: MachineStatsReply | null; failed: boolean; now: number; actions?: Snippet } = $props()
@@ -25,7 +25,8 @@
     {:else if failed}
       <span class="note warn" role="status">Cannot reach the parent. Showing the last numbers.</span>
     {:else if reply.stats}
-      <span class="note nums">{reply.stats.measuring ? 'measuring…' : 'live'} · up {formatUptime(reply.stats.uptime_seconds)} · refreshes every {REFRESH_SECONDS} s</span>
+      <span class="note nums">{reply.stats.measuring ? 'measuring… · ' : ''}up {formatUptime(reply.stats.uptime_seconds)}</span>
+      <span class="caption nums" data-testid="live-caption">live · refreshes every {REFRESH_SECONDS} s</span>
     {/if}
     {#if actions}{@render actions()}{/if}
   </div>
@@ -36,5 +37,6 @@
   .right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   h2 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m50); }
   .note { font-family: var(--mono); font-size: 12px; color: var(--m60); }
+  .caption { font-family: var(--mono); font-size: 11px; color: var(--m50); }
   .note.warn { color: var(--warn); }
 </style>

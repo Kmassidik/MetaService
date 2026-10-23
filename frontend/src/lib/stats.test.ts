@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { barWidth, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, isStale, MEASURING_TEXT, needsHelperUpdate, offlineText, percentOf, reservedText, statsPath } from './stats.ts'
+import { barWidth, formatBytes, formatPercent, formatProcessCpu, formatRate, formatUptime, isStale, MEASURING_TEXT, pollIntervalMs, needsHelperUpdate, offlineText, percentOf, reservedText, statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 import { workload } from './testing.ts'
@@ -74,6 +74,14 @@ test('the reply parser refuses odd shapes', () => {
   expect(() => parseStatsReply(null)).toThrow(UnreadableAnswer)
   expect(() => parseStatsReply({ state: 'weird', stats: null })).toThrow(UnreadableAnswer)
   expect(() => parseStatsReply({ ...reply(), stats: { ...sampleStats(), uptime_seconds: 'x' } })).toThrow(UnreadableAnswer)
+})
+
+test('a watched Live tab asks every 2 seconds, after a failure every 5, and nobody watching asks nothing', () => {
+  expect(pollIntervalMs({ liveTabVisible: true, pageVisible: true, failed: false })).toBe(2000)
+  expect(pollIntervalMs({ liveTabVisible: true, pageVisible: true, failed: true })).toBe(5000)
+  expect(pollIntervalMs({ liveTabVisible: true, pageVisible: false, failed: false })).toBeNull()
+  expect(pollIntervalMs({ liveTabVisible: false, pageVisible: true, failed: false })).toBeNull()
+  expect(pollIntervalMs({ liveTabVisible: false, pageVisible: false, failed: true })).toBeNull()
 })
 
 test('the stats address says whether the list of programs is wanted', () => {

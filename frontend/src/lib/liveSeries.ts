@@ -4,7 +4,7 @@ import type { MachineStats, MachineStatsReply, StatsBreakdown, StatsGpu, StatsHi
 /** One hour at one point every ten seconds. */
 export const CHART_POINT_LIMIT = 360
 export const DEFAULT_INTERVAL_SECONDS = 10
-/** A reading that comes this much early still counts as the next point (the page asks every 5 seconds, the points are 10 apart). */
+/** A reading that comes this much early still counts as the next point (the page asks every 2 seconds, the points are 10 apart). */
 const EARLY_ALLOWANCE_SECONDS = 1
 const MS_PER_SECOND = 1000
 
