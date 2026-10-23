@@ -194,12 +194,15 @@ export async function barFollowsChanges(b: Browse): Promise<void> {
   await b.until((selector) => !!document.querySelector(selector), { timeout: SHORT_WAIT_MS }, BAR)
   const text = await barText(b)
   check('typing shows the bar with Unsaved changes, Save, Undo and the apply-to-new-VMs note', /Unsaved changes in 1 section/.test(text) && /Save/.test(text) && /Undo/.test(text) && text.includes('Changes apply to new VMs only.'), text)
+  // A tab taller than the screen: every row open, scrolled to the top. A bar that is not really sticky would sit far below the fold.
+  if ((await expandAllLabel(b)) === 'Expand all') await pressExpandAll(b)
+  await b.run(() => window.scrollTo(0, 0))
   const sticky = await b.run((selector) => {
     const bar = document.querySelector<HTMLElement>(selector)
     const box = bar?.getBoundingClientRect()
-    return bar && box ? { position: getComputedStyle(bar).position, bottom: Math.round(window.innerHeight - box.bottom) } : null
+    return bar && box ? { position: getComputedStyle(bar).position, gapToScreenBottom: Math.round(window.innerHeight - box.bottom), pageIsTaller: document.documentElement.scrollHeight > window.innerHeight } : null
   }, BAR)
-  check('the bar is sticky and sits at the bottom edge of the screen', sticky?.position === 'sticky' && sticky.bottom <= SAME_PIXEL, JSON.stringify(sticky))
+  check('with a tab taller than the screen the bar still sits on the bottom edge of the screen', sticky?.position === 'sticky' && sticky.pageIsTaller === true && Math.abs(sticky.gapToScreenBottom) <= SAME_PIXEL, JSON.stringify(sticky))
   await b.click('Undo')
   await b.until((selector) => !document.querySelector(selector), { timeout: SHORT_WAIT_MS }, BAR)
   check('Undo restores the saved value and hides the bar', (await fieldValue(b, 'vmCpu')) === before && !(await barShown(b)))
