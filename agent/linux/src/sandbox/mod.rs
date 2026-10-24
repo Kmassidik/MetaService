@@ -11,6 +11,7 @@ mod engine;
 pub mod firecracker;
 mod record;
 mod routes;
+pub mod runner;
 mod store;
 #[cfg(test)]
 mod tests;
