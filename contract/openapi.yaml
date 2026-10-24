@@ -901,6 +901,12 @@ components:
               items: { type: string, enum: [nested-virt, aes] }
               description: 'Optional (absent means none). The CPU flags a VM can have switched on or off (`cpu_flags` on create). `nested-virt` is `svm` on an AMD machine and `vmx` on an Intel one, so only an x86 machine whose CPU maker is known lists it. Added without a version change.'
             cpu_limit: { type: boolean, description: 'Optional (absent means false). True when a container can get a hard cap on its CPU time (`cpu_limit_percent` on create). Added without a version change.' }
+            sandbox: { type: boolean, description: 'Optional (absent means false). True when this helper can run sandboxes right now (Firecracker, /dev/kvm and a ready template). Only such a machine is given sandboxes, and only it says `sandbox` in its facts. Added without a version change.' }
+        sandbox:
+          $ref: '#/components/schemas/SandboxFacts'
+          description: >
+            Optional (absent means none, and an older helper never says it). What this helper can offer for sandboxes, sent exactly when `capabilities.sandbox` is true;
+            the Root keeps it with the machine and places no sandbox on a machine without it. Added without a version change.
         agent_version:
           description: The version of this Agent program. The same text as /v1/health. (Contract 1.3.0)
           $ref: '#/components/schemas/ReportedVersion'
@@ -936,6 +942,50 @@ components:
     ReportedVersion:
       type: string
       pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$'
+    SandboxFacts:
+      description: >
+        What a helper can offer for sandboxes (see sandbox/README.md). Optional, added without a version change; only a helper whose `capabilities.sandbox` is true sends it,
+        and the Root drops it from a helper that says false.
+      type: object
+      required: [engine, max_running, running, paused, max_vcpu, max_ram_mb, max_disk_mb, booked, templates, changes]
+      additionalProperties: false
+      properties:
+        engine:
+          description: The program that runs the sandboxes, with its version when it can tell; never guessed.
+          type: object
+          required: [name, version]
+          additionalProperties: false
+          properties:
+            name: { type: string, enum: [firecracker] }
+            version: { type: string, nullable: true, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$' }
+        max_running: { type: integer, minimum: 0, description: 'How many sandboxes may run at once here (set on the machine).' }
+        running: { type: integer, minimum: 0 }
+        paused: { type: integer, minimum: 0 }
+        max_vcpu: { type: integer, minimum: 1, description: 'The most vCPUs one sandbox may have here.' }
+        max_ram_mb: { type: integer, minimum: 256 }
+        max_disk_mb: { type: integer, minimum: 512 }
+        booked:
+          type: object
+          required: [vcpu, ram_mb, disk_mb]
+          additionalProperties: false
+          description: What running sandboxes hold (vCPU, memory) and what all of them hold on disk, paused ones included.
+          properties:
+            vcpu: { type: integer, minimum: 0 }
+            ram_mb: { type: integer, minimum: 0 }
+            disk_mb: { type: integer, minimum: 0 }
+        templates:
+          type: array
+          maxItems: 64
+          description: The templates built on this machine, and whether each is ready to make a sandbox from.
+          items:
+            type: object
+            required: [id, build, ready]
+            additionalProperties: false
+            properties:
+              id: { type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$' }
+              build: { type: string, pattern: '^[a-z0-9]{1,32}$' }
+              ready: { type: boolean }
+        changes: { type: integer, minimum: 0, description: 'The number of the last sandbox event. When it moves, the Root reads the helper''s sandbox events.' }
     Workload:
       type: object
       required: [id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, bundle_version]
