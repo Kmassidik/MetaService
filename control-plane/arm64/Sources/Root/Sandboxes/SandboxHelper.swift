@@ -24,6 +24,9 @@ protocol SandboxHelperCalling: Sendable {
     func delete(machine: String, id: String) async throws
     func setEnd(machine: String, id: String, endAt: Date) async throws
     func resume(machine: String, id: String) async throws -> HelperSandbox
+    func pause(machine: String, id: String) async throws -> HelperSandbox
+    /// The helper's readings for one sandbox, passed through as the helper sent them (the API's `SandboxMetric` shape).
+    func metrics(machine: String, id: String, from: Int?, until: Int?) async throws -> [[String: Any]]
 }
 
 /// One create, as `contract/openapi.yaml`'s `SandboxCreate` wants it.
@@ -76,6 +79,26 @@ struct AgentSandboxHelper: SandboxHelperCalling {
     /// A sandbox that is running comes back as it is; a paused one is resumed.
     func resume(machine: String, id: String) async throws -> HelperSandbox {
         try await call(machine: machine, method: "PUT", path: Self.path(id) + "/resume")
+    }
+
+    /// Saves the sandbox and stops it; the helper answers 409 when it is already paused, which the parent turns into the API's 409.
+    func pause(machine: String, id: String) async throws -> HelperSandbox {
+        try await call(machine: machine, method: "PUT", path: Self.path(id) + "/pause")
+    }
+
+    /// The helper's own readings, forwarded unchanged. The shape is the helper's `SandboxMetric` list, so the parent validates
+    /// only that the answer is a list of objects and never rewrites a reading.
+    func metrics(machine: String, id: String, from: Int?, until: Int?) async throws -> [[String: Any]] {
+        var query: [String] = []
+        if let from { query.append("start=\(from)") }
+        if let until { query.append("end=\(until)") }
+        let path = Self.path(id) + "/metrics" + (query.isEmpty ? "" : "?" + query.joined(separator: "&"))
+        let reply = try await raw(machine: machine, method: "GET", path: path, body: nil)
+        try Self.require(reply)
+        guard let list = reply.json as? [[String: Any]] else {
+            throw SandboxHelperError.refused(status: 502, code: "bad_reply", message: "the machine's answer was not a list of readings")
+        }
+        return list
     }
 
     // MARK: the wire

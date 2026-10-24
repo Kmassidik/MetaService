@@ -21,6 +21,8 @@ struct SandboxApiRoutes {
         group.get("/sandboxes/{sandboxID}", use: detail)
         group.delete("/sandboxes/{sandboxID}", use: remove)
         group.post("/sandboxes/{sandboxID}/timeout", use: setTimeout)
+        group.post("/sandboxes/{sandboxID}/pause", use: pause)
+        group.get("/sandboxes/{sandboxID}/metrics", use: metrics)
         group.post("/v2/sandboxes/{sandboxID}/connect", use: connect)
     }
 
@@ -72,6 +74,26 @@ struct SandboxApiRoutes {
         }
     }
 
+    /// Save and stop the sandbox. Its files and running programs carry on after a connect.
+    private func pause(_ request: Request, context: RootContext) async -> Response {
+        await attempt(context) {
+            let key = try gate.caller(request, context: context)
+            try gate.limitChanges(for: key)
+            try await service.pause(team: key.team, id: try sandboxID(context), key: key)
+            return Response(status: .noContent)
+        }
+    }
+
+    /// The readings the helper took, forwarded unchanged; `start` and `end` are Unix seconds.
+    private func metrics(_ request: Request, context: RootContext) async -> Response {
+        await attempt(context) {
+            let key = try gate.caller(request, context: context)
+            let readings = try await service.metrics(team: key.team, id: try sandboxID(context),
+                                                     from: try queryNumber("start", in: request), until: try queryNumber("end", in: request))
+            return try SandboxApiJson.raw(readings)
+        }
+    }
+
     private func connect(_ request: Request, context: RootContext) async -> Response {
         await attempt(context) {
             let key = try gate.caller(request, context: context)
@@ -83,6 +105,20 @@ struct SandboxApiRoutes {
     }
 
     // MARK: pieces
+
+    /// A whole, non-negative number from the query string, or nil when the parameter is absent. Anything else is the API's 400.
+    private func queryNumber(_ name: String, in request: Request) throws -> Int? {
+        guard let query = request.uri.query else { return nil }
+        for pair in query.split(separator: "&") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            guard parts.first == Substring(name) else { continue }
+            guard parts.count == 2, let value = Int(parts[1]), value >= 0 else {
+                throw SandboxApiFailure(status: 400, message: "\(name) must be whole seconds.")
+            }
+            return value
+        }
+        return nil
+    }
 
     /// A sandbox id that is not even shaped like one is "no such sandbox", the same as an unknown one.
     private func sandboxID(_ context: RootContext) throws -> String {

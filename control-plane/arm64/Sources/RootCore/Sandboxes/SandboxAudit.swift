@@ -13,6 +13,7 @@ public enum SandboxAudit {
     public static let sandboxEnded = "sandbox.end"
     public static let sandboxTimeout = "sandbox.timeout"
     public static let sandboxConnected = "sandbox.connect"
+    public static let sandboxPaused = "sandbox.pause"
 
     public static func teamDetail(name: String, limits: TeamLimits) -> [String: String] {
         ["name": name, "max_running": String(limits.maxRunning), "max_vcpu": String(limits.maxVcpu),

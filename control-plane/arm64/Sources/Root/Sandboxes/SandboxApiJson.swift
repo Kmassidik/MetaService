@@ -19,6 +19,15 @@ enum SandboxApiJson {
         return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(data: try encoder.encode(value))))
     }
 
+    /// JSON that is already in the API's shape (the helper's readings), so it goes out as it came and is never re-encoded
+    /// through a type the parent would have to guess.
+    static func raw(_ value: Any, status: HTTPResponse.Status = .ok) throws -> Response {
+        var headers = HTTPFields()
+        headers[.contentType] = "application/json"
+        let data = try JSONSerialization.data(withJSONObject: value)
+        return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
+    }
+
     /// `{ code, message, error_code }`, with the status repeated in the body.
     static func failure(_ failure: SandboxApiFailure) -> Response {
         var headers = HTTPFields()

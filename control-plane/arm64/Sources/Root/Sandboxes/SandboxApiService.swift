@@ -122,6 +122,32 @@ struct SandboxApiService {
         return SandboxApiAnswer(sandbox: reply(current, envdVersion: after.daemonVersion), resumed: resumed)
     }
 
+    /// Save the whole sandbox and stop it. An already paused sandbox is the API's 409, not a second pause.
+    func pause(team: String, id: String, key: StoredApiKey) async throws {
+        let record = try own(team: team, id: id)
+        do {
+            _ = try await helper.pause(machine: record.machine, id: record.id)
+        } catch SandboxHelperError.refused(let status, _, _) where status == AgentSandboxHelper.notPausable {
+            throw SandboxApiFailure(status: 409, message: "This sandbox is already paused.")
+        } catch {
+            throw Self.refusal(for: error)
+        }
+        _ = try services.sandboxes.setState(id: record.id, state: .paused)
+        try services.audit.record(actor: Self.actor(key), action: SandboxAudit.sandboxPaused, target: record.id,
+                                  detail: SandboxAudit.changeDetail(team: team, machine: record.machine, endAt: record.endAt, prefix: key.prefix),
+                                  at: services.clock.now)
+    }
+
+    /// The helper's readings, forwarded as they came. A sandbox of another team is "no such sandbox" before any call is made.
+    func metrics(team: String, id: String, from: Int?, until: Int?) async throws -> [[String: Any]] {
+        let record = try own(team: team, id: id)
+        do {
+            return try await helper.metrics(machine: record.machine, id: record.id, from: from, until: until)
+        } catch {
+            throw Self.refusal(for: error)
+        }
+    }
+
     // MARK: the record
 
     /// The record, when it is this team's and still alive. Ended and unknown are the same answer: there is no such sandbox.
