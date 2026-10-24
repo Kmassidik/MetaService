@@ -51,6 +51,20 @@ export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'st
 /** The small tag on a machine card of the Machines list. */
 export const listTag = (machine: Pick<Machine, 'update'>): string | null => (machine.update?.available ? 'Update available' : null)
 
+export interface CardUpdate {
+  /** Show the Update helper button on the card. */
+  button: boolean
+  /** Why there is no button, for a card that carries the "Update available" tag; null otherwise. */
+  note: string | null
+}
+
+/** What the machine card of the Machines list offers: the button when the Environment tab's button would work, else the reason under the tag. */
+export function cardUpdate(machine: Pick<Machine, 'agent_build' | 'update' | 'state'>): CardUpdate {
+  const view = helperView(machine)
+  const tagged = listTag(machine) !== null
+  return { button: view.canUpdate, note: tagged && !view.canUpdate ? view.note : null }
+}
+
 /** The `update` part of a machine answer: nothing when the parent sent none, an UnreadableAnswer when it is not shaped right. */
 export function parseHelperUpdate(data: unknown): HelperUpdateInfo | undefined {
   if (data === undefined) return undefined

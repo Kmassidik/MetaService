@@ -11,12 +11,13 @@
   import NamesSection from './NamesSection.svelte'
   import SaveBar from './SaveBar.svelte'
   import { ActionState } from '../../lib/action.svelte.ts'
-  import { ApiError, machineExtras, updateHelper, updateMachineSettings } from '../../lib/api.ts'
+  import { ApiError, machineExtras, updateMachineSettings } from '../../lib/api.ts'
   import { ruvioView, softwareRows } from '../../lib/environment.ts'
   import { dirtySections, errorSections, undoneForm, type EditableSection } from '../../lib/environmentDirty.ts'
   import { formErrors, formFromMachine, patchFor, sameForm } from '../../lib/environmentForm.ts'
   import { limitsSummary, machineSummary, namesSummary, ruvioSummary, softwareSummary, vmDefaultsSummary } from '../../lib/environmentSummary.ts'
-  import { failureView, helperView, outcomeView, type OutcomeView } from '../../lib/helperUpdate.ts'
+  import { helperView } from '../../lib/helperUpdate.ts'
+  import { HelperUpdater } from '../../lib/helperUpdater.svelte.ts'
   import type { MachineExtras } from '../../lib/machineDetail.ts'
   import type { Machine, RemoteMachineInfo } from '../../lib/types.ts'
 
@@ -49,8 +50,7 @@
   let form = $state(untrack(() => formFromMachine(machine)))
   let loadedFrom = $state(untrack(() => formFromMachine(machine)))
   const saveAction = new ActionState()
-  let updating = $state(false)
-  let updateOutcome: OutcomeView | null = $state(null)
+  const updater = new HelperUpdater()
   let asked = 0
   /** Every row starts closed. Several may be open; a row with an error is held open by the row itself. */
   let opened: Record<RowId, boolean> = $state({ machine: false, software: false, ruvio: false, limits: false, vmDefaults: false, names: false })
@@ -131,16 +131,7 @@
 
   /** Replaces the helper program with the newest one. The answer is told in words; the machine is read again, and its next report carries the new build. */
   async function updateHelperNow() {
-    if (updating) return
-    updating = true
-    updateOutcome = null
-    try {
-      updateOutcome = outcomeView(await updateHelper(machine.id))
-    } catch (error) {
-      updateOutcome = error instanceof ApiError ? failureView(error.code, error.message) : failureView('error', 'Something went wrong.')
-    } finally {
-      updating = false
-    }
+    await updater.run(machine.id)
     onChanged()
     await load()
   }
@@ -165,7 +156,7 @@
     </CollapsibleSection>
     <CollapsibleSection id="software" title="Software" summary={loaded ? softwareSummary(helper.status) : LOADING_SUMMARY} bind:open={opened.software}>
       {#if loaded}
-        <SoftwareSection {rows} newest={newestHelper} {helper} {updating} outcome={updateOutcome} onUpdate={updateHelperNow} />
+        <SoftwareSection {rows} newest={newestHelper} {helper} updating={updater.updating} outcome={updater.outcome} onUpdate={updateHelperNow} />
       {:else}
         <p class="loading" role="status">Loading…</p>
       {/if}

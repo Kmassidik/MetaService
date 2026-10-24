@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { failureView, helperView, listTag, outcomeView, parseHelperUpdate, parseUpdateResult, shortBuild, UPDATING_TEXT } from './helperUpdate.ts'
+import { cardUpdate, failureView, helperView, listTag, outcomeView, parseHelperUpdate, parseUpdateResult, shortBuild, UPDATING_TEXT } from './helperUpdate.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 import { machine } from './testing.ts'
 
@@ -89,4 +89,16 @@ test('hostile text stays text: it is only ever returned, never turned into marku
 
 test('the progress text is fixed', () => {
   expect(UPDATING_TEXT).toBe('Updating…')
+})
+
+test('the card offers the button only when an update exists and the machine is online', () => {
+  expect(cardUpdate(machine({ agent_build: OLD, update: info() }))).toEqual({ button: true, note: null })
+  expect(cardUpdate(machine({ agent_build: null, update: info({ current_build: null }) })).button).toBe(true)
+  expect(cardUpdate(machine({ agent_build: NEW, update: info({ available: false, current_build: NEW }) })).button).toBe(false)
+  expect(cardUpdate(machine({ agent_build: OLD })).button).toBe(false)
+  expect(cardUpdate(machine({ agent_build: OLD, update: info({ available: false, reason: 'No program.' }) }))).toEqual({ button: false, note: null })
+})
+
+test('an offline card with an update has no button and says the machine is offline', () => {
+  expect(cardUpdate(machine({ state: 'offline', agent_build: OLD, update: info() }))).toEqual({ button: false, note: 'The machine is offline.' })
 })

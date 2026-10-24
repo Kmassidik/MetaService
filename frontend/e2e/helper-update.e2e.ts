@@ -114,6 +114,75 @@ async function pressAndWait(page: Page, b: Browse, name: string, helper: HelperS
   }
 }
 
+const CARD = 'article.card:has([data-update-tag]) [data-card-update] button'
+const openList = async (page: Page, b: Browse, base: string) => {
+  await page.goto(`${base}/#/machines`, { waitUntil: 'networkidle0' })
+  await b.until(() => document.querySelectorAll('article.card').length === 2, { timeout: SHORT_WAIT_MS })
+}
+const cardButtons = (b: Browse) => b.run(() => [...document.querySelectorAll('article.card')].map((card) => ({ name: card.querySelector('.nm')?.textContent ?? '', button: card.querySelector<HTMLElement>('[data-card-update] button')?.textContent?.trim() ?? null, note: card.querySelector<HTMLElement>('.cu-note')?.innerText ?? null })))
+
+async function cardUpdate(page: Page, b: Browse) {
+  const parent = startFakeParent({ chatsBuilt: 1, dist: panelDist, helper: scenario() })
+  try {
+    await page.setViewport(SIZES.desktop)
+    await openList(page, b, parent.base)
+    const cards = (await cardButtons(b)).sort((a, c) => a.name.localeCompare(c.name))
+    check('card: only the machine with an update has the Update helper button', JSON.stringify(cards.map((card) => card.button)) === JSON.stringify([null, 'Update helper']), JSON.stringify(cards))
+    await b.shot('helper-card-button-desktop-light.png', true)
+    await page.setViewport(SIZES.phone)
+    await expectNoSideScroll(b, 'card with the button, phone')
+    await b.shot('helper-card-button-phone-light.png', true)
+    await page.setViewport(SIZES.desktop)
+    await page.click(CARD)
+    await b.until(() => document.querySelector('[data-card-update] button')?.textContent?.trim() === 'Updating…', { timeout: SHORT_WAIT_MS })
+    check('card: while it works the button says Updating… and cannot be pressed again', await b.run(() => document.querySelector<HTMLButtonElement>('[data-card-update] button')?.disabled === true))
+    await b.shot('helper-card-updating-desktop-light.png', true)
+    await page.setViewport(SIZES.phone)
+    await b.shot('helper-card-updating-phone-light.png', true)
+    await b.until(() => !!document.querySelector('[data-card-outcome]'), { timeout: SHORT_WAIT_MS })
+    await b.until(() => !document.querySelector('[data-update-tag]'), { timeout: SHORT_WAIT_MS })
+    const after = await b.run(() => ({ outcome: document.querySelector<HTMLElement>('[data-card-outcome]')?.innerText ?? '', buttons: document.querySelectorAll('[data-card-update]').length }))
+    check('card: the result is told on the card, the tag and the button are gone', after.outcome.includes('Updated.') && after.outcome.includes(UPDATED_TEXT) && after.buttons === 0, JSON.stringify(after))
+    check('card: the parent was asked once, for this machine', parent.updates.join() === 'mac-studio', parent.updates.join())
+    await expectNoSideScroll(b, 'card result, phone')
+    await b.shot('helper-card-result-phone-light.png', true)
+    await page.setViewport(SIZES.desktop)
+    await b.shot('helper-card-result-desktop-light.png', true)
+  } finally {
+    parent.stop()
+  }
+}
+
+async function cardOffline(page: Page, b: Browse) {
+  const parent = startFakeParent({ chatsBuilt: 1, dist: panelDist, helper: scenario({ offline: true }) })
+  try {
+    await page.setViewport(SIZES.desktop)
+    await openList(page, b, parent.base)
+    const cards = await cardButtons(b)
+    const studio = cards.find((card) => card.name === 'mac-studio')
+    check('card: an offline machine has no button and says it is offline', cards.every((card) => card.button === null) && studio?.note === 'The machine is offline.', JSON.stringify(cards))
+    await page.setViewport(SIZES.phone)
+    await expectNoSideScroll(b, 'offline card, phone')
+  } finally {
+    parent.stop()
+  }
+}
+
+async function cardFailure(page: Page, b: Browse) {
+  const parent = startFakeParent({ chatsBuilt: 1, dist: panelDist, helper: scenario({ answer: { status: 409, body: { error: { code: 'login_needed', message: HOSTILE } } } }) })
+  try {
+    await page.setViewport(SIZES.desktop)
+    await openList(page, b, parent.base)
+    await page.click(CARD)
+    await b.until(() => !!document.querySelector('[data-card-outcome]'), { timeout: SHORT_WAIT_MS })
+    const outcome = await b.run(() => ({ text: document.querySelector<HTMLElement>('[data-card-outcome]')?.innerText ?? '', made: !!document.querySelector('[data-card-outcome] img') || 'pwned' in window }))
+    check('card: a refusal is shown as text and the button stays for another try', outcome.text.includes('Login needed.') && outcome.text.includes(HOSTILE) && !outcome.made, JSON.stringify(outcome))
+    check('card: the button is back after a refusal', (await cardButtons(b)).some((card) => card.button === 'Update helper'))
+  } finally {
+    parent.stop()
+  }
+}
+
 async function updated(page: Page, b: Browse) {
   const parent = startFakeParent({ chatsBuilt: 1, dist: panelDist, helper: scenario({ build: null }) })
   try {
@@ -170,6 +239,9 @@ try {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   await states(page, b)
   await listTag(page, b)
+  await cardUpdate(page, b)
+  await cardOffline(page, b)
+  await cardFailure(page, b)
   await updated(page, b)
   await pressAndWait(page, b, 'rolled-back', scenario({ answer: answer('rolled_back', ROLLED_BACK_TEXT) }), 'Rolled back', ROLLED_BACK_TEXT)
   await pressAndWait(page, b, 'failed', scenario({ answer: answer('failed', 'The program could not be copied to that computer. Nothing was changed.') }), 'Update failed', 'could not be copied')

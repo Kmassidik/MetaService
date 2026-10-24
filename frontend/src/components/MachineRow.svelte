@@ -5,13 +5,14 @@
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref } from '../lib/routes.ts'
+  import CardUpdate from './CardUpdate.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
   import { cpuModelText } from '../lib/cpuModel.ts'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
   import type { Machine } from '../lib/types.ts'
 
-  let { machine, now, pinned, onRemove, onRename }: { machine: Machine; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void } = $props()
+  let { machine, now, pinned, onRemove, onRename, onChanged }: { machine: Machine; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onChanged: () => void } = $props()
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
@@ -40,6 +41,7 @@
       <span>{vmCount === 0 ? 'No VMs yet' : vmCount === 1 ? '1 VM' : `${vmCount} VMs`}</span>
       {#if machine.bundle_version}<span class:stale={flag.stale}>{flag.text}</span>{/if}
     </div>
+    <CardUpdate {machine} {onChanged} />
   </div>
 
   {#if machine.state !== 'offline'}<LiveLine machineId={machine.id} />{/if}
