@@ -59,7 +59,10 @@ struct RootConfig {
     static let defaultEnvFile = ".env"
     static let defaultDatabase = "state/root.sqlite3"
     /// Chosen for this deployment until the sandbox domain is final (sandbox/README.md, "Addresses").
-    static let defaultSandboxDomain = "sandbox.ruvio.site"
+    /// Deliberately `ruvio.site`, not `sandbox.ruvio.site`: E2B's SDK builds `{port}-{id}.{domain}` and `api.{domain}`, and a
+    /// second level (`x.sandbox.ruvio.site`) is not covered by Cloudflare's free Universal SSL, which only covers one wildcard
+    /// level. With this value every address is `*.ruvio.site` and the free certificate covers it.
+    static let defaultSandboxDomain = "ruvio.site"
 }
 
 enum ConfigLoader {
