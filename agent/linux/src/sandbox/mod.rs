@@ -82,7 +82,13 @@ impl Sandboxes {
 
     /// The test engine, with its end times kept from this moment on. It needs no root and no Firecracker, and nothing inside it can be reached.
     pub fn simulated(limits: Limits) -> Arc<Sandboxes> {
-        let sandboxes = Self::new(Some(Arc::new(SimulatedSandboxEngine::new(limits))));
+        Self::running(Arc::new(SimulatedSandboxEngine::new(limits)))
+    }
+
+    /// Any engine, with its end times kept from this moment on and acted on every few seconds: the helper owns the end time, so it does not wait for
+    /// the Root to ask.
+    pub fn running(engine: Arc<dyn SandboxEngine>) -> Arc<Sandboxes> {
+        let sandboxes = Self::new(Some(engine));
         sandboxes.sweep();
         let ticking = sandboxes.clone();
         std::thread::spawn(move || loop {
@@ -100,12 +106,13 @@ impl Sandboxes {
         self.engine.as_ref().ok_or(Refusal::NoEngine)
     }
 
-    /// Ends every sandbox whose time has come. It is the helper's own job, so it happens whether or not the Root is there.
+    /// Ends every sandbox whose time has come, and everything it had: the record is gone from the store either way, so what is left on the machine is
+    /// the engine's to take away, and nothing this helper no longer has may keep a namespace or a disk.
     pub fn sweep(&self) {
         let Some(engine) = self.engine.as_ref() else { return };
         for sandbox in self.store.due(time::now()) {
-            if let Err(cause) = engine.stop(&sandbox.id) {
-                eprintln!("sandbox {} could not be stopped at its end time: {cause}", sandbox.id);
+            if let Err(cause) = engine.delete(&sandbox.id) {
+                eprintln!("sandbox {} could not be removed at its end time: {cause}", sandbox.id);
             }
         }
     }

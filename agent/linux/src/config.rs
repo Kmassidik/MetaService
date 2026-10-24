@@ -1,4 +1,5 @@
 //! Settings from the command line. Secrets never go on the command line: the enrollment token comes from a file or an env variable.
+use crate::sandbox::firecracker::engine::NAME as FIRECRACKER;
 use crate::sandbox::SIMULATED;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -9,6 +10,8 @@ pub enum Verb {
     Enroll { root: String, name: String, token_file: Option<String> },
     /// One-time host setup. Shows the plan; changes the machine only with `yes`.
     Setup { yes: bool, user: Option<String> },
+    /// The root half of the sandbox engine, on a local socket: the same program, and only the steps that need root.
+    SandboxRunner,
 }
 
 #[derive(Clone, Debug)]
@@ -20,6 +23,13 @@ pub struct Config {
     pub engine: String,
     /// Which sandbox engine to run: `simulated` for the test engine, absent for none (a helper that cannot run sandboxes says nothing about them).
     pub sandbox: Option<String>,
+    /// The runner's socket (the helper's side, and the runner's), the runner's own directory, and the interface a sandbox may reach the internet through.
+    pub sandbox_runner_socket: Option<PathBuf>,
+    pub sandbox_runner_dir: Option<PathBuf>,
+    pub sandbox_runner_uplink: Option<String>,
+    /// The pinned guest kernel and base template's disk, on the machine.
+    pub sandbox_kernel: Option<PathBuf>,
+    pub sandbox_rootfs: Option<PathBuf>,
     pub reserve_ram_mb: Option<u64>,
     pub reserve_disk_gb: Option<u64>,
     pub ram_allowance_mb: Option<u64>,
@@ -39,7 +49,10 @@ pub const DEFAULT_IMAGE: &str = "images:ubuntu/24.04";
 const VALUED: &[&str] = &[
     "--state-dir", "--port", "--bind", "--engine", "--sandbox", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb", "--disk-allowance-gb", "--bad-token-limit",
     "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--incus-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file", "--user",
+    "--sandbox-runner-socket", "--sandbox-runner-dir", "--sandbox-runner-uplink", "--sandbox-kernel", "--sandbox-rootfs",
 ];
+/// Options that carry no value: they are another mode, not a setting.
+const FLAGS: &[&str] = &["--yes", "--sandbox-runner"];
 
 impl Config {
     pub fn parse(arguments: &[String]) -> Result<Config, String> {
@@ -60,6 +73,12 @@ impl Config {
             "setup" => Verb::Setup { yes: options.contains_key("--yes"), user: options.get("--user").cloned() },
             other => return Err(format!("unknown command {other}; use run, enroll or setup")),
         };
+        if options.contains_key("--sandbox-runner") {
+            if !matches!(config.verb, Verb::Run) {
+                return Err("--sandbox-runner is a mode of its own: run it without a command".into());
+            }
+            config.verb = Verb::SandboxRunner;
+        }
         Ok(config)
     }
 
@@ -67,7 +86,8 @@ impl Config {
         Config {
             verb: Verb::Run,
             state_dir: PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join(".metaservice-agent"),
-            port: 9101, bind: "127.0.0.1".into(), engine: "simulated".into(), sandbox: None, reserve_ram_mb: None, reserve_disk_gb: None, ram_allowance_mb: None, disk_allowance_gb: None,
+            port: 9101, bind: "127.0.0.1".into(), engine: "simulated".into(), sandbox: None, sandbox_runner_socket: None, sandbox_runner_dir: None, sandbox_runner_uplink: None,
+            sandbox_kernel: None, sandbox_rootfs: None, reserve_ram_mb: None, reserve_disk_gb: None, ram_allowance_mb: None, disk_allowance_gb: None,
             bad_token_limit: 10, heartbeat_seconds: 15, chat_port: 9200, chat_bind: None, python_path: None, incus_path: None, default_image: DEFAULT_IMAGE.into(), backup_dir: None,
         }
     }
@@ -76,7 +96,7 @@ impl Config {
         let mut found = HashMap::new();
         let mut items = arguments.iter();
         while let Some(name) = items.next() {
-            if name == "--yes" {
+            if FLAGS.contains(&name.as_str()) {
                 found.insert(name.clone(), String::new());
                 continue;
             }
@@ -94,9 +114,14 @@ impl Config {
             return Err("--engine must be simulated or incus".into());
         }
         self.sandbox = options.get("--sandbox").cloned();
-        if self.sandbox.as_deref().is_some_and(|sandbox| sandbox != SIMULATED) {
-            return Err("--sandbox must be simulated (the Firecracker engine is not built yet)".into());
+        if self.sandbox.as_deref().is_some_and(|sandbox| ![SIMULATED, FIRECRACKER].contains(&sandbox)) {
+            return Err("--sandbox must be simulated or firecracker".into());
         }
+        self.sandbox_runner_socket = options.get("--sandbox-runner-socket").map(PathBuf::from);
+        self.sandbox_runner_dir = options.get("--sandbox-runner-dir").map(PathBuf::from);
+        self.sandbox_runner_uplink = options.get("--sandbox-runner-uplink").cloned();
+        self.sandbox_kernel = options.get("--sandbox-kernel").map(PathBuf::from);
+        self.sandbox_rootfs = options.get("--sandbox-rootfs").map(PathBuf::from);
         self.port = number(options, "--port", 1, 65535)?.map_or(self.port, |n| n as u16);
         self.chat_port = number(options, "--chat-port", 1, 65535)?.map_or(self.chat_port, |n| n as u16);
         self.bad_token_limit = number(options, "--bad-token-limit", 1, 1_000_000)?.map_or(self.bad_token_limit, |n| n as u32);
@@ -143,15 +168,26 @@ mod tests {
         assert!(matches!(parse(&[]).unwrap().verb, Verb::Run));
         assert_eq!(parse(&[]).unwrap().sandbox, None, "a helper runs no sandboxes unless it is told to");
         assert_eq!(parse(&["run", "--sandbox", "simulated"]).unwrap().sandbox.as_deref(), Some("simulated"));
+        assert_eq!(parse(&["run", "--sandbox", "firecracker"]).unwrap().sandbox.as_deref(), Some("firecracker"));
         assert!(matches!(parse(&["--port", "9100"]).unwrap().verb, Verb::Run), "no verb means run");
     }
 
     #[test]
     fn bad_input_is_refused() {
-        for bad in [&["--nope", "1"][..], &["--port"], &["--port", "0"], &["--port", "99999"], &["--port", "x"], &["--engine", "docker"], &["--sandbox", "firecracker"], &["fly"], &["enroll", "--root", "http://x"],
+        for bad in [&["--nope", "1"][..], &["--port"], &["--port", "0"], &["--port", "99999"], &["--port", "x"], &["--engine", "docker"], &["--sandbox", "docker"], &["fly"], &["enroll", "--root", "http://x"],
                     &["enroll", "--name", "x"], &["run", "--enrollment-token", "secret"]] {
             assert!(parse(bad).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn the_sandbox_runner_is_a_mode_of_its_own() {
+        assert!(matches!(parse(&["--sandbox-runner"]).unwrap().verb, Verb::SandboxRunner));
+        assert!(matches!(parse(&["--sandbox-runner", "--sandbox-runner-uplink", "enp1s0"]).unwrap().verb, Verb::SandboxRunner));
+        let runner = parse(&["--sandbox-runner", "--sandbox-runner-socket", "/tmp/r.sock", "--sandbox-kernel", "/k", "--sandbox-rootfs", "/d"]).unwrap();
+        assert_eq!((runner.sandbox_runner_socket, runner.sandbox_kernel, runner.sandbox_rootfs), (Some("/tmp/r.sock".into()), Some("/k".into()), Some("/d".into())));
+        assert!(parse(&["setup", "--sandbox-runner"]).is_err(), "a mode and a command at once is a mistake");
+        assert!(parse(&["--sandbox-runner", "yes"]).is_err(), "a mode takes no position");
     }
 
     #[test]

@@ -51,6 +51,7 @@ fn main() {
     let result = Config::parse(&arguments).and_then(|config| match config.verb.clone() {
         Verb::Enroll { root, name, token_file } => enroll::run(&config, &root, &name, token_file.as_deref()),
         Verb::Setup { yes, user } => run_setup(yes, user),
+        Verb::SandboxRunner => run_sandbox_runner(&config),
         Verb::Run => run(config),
     });
     if let Err(message) = result {
@@ -108,12 +109,54 @@ fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine:
     Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty()).with_cpu_vendor(cpu::this_machines_vendor())))
 }
 
-/// The sandbox engine this helper runs. None unless `--sandbox` says so, which is what a machine that cannot run sandboxes (every one, until the
-/// Firecracker engine lands) must say: its facts carry no `sandbox` block and every sandbox route is a 404.
+/// The sandbox engine this helper runs. None unless `--sandbox` says so, which is what a machine that cannot run sandboxes must say: its facts carry no
+/// `sandbox` block and every sandbox route is a 404.
 fn make_sandboxes(config: &Config, specs: &models::Specs, budget: &budget::SpaceBudget) -> Arc<sandbox::Sandboxes> {
     match config.sandbox.as_deref() {
         Some(sandbox::SIMULATED) => sandbox::Sandboxes::simulated(sandbox::Limits::of(specs, budget)),
+        Some(sandbox::firecracker::engine::NAME) => firecracker_sandboxes(config, specs, budget),
         _ => sandbox::Sandboxes::disabled(),
+    }
+}
+
+/// The real engine. A runner that cannot be reached, no KVM, or no base template is not a reason to fail the helper: it answers as a machine that cannot
+/// run sandboxes, with the reason in its own log, and the Root places no sandbox on it.
+fn firecracker_sandboxes(config: &Config, specs: &models::Specs, budget: &budget::SpaceBudget) -> Arc<sandbox::Sandboxes> {
+    let socket = config.sandbox_runner_socket.clone().unwrap_or_else(|| sandbox::firecracker::SOCKET.into());
+    let machine = sandbox::firecracker::engine::Machine {
+        kernel: config.sandbox_kernel.clone().unwrap_or_else(|| sandbox::firecracker::KERNEL.into()),
+        rootfs: config.sandbox_rootfs.clone().unwrap_or_else(|| sandbox::firecracker::ROOTFS.into()),
+        ..sandbox::firecracker::engine::Machine::default()
+    };
+    let runner: Arc<dyn sandbox::runner::Runner> = Arc::new(sandbox::runner::RunnerClient::new(socket));
+    match sandbox::firecracker::FirecrackerSandboxEngine::connect(runner, sandbox::Limits::of(specs, budget), machine) {
+        Ok(engine) => sandbox::Sandboxes::running(Arc::new(engine)),
+        Err(cause) => {
+            eprintln!("sandboxes: this helper cannot run sandboxes: {cause}");
+            sandbox::Sandboxes::disabled()
+        }
+    }
+}
+
+/// `--sandbox-runner`: the root half of the engine, as the same program in another mode. It refuses to run without root, because every step it knows is
+/// one that needs it.
+fn run_sandbox_runner(config: &Config) -> Result<(), String> {
+    // SAFETY: `geteuid` reads one process-wide number and changes nothing.
+    if unsafe { libc::geteuid() } != 0 {
+        return Err("the sandbox runner must run as root: it makes namespaces, taps, firewall rules and jails".into());
+    }
+    sandbox::runner::Server::new(runner_settings(config))?.listen()
+}
+
+/// What the runner is told at the machine: everything else is a constant of this build.
+fn runner_settings(config: &Config) -> sandbox::runner::Settings {
+    let defaults = sandbox::runner::Settings::default();
+    sandbox::runner::Settings {
+        socket: config.sandbox_runner_socket.clone().unwrap_or(defaults.socket),
+        run_dir: config.sandbox_runner_dir.clone().unwrap_or(defaults.run_dir),
+        uplink: config.sandbox_runner_uplink.clone().unwrap_or(defaults.uplink),
+        kernel: config.sandbox_kernel.clone().unwrap_or(defaults.kernel),
+        rootfs: config.sandbox_rootfs.clone().unwrap_or(defaults.rootfs),
     }
 }
 

@@ -13,10 +13,12 @@
 //! them can be tested on a machine with no KVM and no root. There is no KVM machine in the session that wrote this slice, so no real microVM was
 //! started: what is proven is the argument lists, the config and the rules, not a boot.
 pub mod config;
+pub mod engine;
 pub mod jailer;
 pub mod network;
 
 pub use config::config_json;
+pub use engine::FirecrackerSandboxEngine;
 pub use jailer::start_step;
 
 /// The pinned release `setup --yes` installs; never taken from a request.
