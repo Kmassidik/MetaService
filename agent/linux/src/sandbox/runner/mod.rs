@@ -2,18 +2,24 @@
 //!
 //! Firecracker's jailer, network namespaces, tap devices and firewall rules need root, and the helper must not have it (sandbox/README.md). So the runner
 //! owns those steps and nothing else, and the helper talks to it in the wire format of [`protocol`]: **one JSON request per line, one answer per line**,
-//! five operations in all — `health`, `create-network`, `delete-network`, `start`, `stop`. There is no shell and no free-form argv: an id is the contract's
-//! 20 lowercase letters and digits, a size is a number in the contract's bounds, and every program, flag and path is a constant of this build.
+//! eight operations in all — `health`, `create-network`, `delete-network`, `start`, `stop`, `pause`, `resume`, `snapshot`. There is no shell and no
+//! free-form argv: an id is the contract's 20 lowercase letters and digits, a size is a number in the contract's bounds, and every program, flag and path
+//! is a constant of this build.
 //!
 //! What the runner is handed at the machine: the socket, the run directory, the uplink interface, and the pinned kernel and base disk. What it asks the
-//! machine to do goes through [`Host`], so the whole request list can be exercised with a host that records instead of one that runs.
+//! machine to do goes through [`Host`]; what it asks one sandbox's Firecracker goes through [`Api`]. Both are traits, so the whole request list can be
+//! exercised with hosts and sockets that record instead of run.
+mod api;
 mod client;
 mod host;
 mod layout;
 mod protocol;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_api;
 
+pub use api::{Api, RealApi};
 pub use client::RunnerClient;
 pub use host::{Host, RealHost};
 pub use layout::{Files, Layout};
@@ -23,8 +29,9 @@ pub use protocol::{PROTOCOL, Request, Reply};
 #[cfg(test)]
 pub use client::FakeRunner;
 
+use crate::sandbox::firecracker::api::{self as hypervisor, Call};
 use crate::sandbox::firecracker::network::{create_steps, delete_steps, network_rule_deletions, network_rules, owner, Network};
-use crate::sandbox::firecracker::{config_json, start_step, Step, KERNEL_IN_CHROOT, ROOTFS_IN_CHROOT, SLOTS, VSOCK_IN_CHROOT};
+use crate::sandbox::firecracker::{config_json, copy_disk_step, start_step, Step, KERNEL_IN_CHROOT, ROOTFS_IN_CHROOT, SLOTS, VSOCK_IN_CHROOT};
 use crate::sandbox::firecracker::jailer::CONFIG_IN_CHROOT;
 use std::collections::BTreeMap;
 use std::io::{BufReader, Write};
@@ -33,7 +40,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-/// What the helper needs from whatever makes sandboxes, as the runner sees it: five calls, each one a line.
+/// What the helper needs from whatever makes sandboxes, as the runner sees it: eight calls, each one a line.
 pub trait Runner: Send + Sync {
     /// The runner's own version, or a plain reason it cannot be reached.
     fn version(&self) -> Result<String, String>;
@@ -41,6 +48,14 @@ pub trait Runner: Send + Sync {
     fn delete_network(&self, id: &str) -> Result<(), String>;
     fn start(&self, id: &str, vcpu: u32, ram_mb: u64) -> Result<(), String>;
     fn stop(&self, id: &str) -> Result<(), String>;
+    /// Stops the guest where it is, memory and all, through Firecracker's own API.
+    fn pause(&self, id: &str) -> Result<(), String>;
+    /// Carries on from where a paused sandbox stopped.
+    fn resume(&self, id: &str) -> Result<(), String>;
+    /// Pauses it and writes its memory and state into its own jail. It stays paused: the caller resumes or stops it. The template build is the caller and
+    /// comes in a later slice, so the request is on the wire and has a test, and nothing above the runner asks for it yet.
+    #[allow(dead_code)]
+    fn snapshot(&self, id: &str) -> Result<(), String>;
 }
 
 /// What the runner is told when it is installed on the machine: where its socket and files go, which interface a sandbox may use, and the pinned kernel
@@ -61,12 +76,13 @@ impl Default for Settings {
     }
 }
 
-/// The runner: the sockets, the slots its sandboxes hold, and the machine behind [`Host`].
+/// The runner: the sockets, the slots its sandboxes hold, the machine behind [`Host`], and each sandbox's Firecracker behind [`Api`].
 pub struct Server {
     settings: Settings,
     layout: Layout,
     slots: Slots,
     host: Arc<dyn Host>,
+    api: Arc<dyn Api>,
 }
 
 impl Server {
@@ -76,10 +92,15 @@ impl Server {
     }
 
     pub fn with_host(settings: Settings, host: Arc<dyn Host>) -> Result<Server, String> {
+        Self::with_host_and_api(settings, host, Arc::new(RealApi))
+    }
+
+    /// A runner whose machine and whose sandbox APIs are both whatever the caller gave it: how the tests record instead of run.
+    pub fn with_host_and_api(settings: Settings, host: Arc<dyn Host>, api: Arc<dyn Api>) -> Result<Server, String> {
         let layout = Layout::new(settings.run_dir.clone());
         layout.create_root()?;
         let slots = Slots::seeded(layout.held());
-        Ok(Server { settings, layout, slots, host })
+        Ok(Server { settings, layout, slots, host, api })
     }
 
     /// Listens until the process is stopped. One connection at a time, one request per line: the steps are short, and a runner that does one thing at a
@@ -136,6 +157,9 @@ impl Server {
             Request::DeleteNetwork { id } => self.delete_network(&id),
             Request::Start { id, vcpu, ram_mb } => self.start(&id, vcpu, ram_mb),
             Request::Stop { id } => self.stop(&id),
+            Request::Pause { id } => self.pause(&id),
+            Request::Resume { id } => self.resume(&id),
+            Request::Snapshot { id } => self.snapshot(&id),
         };
         match handled {
             Ok(reply) => reply,
@@ -186,17 +210,65 @@ impl Server {
         Ok(Reply::Done { slot: Some(slot), steps: 1 })
     }
 
-    /// Firecracker through the jailer, from the network the sandbox already has. A sandbox with no network is refused rather than started unreachable.
+    /// Firecracker through the jailer, from the network the sandbox already has, on its own disk. A sandbox with no network is refused rather than started
+    /// unreachable.
     fn start(&self, id: &str, vcpu: u32, ram_mb: u64) -> Result<Reply, String> {
-        let files = self.layout.files(id)?;
-        let (slot, _) = self.slots.get(id).ok_or("this sandbox has no network yet: create it first")?;
+        let (files, slot) = self.live(id)?;
         let net = Network::of(slot);
         let (_, uid, gid) = owner(slot);
         let config = config_json(vcpu, ram_mb, Path::new(KERNEL_IN_CHROOT), Path::new(ROOTFS_IN_CHROOT), net.tap(), Path::new(VSOCK_IN_CHROOT), guest_cid(slot))?;
-        self.layout.prepare(&files, &self.settings.kernel, &self.settings.rootfs, &config)?;
+        self.layout.prepare(&files, &self.settings.kernel, &config)?;
+        self.give_disk(&files)?;
         let step = start_step(id, uid, gid, &files.chroot_base, &net.namespace(), Path::new(CONFIG_IN_CHROOT))?;
         self.host.spawn(&files, &step)?;
+        Ok(Reply::Done { slot: Some(slot), steps: 2 })
+    }
+
+    /// The disk the sandbox owns: a reflink of the template's where the filesystem can make one, a full copy where it cannot. A copy that fails is taken
+    /// away, so nothing ever boots from half a disk, and the template itself is only read.
+    fn give_disk(&self, files: &Files) -> Result<(), String> {
+        let step = copy_disk_step(&self.settings.rootfs, &files.disk)?;
+        match self.host.run(&step) {
+            Ok(()) => Ok(()),
+            Err(cause) => {
+                self.layout.remove_disk(files);
+                Err(format!("{}: {cause}", step.describe()))
+            }
+        }
+    }
+
+    /// Pauses it through its own Firecracker API. A paused sandbox is still a process and still holds its network, so a stop or a delete needs nothing
+    /// more than it does for a running one: both kill the pid and take the namespace away.
+    fn pause(&self, id: &str) -> Result<Reply, String> {
+        let (files, slot) = self.live(id)?;
+        self.api.call(&files.api_socket, &hypervisor::pause())?;
         Ok(Reply::Done { slot: Some(slot), steps: 1 })
+    }
+
+    fn resume(&self, id: &str) -> Result<Reply, String> {
+        let (files, slot) = self.live(id)?;
+        self.api.call(&files.api_socket, &hypervisor::resume())?;
+        Ok(Reply::Done { slot: Some(slot), steps: 1 })
+    }
+
+    /// Its memory and device state, into the two files inside its own jail. Firecracker writes only a paused guest's snapshot, so the pause is part of
+    /// the operation and it stays paused: the caller resumes the sandbox, or stops it. No path comes from a caller, and a delete takes the snapshot away
+    /// with the rest of the jail. Loading one back (`snapshot-load`) is not here: it needs a fresh Firecracker process, its own API socket and the same
+    /// UFFD page handling a cloned memory file needs, and none of that can be proven on a machine without KVM.
+    fn snapshot(&self, id: &str) -> Result<Reply, String> {
+        let (files, slot) = self.live(id)?;
+        self.api.call(&files.api_socket, &hypervisor::pause())?;
+        let call: Call = hypervisor::create_snapshot(Path::new(hypervisor::SNAPSHOT_STATE_IN_CHROOT), Path::new(hypervisor::SNAPSHOT_MEMORY_IN_CHROOT))?;
+        self.api.call(&files.api_socket, &call)?;
+        Ok(Reply::Done { slot: Some(slot), steps: 2 })
+    }
+
+    /// One sandbox this runner is running, by id: its files and its slot. A sandbox with no network has no Firecracker either, so it is refused instead
+    /// of being asked of a socket that is not there.
+    fn live(&self, id: &str) -> Result<(Files, u8), String> {
+        let files = self.layout.files(id)?;
+        let (slot, _) = self.slots.get(id).ok_or("this sandbox has no network yet: create it first")?;
+        Ok((files, slot))
     }
 
     fn stop(&self, id: &str) -> Result<Reply, String> {

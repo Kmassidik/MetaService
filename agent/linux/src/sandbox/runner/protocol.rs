@@ -4,8 +4,8 @@
 //! outside its bounds or an id that is not the contract's 20 lowercase letters and digits is refused whole — nothing is salvaged from a line that does
 //! not match. A line longer than [`MAX_LINE`] is refused and the connection is closed, so a caller cannot stream its way past the cap.
 //!
-//! There are five operations and no more. There is no shell and no free-form argv: the caller names an operation and its numbers, and every program, flag
-//! and path is a constant of the runner's build.
+//! There are eight operations and no more. There is no shell and no free-form argv: the caller names an operation and its numbers, and every program,
+//! flag and path is a constant of the runner's build.
 use crate::sandbox::record::{is_sandbox_id, MAX_RAM_MB, MAX_VCPU, MIN_RAM_MB, MIN_VCPU};
 use crate::validate::Object;
 use serde_json::{json, Value};
@@ -16,8 +16,13 @@ pub const PROTOCOL: u64 = 1;
 /// The longest request or answer line, in bytes.
 pub const MAX_LINE: usize = 4096;
 
-/// Every request there is: five operations, no more.
-const OPERATIONS: [&str; 5] = ["health", "create-network", "delete-network", "start", "stop"];
+/// Every request there is: eight operations, no more.
+const OPERATIONS: [&str; 8] = ["health", "create-network", "delete-network", "start", "stop", "pause", "resume", "snapshot"];
+/// The fields each operation carries, whole: a field that belongs to another request is an unknown field here.
+const NO_FIELDS: &[&str] = &["op"];
+const ID_FIELD: &[&str] = &["op", "id"];
+const NETWORK_FIELDS: &[&str] = &["op", "id", "internet"];
+const START_FIELDS: &[&str] = &["op", "id", "vcpu", "ram_mb"];
 
 /// One request: the whole list.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,31 +37,42 @@ pub enum Request {
     Start { id: String, vcpu: u32, ram_mb: u64 },
     /// `{"op":"stop","id":"…"}`: the process only; the network stays until `delete-network`.
     Stop { id: String },
+    /// `{"op":"pause","id":"…"}`: Firecracker paused through its own API, memory and all.
+    Pause { id: String },
+    /// `{"op":"resume","id":"…"}`: the same sandbox, carrying on from where it stopped.
+    Resume { id: String },
+    /// `{"op":"snapshot","id":"…"}`: paused, then its memory and state written into its own jail. No path is taken from a caller.
+    Snapshot { id: String },
 }
 
 impl Request {
     pub fn parse(line: &str) -> Result<Request, String> {
         let value: Value = serde_json::from_str(line).map_err(|_| "a request is one JSON object on one line".to_string())?;
         let op = value.get("op").and_then(Value::as_str).ok_or("every request names its op")?;
-        if !OPERATIONS.contains(&op) {
-            return Err(format!("{op:?} is not one of {OPERATIONS:?}"));
-        }
-        // Read again with exactly this operation's fields: a field that belongs to another request is an unknown field here.
-        let allowed: &[&str] = match op {
-            "health" => &["op"],
-            "create-network" => &["op", "id", "internet"],
-            "delete-network" | "stop" => &["op", "id"],
-            _ => &["op", "id", "vcpu", "ram_mb"],
-        };
-        let object = Object::parse(line.as_bytes(), allowed)?;
-        let id = || sandbox_id(&object);
+        // Read with exactly this operation's fields, so nothing from another request is quietly accepted.
+        let object = Object::parse(line.as_bytes(), fields_of(op)?)?;
         match op {
             "health" => Ok(Request::Health),
-            "create-network" => Ok(Request::CreateNetwork { id: id()?, internet: object.boolean("internet")? }),
-            "delete-network" => Ok(Request::DeleteNetwork { id: id()? }),
-            "start" => Ok(Request::Start { id: id()?, vcpu: object.int("vcpu", MIN_VCPU, MAX_VCPU)? as u32, ram_mb: object.int("ram_mb", MIN_RAM_MB, MAX_RAM_MB)? }),
-            _ => Ok(Request::Stop { id: id()? }),
+            "create-network" => Ok(Request::CreateNetwork { id: sandbox_id(&object)?, internet: object.boolean("internet")? }),
+            "delete-network" => Ok(Request::DeleteNetwork { id: sandbox_id(&object)? }),
+            "start" => Ok(Request::Start { id: sandbox_id(&object)?, vcpu: object.int("vcpu", MIN_VCPU, MAX_VCPU)? as u32, ram_mb: object.int("ram_mb", MIN_RAM_MB, MAX_RAM_MB)? }),
+            "stop" => Ok(Request::Stop { id: sandbox_id(&object)? }),
+            "pause" => Ok(Request::Pause { id: sandbox_id(&object)? }),
+            "resume" => Ok(Request::Resume { id: sandbox_id(&object)? }),
+            "snapshot" => Ok(Request::Snapshot { id: sandbox_id(&object)? }),
+            other => Err(format!("{other:?} is not one of {OPERATIONS:?}")),
         }
+    }
+}
+
+/// The fields one operation carries, or a refusal naming the whole list.
+fn fields_of(op: &str) -> Result<&'static [&'static str], String> {
+    match op {
+        "health" => Ok(NO_FIELDS),
+        "create-network" => Ok(NETWORK_FIELDS),
+        "start" => Ok(START_FIELDS),
+        "delete-network" | "stop" | "pause" | "resume" | "snapshot" => Ok(ID_FIELD),
+        other => Err(format!("{other:?} is not one of {OPERATIONS:?}")),
     }
 }
 
@@ -143,13 +159,18 @@ mod tests {
         assert_eq!(Request::parse(&format!(r#"{{"op":"start","id":"{ID}","vcpu":2,"ram_mb":512}}"#)), Ok(Request::Start { id: ID.into(), vcpu: 2, ram_mb: 512 }));
         assert_eq!(Request::parse(&format!(r#"{{"op":"stop","id":"{ID}"}}"#)), Ok(Request::Stop { id: ID.into() }));
         assert_eq!(Request::parse(&format!(r#"{{"op":"create-network","id":"{ID}","internet":false}}"#)), Ok(Request::CreateNetwork { id: ID.into(), internet: false }));
+        assert_eq!(Request::parse(&format!(r#"{{"op":"pause","id":"{ID}"}}"#)), Ok(Request::Pause { id: ID.into() }));
+        assert_eq!(Request::parse(&format!(r#"{{"op":"resume","id":"{ID}"}}"#)), Ok(Request::Resume { id: ID.into() }));
+        assert_eq!(Request::parse(&format!(r#"{{"op":"snapshot","id":"{ID}"}}"#)), Ok(Request::Snapshot { id: ID.into() }));
     }
 
     #[test]
     fn a_hostile_id_is_refused_like_every_other_bad_field() {
         for id in ["a b", "../x", "--help", "", "ABCDEFGHIJ0123456789", "abc"] {
-            let line = format!(r#"{{"op":"stop","id":"{id}"}}"#);
-            assert!(Request::parse(&line).is_err(), "{id:?}");
+            for op in ["stop", "pause", "resume", "snapshot"] {
+                let line = format!(r#"{{"op":"{op}","id":"{id}"}}"#);
+                assert!(Request::parse(&line).is_err(), "{line:?}");
+            }
         }
     }
 
@@ -159,6 +180,8 @@ mod tests {
             "", "not json", "[]", r#"{"op":"shell","command":"reboot"}"#, r#"{"op":"health","x":1}"#, r#"{"op":"stop"}"#,
             r#"{"op":"stop","id":"abcdefghij0123456789","command":"reboot"}"#, r#"{"op":"create-network","id":"abcdefghij0123456789"}"#,
             r#"{"op":"create-network","id":"abcdefghij0123456789","internet":"yes"}"#, r#"{"id":"abcdefghij0123456789"}"#,
+            r#"{"op":"snapshot","id":"abcdefghij0123456789","path":"/tmp/x"}"#, r#"{"op":"pause"}"#, r#"{"op":"resume","id":"abcdefghij0123456789","state":"Paused"}"#,
+            r#"{"op":"snapshot","id":"abcdefghij0123456789","vcpu":2}"#,
         ] {
             assert!(Request::parse(line).is_err(), "{line:?}");
         }

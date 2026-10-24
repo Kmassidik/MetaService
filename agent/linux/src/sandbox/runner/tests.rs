@@ -1,8 +1,10 @@
 //! The runner's request list, its wire format and its cleanup, without root, without iptables and without Firecracker: the machine behind it is a host
 //! that records what it was asked. The one thing exercised for real is the socket, because the wire format is the contract between the helper and root.
+use super::api::Api;
 use super::host::Host;
 use super::layout::{Files, Layout};
 use super::protocol::{Reply, Request, PROTOCOL};
+use super::tests_api::FakeApi;
 use super::{Runner, RunnerClient, Server, Settings};
 use crate::sandbox::firecracker::{Step, SLOTS};
 use std::io::{BufRead, BufReader, Write};
@@ -10,12 +12,12 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-const ID: &str = "abcdefghij0123456789";
+pub(super) const ID: &str = "abcdefghij0123456789";
 const OTHER: &str = "zyxwvutsrq9876543210";
 
 /// The machine, recording instead of doing. `failing` names one program that fails, so a half-done create can be looked at.
 #[derive(Default)]
-struct FakeHost {
+pub(super) struct FakeHost {
     ran: Mutex<Vec<String>>,
     spawned: Mutex<Vec<String>>,
     stopped: Mutex<Vec<String>>,
@@ -23,12 +25,17 @@ struct FakeHost {
 }
 
 impl FakeHost {
-    fn failing(program: &'static str) -> Arc<FakeHost> {
+    pub(super) fn failing(program: &'static str) -> Arc<FakeHost> {
         Arc::new(FakeHost { failing: Some(program), ..FakeHost::default() })
     }
 
     fn ran(&self) -> Vec<String> {
         self.ran.lock().unwrap().clone()
+    }
+
+    /// Whether a stop reached it, for the tests that care about the process and not the files.
+    pub(super) fn stopped_now(&self) -> bool {
+        !self.stopped.lock().unwrap().is_empty()
     }
 }
 
@@ -53,12 +60,12 @@ impl Host for FakeHost {
 }
 
 /// A scratch directory with the pinned kernel and base disk in it, and a run directory beside them.
-struct Scratch {
+pub(super) struct Scratch {
     root: PathBuf,
 }
 
 impl Scratch {
-    fn new(name: &str) -> Scratch {
+    pub(super) fn new(name: &str) -> Scratch {
         let root = std::env::temp_dir().join(format!("ms-runner-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
@@ -71,8 +78,17 @@ impl Scratch {
         Settings { socket: self.root.join("runner.sock"), run_dir: self.root.join("run"), uplink: "eth0".into(), kernel: self.root.join("vmlinux"), rootfs: self.root.join("rootfs.ext4") }
     }
 
-    fn server(&self, host: Arc<FakeHost>) -> Server {
+    pub(super) fn server(&self, host: Arc<FakeHost>) -> Server {
         Server::with_host(self.settings(), host).unwrap()
+    }
+
+    pub(super) fn server_with_api(&self, host: Arc<FakeHost>, api: Arc<dyn Api>) -> Server {
+        Server::with_host_and_api(self.settings(), host, api).unwrap()
+    }
+
+    /// The run directory, which is where a sandbox's own files are.
+    pub(super) fn run_dir(&self) -> PathBuf {
+        self.root.join("run")
     }
 }
 
@@ -82,11 +98,11 @@ impl Drop for Scratch {
     }
 }
 
-fn create(id: &str) -> Request {
+pub(super) fn create(id: &str) -> Request {
     Request::CreateNetwork { id: id.into(), internet: true }
 }
 
-fn start(id: &str) -> Request {
+pub(super) fn start(id: &str) -> Request {
     Request::Start { id: id.into(), vcpu: 2, ram_mb: 512 }
 }
 
@@ -127,14 +143,17 @@ fn firecracker_starts_only_from_a_network_that_is_there() {
     assert_eq!(spawned.len(), 1);
     assert!(spawned[0].starts_with(&format!("/usr/local/bin/jailer --id {ID} --exec-file /usr/local/bin/firecracker --uid 30000 --gid 30000")), "{}", spawned[0]);
     assert!(spawned[0].contains("--netns ms0"), "{}", spawned[0]);
-    assert!(spawned[0].contains("--chroot-dir ") && spawned[0].contains("-- --no-api --config-file /config.json"), "{}", spawned[0]);
+    assert!(spawned[0].contains("--chroot-dir ") && spawned[0].contains("-- --api-sock /firecracker.sock --config-file /config.json"), "{}", spawned[0]);
+    assert!(!spawned[0].contains("--no-api"), "a boot with no API cannot be paused or snapshotted: {}", spawned[0]);
     assert!(!spawned[0].contains("--daemonize"), "the runner keeps the pid it started, so a stop can find it");
     let jail = scratch.root.join(format!("run/jail/{ID}/root"));
     let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(jail.join("config.json")).unwrap()).unwrap();
     assert_eq!(config["machine-config"], serde_json::json!({"vcpu_count": 2, "mem_size_mib": 512, "smt": false}));
     assert_eq!(config["network-interfaces"][0]["host_dev_name"], "tap0");
     assert_eq!(config["vsock"]["guest_cid"], 3, "the first sandbox gets the first vsock id");
-    assert!(jail.join("rootfs.ext4").is_file() && jail.join("vmlinux").is_file(), "the jail holds what the config names");
+    assert!(jail.join("vmlinux").is_file(), "the jail holds the kernel the config names");
+    let files = Layout::new(scratch.root.join("run")).files(ID).ok().unwrap();
+    assert_eq!(files.disk, jail.join("rootfs.ext4"), "and the disk the config names is the sandbox's own copy, made by the copy step");
 }
 
 #[test]
@@ -179,6 +198,38 @@ fn a_stop_only_stops_the_process_and_the_network_stays_until_its_delete() {
 }
 
 #[test]
+fn a_start_gives_the_sandbox_its_own_disk_before_firecracker_runs() {
+    let scratch = Scratch::new("disk");
+    let host = Arc::new(FakeHost::default());
+    let server = scratch.server(host.clone());
+    server.answer(create(ID));
+    assert!(server.answer(start(ID)).is_done());
+    let files = Layout::new(scratch.root.join("run")).files(ID).ok().unwrap();
+    let ran = host.ran();
+    let last = ran.last().unwrap();
+    assert_eq!(
+        last,
+        &format!("/bin/cp --reflink=auto -- {} {}", scratch.root.join("rootfs.ext4").display(), files.disk.display()),
+        "one copy, into the sandbox's own jail, before the jailer runs"
+    );
+    assert_eq!(files.disk, scratch.root.join(format!("run/jail/{ID}/root/rootfs.ext4")));
+}
+
+#[test]
+fn a_disk_copy_that_fails_starts_nothing_and_leaves_the_template_alone() {
+    let scratch = Scratch::new("nocopy");
+    let host = FakeHost::failing("/bin/cp");
+    let server = scratch.server(host.clone());
+    server.answer(create(ID));
+    assert!(server.answer(start(ID)).is_failed(), "a sandbox with no disk of its own is not started on the template's");
+    let files = Layout::new(scratch.root.join("run")).files(ID).ok().unwrap();
+    assert!(!files.disk.exists(), "the half copy is taken away");
+    assert_eq!(std::fs::read_to_string(scratch.root.join("rootfs.ext4")).unwrap(), "disk", "the template is only ever read");
+    assert!(host.spawned.lock().unwrap().is_empty(), "nothing was started");
+}
+
+
+#[test]
 fn every_slot_this_machine_has_can_be_held_and_the_next_one_is_refused() {
     let scratch = Scratch::new("slots");
     let host = Arc::new(FakeHost::default());
@@ -193,7 +244,7 @@ fn every_slot_this_machine_has_can_be_held_and_the_next_one_is_refused() {
 #[test]
 fn the_client_and_the_runner_agree_over_a_real_socket() {
     let scratch = Scratch::new("socket");
-    let server = Arc::new(scratch.server(Arc::new(FakeHost::default())));
+    let server = Arc::new(scratch.server_with_api(Arc::new(FakeHost::default()), Arc::new(FakeApi::default())));
     let listener = UnixListener::bind(scratch.root.join("runner.sock")).unwrap();
     let serving = server.clone();
     std::thread::spawn(move || {
@@ -205,6 +256,9 @@ fn the_client_and_the_runner_agree_over_a_real_socket() {
     assert_eq!(client.version(), Ok(crate::config::VERSION.into()));
     assert_eq!(client.create_network(ID, true), Ok(()));
     assert_eq!(client.start(ID, 2, 512), Ok(()));
+    assert_eq!(client.pause(ID), Ok(()));
+    assert_eq!(client.resume(ID), Ok(()));
+    assert_eq!(client.snapshot(ID), Ok(()));
     assert_eq!(client.stop(ID), Ok(()));
     assert_eq!(client.delete_network(ID), Ok(()));
     assert_eq!(client.version(), Ok(crate::config::VERSION.into()), "the connection serves one request after another");
@@ -281,7 +335,7 @@ fn an_id_that_is_not_one_is_refused_by_every_request_that_names_a_sandbox() {
 }
 
 /// The two ways an answer can look, so a test says which it expects without matching the whole reply.
-trait AnswerKind {
+pub(super) trait AnswerKind {
     fn is_done(&self) -> bool;
     fn is_failed(&self) -> bool;
 }

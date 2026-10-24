@@ -63,6 +63,18 @@ impl Runner for RunnerClient {
     fn stop(&self, id: &str) -> Result<(), String> {
         self.ask(&Request::Stop { id: id.to_string() }).map(|_| ())
     }
+
+    fn pause(&self, id: &str) -> Result<(), String> {
+        self.ask(&Request::Pause { id: id.to_string() }).map(|_| ())
+    }
+
+    fn resume(&self, id: &str) -> Result<(), String> {
+        self.ask(&Request::Resume { id: id.to_string() }).map(|_| ())
+    }
+
+    fn snapshot(&self, id: &str) -> Result<(), String> {
+        self.ask(&Request::Snapshot { id: id.to_string() }).map(|_| ())
+    }
 }
 
 /// One request as the one line it travels as. It is written by `serde_json`, so no field is ever pasted into a string.
@@ -73,6 +85,9 @@ fn request_line(request: &Request) -> String {
         Request::DeleteNetwork { id } => serde_json::json!({ "op": "delete-network", "id": id }),
         Request::Start { id, vcpu, ram_mb } => serde_json::json!({ "op": "start", "id": id, "vcpu": vcpu, "ram_mb": ram_mb }),
         Request::Stop { id } => serde_json::json!({ "op": "stop", "id": id }),
+        Request::Pause { id } => serde_json::json!({ "op": "pause", "id": id }),
+        Request::Resume { id } => serde_json::json!({ "op": "resume", "id": id }),
+        Request::Snapshot { id } => serde_json::json!({ "op": "snapshot", "id": id }),
     };
     value.to_string()
 }
@@ -148,5 +163,17 @@ impl Runner for FakeRunner {
 
     fn stop(&self, id: &str) -> Result<(), String> {
         self.record(format!("stop {id}"))
+    }
+
+    fn pause(&self, id: &str) -> Result<(), String> {
+        self.record(format!("pause {id}"))
+    }
+
+    fn resume(&self, id: &str) -> Result<(), String> {
+        self.record(format!("resume {id}"))
+    }
+
+    fn snapshot(&self, id: &str) -> Result<(), String> {
+        self.record(format!("snapshot {id}"))
     }
 }

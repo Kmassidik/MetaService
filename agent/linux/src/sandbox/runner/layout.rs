@@ -9,8 +9,9 @@
 //! <run>/<id>.slot          the slot this sandbox holds while it lives
 //! <run>/<id>.pid           the Firecracker it started, so a runner that restarted can still stop it
 //! <run>/<id>.console       its serial console, so a boot that fails says why
-//! <run>/jail/<id>/root/    what the jailer chroots to: the kernel, the disk, the config
+//! <run>/jail/<id>/root/    what the jailer chroots to: the kernel, the disk, the config, the API socket, a snapshot
 //! ```
+use crate::sandbox::firecracker::api;
 use crate::sandbox::firecracker::{KERNEL_IN_CHROOT, ROOTFS_IN_CHROOT};
 use crate::sandbox::record::is_sandbox_id;
 use std::os::unix::fs::DirBuilderExt;
@@ -38,6 +39,13 @@ pub struct Files {
     pub chroot_base: PathBuf,
     /// What the jailer chroots to, and what is filled with the kernel, the disk and the config.
     pub jail_root: PathBuf,
+    /// The sandbox's own copy of the template's disk, written by [`crate::sandbox::firecracker::copy_disk_step`].
+    pub disk: PathBuf,
+    /// Firecracker's API socket, as the runner reaches it from outside the jail.
+    pub api_socket: PathBuf,
+    /// Where a snapshot of this sandbox goes: its device and CPU state, and its memory. Both stay under its own jail, so a delete takes them with it.
+    pub snapshot_state: PathBuf,
+    pub snapshot_memory: PathBuf,
 }
 
 impl Layout {
@@ -51,11 +59,16 @@ impl Layout {
             return Err("a sandbox id is 20 lowercase letters and digits".into());
         }
         let chroot_base = self.root.join("jail");
+        let jail_root = chroot_base.join(id).join("root");
         Ok(Files {
             slot: self.root.join(format!("{id}.slot")),
             pid: self.root.join(format!("{id}.pid")),
             console: self.root.join(format!("{id}.console")),
-            jail_root: chroot_base.join(id).join("root"),
+            disk: in_jail(&jail_root, ROOTFS_IN_CHROOT),
+            api_socket: in_jail(&jail_root, api::SOCKET_IN_CHROOT),
+            snapshot_state: in_jail(&jail_root, api::SNAPSHOT_STATE_IN_CHROOT),
+            snapshot_memory: in_jail(&jail_root, api::SNAPSHOT_MEMORY_IN_CHROOT),
+            jail_root,
             chroot_base,
         })
     }
@@ -67,13 +80,19 @@ impl Layout {
         Ok(())
     }
 
-    /// Fills the jail with what Firecracker needs: the kernel (a hard link, it is only read), a copy of the template's disk (Firecracker writes to
-    /// it), and the config. A copy-on-write copy of the disk arrives with the snapshot work; a shared inode would corrupt the template.
-    pub fn prepare(&self, files: &Files, kernel: &Path, rootfs: &Path, config: &str) -> Result<(), String> {
+    /// Fills the jail with what Firecracker needs from this build: the directory, the kernel (a hard link, it is only read) and the config. The disk is
+    /// not copied here: that is a program ([`crate::sandbox::firecracker::copy_disk_step`]) and the runner runs it through its host, so a failed copy can
+    /// be taken away before anything boots from it.
+    pub fn prepare(&self, files: &Files, kernel: &Path, config: &str) -> Result<(), String> {
         std::fs::DirBuilder::new().recursive(true).mode(PRIVATE_MODE).create(&files.jail_root).map_err(|e| format!("cannot make the jail: {e}"))?;
         copy_shared(kernel, &files.jail_root.join(KERNEL_IN_CHROOT.trim_start_matches('/')))?;
-        std::fs::copy(rootfs, files.jail_root.join(ROOTFS_IN_CHROOT.trim_start_matches('/'))).map_err(|e| format!("cannot copy {}: {e}", rootfs.display()))?;
         std::fs::write(files.jail_root.join(CONFIG.trim_start_matches('/')), config).map_err(|e| format!("cannot write the Firecracker config: {e}"))
+    }
+
+    /// Takes away a disk copy that did not finish, and says nothing when there is none: the template's own file is never touched, so the next start copies
+    /// it again from the same place.
+    pub fn remove_disk(&self, files: &Files) {
+        remove_any(&files.disk);
     }
 
     /// The slot this sandbox holds, and whether it may reach the internet: both are what a delete has to name exactly, so both are written down before
@@ -108,7 +127,8 @@ impl Layout {
         Some((id.to_string(), slot, internet))
     }
 
-    /// Everything this sandbox had under the run directory: its jail, its pid file and its slot file. Anything already gone is not an error.
+    /// Everything this sandbox had under the run directory: its jail (with its disk, its API socket and any snapshot), its console, its pid file and its
+    /// slot file. Anything already gone is not an error.
     pub fn remove(&self, files: &Files) {
         if let Some(jail) = files.jail_root.parent() {
             remove_any(jail);
@@ -117,6 +137,11 @@ impl Layout {
         remove_any(&files.slot);
         remove_any(&files.console);
     }
+}
+
+/// A path inside one sandbox's jail, from the path Firecracker sees after the chroot.
+fn in_jail(jail_root: &Path, path_in_chroot: &str) -> PathBuf {
+    jail_root.join(path_in_chroot.trim_start_matches('/'))
 }
 
 /// A hard link, or a copy when the two paths are on different filesystems. The kernel is only read, so either is right.
@@ -160,15 +185,15 @@ mod tests {
     #[test]
     fn a_sandbox_prepared_in_a_run_directory_holds_exactly_its_own_files() {
         let root = scratch("prepare");
-        let (kernel, rootfs) = template(&root);
+        let (kernel, _) = template(&root);
         let layout = Layout::new(root.join("run"));
         layout.create_root().unwrap();
         let files = layout.files(ID).ok().unwrap();
-        layout.prepare(&files, &kernel, &rootfs, r#"{"machine-config":{}}"#).unwrap();
+        layout.prepare(&files, &kernel, r#"{"machine-config":{}}"#).unwrap();
         assert_eq!(std::fs::read_to_string(files.jail_root.join("vmlinux")).unwrap(), "kernel");
-        assert_eq!(std::fs::read_to_string(files.jail_root.join("rootfs.ext4")).unwrap(), "disk");
         assert_eq!(std::fs::read_to_string(files.jail_root.join("config.json")).unwrap(), r#"{"machine-config":{}}"#);
         assert_eq!(files.jail_root, root.join(format!("run/jail/{ID}/root")));
+        assert!(!files.disk.exists(), "the disk is a step of its own, run by the runner");
         layout.save_slot(&files, 7, true).unwrap();
         assert_eq!(layout.read_slot(&files), Some((7, true)));
         layout.save_slot(&files, 7, false).unwrap();
@@ -182,14 +207,47 @@ mod tests {
     }
 
     #[test]
-    fn the_disk_is_a_copy_so_a_sandbox_never_writes_into_the_template() {
-        let root = scratch("copy");
-        let (kernel, rootfs) = template(&root);
+    fn every_file_firecracker_uses_is_inside_this_sandboxs_own_jail() {
+        let root = scratch("paths");
+        let (_, rootfs) = template(&root);
         let layout = Layout::new(root.join("run"));
         let files = layout.files(ID).ok().unwrap();
-        layout.prepare(&files, &kernel, &rootfs, "{}").unwrap();
-        std::fs::write(files.jail_root.join("rootfs.ext4"), "changed").unwrap();
-        assert_eq!(std::fs::read_to_string(&rootfs).unwrap(), "disk", "the template's disk is untouched");
+        for path in [&files.disk, &files.api_socket, &files.snapshot_state, &files.snapshot_memory] {
+            assert_eq!(path.parent(), Some(files.jail_root.as_path()), "{} is not in the sandbox's jail", path.display());
+        }
+        assert_ne!(files.disk, rootfs, "the sandbox never gets the template's own file");
+        assert_eq!(files.api_socket, files.jail_root.join("firecracker.sock"), "Firecracker's socket, from outside the jail");
+        assert_eq!(files.snapshot_state, files.jail_root.join("snapshot.state"));
+        assert_eq!(files.snapshot_memory, files.jail_root.join("snapshot.mem"));
+        assert_eq!(in_jail(&files.jail_root, "/vmlinux"), files.jail_root.join("vmlinux"), "a chroot path is the same path under the jail");
+    }
+
+    #[test]
+    fn a_delete_takes_a_disk_and_a_snapshot_with_the_jail() {
+        let root = scratch("snapshot");
+        let (kernel, _) = template(&root);
+        let layout = Layout::new(root.join("run"));
+        let files = layout.files(ID).ok().unwrap();
+        layout.prepare(&files, &kernel, "{}").unwrap();
+        for path in [&files.disk, &files.snapshot_state, &files.snapshot_memory] {
+            std::fs::write(path, "x").unwrap();
+        }
+        layout.remove(&files);
+        assert!(!files.disk.exists() && !files.snapshot_state.exists() && !files.snapshot_memory.exists(), "a delete leaves no disk and no snapshot on the machine");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_disk_copy_that_failed_is_removed_and_the_template_is_still_there() {
+        let root = scratch("halfcopy");
+        let (_, rootfs) = template(&root);
+        let layout = Layout::new(root.join("run"));
+        let files = layout.files(ID).ok().unwrap();
+        layout.prepare(&files, &template(&root).0, "{}").unwrap();
+        std::fs::write(&files.disk, "half a disk").unwrap();
+        layout.remove_disk(&files);
+        assert!(!files.disk.exists(), "the half copy goes");
+        assert_eq!(std::fs::read_to_string(&rootfs).unwrap(), "disk", "the template is only ever read");
         let _ = std::fs::remove_dir_all(&root);
     }
 
