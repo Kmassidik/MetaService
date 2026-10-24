@@ -4,11 +4,14 @@ import itertools
 import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from agent.fake.apps import MODES as APP_INSTALL_MODES
 from agent.fake.apps import AppInstallFailed
 from agent.fake.engine import HOST_CPU_MODEL, NotFound, Refused, SshdInstallFailed
+from agent.fake.sandboxes import DEFAULT_LIMIT as DEFAULT_EVENT_LIMIT
+from agent.fake.sandboxes import MAX_LIMIT as MAX_EVENT_LIMIT
+from agent.fake.sandboxes import NO_PORT_PROXY, SandboxNotFound, SandboxRefused, SandboxTooOld
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
@@ -18,6 +21,8 @@ MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
 MAX_INSTALL_DELAY_SECONDS = 10
 ID_PATTERN = r"[a-z0-9][a-z0-9-]{0,62}"
+# A sandbox id is exactly 20 lowercase letters or digits (contract/openapi.yaml).
+SANDBOX_ID_PATTERN = r"[a-z0-9]{20}"
 JSON_TYPE = "application/json"
 SECRET_BODY_MESSAGE = "the body must be {\"keys\": [up to 20 key lines]}"
 # The kind each CPU setting of a create belongs to, and the cap's unit: 100 is one whole CPU.
@@ -77,6 +82,12 @@ class AgentHandler(BaseHTTPRequestHandler):
             self._send(502, {"error": {"code": "app_install_failed", "message": failed.message, "log_tail": failed.log_tail}})
         except Refused as refused:
             self._send(409, {"error": refusal_error(refused)})
+        except SandboxRefused as refused:
+            self._send(409, {"error": refused.error()})
+        except SandboxNotFound:
+            self._send(404, {"error": {"code": "not_found", "message": "no such sandbox"}})
+        except SandboxTooOld:
+            self._send(410, {"error": {"code": "too_old", "message": "those events are no longer kept; ask again from 0"}})
         except NotFound:
             self._send(404, {"error": {"code": "not_found", "message": "no such thing"}})
         except Exception:  # noqa: BLE001 - last resort: a clean 500 that reveals nothing
@@ -329,6 +340,70 @@ class AgentHandler(BaseHTTPRequestHandler):
     def get_command(self, id):
         self._send(200, self.engine.command(id))
 
+    # ---- sandboxes -------------------------------------------------
+    def list_sandboxes(self):
+        self._send(200, {"sandboxes": self.engine.sandboxes.list()})
+
+    def create_sandbox(self):
+        status, sandbox = self.engine.sandboxes.create(self._body("SandboxCreate"))
+        self._send(status, sandbox)
+
+    def get_sandbox(self, id):
+        self._send(200, self.engine.sandboxes.get(id))
+
+    def delete_sandbox(self, id):
+        self.engine.sandboxes.delete(id)
+        self._send(204)
+
+    def set_sandbox_end(self, id):
+        """PUT, and POST which answers the same thing."""
+        self._send(200, self.engine.sandboxes.set_end(id, self._body("SandboxEnd")))
+
+    def sandbox_metrics(self, id):
+        self._send(200, {"samples": self.engine.sandboxes.metrics(id)})
+
+    def sandbox_events(self):
+        after, limit = self._events_query()
+        self._send(200, self.engine.sandboxes.events(after, limit))
+
+    def sandbox_templates(self):
+        self._send(200, {"templates": self.engine.sandboxes.templates()})
+
+    def sandbox_port(self, id, port, path):
+        """The way into a sandbox. Nothing pretended listens inside one, so a sandbox here answers 501; an unknown one is the 502 the SDKs read as not running."""
+        try:
+            self.engine.sandboxes.get(id)
+        except SandboxNotFound:
+            raise ApiError(502, "not_found", "no such sandbox on this machine") from None
+        raise ApiError(501, "no_port_proxy", NO_PORT_PROXY)
+
+    def _events_query(self):
+        """`after` is required and `limit` is not, both as the contract writes them."""
+        sent = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+        unknown = set(sent) - {"after", "limit"}
+        if unknown:
+            raise ApiError(400, "invalid_input", "unknown query " + ", ".join(sorted(unknown)))
+        after = self._whole_number(sent, "after")
+        if after is None:
+            raise ApiError(400, "invalid_input", "after is needed: the number of the last event you saw")
+        limit = self._whole_number(sent, "limit")
+        if limit is None:
+            return after, DEFAULT_EVENT_LIMIT
+        if not 1 <= limit <= MAX_EVENT_LIMIT:
+            raise ApiError(400, "invalid_input", f"limit must be 1 to {MAX_EVENT_LIMIT}")
+        return after, limit
+
+    def _whole_number(self, sent, name):
+        if name not in sent:
+            return None
+        try:
+            number = int(sent[name][0])
+        except ValueError:
+            raise ApiError(400, "invalid_input", f"{name} must be a whole number, 0 or more") from None
+        if number < 0:
+            raise ApiError(400, "invalid_input", f"{name} must be a whole number, 0 or more")
+        return number
+
 
 def _accepted(record):
     return {"command_id": record["command_id"], "state": record["state"]}
@@ -351,6 +426,17 @@ ROUTES = [
     ("POST", r"/v1/bundle/install", AgentHandler.install_bundle),
     ("POST", r"/v1/bundle/uninstall", AgentHandler.uninstall_bundle),
     ("GET", rf"/v1/commands/(?P<id>{ID_PATTERN})", AgentHandler.get_command),
+    ("GET", r"/v1/sandboxes", AgentHandler.list_sandboxes),
+    ("POST", r"/v1/sandboxes", AgentHandler.create_sandbox),
+    ("GET", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})", AgentHandler.get_sandbox),
+    ("DELETE", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})", AgentHandler.delete_sandbox),
+    ("PUT", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/end", AgentHandler.set_sandbox_end),
+    ("POST", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/end", AgentHandler.set_sandbox_end),
+    ("GET", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/metrics", AgentHandler.sandbox_metrics),
+    ("GET", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/ports/(?P<port>[0-9]{{1,5}})/(?P<path>.*)", AgentHandler.sandbox_port),
+    ("POST", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/ports/(?P<port>[0-9]{{1,5}})/(?P<path>.*)", AgentHandler.sandbox_port),
+    ("GET", r"/v1/sandbox-events", AgentHandler.sandbox_events),
+    ("GET", r"/v1/sandbox-templates", AgentHandler.sandbox_templates),
     ("POST", rf"/fake/workloads/(?P<id>{ID_PATTERN})/quit", AgentHandler.quit_by_itself),
     ("POST", r"/fake/create-fails", AgentHandler.create_fails),
     ("POST", r"/fake/gpu-usage", AgentHandler.gpu_usage),

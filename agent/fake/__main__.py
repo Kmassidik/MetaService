@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--cpu-options", action="store_true", help="play a helper with the CPU settings of Proxmox's Processors window (announces cpu_models, cpu_topology, cpu_flags and cpu_limit)")
     parser.add_argument("--os", choices=["linux", "macos"], default="linux", help="the system the facts report")
     parser.add_argument("--no-terminal", action="store_true", help="play an older helper that does not say it serves the console (no `terminal` in the capabilities)")
+    parser.add_argument("--sandbox", action="store_true", help="run sandboxes (the pretend engine) and say so in the facts: capabilities.sandbox and Facts.sandbox")
     parser.add_argument("--workload", action="append", default=[], metavar="NAME:KIND", help="start with a running workload of this name and kind (vm or container); the first one is wl-1 and so on; can be repeated")
     parser.add_argument("--agent-build", default=DEFAULT_AGENT_BUILD, help="the build (64 lowercase hex digits) the facts report; 'none' reports no build, like an older helper")
     parser.add_argument("--cpu-model", help="the CPU name the facts report (default: a realistic one for the system); 'none' reports no name, like an older helper")
@@ -49,7 +50,7 @@ def main():
     card = [{"vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768}] if has_card else []
     cpu_options = CPU_OPTIONS if args.cpu_options else {}
     spec = MachineSpec(cpu_model=cpu_model_for(args), os=args.os, arch="arm64" if args.os == "macos" else "x86_64", vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside,
-                       gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, **cpu_options)
+                       gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, sandbox=args.sandbox, **cpu_options)
     build = None if args.agent_build == "none" else args.agent_build
     engine = FakeEngine(spec, agent_build=build)
     for number, text in enumerate(args.workload, start=1):

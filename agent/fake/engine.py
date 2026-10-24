@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 
 from agent.fake.apps import APP_IMAGES, FakeApps
+from agent.fake.sandboxes import FakeSandboxes
 from contract.spec import CONTRACT_VERSION
 
 DEFAULT_BUNDLE_VERSION = None
@@ -74,6 +75,9 @@ class MachineSpec:
     serves_apps: bool = True
     # What the helper says about the SSH server in a VM after it wrote the keys: running, installed (not running) or missing (the helper had to add it, or could not).
     sshd: str = "running"
+    # A helper of this build runs sandboxes (its simulated engine) and says so in its facts: `capabilities.sandbox` and `Facts.sandbox`. False plays a helper
+    # from before the sandbox routes, which answers 404 on them and says nothing about sandboxes, so the Root places none on that machine.
+    sandbox: bool = False
 
 
 GPU_OVER_LIMIT_CODE = "gpu_memory_over_limit"
@@ -116,6 +120,8 @@ class FakeEngine:
         self.ssh_install_mode = "works"
         self.ssh_install_delay = 0.0
         self.apps = FakeApps()
+        # The pretend sandboxes: records, end times and events, answered the same way a real helper answers them.
+        self.sandboxes = FakeSandboxes(self.spec)
         # Every create request this helper accepted, as received, so a test can see what the parent really sent. The CPU settings are only here: the workload list does not carry them.
         self.created_requests = []
         self._ids = itertools.count(1)
@@ -140,7 +146,9 @@ class FakeEngine:
                 "gpu_memory_limit": spec.gpu_in_container and spec.gpu_memory_limit,
                 **self._cpu_offer(),
                 **({"terminal": True} if spec.terminal else {}),
+                "sandbox": spec.sandbox,
             },
+            **({"sandbox": self.sandboxes.facts()} if spec.sandbox else {}),
             "agent_version": self.agent_version,
             "engine": {"name": ENGINE_NAME, "version": ENGINE_VERSION, "ready": True},
             **({"agent_build": self.agent_build} if self.agent_build is not None else {}),
