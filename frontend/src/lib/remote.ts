@@ -54,6 +54,7 @@ const FIX_WHAT: Record<string, string> = {
   vm_tool: 'Installs Incus (the tool that makes VMs) with apt, sets it up, and lets the login user use it.',
   python: 'Installs Python 3 with apt.',
   gpu_toolkit: "Adds NVIDIA's own package source and signing key to this computer (a source that is not part of the system), then installs NVIDIA's container toolkit from it with apt, so containers can use the GPU.",
+  vm_packages: 'Installs qemu and its firmware with apt, and loads the KVM module, so this computer can run full VMs instead of only containers.',
 }
 
 const FIX_BUTTON: Record<string, string> = {

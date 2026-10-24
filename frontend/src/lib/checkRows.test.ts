@@ -80,12 +80,33 @@ test('ticks get a short value, from the parent\'s own words', () => {
 
 test('the short values of the other kinds of computer', () => {
   const value = (req: Requirement) => byId([req], req.id)?.value
-  expect(value(ok('vm_support', 'Can run workloads', 'Containers only: there is no /dev/kvm, so full VMs cannot run (they need virtualization turned on in the BIOS).'))).toBe('Containers only')
+  expect(value(ok('vm_support', 'Can run workloads', 'Containers only: virtualization is off in the BIOS.'))).toBe('Containers only')
+  expect(value(ok('vm_support', 'Can run workloads', 'Containers only: virtualization is on, but the KVM module is not loaded.'))).toBe('Containers only')
+  expect(value(ok('vm_support', 'Can run workloads', 'Containers only: there is no /dev/kvm, so full VMs cannot run.'))).toBe('Containers only')
+  expect(value(ok('vm_support', 'Can run workloads', '/dev/kvm is there: VMs and containers. qemu is not installed.'))).toBe('VMs and containers')
   expect(value(ok('vm_support', 'Can run VMs', 'Apple Silicon can.'))).toBe('Apple Silicon')
   expect(value(ok('admin', 'Admin rights (sudo)', 'No. The engine goes in a folder of luca instead of getting its own user.'))).toBe('No')
   expect(value(ok('port', 'Port 9101 free', "MetaService's own program from an earlier install is running there. Adding the computer replaces it."))).toBe('Ours, replaced')
   expect(value(ok('port', 'Port 9101 free', 'Could not check it.'))).toBe('Not checked')
   expect(value(ok('disk', 'Free disk space', '2834 GB free.'))).toBe('2834 GB')
+})
+
+test('a tick that still has something to do shows the parent\'s sentence, the manual steps and the button', () => {
+  const detail = 'Containers only: virtualization is on, but the KVM module is not loaded.'
+  const fix = 'Load the KVM module on that computer: `sudo modprobe kvm_amd`. Then check again.'
+  const offer = { part: 'vm_packages', needs_password: false }
+  const row = need([{ id: 'vm_support', label: 'Can run workloads', ok: true, detail, fix, install: offer }], 'vm_support')
+  expect(row.state).toBe('ready')
+  expect(row.value).toBe('Containers only')
+  expect(row.sentence).toBe(detail)
+  expect(row.manual).toEqual({ text: 'Load the KVM module on that computer: sudo modprobe kvm_amd. Then check again.', commands: ['sudo modprobe kvm_amd'] })
+  expect(row.install).toEqual(offer)
+})
+
+test('a tick with nothing left to do keeps its short value and hides nothing', () => {
+  const row = need(linux(), 'vm_support')
+  expect(row).toMatchObject({ value: 'VMs and containers', sentence: '', manual: null })
+  expect(row.install).toBeUndefined()
 })
 
 test('the labels are short, and a label the panel does not know stays as the parent wrote it', () => {
@@ -142,11 +163,14 @@ test('a known tick whose text is not what the panel expects falls back to the pa
   expect(byId([ok('login', 'Login', 'Welcome back, friend of the house, you are in.')], 'login')).toMatchObject({ value: '', sentence: 'Welcome back, friend of the house, you are in.' })
 })
 
-test('the offer to install is carried on the row, and only on a cross', () => {
+test('the offer to install is carried on the row, whether it is a cross or a tick', () => {
   const offer = { part: 'vm_tool', needs_password: true }
   const reqs = swap(linux(), { ...cross('vm_tool', 'Incus (makes the VMs)', 'Not installed.'), install: offer })
   expect(byId(reqs, 'vm_tool')?.install).toEqual(offer)
   expect(byId(linux(), 'vm_tool')?.install).toBeUndefined()
+  const packages = { part: 'vm_packages', needs_password: true }
+  const vm = swap(linux(), { ...ok('vm_support', 'Can run workloads', 'Containers only: virtualization is off in the BIOS.'), fix: 'Turn it on in the BIOS.', install: packages })
+  expect(byId(vm, 'vm_support')).toMatchObject({ state: 'ready', install: packages })
 })
 
 test('the manual steps split the parent\'s fix into a sentence and the real commands', () => {

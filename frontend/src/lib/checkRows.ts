@@ -76,6 +76,15 @@ const firstOf = (...readers: Reader[]): Reader => (detail) => {
   return null
 }
 
+const CONTAINERS_ONLY = 'Containers only'
+const APPLE_SILICON = 'Apple Silicon'
+
+/**
+ * "Can run workloads" is a tick on a Linux computer whether or not it can make full VMs, so its short value is the parent's own answer. The long reason (no BIOS
+ * virtualization, no KVM module, no qemu) stays in the sentence, not here.
+ */
+const VM_SUPPORT_VALUE: Reader = firstOf(firstGroup(/: (VMs and containers)/), whenMatches(/^Containers only/, CONTAINERS_ONLY), whenMatches(/^Apple Silicon/, APPLE_SILICON))
+
 /** What a tick says in a few words, from the parent's detail. null means "not the text I expect": the generic rule takes over. */
 const TICK_VALUE: Record<string, Reader> = {
   login: firstGroup(/^Logged in as (.+?)\. Host key /),
@@ -83,7 +92,7 @@ const TICK_VALUE: Record<string, Reader> = {
   agent: firstGroup(/\((.+?)\)/),
   memory: firstGroup(/^(\d+ GB)\.?$/),
   disk: firstGroup(/^(\d+ GB) free/),
-  vm_support: firstOf(firstGroup(/: (VMs and containers)\./), whenMatches(/^Containers only/, 'Containers only'), whenMatches(/^Apple Silicon/, 'Apple Silicon')),
+  vm_support: VM_SUPPORT_VALUE,
   vm_tool: whenMatches(/^Installed/, 'Installed'),
   gpu_toolkit: whenMatches(/^Installed/, 'Installed'),
   python: whenMatches(/^Found/, 'Found'),
@@ -152,12 +161,16 @@ export function manualSteps(fix: string | undefined): ManualSteps | null {
 
 const stripEnd = (text: string): string => text.replace(/\.$/, '')
 
-/** A tick: the short value when the panel knows this row, else the parent's detail itself when it is short, else the detail under the label. */
+/**
+ * A tick: the short value when the panel knows this row, else the parent's detail itself when it is short, else the detail under the label.
+ * A tick that still has something to do (a fix, or an offer to install) keeps the parent's whole sentence, so the action under it is explained.
+ */
 function tickText(req: Requirement): { value: string; sentence: string } {
   const known = TICK_VALUE[req.id]?.(req.detail) ?? null
-  if (known !== null) return { value: known, sentence: '' }
+  const hasAction = Boolean(req.fix || req.install)
+  if (known !== null) return { value: known, sentence: hasAction ? req.detail : '' }
   const plain = stripEnd(req.detail)
-  return plain.length <= SHORT_VALUE_MAX ? { value: plain, sentence: '' } : { value: '', sentence: req.detail }
+  return plain.length <= SHORT_VALUE_MAX && !hasAction ? { value: plain, sentence: '' } : { value: '', sentence: req.detail }
 }
 
 const crossText = (req: Requirement): { value: string; sentence: string } => ({ value: '', sentence: CROSS_SENTENCE[req.id]?.(req) ?? req.detail })
@@ -169,8 +182,8 @@ function stateOf(req: Requirement): RowState {
 
 function rowOf(req: Requirement): CheckRow {
   const text = req.ok ? tickText(req) : crossText(req)
-  const row: CheckRow = { id: req.id, group: GROUP_OF[req.id] ?? 'other', label: LABEL_OF[req.id] ?? req.label, state: stateOf(req), ...text, manual: req.ok ? null : manualSteps(req.fix) }
-  return req.ok || !req.install ? row : { ...row, install: req.install }
+  const row: CheckRow = { id: req.id, group: GROUP_OF[req.id] ?? 'other', label: LABEL_OF[req.id] ?? req.label, state: stateOf(req), ...text, manual: manualSteps(req.fix) }
+  return req.install ? { ...row, install: req.install } : row
 }
 
 /** The parent's requirements as rows, in the parent's order. */

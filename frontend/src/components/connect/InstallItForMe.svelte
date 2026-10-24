@@ -1,5 +1,6 @@
 <script lang="ts">
-  // "Install it for me", under a cross the parent can fix itself: a button, then a password field. The password goes to the parent in one request and is forgotten as soon as it is answered.
+  // "Install it for me", under a cross the parent can fix itself, or under a tick that can still be improved (full VMs on a containers-only computer): a button, then a
+  // password field. The password goes to the parent in one request and is forgotten as soon as it is answered.
   // It draws into the grid of its row: the button in the action column, the form across the text and action columns.
   import SecretField from '../SecretField.svelte'
   import { ApiError, remoteFix } from '../../lib/api.ts'

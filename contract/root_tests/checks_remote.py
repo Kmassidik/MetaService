@@ -246,10 +246,26 @@ def check_an_answer_from_the_other_computer_is_cut_down_and_a_useless_one_is_ref
         expect(reply.status == 502 and reply.body["error"]["code"] == "remote_no_answer", f"useless answer: {reply.status} {reply.raw[:140]!r}")
 
 
+def check_a_linux_computer_says_why_it_has_no_dev_kvm_and_offers_to_install_what_fixes_it():
+    """The truth about "Containers only": virtualization on but the module not loaded is not the BIOS, and the missing pieces can be installed from here."""
+    answer = LINUX.replace("kvm=yes", "kvm=no\nvirt=yes\nqemu=no").replace("sudo=none", "sudo=password\npkg=apt").replace("chip=Intel Xeon", "chip=AMD Ryzen 9 9950X")
+    with remote(answer=answer) as (root, operator, server):
+        authorize_parent(operator, server)
+        reply = operator.write("POST", "/api/remote/verify", verify_body(server))
+        row = rows(reply)["vm_support"]
+        expect(row["ok"] is True, f"containers still work, so the row stays a tick: {row}")
+        expect("KVM module is not loaded" in row["detail"] and "BIOS" not in row["detail"], f"the cause, not the BIOS: {row['detail']}")
+        expect("sudo modprobe kvm_amd" in row["fix"] and "kvm_intel" not in row["fix"], f"the module of an AMD chip: {row['fix']}")
+        expect("qemu is not installed" in row["detail"], f"qemu is said on its own: {row['detail']}")
+        expect(row["install"] == {"part": "vm_packages", "needs_password": True}, f"the offer: {row.get('install')}")
+
+
 CHECKS = [check_connecting_needs_a_login_and_only_reaches_private_addresses, check_connecting_refuses_hosts_users_and_fields_that_could_become_ssh_options,
           check_the_host_key_fingerprint_shown_is_the_one_ssh_keygen_shows, check_nothing_listening_or_not_ssh_is_said_plainly,
           check_the_parents_own_key_logs_in_and_reads_what_this_computer_is, check_a_pretend_linux_computer_without_our_program_cannot_be_added,
           check_a_wrong_fingerprint_is_refused_and_nothing_is_trusted, check_a_key_the_computer_does_not_accept_is_a_refused_login,
           check_a_changed_host_key_is_refused_and_the_trusted_one_is_kept, check_a_password_is_used_once_and_never_kept_shown_or_logged,
           check_the_parents_private_key_is_never_on_disk_in_clear_and_its_agent_stops_with_the_root,
-          check_repeated_logins_on_one_computer_are_stopped_before_they_look_like_an_attack, check_an_answer_from_the_other_computer_is_cut_down_and_a_useless_one_is_refused]
+          check_repeated_logins_on_one_computer_are_stopped_before_they_look_like_an_attack,
+          check_a_linux_computer_says_why_it_has_no_dev_kvm_and_offers_to_install_what_fixes_it,
+          check_an_answer_from_the_other_computer_is_cut_down_and_a_useless_one_is_refused]

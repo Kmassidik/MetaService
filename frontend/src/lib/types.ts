@@ -246,7 +246,7 @@ export interface Requirement {
   label: string
   ok: boolean
   detail: string
-  /** What to do about it; only present when ok is false. */
+  /** What to do by hand: a cross always has one; a tick has one only when it still has something worth doing (full VMs on a containers-only computer). */
   fix?: string
   /** Present when the parent can install it itself: which part, and whether sudo on that computer asks for a password. */
   install?: InstallOffer
