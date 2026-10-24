@@ -20,6 +20,17 @@ public struct Requirement: Encodable, Equatable {
         self.fix = ok ? nil : fix
         self.install = ok ? nil : install
     }
+
+    /// A tick that still has something to do: "Can run workloads" passes with containers only, and the offer turns it into full VMs, with `fix` saying how by hand.
+    /// It stays a tick, so nothing here stops the computer from being added.
+    public init(id: String, label: String, detail: String, stillWorthDoing fix: String, install: InstallOffer?) {
+        self.id = id
+        self.label = label
+        self.ok = true
+        self.detail = detail
+        self.fix = fix
+        self.install = install
+    }
 }
 
 /// What a computer needs before MetaService can do its whole job.

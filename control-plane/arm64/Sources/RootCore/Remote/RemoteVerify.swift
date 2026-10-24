@@ -85,9 +85,7 @@ public enum RemoteVerify {
             return Requirement(id: "vm_support", label: "Can run VMs", ok: apple, detail: apple ? "Apple Silicon can." : "Apple's container tool needs Apple Silicon.",
                                fix: "Use a Mac with Apple Silicon (M1 or newer).")
         }
-        let kvm = facts.kvm == true
-        let detail = kvm ? "/dev/kvm is there: VMs and containers." : "Containers only: there is no /dev/kvm, so full VMs cannot run (they need virtualization turned on in the BIOS)."
-        return Requirement(id: "vm_support", label: "Can run workloads", ok: true, detail: detail)
+        return VmSupport.requirement(facts)
     }
 
     static func vmTool(_ facts: RemoteFacts) -> Requirement {

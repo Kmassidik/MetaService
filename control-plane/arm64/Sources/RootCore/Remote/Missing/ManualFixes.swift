@@ -37,4 +37,13 @@ enum ManualFixes {
         case .apt, nil: return "Install it with `sudo apt install python3`, then check again."
         }
     }
+
+    /// qemu is what runs a full VM; Incus makes containers without it. Debian and Ubuntu name the package after the emulated machine and ship the UEFI firmware separately.
+    static func qemu(_ facts: RemoteFacts) -> String {
+        let packages = ["arm64", "aarch64"].contains(facts.arch) ? VmSupport.armPackages : VmSupport.x86Packages
+        guard facts.packageManager == .apt || facts.packageManager == nil else {
+            return "Install qemu and its UEFI firmware from this system's packages, then check again."
+        }
+        return "Install qemu with `sudo apt install \(packages)`, then check again."
+    }
 }

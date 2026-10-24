@@ -55,6 +55,7 @@ final class RemoteFixService: @unchecked Sendable {
         case .vmTool: return facts.tools.contains("incus")
         case .python: return facts.tools.contains("python3")
         case .gpuToolkit: return facts.hasGpuToolkit
+        case .vmPackages: return facts.kvm == true && facts.qemu == true
         }
     }
 

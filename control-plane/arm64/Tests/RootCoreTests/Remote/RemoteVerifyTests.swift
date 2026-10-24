@@ -64,7 +64,7 @@ final class RemoteVerifyTests: XCTestCase {
         XCTAssertTrue(result.canAdd, "\(result.requirements.filter { !$0.ok })")
         XCTAssertTrue(row(result, "vm_support").ok)
         XCTAssertTrue(row(result, "vm_support").detail.contains("Containers only"))
-        XCTAssertNil(row(result, "vm_support").fix)
+        XCTAssertTrue(row(result, "vm_support").fix?.contains("modprobe") ?? false, "a tick that still says how to get full VMs: \(row(result, "vm_support").fix ?? "none")")
         let withKvm = RemoteVerify.run(facts: facts(noKvm.replacingOccurrences(of: "kvm=no", with: "kvm=yes")), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
         XCTAssertTrue(row(withKvm, "vm_support").detail.contains("VMs and containers"))
     }

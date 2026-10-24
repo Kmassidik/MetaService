@@ -36,6 +36,20 @@ final class OffersAndWindowsTests: XCTestCase {
         XCTAssertNil(rows(head + "pkg=apt\nsudo=password\ntool=incus\ntool=python3\n")["vm_tool"]?.install)
     }
 
+    /// "Install it for me" for qemu and the KVM module: only where the part is really missing, and only where apt and sudo are there.
+    func testTheVmPackagesAreOfferedOnlyWhenKvmOrQemuIsMissing() {
+        let noKvm = head.replacingOccurrences(of: "kvm=yes", with: "kvm=no")
+        XCTAssertEqual(rows(noKvm + "pkg=apt\nsudo=password\n")["vm_support"]?.install, InstallOffer(part: "vm_packages", needsPassword: true))
+        XCTAssertEqual(rows(head.replacingOccurrences(of: "kvm=yes", with: "kvm=yes\nqemu=no") + "pkg=apt\nsudo=passwordless\n")["vm_support"]?.install?.needsPassword, false,
+                       "qemu alone is enough to offer it")
+        XCTAssertNil(rows(head + "qemu=yes\npkg=apt\nsudo=password\n")["vm_support"]?.install, "nothing is missing")
+        XCTAssertNil(rows(noKvm + "pkg=apt\nsudo=none\n")["vm_support"]?.install, "no sudo")
+        XCTAssertNil(rows(noKvm + "pkg=dnf\nsudo=password\n")["vm_support"]?.install, "dnf is not built")
+        XCTAssertNil(rows(noKvm + "pkg=apt\n")["vm_support"]?.install, "no sudo at all")
+        let mac = "os=Darwin\narch=arm64\nuser=m\nram_mb=16384\ndisk_free_gb=100\nsudo=password\nport_9101=free\n"
+        XCTAssertNil(rows(mac)["vm_support"]?.install, "a Mac is never asked")
+    }
+
     func testEachPackageManagerGetsItsOwnVerifiedManualLine() {
         let expected = ["apt": "sudo apt install incus", "dnf": "sudo dnf install incus", "pacman": "sudo pacman -S incus", "zypper": "sudo zypper in incus"]
         for (manager, command) in expected { XCTAssertTrue(rows(head + "pkg=\(manager)\n")["vm_tool"]!.fix!.contains(command), manager) }

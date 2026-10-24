@@ -6,6 +6,8 @@ public enum MissingPart: String, CaseIterable, Sendable {
     case python
     /// NVIDIA's container toolkit, from NVIDIA's own package source. Only offered where an NVIDIA card was found.
     case gpuToolkit = "gpu_toolkit"
+    /// qemu (what runs a full VM) and the KVM module, which is missing when `/dev/kvm` is missing. Not needed for containers.
+    case vmPackages = "vm_packages"
 }
 
 public enum PackageManager: String, Sendable {
@@ -22,7 +24,17 @@ public enum InstallOffers {
     /// Only where the whole install is known and verified (see docs/PLAN-install-missing.md): a Linux computer with apt, where the login can use sudo.
     public static func offer(for part: MissingPart, facts: RemoteFacts) -> InstallOffer? {
         guard facts.isLinux, facts.packageManager == .apt, facts.sudo != .none else { return nil }
-        if part == .gpuToolkit && facts.nvidiaGpu == nil { return nil }
+        guard needed(part, facts) else { return nil }
         return InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password)
+    }
+
+    /// True when that part really is missing on this computer: nothing is offered for a part that is already there.
+    static func needed(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
+        switch part {
+        case .vmTool: return !facts.tools.contains("incus")
+        case .python: return !facts.tools.contains("python3")
+        case .gpuToolkit: return facts.nvidiaGpu != nil && !facts.hasGpuToolkit
+        case .vmPackages: return facts.kvm == false || facts.qemu == false
+        }
     }
 }

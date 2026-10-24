@@ -23,6 +23,16 @@ final class InstallMissingScriptsTests: XCTestCase {
         XCTAssertFalse(script.contains("incus"))
     }
 
+    /// The packages Debian and Ubuntu provide for qemu, and both KVM modules: the one for another chip fails harmlessly and is ignored.
+    func testTheVmPackagesScriptIsFixedTextAndNamesThePackagesAndModules() {
+        let script = InstallMissingScripts.script(for: .vmPackages, user: "build")
+        XCTAssertEqual(script, InstallMissingScripts.script(for: .vmPackages, user: "someone-else"), "the script holds nothing from the request")
+        for part in ["qemu-system-x86 ovmf", "qemu-system-arm qemu-efi-aarch64", "apt-get -y", "for module in kvm_amd kvm_intel", "modprobe \"$module\"", "[ -e /dev/kvm ]", InstallMissingScripts.doneMarker] {
+            XCTAssertTrue(script.contains(part), part)
+        }
+        XCTAssertFalse(script.contains("kvm_amd kvm_intel\n"), "the modules are tried one by one, not as one name")
+    }
+
     func testAUserNameIsQuotedInTheScript() {
         XCTAssertTrue(InstallMissingScripts.script(for: .vmTool, user: "a$b").contains("'a$b'"))
     }
