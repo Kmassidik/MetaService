@@ -9,7 +9,8 @@ public struct SandboxFacts: Equatable, Codable {
         public let name: String
         public let version: String?
 
-        static let names: Set<String> = ["firecracker"]
+        /// `simulated` is the helper's own test engine, accepted so a truthful simulated helper passes the contract. A real deployment never sends it.
+        static let names: Set<String> = ["firecracker", "simulated"]
         static let keys: Set<String> = ["name", "version"]
 
         public init(name: String, version: String?) {

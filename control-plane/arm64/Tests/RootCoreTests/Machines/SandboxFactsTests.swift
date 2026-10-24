@@ -49,6 +49,19 @@ final class SandboxFactsTests: XCTestCase {
         XCTAssertTrue((json["engine"] as! [String: Any])["version"] is NSNull)
     }
 
+    func testTheSimulatedEngineIsAcceptedSoATruthfulTestHelperPasses() throws {
+        var reported = Self.goodFacts
+        reported["engine"] = ["name": "simulated"]
+        let facts = try XCTUnwrap(try heartbeat(capabilities: ["sandbox": true], facts: reported).facts.sandbox)
+        XCTAssertEqual(facts.engine.name, "simulated")
+    }
+
+    func testAnUnknownEngineIsStillRefused() {
+        var reported = Self.goodFacts
+        reported["engine"] = ["name": "qemu"]
+        XCTAssertThrowsError(try heartbeat(capabilities: ["sandbox": true], facts: reported))
+    }
+
     func testFactsFromAHelperThatSaysItCannotRunSandboxesAreDropped() throws {
         XCTAssertNil(try heartbeat(capabilities: ["sandbox": false], facts: Self.goodFacts).facts.sandbox)
         XCTAssertNil(try heartbeat(facts: Self.goodFacts).facts.sandbox, "no capability means no sandboxes, whatever the facts say")
