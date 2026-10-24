@@ -12,7 +12,7 @@ import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -241,3 +241,13 @@ export const getMachineHistory = async (id: string): Promise<StatsHistoryReply> 
 
 /** What the Create VM window may offer for one machine: the parent's catalog joined with what the machine has ready. */
 export const getMachineImages = async (id: string): Promise<MachineImages> => parseMachineImages(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/images`))
+
+// The panel's sandbox pages: API keys, the live list, kill and pause, and the usage table. A key's text comes back once,
+// from `createSandboxKey`, and never again.
+export const listSandboxKeys = async () => (await call<{ keys: SandboxKey[] }>('GET', '/api/sandboxes/keys')).keys
+/** `teamName` empty asks for the default team, which the Root makes on demand. */
+export const createSandboxKey = (teamName: string) => call<SandboxKeyMade>('POST', '/api/sandboxes/keys', teamName ? { team_name: teamName } : {})
+export const revokeSandboxKey = (id: string) => callNoBody('DELETE', `/api/sandboxes/keys/${encodeURIComponent(id)}`)
+export const listSandboxes = async () => (await call<{ sandboxes: SandboxLive[] }>('GET', '/api/sandboxes')).sandboxes
+export const sandboxAction = (id: string, action: 'kill' | 'pause') => callNoBody('POST', `/api/sandboxes/${encodeURIComponent(id)}/${action}`)
+export const sandboxUsage = (days: number) => call<SandboxUsageReply>('GET', `/api/sandboxes/usage?days=${days}`)

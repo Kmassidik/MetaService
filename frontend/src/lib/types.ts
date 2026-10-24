@@ -645,3 +645,58 @@ export interface MachineStatsReply {
   fetched_at: string | null
   stats: MachineStats | null
 }
+
+/** A sandbox API key as the panel lists it. The key text itself is never listed: it is shown once, when it is made. */
+export interface SandboxKey {
+  id: string
+  team: string
+  team_name: string
+  /** `msb_ab12cd34`: enough to tell two keys apart, never enough to call the API. */
+  prefix: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+/** The one answer that carries a key's text. It cannot be asked for again. */
+export interface SandboxKeyMade {
+  id: string
+  team: string
+  team_name: string
+  prefix: string
+  key: string
+  created_at: string
+}
+
+/** One sandbox that is still alive, as the live list shows it. */
+export interface SandboxLive {
+  id: string
+  team: string
+  team_name: string
+  machine: string
+  state: string
+  template: string
+  vcpu: number
+  ram_mb: number
+  disk_mb: number
+  created_at: string
+  end_at: string
+}
+
+/** One team's finished sandbox runs inside the usage window. */
+export interface SandboxUsageTeam {
+  team: string
+  team_name: string
+  sandboxes: number
+  seconds: number
+  vcpu_seconds: number
+  ram_mb_seconds: number
+}
+
+/** What each team used in the window the panel asked for. */
+export interface SandboxUsageReply {
+  days: number
+  starts_at: string
+  ends_at: string
+  teams: SandboxUsageTeam[]
+}
