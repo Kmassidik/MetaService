@@ -81,13 +81,14 @@ public struct MachineStore: @unchecked Sendable {
             try database.execute("""
                 UPDATE machines SET ip = COALESCE(?, ip), os = ?, arch = ?, cpu_cores = ?, cpu_model = ?, ram_total_mb = ?, disk_total_gb = ?,
                   free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, problems_json = ?, bundle_version = ?, last_seen = ?,
-                  agent_port = COALESCE(?, agent_port), agent_version = ?, engine_json = ?, agent_build = ?
+                  agent_port = COALESCE(?, agent_port), agent_version = ?, engine_json = ?, agent_build = ?, sandbox_json = ?
                 WHERE id = ?
                 """, [ip.map(SQLValue.text) ?? .null, .text(facts.os), .text(facts.arch), .int(facts.cpuCores), facts.cpuModel.map(SQLValue.text) ?? .null, .int(facts.ramTotalMb),
                       .int(facts.diskTotalGb), .int(facts.freeRamMb), .int(facts.freeDiskGb), .text(try json(facts.gpu)),
                       .text(try json(facts.capabilities)), .text(try json(facts.problems)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
                       request.agentPort.map(SQLValue.int) ?? .null, facts.agentVersion.map(SQLValue.text) ?? .null,
-                      try facts.engine.map { .text(try json($0)) } ?? .null, facts.agentBuild.map(SQLValue.text) ?? .null, .text(machineId)])
+                      try facts.engine.map { .text(try json($0)) } ?? .null, facts.agentBuild.map(SQLValue.text) ?? .null,
+                      try facts.sandbox.map { .text(try json($0)) } ?? .null, .text(machineId)])
             try replaceWorkloads(machineId: machineId, reports: request.workloads, at: seconds)
         }
     }
@@ -110,7 +111,7 @@ public struct MachineStore: @unchecked Sendable {
     public func list(now: Date) throws -> [MachineSummary] {
         let rows = try database.query("""
             SELECT id, name, ip, os, arch, cpu_cores, cpu_model, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
-                   gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, bundle_version, last_seen
+                   gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, sandbox_json, bundle_version, last_seen
             FROM machines ORDER BY name
             """)
         return try rows.map { try summary($0, now: now) }
@@ -119,7 +120,7 @@ public struct MachineStore: @unchecked Sendable {
     public func get(id: String, now: Date) throws -> MachineSummary {
         let rows = try database.query("""
             SELECT id, name, ip, os, arch, cpu_cores, cpu_model, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
-                   gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, bundle_version, last_seen
+                   gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, sandbox_json, bundle_version, last_seen
             FROM machines WHERE id = ?
             """, [.text(id)])
         guard let row = rows.first else { throw MachineError.notFound }
@@ -140,7 +141,8 @@ public struct MachineStore: @unchecked Sendable {
             settings: try? MachineSettingsStore(database).get(machine: row.string("id")),
             problems: (try? decoder.decode([HostProblem].self, from: Data(row.string("problems_json").utf8))) ?? [],
             agentVersion: row.optionalString("agent_version"), agentBuild: row.optionalString("agent_build"),
-            engine: row.optionalString("engine_json").flatMap { try? decoder.decode(EngineReport.self, from: Data($0.utf8)) }, bundleVersion: row.optionalString("bundle_version"),
+            engine: row.optionalString("engine_json").flatMap { try? decoder.decode(EngineReport.self, from: Data($0.utf8)) },
+            sandbox: row.optionalString("sandbox_json").flatMap { try? decoder.decode(SandboxFacts.self, from: Data($0.utf8)) }, bundleVersion: row.optionalString("bundle_version"),
             state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads,
             gpuBooking: try gpuBooking(machineId: row.string("id"), gpu: gpu, capabilities: capabilities))
     }

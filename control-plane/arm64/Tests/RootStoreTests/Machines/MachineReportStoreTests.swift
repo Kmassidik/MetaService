@@ -73,6 +73,51 @@ final class MachineReportStoreTests: XCTestCase {
         XCTAssertNil(try machines.get(id: "mini", now: now).cpuModel, "an older helper that does not say it must not keep the last answer")
     }
 
+    private func heartbeat(sandbox: [String: Any]?) throws -> HeartbeatRequest {
+        var caps: [String: Any] = ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]
+        if sandbox != nil { caps["sandbox"] = true }
+        var facts: [String: Any] = ["os": "linux", "arch": "x86_64", "cpu_cores": 64, "ram_total_mb": 65536, "disk_total_gb": 1000,
+                                    "free_ram_mb": 50000, "free_disk_gb": 800, "gpu": [], "capabilities": caps]
+        facts["sandbox"] = sandbox
+        return try HeartbeatRequest(body: JSONSerialization.data(withJSONObject: ["facts": facts, "workloads": []]))
+    }
+
+    private func sandboxFacts(running: Int = 2) -> [String: Any] {
+        ["engine": ["name": "firecracker", "version": "1.7.0"], "max_running": 20, "running": running, "paused": 1,
+         "max_vcpu": 8, "max_ram_mb": 16384, "max_disk_mb": 102400, "booked": ["vcpu": 4, "ram_mb": 4096, "disk_mb": 20480],
+         "templates": [["id": "base", "build": "b1", "ready": true]], "changes": 7]
+    }
+
+    func testTheSandboxFactsAreKeptInSnakeCaseAndGoWhenNoLongerSaid() throws {
+        XCTAssertNil(try machines.get(id: "mini", now: now).sandbox)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(sandbox: sandboxFacts()), ip: nil, now: now)
+        let seen = try machines.get(id: "mini", now: now)
+        XCTAssertEqual(seen.sandbox?.running, 2)
+        XCTAssertEqual(seen.sandbox?.engine, SandboxFacts.Engine(name: "firecracker", version: "1.7.0"))
+        XCTAssertEqual(seen.capabilities?.sandbox, true)
+        let snake = JSONEncoder()
+        snake.keyEncodingStrategy = .convertToSnakeCase
+        let json = try JSONSerialization.jsonObject(with: snake.encode(try XCTUnwrap(try machines.list(now: now).first))) as! [String: Any]
+        let sandbox = json["sandbox"] as! [String: Any]
+        XCTAssertEqual(sandbox["max_running"] as? Int, 20)
+        XCTAssertEqual((sandbox["booked"] as! [String: Any])["disk_mb"] as? Int, 20480)
+        XCTAssertEqual((sandbox["templates"] as! [[String: Any]])[0]["id"] as? String, "base")
+        XCTAssertEqual((json["capabilities"] as! [String: Any])["sandbox"] as? Bool, true)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(sandbox: nil), ip: nil, now: now)
+        XCTAssertNil(try machines.get(id: "mini", now: now).sandbox, "a helper that stops saying it must not keep the last answer")
+        XCTAssertEqual(try machines.get(id: "mini", now: now).capabilities?.sandbox, false)
+    }
+
+    func testTheSandboxIsAlsoInTheListWithAnUnknownVersionAsNull() throws {
+        var facts = sandboxFacts()
+        facts["engine"] = ["name": "firecracker"]
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(sandbox: facts), ip: nil, now: now)
+        let listed = try XCTUnwrap(try machines.list(now: now).first?.sandbox)
+        XCTAssertNil(listed.engine.version)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(listed)) as! [String: Any]
+        XCTAssertTrue((json["engine"] as! [String: Any])["version"] is NSNull)
+    }
+
     func testBeforeAnyHeartbeatNothingIsInventedAboutTheHelperOrTheEngine() throws {
         let seen = try machines.get(id: "mini", now: now)
         XCTAssertNil(seen.agentVersion)

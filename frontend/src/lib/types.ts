@@ -34,6 +34,8 @@ export interface Capabilities {
   cpu_limit?: boolean
   /** True when the helper serves the web terminal; left out by an older helper (a Mac is still allowed by its system). */
   terminal?: boolean
+  /** True when the helper can run sandboxes right now; left out by an older helper, and read as false. */
+  sandbox?: boolean
 }
 
 /** The CPU flags the Create VM window can switch, as the helpers name them. */
@@ -88,6 +90,37 @@ export interface Workload {
   init_mode?: 'systemd' | 'plain' | null
   /** The app being installed in, or installed in, the VM. Null or left out when there is none. */
   app?: WorkloadApp | null
+}
+
+/** What a machine's helper can offer for sandboxes, as the machine reports it. Null or left out when it does not say, or says it cannot run any. */
+export interface SandboxFacts {
+  /** The program that runs the sandboxes; `version` is null when it could not tell. */
+  engine: {
+    name: 'firecracker'
+    version: string | null
+  }
+  /** How many sandboxes may run at once on this machine. */
+  max_running: number
+  running: number
+  paused: number
+  /** The most one sandbox may have here. */
+  max_vcpu: number
+  max_ram_mb: number
+  max_disk_mb: number
+  /** What the sandboxes hold: vCPU and memory of the running ones, disk of all of them (paused ones included). */
+  booked: {
+    vcpu: number
+    ram_mb: number
+    disk_mb: number
+  }
+  /** The templates built on this machine, and whether a sandbox can be made from each. */
+  templates: {
+    id: string
+    build: string
+    ready: boolean
+  }[]
+  /** The number of the last sandbox event on this machine. */
+  changes: number
 }
 
 /** The program a machine uses to make VMs, as the helper reports it. `version` is null when the engine could not tell. */
@@ -159,6 +192,8 @@ export interface Machine {
   update?: HelperUpdateInfo
   /** Null until the helper reports it. */
   engine?: Engine | null
+  /** What the helper can offer for sandboxes; null or left out when it does not say, or says it cannot run any. */
+  sandbox?: SandboxFacts | null
   /** Only in GET /api/machines/{id}. The helper's folder on the machine; null when the parent did not install it over SSH. */
   box?: string | null
   /** Only in GET /api/machines/{id}. The helper's port on the machine; null when the parent did not install it over SSH. */

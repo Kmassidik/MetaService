@@ -49,9 +49,12 @@ public struct Capabilities: Equatable, Codable {
     public let cpuLimit: Bool
     /// The helper serves the console. Helpers older than this feature do not say, which reads as false (a Mac is still allowed by its OS, see TerminalSupport).
     public let terminal: Bool
+    /// The helper can run sandboxes right now (Firecracker, /dev/kvm and a ready template). False for older helpers.
+    public let sandbox: Bool
 
     public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, gpuMemoryLimit: Bool = false,
-                cpuModels: [String] = CpuSettings.defaultModels, cpuTopology: Bool = false, cpuFlags: [String] = [], cpuLimit: Bool = false, terminal: Bool = false) {
+                cpuModels: [String] = CpuSettings.defaultModels, cpuTopology: Bool = false, cpuFlags: [String] = [], cpuLimit: Bool = false, terminal: Bool = false,
+                sandbox: Bool = false) {
         self.vm = vm
         self.container = container
         self.gpuInVm = gpuInVm
@@ -62,9 +65,10 @@ public struct Capabilities: Equatable, Codable {
         self.cpuFlags = cpuFlags
         self.cpuLimit = cpuLimit
         self.terminal = terminal
+        self.sandbox = sandbox
     }
 
-    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit, cpuModels, cpuTopology, cpuFlags, cpuLimit, terminal }
+    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit, cpuModels, cpuTopology, cpuFlags, cpuLimit, terminal, sandbox }
 
     /// Capabilities saved before a feature leave out its fields: no `gpuMemoryLimit`, no CPU settings.
     public init(from decoder: Decoder) throws {
@@ -76,7 +80,8 @@ public struct Capabilities: Equatable, Codable {
                   cpuTopology: try box.decodeIfPresent(Bool.self, forKey: .cpuTopology) ?? false,
                   cpuFlags: try box.decodeIfPresent([String].self, forKey: .cpuFlags) ?? [],
                   cpuLimit: try box.decodeIfPresent(Bool.self, forKey: .cpuLimit) ?? false,
-                  terminal: try box.decodeIfPresent(Bool.self, forKey: .terminal) ?? false)
+                  terminal: try box.decodeIfPresent(Bool.self, forKey: .terminal) ?? false,
+                  sandbox: try box.decodeIfPresent(Bool.self, forKey: .sandbox) ?? false)
     }
 }
 
@@ -98,8 +103,10 @@ public struct FactsReport: Equatable {
     public let agentBuild: String?
     /// The CPU's name as the helper reported it, cleaned and cut to 120 characters (see CpuModelText). Helpers that do not say it give nil.
     public let cpuModel: String?
+    /// What the helper can offer for sandboxes. Only kept from a helper that says `capabilities.sandbox`; nil otherwise.
+    public let sandbox: SandboxFacts?
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "cpu_model", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "cpu_model", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build", "sandbox"]
     static let maxGpus = 16
     static let maxProblems = 20
     private static let codePattern = #/^[a-z0-9_]{1,64}$/#
@@ -115,7 +122,7 @@ public struct FactsReport: Equatable {
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
         gpu = try object.objects("gpu", allowed: ["vendor", "model", "memory_mb"], maxCount: Self.maxGpus).map(Self.gpuInfo)
         let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal",
-                                                               "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit"])
+                                                               "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit", "sandbox"])
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"),
                                     gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false,
@@ -123,11 +130,14 @@ public struct FactsReport: Equatable {
                                     cpuTopology: caps.has("cpu_topology") ? try caps.bool("cpu_topology") : false,
                                     cpuFlags: caps.has("cpu_flags") ? try CpuSettings.offeredFlags(caps) : [],
                                     cpuLimit: caps.has("cpu_limit") ? try caps.bool("cpu_limit") : false,
-                                    terminal: caps.has("terminal") ? try caps.bool("terminal") : false)
+                                    terminal: caps.has("terminal") ? try caps.bool("terminal") : false,
+                                    sandbox: caps.has("sandbox") ? try caps.bool("sandbox") : false)
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
         agentVersion = try ReportedVersion.optional(object, "agent_version")
         engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil
         agentBuild = try AgentBuild.optional(object, "agent_build")
+        let sandboxFacts = object.has("sandbox") ? try SandboxFacts(object.object("sandbox", allowed: SandboxFacts.keys)) : nil
+        sandbox = capabilities.sandbox ? sandboxFacts : nil
     }
 
     private static func problem(_ item: StrictObject) throws -> HostProblem {

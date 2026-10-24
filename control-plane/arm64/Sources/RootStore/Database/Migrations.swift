@@ -152,6 +152,8 @@ public enum Migrations {
             """) }),
         // The name of a machine's CPU (cpu_model, cleaned by the parent), replaced with every heartbeat. Null for a helper that does not say.
         (24, { try $0.exec("ALTER TABLE machines ADD COLUMN cpu_model TEXT;") }),
+        // What a helper can offer for sandboxes (Facts.sandbox, as JSON), replaced with every heartbeat. Null for a helper that does not say, or that says it cannot run sandboxes.
+        (25, { try $0.exec("ALTER TABLE machines ADD COLUMN sandbox_json TEXT;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
