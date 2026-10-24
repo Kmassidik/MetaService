@@ -155,6 +155,34 @@ def check_the_helper_ends_a_sandbox_at_its_time_and_says_so_in_the_events():
             expect(one.call("GET", EVENTS + query)[0] == 400, f"the events query {query!r} was not refused")
 
 
+def check_a_sandbox_can_be_paused_and_resumed_without_losing_its_end_time():
+    with helper() as one:
+        sandbox = create_body()
+        expect(create(one, sandbox)[0] == 201, "the create was not made")
+        status, paused = one.call("PUT", f"{SANDBOXES}/{sandbox['id']}/pause")
+        expect(status == 200, f"pause gave {status}: {paused}")
+        expect_shape("Sandbox", paused, "the paused sandbox")
+        expect(paused["state"] == "paused", f"the sandbox does not say it is paused: {paused}")
+        expect(paused["end_at"] == LATER, f"a pause moved the end time: {paused}")
+        status, again = one.call("PUT", f"{SANDBOXES}/{sandbox['id']}/pause")
+        expect(status == 200 and again["state"] == "paused", f"a second pause gave {status}: {again}")
+        status, read = one.call("GET", f"{SANDBOXES}/{sandbox['id']}")
+        expect(status == 200 and read["state"] == "paused", f"the record does not keep the pause: {read}")
+        status, facts = one.call("GET", "/v1/facts")
+        expect(status == 200 and facts["sandbox"]["paused"] >= 1, f"the facts do not count a paused sandbox: {facts.get('sandbox')}")
+        status, resumed = one.call("PUT", f"{SANDBOXES}/{sandbox['id']}/resume")
+        expect(status == 200 and resumed["state"] == "running", f"resume gave {status}: {resumed}")
+        expect(resumed["end_at"] == LATER, f"a resume moved the end time: {resumed}")
+        status, events = one.call("GET", f"{EVENTS}?after=0")
+        kinds = [event["kind"] for event in events["events"] if event["id"] == sandbox["id"]]
+        expect(kinds == ["started", "paused", "resumed"], f"the events do not say what happened: {kinds}")
+        expect(one.call("PUT", f"{SANDBOXES}/{new_id()}/pause")[0] == 404, "a pause of an unknown sandbox must be a 404")
+        expect(one.call("PUT", f"{SANDBOXES}/{new_id()}/resume")[0] == 404, "a resume of an unknown sandbox must be a 404")
+        expect(one.call("PUT", f"{SANDBOXES}/{sandbox['id']}/pause", token=None)[0] == 401, "a pause without the token must be a 401")
+        status, _ = one.call("DELETE", f"{SANDBOXES}/{sandbox['id']}")
+        expect(status == 204, "a paused or resumed sandbox is deleted like any other")
+
+
 def check_the_sandbox_templates_and_the_facts_say_what_this_machine_can_do():
     with helper() as one:
         status, body = one.call("GET", TEMPLATES)

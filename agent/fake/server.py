@@ -362,6 +362,12 @@ class AgentHandler(BaseHTTPRequestHandler):
     def sandbox_metrics(self, id):
         self._send(200, {"samples": self.engine.sandboxes.metrics(id)})
 
+    def pause_sandbox(self, id):
+        self._send(200, self.engine.sandboxes.pause(id))
+
+    def resume_sandbox(self, id):
+        self._send(200, self.engine.sandboxes.resume(id))
+
     def sandbox_events(self):
         after, limit = self._events_query()
         self._send(200, self.engine.sandboxes.events(after, limit))
@@ -433,6 +439,8 @@ ROUTES = [
     ("PUT", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/end", AgentHandler.set_sandbox_end),
     ("POST", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/end", AgentHandler.set_sandbox_end),
     ("GET", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/metrics", AgentHandler.sandbox_metrics),
+    ("PUT", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/pause", AgentHandler.pause_sandbox),
+    ("PUT", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/resume", AgentHandler.resume_sandbox),
     ("GET", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/ports/(?P<port>[0-9]{{1,5}})/(?P<path>.*)", AgentHandler.sandbox_port),
     ("POST", rf"/v1/sandboxes/(?P<id>{SANDBOX_ID_PATTERN})/ports/(?P<port>[0-9]{{1,5}})/(?P<path>.*)", AgentHandler.sandbox_port),
     ("GET", r"/v1/sandbox-events", AgentHandler.sandbox_events),

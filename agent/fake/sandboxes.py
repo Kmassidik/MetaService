@@ -46,8 +46,11 @@ def parse_time(text):
 
 
 def elapsed_ms(found, now):
-    """How long a sandbox had been running at that moment, in milliseconds."""
-    return int((now - found["started"]) * 1000)
+    """How long a sandbox had been running at that moment, in milliseconds: the time it has spent paused is not running time."""
+    paused = found.get("paused_ms", 0.0)
+    if found.get("paused_at") is not None:
+        paused += (now - found["paused_at"]) * 1000
+    return max(int((now - found["started"]) * 1000 - paused), 0)
 
 
 def fingerprint(body):
@@ -119,9 +122,10 @@ class FakeSandboxes:
         """What this helper offers for sandboxes, for `Facts.sandbox`: worked out now, so the numbers match what a create would find."""
         self._sweep()
         limits = self.limits()
-        booked = {"vcpu": sum(f["vcpu"] for f in self._sandboxes.values()), "ram_mb": sum(f["ram_mb"] for f in self._sandboxes.values()),
+        running = [found for found in self._sandboxes.values() if found["paused_at"] is None]
+        booked = {"vcpu": sum(f["vcpu"] for f in running), "ram_mb": sum(f["ram_mb"] for f in running),
                   "disk_mb": sum(f["disk_mb"] for f in self._sandboxes.values())}
-        return {"engine": {"name": "simulated", "version": None}, "max_running": limits["max_running"], "running": len(self._sandboxes), "paused": 0,
+        return {"engine": {"name": "simulated", "version": None}, "max_running": limits["max_running"], "running": len(running), "paused": len(self._sandboxes) - len(running),
                 "max_vcpu": limits["max_vcpu"], "max_ram_mb": limits["max_ram_mb"], "max_disk_mb": limits["max_disk_mb"], "booked": booked,
                 "templates": [{"id": BASE_TEMPLATE, "build": BASE_BUILD, "ready": True}], "changes": self._seq}
 
@@ -142,7 +146,7 @@ class FakeSandboxes:
         self._check_room(body)
         found = {"id": body["id"], "template": body["template"], "build": BASE_BUILD, "vcpu": body["vcpu"], "ram_mb": body["ram_mb"], "disk_mb": body["disk_mb"],
                  "internet": body["internet"], "started": time.time(), "end": parse_time(body["end_at"]), "on_end": body["on_end"],
-                 "fingerprint": fingerprint_of_body, "running_ms": 0}
+                 "fingerprint": fingerprint_of_body, "running_ms": 0, "paused_at": None, "paused_ms": 0.0}
         self._sandboxes[found["id"]] = found
         self._record(found["id"], "started", None, time.time(), 0)
         return 201, self._view(found)
@@ -151,6 +155,25 @@ class FakeSandboxes:
         found = self._found(sandbox_id)
         found["end"] = parse_time(body["end_at"])
         found["on_end"] = body["on_end"]
+        return self._view(found)
+
+    def pause(self, sandbox_id):
+        """Pretends to stop it where it is: the record says paused, its end time stays where it was, and a second pause changes nothing."""
+        found = self._found(sandbox_id)
+        if found["paused_at"] is None:
+            now = time.time()
+            found["paused_at"] = now
+            self._record(sandbox_id, "paused", None, now, elapsed_ms(found, now))
+        return self._view(found)
+
+    def resume(self, sandbox_id):
+        """Pretends to carry on from where it stopped: the time it spent paused is kept and never counted as running time."""
+        found = self._found(sandbox_id)
+        if found["paused_at"] is not None:
+            now = time.time()
+            found["paused_ms"] += (now - found["paused_at"]) * 1000
+            found["paused_at"] = None
+            self._record(sandbox_id, "resumed", None, now, elapsed_ms(found, now))
         return self._view(found)
 
     def delete(self, sandbox_id):
@@ -198,7 +221,8 @@ class FakeSandboxes:
 
     def _check_room(self, body):
         limits = self.limits()
-        booked = {"vcpu": sum(f["vcpu"] for f in self._sandboxes.values()), "ram_mb": sum(f["ram_mb"] for f in self._sandboxes.values()),
+        running = [f for f in self._sandboxes.values() if f["paused_at"] is None]
+        booked = {"vcpu": sum(f["vcpu"] for f in running), "ram_mb": sum(f["ram_mb"] for f in running),
                   "disk_mb": sum(f["disk_mb"] for f in self._sandboxes.values())}
         free = [("slots", 1, limits["max_running"] - len(self._sandboxes), "this machine is running all the sandboxes it may run"),
                 ("vcpu", body["vcpu"], limits["max_vcpu"] - booked["vcpu"], "not enough vCPU left on this machine for this sandbox"),
@@ -216,6 +240,7 @@ class FakeSandboxes:
 
     def _view(self, found):
         now = time.time()
-        return {"id": found["id"], "template": found["template"], "build": found["build"], "state": "running", "vcpu": found["vcpu"], "ram_mb": found["ram_mb"],
+        return {"id": found["id"], "template": found["template"], "build": found["build"],
+                "state": "paused" if found["paused_at"] is not None else "running", "vcpu": found["vcpu"], "ram_mb": found["ram_mb"],
                 "disk_mb": found["disk_mb"], "internet": found["internet"], "started_at": iso(found["started"]), "end_at": iso(found["end"]),
                 "on_end": found["on_end"], "running_ms": elapsed_ms(found, now), "daemon_version": None}

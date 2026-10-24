@@ -245,6 +245,30 @@ paths:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SandboxMetrics' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/pause:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    put:
+      summary: >
+        Pause the sandbox where it is, memory and all: its programs stop, it uses no CPU and no memory, and `resume` carries on from the same place. This
+        is the helper's own Firecracker API (`PATCH /vm {"state":"Paused"}` through the sandbox's socket). Its end time does not move: a paused sandbox is
+        still the helper's to end, and it is removed at that time unless a resume comes first. A second pause answers the same sandbox, unchanged.
+      responses:
+        '200': { description: paused, content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'this helper''s engine cannot pause a sandbox (`not_pausable`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/sandboxes/{id}/resume:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    put:
+      summary: >
+        Carry on from where a paused sandbox stopped, on the same machine and from the same memory: `PATCH /vm {"state":"Resumed"}` through its Firecracker
+        API. The time it spent paused is not counted as running time, and its end time is the one it already had. A resume of one that is running answers
+        the same sandbox, unchanged.
+      responses:
+        '200': { description: running again, content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'this helper''s engine cannot resume a sandbox (`not_pausable`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/sandboxes/{id}/ports/{port}/{path}:
     parameters:
       - { $ref: '#/components/parameters/SandboxId' }
