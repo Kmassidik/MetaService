@@ -1,12 +1,30 @@
 //! The name of this machine's CPU, read once at start from `/proc/cpuinfo` (for example `AMD EPYC 7763 64-Core Processor`).
-//! x86 says `model name`. Many ARM kernels do not: they say `Model` (a board) or only `CPU part` (a code), and some say nothing, so the name is optional.
+//! x86 says `model name`. Many ARM kernels do not: they say `Model` (a board), only `CPU part` (a code), or nothing at all, so when `/proc/cpuinfo`
+//! gives no name the helper asks `lscpu`, which resolves the part code itself (a DGX Spark says `Cortex-X925`).
 
 const CPUINFO_PATH: &str = "/proc/cpuinfo";
+const LSCPU_PROGRAM: &str = "lscpu";
 const MAX_CHARS: usize = 120;
 
 /// The CPU name of this machine, or None when the system does not say.
 pub fn read() -> Option<String> {
-    parse_cpuinfo(&std::fs::read_to_string(CPUINFO_PATH).ok()?)
+    let from_kernel = std::fs::read_to_string(CPUINFO_PATH).ok().and_then(|text| parse_cpuinfo(&text));
+    from_kernel.or_else(read_lscpu)
+}
+
+/// The `Model name` line of `lscpu`, for a kernel whose `/proc/cpuinfo` has no name (ARM boards). A missing or failing `lscpu` is not an error:
+/// the name is optional, so the machine simply does not report one.
+fn read_lscpu() -> Option<String> {
+    let output = std::process::Command::new(LSCPU_PROGRAM).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_lscpu(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// The first `Model name` value in `lscpu` text, cleaned and cut like every other name.
+pub fn parse_lscpu(text: &str) -> Option<String> {
+    first_value(text, "model name").and_then(|name| tidy(&name))
 }
 
 /// The first `model name`; else the first `Model`; else the first `CPU part` code as `ARM CPU part 0x...`. Cleaned and cut to 120 characters.
@@ -69,6 +87,20 @@ mod tests {
         assert_eq!(parse_cpuinfo(""), None);
         assert_eq!(parse_cpuinfo("processor\t: 0\nmodel name\t:   \n"), None);
         assert_eq!(parse_cpuinfo("no colons here\n"), None);
+    }
+
+    const LSCPU_ARM: &str = "Architecture:            aarch64\n  Byte Order:            Little Endian\nCPU(s):                  20\n  Model name:            Cortex-X925\n    Thread(s) per core:  1\n";
+
+    #[test]
+    fn lscpu_names_an_arm_cpu_the_kernel_does_not_name() {
+        assert_eq!(parse_lscpu(LSCPU_ARM).as_deref(), Some("Cortex-X925"));
+    }
+
+    #[test]
+    fn lscpu_text_without_a_model_name_gives_none() {
+        assert_eq!(parse_lscpu(""), None);
+        assert_eq!(parse_lscpu("Architecture: aarch64\nCPU(s): 20\n"), None);
+        assert_eq!(parse_lscpu("  Model name:   \n"), None);
     }
 
     #[test]
