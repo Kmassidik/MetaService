@@ -48,6 +48,15 @@ public struct SandboxStore {
             """, [.text(team), .int(size)]).map(Self.record)
     }
 
+    /// Every sandbox still alive, newest first, across teams: the panel's live list.
+    public func listAlive(limit: Int = 100) throws -> [SandboxRecord] {
+        let size = min(max(limit, 1), Self.maxList)
+        return try database.query("""
+            SELECT id, team, machine, state, template, vcpu, ram_mb, disk_mb, created_at, end_at, ended_at, ended_reason
+            FROM sandboxes WHERE ended_at IS NULL ORDER BY created_at DESC, id DESC LIMIT ?
+            """, [.int(size)]).map(Self.record)
+    }
+
     /// What the team already uses: running sandboxes and what they hold, and how many were made in the last hour.
     /// The states are the ones `SandboxState.holdsCompute` names; paused sandboxes hold neither a slot nor memory.
     public func teamUsage(team: String, now: Date) throws -> TeamUsage {

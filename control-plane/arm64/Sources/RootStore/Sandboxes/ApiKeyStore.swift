@@ -6,6 +6,8 @@ import RootCore
 /// "Teams, keys and limits").
 public struct ApiKeyStore {
     private let database: Database
+    /// The most rows one list answers with. The panel asks for every key it shows in one go.
+    public static let maxList = 500
 
     public init(_ database: Database) { self.database = database }
 
@@ -54,11 +56,27 @@ public struct ApiKeyStore {
     /// Every key of a team, oldest first. Never the hash.
     public func list(team: String) throws -> [ApiKeyRecord] {
         try database.query("SELECT id, team, prefix, created_at, last_used_at, revoked_at FROM api_keys WHERE team = ? ORDER BY created_at, rowid",
-                           [.text(team)]).map {
-            ApiKeyRecord(id: $0.string("id"), team: $0.string("team"), prefix: $0.string("prefix"),
-                         createdAt: Date(timeIntervalSince1970: TimeInterval($0.int("created_at"))),
-                         lastUsedAt: $0.optionalInt("last_used_at").map { Date(timeIntervalSince1970: TimeInterval($0)) },
-                         revokedAt: $0.optionalInt("revoked_at").map { Date(timeIntervalSince1970: TimeInterval($0)) })
-        }
+                           [.text(team)]).map(Self.record)
+    }
+
+    /// Every key of every team, newest first: the panel's list, which names the team next to each key. Never the hash.
+    public func listAll(limit: Int = ApiKeyStore.maxList) throws -> [ApiKeyRecord] {
+        let size = min(max(limit, 1), Self.maxList)
+        return try database.query("SELECT id, team, prefix, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                                  [.int(size)]).map(Self.record)
+    }
+
+    /// One key by its row id, revoked or not. The panel needs it to tell "no such key" from "already revoked", and to name
+    /// the key's team before revoking it.
+    public func get(id: String) throws -> ApiKeyRecord? {
+        try database.query("SELECT id, team, prefix, created_at, last_used_at, revoked_at FROM api_keys WHERE id = ?",
+                           [.text(id)]).first.map(Self.record)
+    }
+
+    private static func record(_ row: Row) -> ApiKeyRecord {
+        ApiKeyRecord(id: row.string("id"), team: row.string("team"), prefix: row.string("prefix"),
+                     createdAt: Date(timeIntervalSince1970: TimeInterval(row.int("created_at"))),
+                     lastUsedAt: row.optionalInt("last_used_at").map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                     revokedAt: row.optionalInt("revoked_at").map { Date(timeIntervalSince1970: TimeInterval($0)) })
     }
 }

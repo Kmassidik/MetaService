@@ -14,6 +14,8 @@ public enum SandboxAudit {
     public static let sandboxTimeout = "sandbox.timeout"
     public static let sandboxConnected = "sandbox.connect"
     public static let sandboxPaused = "sandbox.pause"
+    /// The panel's own kill, told apart from a program's delete, so the log says who ended a sandbox.
+    public static let sandboxKilled = "sandbox.kill"
 
     public static func teamDetail(name: String, limits: TeamLimits) -> [String: String] {
         ["name": name, "max_running": String(limits.maxRunning), "max_vcpu": String(limits.maxVcpu),
@@ -22,6 +24,11 @@ public enum SandboxAudit {
 
     public static func keyDetail(team: String, prefix: String) -> [String: String] {
         ["team": team, "prefix": prefix]
+    }
+
+    /// A panel action on one sandbox: the operator's own, so no key's prefix appears.
+    public static func actionDetail(team: String, machine: String) -> [String: String] {
+        ["team": team, "machine": machine]
     }
 
     public static func createDetail(team: String, machine: String, template: String, shape: SandboxShape, endAt: Date) -> [String: String] {

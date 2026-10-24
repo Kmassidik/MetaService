@@ -75,4 +75,33 @@ public struct SandboxUsageStore {
         return SandboxUsageTotals(seconds: row?.int("seconds") ?? 0, vcpuSeconds: row?.int("vcpu_seconds") ?? 0,
                                   ramMbSeconds: row?.int("ram_mb_seconds") ?? 0)
     }
+
+    /// What each team used between two moments, both included, most used first: the panel's usage table. A team with no
+    /// finished run in the window is not listed.
+    public func totalsByTeam(from: Date, to: Date, limit: Int = 200) throws -> [TeamUsageTotals] {
+        let size = min(max(limit, 1), Self.maxList)
+        return try database.query("""
+            SELECT team, COUNT(*) AS sandboxes, COALESCE(SUM(seconds), 0) AS seconds,
+                   COALESCE(SUM(vcpu_seconds), 0) AS vcpu_seconds, COALESCE(SUM(ram_mb_seconds), 0) AS ram_mb_seconds
+            FROM sandbox_usage WHERE ended_at >= ? AND ended_at <= ?
+            GROUP BY team ORDER BY SUM(seconds) DESC, team LIMIT ?
+            """, [.int(Int(from.timeIntervalSince1970)), .int(Int(to.timeIntervalSince1970)), .int(size)]).map {
+            TeamUsageTotals(team: $0.string("team"), sandboxes: $0.int("sandboxes"),
+                            totals: SandboxUsageTotals(seconds: $0.int("seconds"), vcpuSeconds: $0.int("vcpu_seconds"),
+                                                       ramMbSeconds: $0.int("ram_mb_seconds")))
+        }
+    }
+}
+
+/// One team's finished runs in a window, as the panel's usage table reads them.
+public struct TeamUsageTotals: Equatable {
+    public let team: String
+    public let sandboxes: Int
+    public let totals: SandboxUsageTotals
+
+    public init(team: String, sandboxes: Int, totals: SandboxUsageTotals) {
+        self.team = team
+        self.sandboxes = sandboxes
+        self.totals = totals
+    }
 }

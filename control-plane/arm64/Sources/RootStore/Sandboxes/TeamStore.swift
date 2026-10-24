@@ -32,6 +32,12 @@ public struct TeamStore {
         try get(team)?.limits
     }
 
+    /// The team with this name, ignoring case, so a name typed again finds the same team instead of making a second one.
+    public func findByName(_ name: String) throws -> TeamRecord? {
+        try database.query("SELECT id, name, created_at, max_running, max_vcpu, max_ram_mb, max_sandboxes_per_hour FROM teams WHERE name = ? COLLATE NOCASE",
+                           [.text(name)]).first.map(Self.record)
+    }
+
     /// Every team, by name, for the panel.
     public func list() throws -> [TeamRecord] {
         try database.query("SELECT id, name, created_at, max_running, max_vcpu, max_ram_mb, max_sandboxes_per_hour FROM teams ORDER BY name")

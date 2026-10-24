@@ -95,6 +95,9 @@ public struct SandboxRecord: Encodable, Equatable {
     public var shape: SandboxShape { SandboxShape(vcpu: vcpu, ramMb: ramMb, diskMb: diskMb) }
     public var isAlive: Bool { state.isAlive }
 
+    /// The parts the operator's action rules read, so a rule needs no store.
+    public var owner: SandboxOwner { SandboxOwner(team: team, state: state) }
+
     /// Whole seconds left before the end time, never negative.
     public func remainingSeconds(now: Date) -> Int { SandboxEndTime.remainingSeconds(until: endAt, now: now) }
 
