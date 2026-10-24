@@ -11,7 +11,7 @@
 
 <span class="tbtn" title={access.allowed ? 'Open a terminal on this VM' : access.title}>
   <button class="btn line sm" type="button" disabled={!access.allowed} aria-label="Terminal for {consoleTitle(workload)}{access.allowed ? '' : `: ${access.text}`}" onclick={open}>
-    ▸ Terminal{#if !access.allowed}<small>{access.text}</small>{/if}
+    Terminal{#if !access.allowed}<small>{access.text}</small>{/if}
   </button>
 </span>
 

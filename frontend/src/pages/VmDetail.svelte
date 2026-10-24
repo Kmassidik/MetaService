@@ -36,6 +36,8 @@
   const workload = $derived(machine ? findWorkload(machine, workloadId) : undefined)
   const server = $derived(machine ? findServer(machine, workloadId) : undefined)
   const access = $derived(machine && workload ? terminalAccess(machine, workload) : null)
+  /** The button is off, with the reason under its label, unless the rules say the terminal works. */
+  const terminalOff = $derived(access !== null && !access.allowed ? access : null)
   const action = $derived(workload ? headerAction(workload.state) : null)
   const note = $derived(machine && workload ? stopNote(machine.id, workload, commands) : null)
 
@@ -56,7 +58,7 @@
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › <a href={machineHref(machine.id)}>{machine.name}</a> › {workload.id}</div>
     </div>
     <div class="sp">
-      {#if access?.allowed}<button class="btn line" type="button" onclick={() => openConsole({ machine: machine.id, workload: workload.id, name: consoleTitle(workload) })}>▸ Web terminal</button>{/if}
+      <button class="btn line term" type="button" disabled={terminalOff !== null} title={terminalOff ? terminalOff.title : 'Open a terminal on this VM'} aria-label="Web terminal{terminalOff ? `: ${terminalOff.text}` : ''}" onclick={() => openConsole({ machine: machine.id, workload: workload.id, name: consoleTitle(workload) })}>Web terminal{#if terminalOff}<small>{terminalOff.text}</small>{/if}</button>
       {#if workload.bundle_version}<button class="btn line" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
       {#if action}<ActionButton variant="line" label={action === 'start' ? 'Start' : 'Stop'} busyLabel={action === 'start' ? 'Starting…' : 'Stopping…'} doneLabel={action === 'start' ? 'Started' : 'Stopped'} onrun={() => onAct(machine, workload, action)} />{/if}
     </div>
@@ -87,6 +89,9 @@
   .titleline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .name { letter-spacing: 0; text-transform: none; font-size: 18px; }
   .crumb { margin-top: 4px; }
+  /* The Web terminal button keeps its size while it says why it is off, like the Terminal button of a VM row. */
+  .term { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+  .term small { font-size: 9.5px; font-weight: 400; letter-spacing: 0; }
   .tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 28px; }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--m50); margin-bottom: -1px; }
   .tabs button.on { color: var(--text); border-bottom-color: var(--accent-mark); font-weight: 700; }
