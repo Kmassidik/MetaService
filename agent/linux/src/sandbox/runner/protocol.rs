@@ -4,7 +4,7 @@
 //! outside its bounds or an id that is not the contract's 20 lowercase letters and digits is refused whole — nothing is salvaged from a line that does
 //! not match. A line longer than [`MAX_LINE`] is refused and the connection is closed, so a caller cannot stream its way past the cap.
 //!
-//! There are six requests and no more. There is no shell and no free-form argv: the caller names an operation and its numbers, and every program, flag
+//! There are five operations and no more. There is no shell and no free-form argv: the caller names an operation and its numbers, and every program, flag
 //! and path is a constant of the runner's build.
 use crate::sandbox::record::{is_sandbox_id, MAX_RAM_MB, MAX_VCPU, MIN_RAM_MB, MIN_VCPU};
 use crate::validate::Object;
@@ -16,6 +16,7 @@ pub const PROTOCOL: u64 = 1;
 /// The longest request or answer line, in bytes.
 pub const MAX_LINE: usize = 4096;
 
+/// Every request there is: five operations, no more.
 const OPERATIONS: [&str; 5] = ["health", "create-network", "delete-network", "start", "stop"];
 
 /// One request: the whole list.

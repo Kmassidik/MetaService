@@ -8,6 +8,7 @@
 //! ```text
 //! <run>/<id>.slot          the slot this sandbox holds while it lives
 //! <run>/<id>.pid           the Firecracker it started, so a runner that restarted can still stop it
+//! <run>/<id>.console       its serial console, so a boot that fails says why
 //! <run>/jail/<id>/root/    what the jailer chroots to: the kernel, the disk, the config
 //! ```
 use crate::sandbox::firecracker::{KERNEL_IN_CHROOT, ROOTFS_IN_CHROOT};
@@ -31,6 +32,8 @@ pub struct Layout {
 pub struct Files {
     pub slot: PathBuf,
     pub pid: PathBuf,
+    /// What Firecracker prints: the guest's serial console, which is how a boot that fails says why.
+    pub console: PathBuf,
     /// The jailer's `--chroot-dir` for this sandbox: it makes `<jail>/<id>/root` under it.
     pub chroot_base: PathBuf,
     /// What the jailer chroots to, and what is filled with the kernel, the disk and the config.
@@ -51,6 +54,7 @@ impl Layout {
         Ok(Files {
             slot: self.root.join(format!("{id}.slot")),
             pid: self.root.join(format!("{id}.pid")),
+            console: self.root.join(format!("{id}.console")),
             jail_root: chroot_base.join(id).join("root"),
             chroot_base,
         })
@@ -111,6 +115,7 @@ impl Layout {
         }
         remove_any(&files.pid);
         remove_any(&files.slot);
+        remove_any(&files.console);
     }
 }
 

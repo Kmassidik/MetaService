@@ -36,12 +36,14 @@ impl Host for RealHost {
         Err(first_line(&output.stderr).unwrap_or_else(|| format!("{} failed with {}", step.program, output.status)))
     }
 
-    /// The jailer execs Firecracker in the process it forks, so the child's pid is Firecracker's own: it is kept on disk for a runner that restarts.
+    /// The jailer execs Firecracker in the process it forks, so the child's pid is Firecracker's own: it is kept on disk for a runner that restarts. Its
+    /// console goes to the sandbox's own file, because a guest that does not boot has nothing else to say.
     fn spawn(&self, files: &Files, step: &Step) -> Result<(), String> {
+        let console = std::fs::File::create(&files.console).map_err(|e| format!("cannot make the sandbox's console file: {e}"))?;
         let child = Command::new(step.program)
             .args(&step.arguments)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
+            .stdout(console)
             .stderr(Stdio::null())
             .spawn()
             .map_err(|e| format!("{}: {e}", step.program))?;

@@ -2,7 +2,7 @@
 //!
 //! Firecracker's jailer, network namespaces, tap devices and firewall rules need root, and the helper must not have it (sandbox/README.md). So the runner
 //! owns those steps and nothing else, and the helper talks to it in the wire format of [`protocol`]: **one JSON request per line, one answer per line**,
-//! six requests in all — `health`, `create-network`, `delete-network`, `start`, `stop`. There is no shell and no free-form argv: an id is the contract's
+//! five operations in all — `health`, `create-network`, `delete-network`, `start`, `stop`. There is no shell and no free-form argv: an id is the contract's
 //! 20 lowercase letters and digits, a size is a number in the contract's bounds, and every program, flag and path is a constant of this build.
 //!
 //! What the runner is handed at the machine: the socket, the run directory, the uplink interface, and the pinned kernel and base disk. What it asks the
