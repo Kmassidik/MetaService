@@ -4,15 +4,15 @@ import XCTest
 @testable import RootStore
 
 final class SandboxMigrationTests: XCTestCase {
-    private let tables = ["teams", "api_keys", "sandboxes", "sandbox_usage"]
+    private let tables = ["teams", "api_keys", "sandboxes", "sandbox_usage", "sandbox_ports"]
 
-    func testMigration26AddsTheSandboxTables() throws {
+    func testMigration27AddsEverySandboxTable() throws {
         let database = try Database(path: ":memory:")
         try Migrations.migrate(database)
-        XCTAssertEqual(Migrations.latest, 26)
+        XCTAssertEqual(Migrations.latest, 27)
         let names = Set(try database.query("SELECT name FROM sqlite_master WHERE type = 'table'").map { $0.string("name") })
         for table in tables {
-            XCTAssertTrue(names.contains(table), "migration 26 creates \(table)")
+            XCTAssertTrue(names.contains(table), "every sandbox table is created: \(table)")
         }
     }
 
@@ -20,8 +20,8 @@ final class SandboxMigrationTests: XCTestCase {
         let database = try Database(path: ":memory:")
         try Migrations.migrate(database)
         try Migrations.migrate(database)
-        XCTAssertEqual(try database.query("SELECT MAX(version) AS version FROM schema_version").first?.int("version"), 26)
-        XCTAssertEqual(try database.query("SELECT COUNT(*) AS steps FROM schema_version").first?.int("steps"), 26)
+        XCTAssertEqual(try database.query("SELECT MAX(version) AS version FROM schema_version").first?.int("version"), 27)
+        XCTAssertEqual(try database.query("SELECT COUNT(*) AS steps FROM schema_version").first?.int("steps"), 27)
     }
 
     func testAKeyCannotBeStoredTwiceByPrefix() throws {

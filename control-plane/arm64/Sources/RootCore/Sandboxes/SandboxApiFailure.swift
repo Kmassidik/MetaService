@@ -34,6 +34,11 @@ public enum SandboxApiCodes {
     public static let startTimeout = "start_timeout"
     public static let helperRefused = "helper_refused"
     public static let notPausable = "not_pausable"
+    /// A public port (see `sandbox/README.md`, "Addresses").
+    public static let notRunning = "sandbox_not_running"
+    public static let portNotFound = "port_not_found"
+    public static let portToken = "invalid_port_token"
+    public static let portUnreachable = "port_unreachable"
 }
 
 extension SandboxApiFailure {
@@ -102,4 +107,22 @@ extension SandboxApiFailure {
 
     /// A sandbox that cannot be paused or resumed on its machine (its engine says so).
     public static let notPausable = SandboxApiFailure(status: 409, message: "This sandbox cannot be paused on its machine.", errorCode: SandboxApiCodes.notPausable)
+
+    // MARK: a public port
+
+    /// No such label. A closed port and a name that was never given out are the same answer, so a scanner learns nothing.
+    public static let portNotFound = SandboxApiFailure(status: 502, message: "There is nothing at this address.", errorCode: SandboxApiCodes.portNotFound)
+
+    /// No token, or one that has expired or was not given out for this host. The host is not repeated.
+    public static let portToken = SandboxApiFailure(status: 401, message: "This address needs a fresh link: ask the sandbox's API for the port again.",
+                                                   errorCode: SandboxApiCodes.portToken)
+
+    /// The sandbox behind the label is paused or gone, which the SDKs read as "not running".
+    public static let portNotRunning = SandboxApiFailure(status: 502, message: "The sandbox at this address is not running.", errorCode: SandboxApiCodes.notRunning)
+
+    /// The machine that runs the sandbox could not be reached, or its answer was too large to pass on.
+    public static let portUnreachable = SandboxApiFailure(status: 502, message: "The sandbox at this address could not be reached.", errorCode: SandboxApiCodes.portUnreachable)
+
+    /// A body larger than this forwarder carries today. Refused rather than cut, because a cut body is a different request.
+    public static let portTooLarge = SandboxApiFailure(status: 413, message: "This request body is too large for the port forwarder.", errorCode: "too_large")
 }

@@ -185,6 +185,19 @@ public enum Migrations {
             );
             CREATE INDEX sandbox_usage_by_team ON sandbox_usage (team, ended_at);
             """) }),
+        // A sandbox's public ports (sandbox/README.md, "Addresses"): one row per exposed port, mapping the opaque label back to
+        // its (sandbox, port). The label is derived, not stored anywhere else, so this table is the only way from a name to a
+        // sandbox. A removed sandbox takes its rows with it.
+        (27, { try $0.exec("""
+            CREATE TABLE sandbox_ports (
+              sandbox TEXT NOT NULL REFERENCES sandboxes(id) ON DELETE CASCADE,
+              port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+              label TEXT NOT NULL UNIQUE,
+              created_at INTEGER NOT NULL,
+              PRIMARY KEY (sandbox, port)
+            );
+            CREATE INDEX sandbox_ports_by_sandbox ON sandbox_ports (sandbox);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
