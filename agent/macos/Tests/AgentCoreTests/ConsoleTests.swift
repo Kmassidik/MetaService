@@ -37,6 +37,31 @@ final class ConsoleTests: XCTestCase {
         }
     }
 
+    func testAnAddressGivesARootPromptThatNamesIt() throws {
+        XCTAssertEqual(
+            try AppleContainer.attach("w-1", address: "10.0.0.5"),
+            ["exec", "-it", "-e", "PS1=root@10.0.0.5:\\w# ", "ms-w-1", "/bin/sh", "-c", "command -v bash >/dev/null 2>&1 && exec bash --noprofile --norc -i; exec sh -i"]
+        )
+    }
+
+    func testAMissingOrOddAddressKeepsTheLoginShell() throws {
+        let login = ["exec", "-it", "ms-w-1", "/bin/sh", "-l"]
+        XCTAssertEqual(try AppleContainer.attach("w-1", address: nil), login)
+        let hostile = ["", "1.2.3", "1.2.3.4; reboot", "$(id)", "a b", "--help", "01.2.3.4", "256.1.1.1", "1.2.3.4\n", "10.0.0.5.6"]
+        for address in hostile {
+            XCTAssertEqual(try AppleContainer.attach("w-1", address: address), login, address)
+        }
+    }
+
+    func testCheckedAddressIsCanonicalDottedTextOrNil() {
+        XCTAssertEqual(AppleContainer.checkedAddress("10.0.0.5"), "10.0.0.5")
+        XCTAssertEqual(AppleContainer.checkedAddress("0.0.0.0"), "0.0.0.0")
+        XCTAssertEqual(AppleContainer.checkedAddress("255.255.255.255"), "255.255.255.255")
+        for odd in [nil, "", "10.0.0", "10.0.0.5.6", "010.0.0.5", "256.0.0.1", "-1.0.0.1", "10.0.0.5 ", "10.0.0.5;id", "a.b.c.d"] {
+            XCTAssertNil(AppleContainer.checkedAddress(odd), String(describing: odd))
+        }
+    }
+
     func testSimulatedAndUnavailableEngines() async throws {
         let engine = try await makeEngine()
         let command = try await engine.attach(id: "w-1")

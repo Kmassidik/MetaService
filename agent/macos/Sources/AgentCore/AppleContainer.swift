@@ -97,13 +97,43 @@ public enum AppleContainer {
         ["exec"] + environment.sorted { $0.key < $1.key }.flatMap { ["-e", "\($0.key)=\($0.value)"] } + [name(for: id)] + arguments
     }
 
-    /// The arguments (after the tool's own path) for an interactive login shell: `container exec -it <name> /bin/sh -l`. A bad id is refused, not quoted.
-    public static func attach(_ id: String) throws -> [String] {
+    /// The arguments (after the tool's own path) for an interactive shell: `container exec -it <name> /bin/sh -l`. With an address that is a
+    /// plain IPv4 address, the shell instead shows a root prompt that names it, like a normal VPS. A bad id is refused, not quoted; a bad
+    /// address falls back to the login shell.
+    public static func attach(_ id: String, address: String? = nil) throws -> [String] {
         guard Ids.isValid(id) else { throw EngineError.notFound }
-        return ["exec", "-it", name(for: id), shellPath, "-l"]
+        let interactive = ["exec", "-it"]
+        guard let checked = checkedAddress(address) else { return interactive + [name(for: id), shellPath, loginShellArgument] }
+        return interactive + ["-e", "\(promptVariable)=root@\(checked)\(promptEnd)"] + [name(for: id)] + promptShellArguments
     }
 
     public static let shellPath = "/bin/sh"
+
+    /// A login shell: it reads /etc/profile, which is what a console without an address has always done.
+    private static let loginShellArgument = "-l"
+    /// The shell that shows the prompt, started through `sh -c` because a Linux guest's /bin/sh is dash: a bash that reads no profile or rc
+    /// files, so nothing there can reset PS1. An image without bash keeps an interactive sh. The check for bash goes to /dev/null, never the
+    /// shell itself: bash draws its prompt on standard error, so hiding that would hide the prompt.
+    private static let promptShellScript = "command -v bash >/dev/null 2>&1 && exec bash --noprofile --norc -i; exec sh -i"
+    private static let promptShellArguments = [shellPath, "-c", promptShellScript]
+    /// The variable bash reads its prompt from; it goes in as `-e PS1=value`, never as part of the program text.
+    private static let promptVariable = "PS1"
+    /// The end of the root prompt: the working directory, then the usual root `# `.
+    private static let promptEnd = ":\\w# "
+
+    /// The address as canonical dotted text when it is a plain IPv4 address, else nil. Anything else (a shell word, a flag, an address with a
+    /// prefix or a leading zero) is refused here, so no other text can reach the prompt.
+    public static func checkedAddress(_ address: String?) -> String? {
+        guard let address else { return nil }
+        let parts = address.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+        var octets: [String] = []
+        for part in parts {
+            guard let value = Int(part), value >= 0, value <= 255, String(value) == part else { return nil }
+            octets.append(String(value))
+        }
+        return octets.joined(separator: ".")
+    }
 
     /// Installs the chat bundle inside a workload: python3 if missing, a locked-down user, the files, a systemd service, and a health check.
     /// Fixed text. The version and port arrive as MS_VERSION and MS_PORT; the archive and key were copied in beforehand.
@@ -187,6 +217,11 @@ public struct ContainerInfo: Equatable {
 /// Reads the JSON `container list --format json` and `container inspect` print. Both give an object, or a list of them.
 public enum ContainerJson {
     private static let maxItems = 5000
+
+    /// The address of one workload in a listing, or nil when it is not listed or has none yet.
+    public static func address(of id: String, in containers: [ContainerInfo]) -> String? {
+        containers.first { $0.name == AppleContainer.name(for: id) }?.ipv4
+    }
 
     public static func parse(_ data: Data) -> [ContainerInfo] {
         guard let parsed = try? JSONSerialization.jsonObject(with: data) else { return [] }

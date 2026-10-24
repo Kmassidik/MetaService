@@ -203,7 +203,8 @@ actor AppleContainerEngine: Engine {
 
     func attach(id: String) async throws -> [String] {
         guard records.all()[id] != nil else { throw EngineError.notFound }
-        return [cli.path] + (try AppleContainer.attach(id))
+        let address = ContainerJson.address(of: id, in: try await containers())
+        return [cli.path] + (try AppleContainer.attach(id, address: address))
     }
 
     // MARK: helpers

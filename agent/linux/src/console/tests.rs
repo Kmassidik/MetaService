@@ -11,9 +11,10 @@ use crate::validate::CreateRequest;
 use axum::http::StatusCode;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -198,12 +199,23 @@ impl Runner for ScriptedIncus {
     }
 }
 
-fn incus(kind: &str, exec_works: bool) -> IncusEngine {
-    let item = format!(
-        r#"[{{"name":"ms-w-1","status":"Running","config":{{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"{kind}","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1"}},"state":null}}]"#
-    );
+fn incus_listing(kind: &str, gpu_mode: &str, address: Option<&str>) -> String {
+    let state = match address {
+        Some(address) => format!(r#""state":{{"network":{{"eth0":{{"addresses":[{{"family":"inet","scope":"global","address":"{address}"}}]}}}}}}"#),
+        None => r#""state":null"#.to_string(),
+    };
+    format!(
+        r#"[{{"name":"ms-w-1","status":"Running","config":{{"user.metaservice.id":"w-1","user.metaservice.name":"d","user.metaservice.kind":"{kind}","user.metaservice.gpu_mode":"{gpu_mode}","user.metaservice.cpu":"1","user.metaservice.ram_mb":"512","user.metaservice.disk_gb":"1"}},{state}}}]"#
+    )
+}
+
+fn incus_with(listing: &str, exec_works: bool) -> IncusEngine {
     let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
-    IncusEngine::new(Arc::new(ScriptedIncus { list: item, exec_works }), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)
+    IncusEngine::new(Arc::new(ScriptedIncus { list: listing.to_string(), exec_works }), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)
+}
+
+fn incus(kind: &str, exec_works: bool) -> IncusEngine {
+    incus_with(&incus_listing(kind, "none", None), exec_works)
 }
 
 #[test]
@@ -212,6 +224,70 @@ fn a_container_gets_the_fixed_incus_exec_command_without_any_probe() {
     assert_eq!(command.program, "/opt/incus");
     assert_eq!(&command.arguments[..2], ["exec", "ms-w-1"]);
     assert_eq!(command.arguments.last().map(String::as_str), Some("exec bash -l 2>/dev/null || exec sh -l"));
+}
+
+#[test]
+fn a_container_with_an_address_gets_a_root_prompt_that_names_it() {
+    let command = incus_with(&incus_listing("container", "none", Some("10.0.0.5")), false).attach("w-1").ok().unwrap();
+    let script = command.arguments.last().unwrap();
+    assert!(script.contains("root@10.0.0.5:\\w# "), "{script}");
+    assert!(!script.contains(" -l"), "{script}");
+}
+
+#[test]
+fn a_gpu_container_gets_the_same_console_command_as_a_plain_one() {
+    for address in [None, Some("10.0.0.5")] {
+        let plain = incus_with(&incus_listing("container", "none", address), false).attach("w-1").ok().unwrap();
+        let gpu = incus_with(&incus_listing("container", "container", address), false).attach("w-1").ok().unwrap();
+        assert_eq!(plain, gpu, "the GPU never changes the console ({address:?})");
+    }
+}
+
+/// Runs the exact prompt command on a real pty with this machine's sh and bash: the root prompt must appear, and PATH must still find programs.
+/// The keys are typed only once the prompt is drawn, as a person does: input written before the shell takes the pty is flushed by bash.
+#[test]
+fn the_prompt_command_really_shows_the_address_and_keeps_a_usable_path() {
+    let command = incus_with(&incus_listing("container", "none", Some("10.0.0.5")), false).attach("w-1").ok().unwrap();
+    let script = command.arguments.last().cloned().unwrap();
+    let process = super::pty::PtyProcess::spawn("/bin/sh", &["-c".into(), script], super::frames::START_SIZE).unwrap();
+    let (mut reader, mut writer) = (process.reader().unwrap(), process.writer().unwrap());
+    let seen = Arc::new(Mutex::new(String::new()));
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    let sink = Arc::clone(&seen);
+    std::thread::spawn(move || {
+        let mut buffer = [0u8; 4096];
+        loop {
+            match super::pty::read_output(&mut reader, &mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(count) => {
+                    sink.lock().unwrap().push_str(&String::from_utf8_lossy(&buffer[..count]));
+                    let finished = {
+                        let text = sink.lock().unwrap();
+                        text.contains("ready-42") && text.contains("path-ok")
+                    };
+                    if finished { break; }
+                }
+            }
+        }
+        let _ = done_tx.send(());
+    });
+    wait_for_output(&seen, "root@10.0.0.5:");
+    writer.write_all(b"echo ready-$((6*7)); command -v sh >/dev/null && echo path-ok\n").unwrap();
+    done_rx.recv_timeout(WAIT).expect("the prompt shell answered");
+    drop(process);
+    let text = seen.lock().unwrap().clone();
+    assert!(text.contains("root@10.0.0.5:"), "{text}");
+    assert!(text.contains("ready-42") && text.contains("path-ok"), "{text}");
+}
+
+/// Waits until the output seen so far contains `wanted`, or fails after WAIT with everything that was seen.
+fn wait_for_output(seen: &Arc<Mutex<String>>, wanted: &str) {
+    let end = Instant::now() + WAIT;
+    while Instant::now() < end {
+        if seen.lock().unwrap().contains(wanted) { return; }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("the terminal never said {wanted}: {}", seen.lock().unwrap());
 }
 
 #[test]

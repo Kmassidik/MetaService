@@ -244,7 +244,7 @@ impl Engine for IncusEngine {
         if workload.kind == Kind::Vm {
             self.exec_within(id, &attach::agent_probe(), &[], QUICK).map_err(|_| EngineError::Failed(attach::NO_AGENT_MESSAGE.into()))?;
         }
-        Ok(AttachCommand { program: self.runner.program(), arguments: attach::arguments(&name_of(id)) })
+        Ok(AttachCommand { program: self.runner.program(), arguments: attach::arguments(&name_of(id), workload.address.as_deref()) })
     }
 
     fn exec(&self, id: &str, arguments: &[String], environment: &[(String, String)]) -> Result<String, EngineError> {
