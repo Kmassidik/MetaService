@@ -13,15 +13,21 @@ info:
     any other route answers 404.
 
 
-    Everything inside a sandbox is reached at `https://{port}-{sandboxID}.{domain}`, not through this API. (The SDK's older
-    `E2B_SANDBOX_URL`, one address plus `E2b-Sandbox-Id` and `E2b-Sandbox-Port` headers, is deprecated there and not served in v1.)
+    A public port of a sandbox is reached at `https://{label}.{domain}`, not through this API, where `{label}` is 16 characters
+    of lowercase base32 derived from the Root's key over (sandbox, port), and **every request must carry a short-lived token**.
+    This is deliberately not E2B's `https://{port}-{sandboxID}.{domain}`: a port in a public name advertises what is listening,
+    and a name is not authentication. `getHost()` is therefore not E2B-compatible for ports; the API and the in-guest daemon
+    (port 49983, reached through the same label) keep E2B's shapes. The domain stays one level (`ruvio.site`), because
+    Cloudflare's free Universal SSL covers one wildcard level only. (The SDK's older `E2B_SANDBOX_URL`, one address plus
+    `E2b-Sandbox-Id` and `E2b-Sandbox-Port` headers, is deprecated there and not served in v1.)
 
     - Port 49983 is the in-guest daemon (E2B's `envd`): commands, files, watching folders. It speaks envd's own protocol (Connect RPC with
       JSON, plus GET /health and GET and POST /files), which this file does not repeat. Every call needs `X-Access-Token: {envdAccessToken}`;
       `/files` also takes the SDK's signed URLs. `Authorization: Basic` picks the Linux user inside and passes through untouched.
       envd's internal routes (`/init`, `/freeze`, `/unfreeze`, `/collapse`, `/fsfreeze`, `/fsthaw`, `/upgrade`) are refused from outside.
 
-    - Any other port is whatever the sandbox's own programs serve there (a web server, a dev server). Anyone with the address can reach it.
+    - Any other port is whatever the sandbox's own programs serve there (a web server, a dev server). Reaching it takes the
+      label **and** a short-lived token, so a leaked link is not a door.
 
     - An unknown, paused or ended sandbox, or a closed port, answers 502 with this file's Error body. The SDKs read a 502 from envd's
       `/health` as "not running".

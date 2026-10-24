@@ -100,8 +100,19 @@ Firecracker restores a snapshot only on the same CPU, the same host kernel and t
 ## Addresses
 
 E2B's SDKs build every address from one domain. This was checked in their code: JS 2.52.0 (the version Oyenza runs) and the current JS and Python source (2.59.0).
-- `https://api.<domain>` for the API;
-- `https://<port>-<sandbox id>.<domain>` for everything inside a sandbox. The daemon is port 49983, and the SDK's signed file links use the same form.
+- `https://api.<domain>` for the API, exactly as the SDKs expect;
+- **not** `https://<port>-<sandbox id>.<domain>`: a port in a public name advertises what is listening (a `6379-…` or `5432-…` host is what scanners hunt for), and a name is not authentication anyway. Our public ports use an opaque label:
+  `https://<16-character label>.<domain>`, **and every request to it carries a short-lived token**.
+
+The label:
+
+- 16 characters of lowercase base32 (`a-z`, `2-7`): 80 bits, not enumerable by scanning;
+- derived from the Root's own key over (sandbox id, port) with the existing `SecretBox.signature`, so nothing extra is stored and the same port always gives the same label;
+- mapped back to one (sandbox, port) by the parent's exposure record; an unknown label answers 502, the same as a closed port.
+
+**This makes `getHost()` E2B-incompatible for ports.** The API and the in-guest daemon (port 49983) keep E2B's shape; a program that needs a public port asks the parent for our host and sends the token with each request. Written down here so it is a decision, not a surprise later.
+
+The domain must stay one level (`ruvio.site`, not `sandbox.ruvio.site`): Cloudflare's free Universal SSL covers one wildcard level only, so a second level would need a paid certificate.
 
 There's an older form, one address with the sandbox in `E2b-Sandbox-Id` and `E2b-Sandbox-Port` headers (`E2B_SANDBOX_URL`). The SDKs mark it deprecated, and v1 doesn't serve it.
 
