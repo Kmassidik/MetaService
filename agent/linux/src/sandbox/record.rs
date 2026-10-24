@@ -25,9 +25,10 @@ const MAX_ENV_VALUE: usize = 16384;
 const MIN_TOKEN: usize = 32;
 const MAX_TOKEN: usize = 128;
 
-/// The contract's word for a sandbox that is up and taking work. It is the only one this slice can have: a sandbox is ready the moment it exists.
-/// `starting`, `pausing`, `paused`, `resuming` and `stopping` arrive with the real engine and with pausing.
+/// The contract's word for a sandbox that is up and taking work.
 pub const STATE_RUNNING: &str = "running";
+/// The contract's word for one whose memory and disk are saved and which is not running: it keeps its end time, and a resume carries on where it stopped.
+pub const STATE_PAUSED: &str = "paused";
 /// The contract's word for a template a sandbox can be made from. `building` and `failed` arrive when templates are built on the machine.
 pub const TEMPLATE_READY: &str = "ready";
 
@@ -68,14 +69,19 @@ pub struct Sandbox {
     pub daemon_version: Option<String>,
     /// SHA-256 of the create body, so a retry with the same id and the same body is answered with this sandbox instead of a second one.
     fingerprint: String,
+    /// When it was paused, while it is paused. A pause does not move its end time: the helper still owns that.
+    paused_since: Option<u64>,
+    /// How long it had already spent paused before the pause in progress, in milliseconds.
+    paused_ms: u64,
 }
 
-/// `running_ms` counts up while it runs, so it is worked out from the clock each time the sandbox is sent.
+/// `running_ms` counts up while it runs and stands still while it is paused, so it is worked out from the clock each time the sandbox is sent.
 impl Sandbox {
     pub fn new(request: &CreateRequest, build: String, fingerprint: String, now: u64) -> Sandbox {
         Sandbox {
             id: request.id.clone(), template: request.template.clone(), build, vcpu: request.vcpu, ram_mb: request.ram_mb, disk_mb: request.disk_mb,
             internet: request.internet, started_at: now, end_at: request.end_at, on_end: request.on_end, daemon_version: None, fingerprint,
+            paused_since: None, paused_ms: 0,
         }
     }
 
@@ -83,8 +89,38 @@ impl Sandbox {
         &self.fingerprint
     }
 
+    pub fn paused(&self) -> bool {
+        self.paused_since.is_some()
+    }
+
+    /// Its state in the contract's words.
+    pub fn state(&self) -> &'static str {
+        match self.paused_since {
+            Some(_) => STATE_PAUSED,
+            None => STATE_RUNNING,
+        }
+    }
+
+    /// Paused from `now`. A pause of one that is already paused changes nothing, so a retried pause does not restart its pause clock.
+    pub fn pause(&mut self, now: u64) {
+        if self.paused_since.is_none() {
+            self.paused_since = Some(now);
+        }
+    }
+
+    /// Resumed at `now`: the time it spent paused is kept and never counted as running time.
+    pub fn resume(&mut self, now: u64) {
+        let Some(since) = self.paused_since.take() else { return };
+        self.paused_ms += now.saturating_sub(since).saturating_mul(1_000);
+    }
+
+    /// The time it has really run: all of it minus every pause, the one in progress included.
     pub fn running_ms(&self, now: u64) -> u64 {
-        now.saturating_sub(self.started_at).saturating_mul(1_000)
+        let paused = match self.paused_since {
+            Some(since) => self.paused_ms + now.saturating_sub(since).saturating_mul(1_000),
+            None => self.paused_ms,
+        };
+        now.saturating_sub(self.started_at).saturating_mul(1_000).saturating_sub(paused)
     }
 }
 
@@ -94,7 +130,7 @@ impl Serialize for Sandbox {
         out.serialize_field("id", &self.id)?;
         out.serialize_field("template", &self.template)?;
         out.serialize_field("build", &self.build)?;
-        out.serialize_field("state", STATE_RUNNING)?;
+        out.serialize_field("state", self.state())?;
         out.serialize_field("vcpu", &self.vcpu)?;
         out.serialize_field("ram_mb", &self.ram_mb)?;
         out.serialize_field("disk_mb", &self.disk_mb)?;
@@ -266,6 +302,22 @@ mod tests {
         assert_eq!((json["state"].clone(), json["started_at"].clone(), json["end_at"].clone()), (json!("running"), json!("2026-10-24T09:30:00Z"), json!("2026-10-24T10:00:00Z")));
         assert!(json["daemon_version"].is_null(), "a sandbox with no daemon to ask says null");
         assert_eq!(json.as_object().unwrap().len(), 13);
+    }
+
+    #[test]
+    fn a_pause_holds_its_running_time_still_and_never_moves_its_end() {
+        let request = CreateRequest::parse(&body(|_| {})).ok().unwrap();
+        let mut sandbox = Sandbox::new(&request, "1".into(), "fingerprint".into(), 1_792_834_200);
+        let end_at = sandbox.end_at;
+        sandbox.pause(1_792_834_210);
+        assert_eq!((sandbox.paused(), sandbox.state()), (true, "paused"));
+        assert_eq!(sandbox.running_ms(1_792_834_240), 10_000, "twenty seconds paused are not twenty seconds run");
+        assert_eq!(sandbox.end_at, end_at, "a pause does not move the time it ends");
+        sandbox.resume(1_792_834_240);
+        assert_eq!((sandbox.paused(), sandbox.state()), (false, "running"));
+        assert_eq!(sandbox.running_ms(1_792_834_260), 30_000, "ten before, twenty after");
+        assert_eq!(serde_json::to_value(&sandbox).unwrap()["state"], "running");
+        assert_eq!(serde_json::to_value(&sandbox).unwrap()["end_at"], "2026-10-24T10:00:00Z");
     }
 
     #[test]

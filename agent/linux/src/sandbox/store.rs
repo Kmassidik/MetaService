@@ -10,11 +10,13 @@ use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::sync::Mutex;
 
-/// What happened to a sandbox: the two things this slice can change.
+/// What happened to a sandbox: what this slice can change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EventKind {
     Started,
+    Paused,
+    Resumed,
     Ended,
 }
 
@@ -116,6 +118,32 @@ impl Store {
         Some(found.clone())
     }
 
+    /// Pauses it and says so. Its end time does not move, and a pause of one that is already paused is not a second event.
+    pub fn pause(&self, id: &str, now: u64) -> Option<Sandbox> {
+        let mut inner = self.inner.lock().unwrap();
+        let found = inner.sandboxes.get_mut(id)?;
+        if found.paused() {
+            return Some(found.clone());
+        }
+        found.pause(now);
+        let paused = found.clone();
+        inner.record(id, EventKind::Paused, None, paused.running_ms(now), now);
+        Some(paused)
+    }
+
+    /// Resumes it and says so. The time it spent paused is not counted as running time, then or later.
+    pub fn resume(&self, id: &str, now: u64) -> Option<Sandbox> {
+        let mut inner = self.inner.lock().unwrap();
+        let found = inner.sandboxes.get_mut(id)?;
+        if !found.paused() {
+            return Some(found.clone());
+        }
+        found.resume(now);
+        let resumed = found.clone();
+        inner.record(id, EventKind::Resumed, None, resumed.running_ms(now), now);
+        Some(resumed)
+    }
+
     /// Every sandbox whose end time has come: taken out, marked gone and said to have ended on its time.
     pub fn due(&self, now: u64) -> Vec<Sandbox> {
         let mut inner = self.inner.lock().unwrap();
@@ -152,16 +180,25 @@ impl Store {
         self.inner.lock().unwrap().last_seq
     }
 
-    /// How many sandboxes run now. Nothing can be paused yet, so this is all of them.
+    /// How many sandboxes are running now: a paused one is not running, and it uses no CPU or memory while it waits.
     pub fn running(&self) -> usize {
-        self.inner.lock().unwrap().sandboxes.len()
+        self.inner.lock().unwrap().sandboxes.values().filter(|sandbox| !sandbox.paused()).count()
+    }
+
+    /// How many are paused. They keep their disk and their place on the machine, which is why their disk is still booked below.
+    pub fn paused(&self) -> usize {
+        self.inner.lock().unwrap().sandboxes.values().filter(|sandbox| sandbox.paused()).count()
     }
 
     pub fn booked(&self) -> Booking {
-        self.inner.lock().unwrap().sandboxes.values().fold(Booking::default(), |all, sandbox| Booking {
-            vcpu: all.vcpu + u64::from(sandbox.vcpu),
-            ram_mb: all.ram_mb + sandbox.ram_mb,
-            disk_mb: all.disk_mb + sandbox.disk_mb,
+        self.inner.lock().unwrap().sandboxes.values().fold(Booking::default(), |all, sandbox| {
+            // A paused sandbox holds no vCPU and no memory; it does hold its disk, which is what makes a resume possible.
+            let running = u64::from(!sandbox.paused());
+            Booking {
+                vcpu: all.vcpu + u64::from(sandbox.vcpu) * running,
+                ram_mb: all.ram_mb + sandbox.ram_mb * running,
+                disk_mb: all.disk_mb + sandbox.disk_mb,
+            }
         })
     }
 }
@@ -264,6 +301,46 @@ mod tests {
         let changed = store.set_end(ID, NOW + 600, OnEnd::Pause).unwrap();
         assert_eq!((changed.end_at, changed.on_end), (NOW + 600, OnEnd::Pause));
         assert_eq!(store.get(ID).unwrap().end_at, NOW + 600);
+    }
+
+    #[test]
+    fn a_pause_keeps_the_end_time_and_its_running_time_stands_still() {
+        let store = store_with_one();
+        let paused = store.pause(ID, NOW + 10).unwrap();
+        assert!(paused.paused() && paused.state() == "paused");
+        assert_eq!(paused.end_at, NOW + 300, "a pause does not move when it ends");
+        assert_eq!(paused.running_ms(NOW + 40), 10_000, "the time it has spent paused is not running time");
+        assert_eq!((store.running(), store.paused()), (0, 1));
+        assert_eq!(store.booked(), Booking { vcpu: 0, ram_mb: 0, disk_mb: 1024 }, "a paused sandbox holds no vCPU and no memory, and keeps its disk");
+        assert_eq!(store.pause(ID, NOW + 20).map(|found| found.running_ms(NOW + 40)), Some(10_000), "a second pause does not restart its clock");
+        let resumed = store.resume(ID, NOW + 40).unwrap();
+        assert!(!resumed.paused() && resumed.state() == "running");
+        assert_eq!(resumed.running_ms(NOW + 60), 30_000, "10 s before the pause, 20 s after it");
+        assert_eq!(resumed.end_at, NOW + 300, "and the end time is still the one it had");
+        assert_eq!((store.running(), store.paused()), (1, 0));
+        let (events, last) = store.events_after(0, 10).ok().unwrap();
+        assert_eq!(last, 3, "started, paused, resumed: nothing more");
+        assert_eq!(events.iter().map(|event| event.kind).collect::<Vec<_>>(), [EventKind::Started, EventKind::Paused, EventKind::Resumed]);
+        assert_eq!(events[2].running_ms, 10_000);
+        assert_eq!(store.resume(ID, NOW + 70).map(|found| found.running_ms(NOW + 70)), Some(40_000), "a resume of a running sandbox changes nothing");
+    }
+
+    #[test]
+    fn a_paused_sandbox_that_runs_out_of_time_is_still_taken_away() {
+        let store = store_with_one();
+        store.pause(ID, NOW + 10).unwrap();
+        let gone = store.due(NOW + 300);
+        assert_eq!(gone.iter().map(|found| found.paused()).collect::<Vec<_>>(), [true], "its end time belongs to the helper, not to its engine");
+        assert!(store.get(ID).is_none());
+        assert_eq!(store.paused(), 0);
+    }
+
+    #[test]
+    fn a_pause_of_an_unknown_sandbox_is_nothing() {
+        let store = store_with_one();
+        assert!(store.pause(OTHER, NOW).is_none());
+        assert!(store.resume(OTHER, NOW).is_none());
+        assert_eq!(store.changes(), 1, "and it says nothing happened");
     }
 
     #[test]

@@ -77,6 +77,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/sandboxes/:id", get(sandbox::get).delete(sandbox::delete))
         .route("/v1/sandboxes/:id/end", put(sandbox::set_end).post(sandbox::set_end))
         .route("/v1/sandboxes/:id/metrics", get(sandbox::metrics))
+        .route("/v1/sandboxes/:id/pause", put(sandbox::pause))
+        .route("/v1/sandboxes/:id/resume", put(sandbox::resume))
         .route("/v1/sandboxes/:id/ports/:port/*path", get(sandbox::ports).post(sandbox::ports).put(sandbox::ports).patch(sandbox::ports).delete(sandbox::ports))
         .route("/v1/sandbox-events", get(sandbox::events))
         .route("/v1/sandbox-templates", get(sandbox::templates))

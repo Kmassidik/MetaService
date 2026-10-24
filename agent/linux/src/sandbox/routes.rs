@@ -1,9 +1,9 @@
 //! The sandbox routes of contract/openapi.yaml, wired onto axum in http.rs. The bearer token is checked before any of these, like every other route.
 //!
 //! One place decides what each refusal looks like: 404 for an unknown id (and for a helper that cannot run sandboxes at all), 400 for a body the contract
-//! does not allow, 413 for one that is too large, 409 with the numbers for one the machine cannot take, 410 for events that are no longer kept, and 501 for
-//! the way into a sandbox, which this slice cannot do yet. The engine's own reason never reaches the Root: it can name paths, and it goes to the helper's
-//! log only.
+//! does not allow, 409 with the numbers for one the machine cannot take, 409 `not_pausable` for an engine that cannot stop a guest where it is, 410 for
+//! events that are no longer kept, and 501 for the way into a sandbox, which this slice cannot do yet. The engine's own reason never reaches the Root: it
+//! can name paths, and it goes to the helper's log only.
 use super::{Refusal, EVENTS_PER_READ};
 use crate::http::{error, small_body, App};
 use axum::extract::{Path, RawQuery, Request, State};
@@ -54,6 +54,16 @@ pub async fn set_end(State(app): State<Arc<App>>, Path(id): Path<String>, reques
 
 pub async fn metrics(State(app): State<Arc<App>>, Path(id): Path<String>) -> Response {
     answer(app.sandboxes.metrics(&id).map(|samples| json!({ "samples": samples })))
+}
+
+/// `PUT /v1/sandboxes/{id}/pause`: the sandbox stopped where it is, memory and all, with its end time unchanged.
+pub async fn pause(State(app): State<Arc<App>>, Path(id): Path<String>) -> Response {
+    answer(app.sandboxes.pause(&id))
+}
+
+/// `PUT /v1/sandboxes/{id}/resume`: it carries on from where it stopped.
+pub async fn resume(State(app): State<Arc<App>>, Path(id): Path<String>) -> Response {
+    answer(app.sandboxes.resume(&id))
 }
 
 pub async fn templates(State(app): State<Arc<App>>) -> Response {
@@ -128,6 +138,10 @@ fn answer<T: serde::Serialize>(result: Result<T, Refusal>) -> Response {
         }
         Err(Refusal::TooOld) => error(StatusCode::GONE, "too_old", "those events are no longer kept; ask again from 0"),
         Err(Refusal::NoPortProxy) => error(StatusCode::NOT_IMPLEMENTED, "no_port_proxy", "this helper cannot pass a request into a sandbox yet: it has no network for one"),
+        Err(Refusal::NotPausable(cause)) => {
+            eprintln!("sandbox: the engine cannot pause or resume it: {cause}");
+            (StatusCode::CONFLICT, Json(json!({"error": {"code": "not_pausable", "message": "this sandbox cannot be paused or resumed on this machine"}}))).into_response()
+        }
         Err(Refusal::Engine(cause)) => {
             eprintln!("sandbox: the engine failed: {cause}");
             error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error")

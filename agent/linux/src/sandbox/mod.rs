@@ -3,10 +3,10 @@
 //! A sandbox is not another kind of workload (sandbox/README.md): there are many of them, they live for minutes, programs make them, and they must be gone
 //! at their end time even when the Root is down. So they get their own records, their own list, their own events and their own routes.
 //!
-//! This slice is the contract and a simulated engine: the records, the end times, the events and the routes are real, and nothing is virtualised yet. The
-//! Firecracker engine (jailer, a network namespace per sandbox, the daemon inside, snapshots, pause and resume, the way into a port) comes later and only
-//! has to be given as another `SandboxEngine`. A helper with no engine answers 404 on every sandbox route and says nothing about sandboxes in its facts,
-//! which is what the contract says a helper from before them does.
+//! This slice is the contract and a simulated engine: the records, the end times, the events, pause and resume, and the routes are real, and nothing is
+//! virtualised yet. The Firecracker engine (jailer, a network namespace per sandbox, the daemon inside, snapshots at template build, the way into a port)
+//! comes later and only has to be given as another `SandboxEngine`. A helper with no engine answers 404 on every sandbox route and says nothing about
+//! sandboxes in its facts, which is what the contract says a helper from before them does.
 mod engine;
 pub mod firecracker;
 mod record;
@@ -21,7 +21,7 @@ pub use engine::{Limits, Sample, SandboxEngine, SimulatedSandboxEngine, Template
 pub use record::{CreateRequest, EndRequest, Sandbox};
 pub use store::Event;
 
-pub(crate) use routes::{create, delete, events, get, list, metrics, ports, set_end, templates};
+pub(crate) use routes::{create, delete, events, get, list, metrics, pause, ports, resume, set_end, templates};
 
 use crate::models::{SandboxBooking, SandboxEngineInfo, SandboxFacts, SandboxTemplateFacts};
 use sha2::{Digest, Sha256};use std::sync::Arc;
@@ -48,6 +48,8 @@ pub enum Refusal {
     Room { message: String, resource: &'static str, needed: u64, free: u64 },
     /// Nothing can be passed into a sandbox yet, because there is no network for one.
     NoPortProxy,
+    /// The engine cannot pause or resume this sandbox: it has no way to stop a guest where it is (or none to start it again).
+    NotPausable(String),
     /// The Root asks for events that are no longer kept.
     TooOld,
     /// The engine's own reason, for the helper's log only.
@@ -187,6 +189,29 @@ impl Sandboxes {
         Ok(engine.metrics(&sandbox, time::now()))
     }
 
+    /// Pauses it where it is: the engine stops the guest, and the record says so. Its end time does not move, because the helper owns it and a paused
+    /// sandbox is not a sandbox that may outlive its time. A second pause changes nothing and answers the sandbox.
+    pub fn pause(&self, id: &str) -> Result<Sandbox, Refusal> {
+        let engine = self.engine()?;
+        let sandbox = self.get(id)?;
+        if sandbox.paused() {
+            return Ok(sandbox);
+        }
+        engine.pause(id).map_err(Refusal::NotPausable)?;
+        self.store.pause(id, time::now()).ok_or(Refusal::NotFound)
+    }
+
+    /// Carries on from where it stopped. A resume of one that is running changes nothing and answers it.
+    pub fn resume(&self, id: &str) -> Result<Sandbox, Refusal> {
+        let engine = self.engine()?;
+        let sandbox = self.get(id)?;
+        if !sandbox.paused() {
+            return Ok(sandbox);
+        }
+        engine.resume(id).map_err(Refusal::NotPausable)?;
+        self.store.resume(id, time::now()).ok_or(Refusal::NotFound)
+    }
+
     /// The events after `after`, and the number of the newest one.
     pub fn events(&self, after: u64, limit: usize) -> Result<(Vec<Event>, u64), Refusal> {
         self.engine()?;
@@ -206,8 +231,7 @@ impl Sandboxes {
             engine: SandboxEngineInfo { name: engine.name().into(), version: engine.version() },
             max_running: limits.max_running,
             running: self.store.running(),
-            // Nothing can be paused yet: a sandbox is killed at its end time in this slice.
-            paused: 0,
+            paused: self.store.paused(),
             max_vcpu: limits.max_vcpu,
             max_ram_mb: limits.max_ram_mb,
             max_disk_mb: limits.max_disk_mb,
@@ -220,8 +244,9 @@ impl Sandboxes {
     /// The room this machine has for the sandbox it is asked for: one slot, and one of each of its sizes.
     fn check_room(&self, limits: Limits, request: &CreateRequest) -> Result<(), Refusal> {
         let booked = self.store.booked();
+        // A paused sandbox still holds its slot and its disk on this machine, so it counts towards both even though it runs nothing.
         let free = [
-            (Size::Slots, 1, u64::from(limits.max_running).saturating_sub(self.store.running() as u64)),
+            (Size::Slots, 1, u64::from(limits.max_running).saturating_sub(self.store.list().len() as u64)),
             (Size::Vcpu, u64::from(request.vcpu), u64::from(limits.max_vcpu).saturating_sub(booked.vcpu)),
             (Size::RamMb, request.ram_mb, limits.max_ram_mb.saturating_sub(booked.ram_mb)),
             (Size::DiskMb, request.disk_mb, limits.max_disk_mb.saturating_sub(booked.disk_mb)),

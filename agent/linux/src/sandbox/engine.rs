@@ -101,6 +101,15 @@ pub trait SandboxEngine: Send + Sync {
     fn create(&self, sandbox: &Sandbox) -> Result<(), String>;
     /// Stops a sandbox that is still there, and says nothing when it is gone already: the helper's own record is what the Root reads.
     fn stop(&self, id: &str) -> Result<(), String>;
+    /// Pauses it where it is: the guest stops, and its memory stays as it was. An engine that cannot pause says so, and the helper answers 409 instead
+    /// of telling the Root a sandbox is paused when nothing was paused.
+    fn pause(&self, _id: &str) -> Result<(), String> {
+        Err("this engine cannot pause a sandbox".into())
+    }
+    /// Carries on from where a paused sandbox stopped. The same rule as [`SandboxEngine::pause`]: an engine that cannot says so.
+    fn resume(&self, _id: &str) -> Result<(), String> {
+        Err("this engine cannot resume a sandbox".into())
+    }
     /// Removes everything the sandbox had.
     fn delete(&self, id: &str) -> Result<(), String>;
     fn metrics(&self, sandbox: &Sandbox, now: u64) -> Vec<Sample>;
@@ -113,6 +122,8 @@ pub struct SimulatedSandboxEngine {
     /// The templates it pretends to have built, and the ids of the sandboxes it pretends to run.
     templates: Vec<Template>,
     running: Mutex<HashSet<String>>,
+    /// The ids it pretends to have paused. Its memory is pretended to be somewhere else; its record, which is real, is what keeps the end time.
+    paused: Mutex<HashSet<String>>,
 }
 
 pub const SIMULATED: &str = "simulated";
@@ -120,13 +131,21 @@ pub const SIMULATED: &str = "simulated";
 impl SimulatedSandboxEngine {
     pub fn new(limits: Limits) -> Self {
         let template = Template { id: BASE_TEMPLATE.into(), build: BASE_BUILD.into(), state: super::record::TEMPLATE_READY, built_at: Some(super::time::now()), size_mb: BASE_SIZE_MB, message: NO_MESSAGE };
-        SimulatedSandboxEngine { limits, templates: vec![template], running: Mutex::new(HashSet::new()) }
+        SimulatedSandboxEngine { limits, templates: vec![template], running: Mutex::new(HashSet::new()), paused: Mutex::new(HashSet::new()) }
     }
 
     /// The ids it pretends to run, for the tests to look at.
     #[cfg(test)]
     pub fn running(&self) -> Vec<String> {
         let mut ids: Vec<String> = self.running.lock().unwrap().iter().cloned().collect();
+        ids.sort();
+        ids
+    }
+
+    /// The ids it pretends to have paused, for the tests to look at.
+    #[cfg(test)]
+    pub fn paused(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.paused.lock().unwrap().iter().cloned().collect();
         ids.sort();
         ids
     }
@@ -154,6 +173,17 @@ impl SandboxEngine for SimulatedSandboxEngine {
         self.forget(id)
     }
 
+    /// A pretended pause: the id is remembered as paused and nothing else happens. The record — and its end time — is the helper's.
+    fn pause(&self, id: &str) -> Result<(), String> {
+        self.paused.lock().unwrap().insert(id.to_string());
+        Ok(())
+    }
+
+    fn resume(&self, id: &str) -> Result<(), String> {
+        self.paused.lock().unwrap().remove(id);
+        Ok(())
+    }
+
     fn delete(&self, id: &str) -> Result<(), String> {
         self.forget(id)
     }
@@ -167,6 +197,7 @@ impl SimulatedSandboxEngine {
     /// A sandbox that is not there any more is not an error: the helper's own record decides what the Root is told.
     fn forget(&self, id: &str) -> Result<(), String> {
         self.running.lock().unwrap().remove(id);
+        self.paused.lock().unwrap().remove(id);
         Ok(())
     }
 }
@@ -195,5 +226,18 @@ mod tests {
         assert_eq!((engine.name(), engine.version()), (SIMULATED, None));
         assert_eq!(engine.limits().max_vcpu, 8);
         assert!(engine.stop("never-made").is_ok(), "stopping what is not there is not a failure");
+    }
+
+    #[test]
+    fn the_simulated_engine_keeps_what_it_pretends_to_pause() {
+        let engine = SimulatedSandboxEngine::new(Limits { max_running: 4, max_vcpu: 8, max_ram_mb: 4096, max_disk_mb: 8192 });
+        assert_eq!(engine.pause("abcdefghij0123456789"), Ok(()));
+        assert_eq!(engine.paused(), ["abcdefghij0123456789"]);
+        assert_eq!(engine.resume("abcdefghij0123456789"), Ok(()));
+        assert!(engine.paused().is_empty(), "a resumed sandbox is not paused any more");
+        assert_eq!(engine.resume("abcdefghij0123456789"), Ok(()), "a resume of one that runs changes nothing");
+        engine.pause("abcdefghij0123456789").unwrap();
+        assert_eq!(engine.delete("abcdefghij0123456789"), Ok(()));
+        assert!(engine.paused().is_empty() && engine.running().is_empty(), "a deleted sandbox is gone from both lists");
     }
 }

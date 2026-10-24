@@ -1,7 +1,7 @@
 //! The sandbox routes and the store behind them: the status codes the contract gives, the end time that takes a sandbox out, the idempotent retry and
 //! delete, the events, and what the facts say. Everything runs on the simulated engine, so nothing here needs root, KVM or Firecracker.
-use super::engine::{Limits, SimulatedSandboxEngine};
-use super::record::OnEnd;
+use super::engine::{Limits, Sample, SandboxEngine, SimulatedSandboxEngine, Template};
+use super::record::{OnEnd, Sandbox};
 use super::{Refusal, Sandboxes};
 use crate::budget::SpaceBudget;
 use crate::engine::{default_capabilities, SimulatedEngine};
@@ -58,6 +58,39 @@ impl crate::service::BundleInstalling for NoChat {
 fn helper() -> (Arc<Sandboxes>, Arc<Service>) {
     let sandboxes = Sandboxes::new(Some(Arc::new(SimulatedSandboxEngine::new(limits()))));
     (sandboxes.clone(), service(sandboxes))
+}
+
+/// An engine that makes sandboxes but has no way to stop a guest where it is: what a `409 not_pausable` comes from.
+struct NoPauseEngine(SimulatedSandboxEngine);
+
+impl SandboxEngine for NoPauseEngine {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn limits(&self) -> Limits {
+        self.0.limits()
+    }
+
+    fn templates(&self) -> Vec<Template> {
+        self.0.templates()
+    }
+
+    fn create(&self, sandbox: &Sandbox) -> Result<(), String> {
+        self.0.create(sandbox)
+    }
+
+    fn stop(&self, id: &str) -> Result<(), String> {
+        self.0.stop(id)
+    }
+
+    fn delete(&self, id: &str) -> Result<(), String> {
+        self.0.delete(id)
+    }
+
+    fn metrics(&self, sandbox: &Sandbox, now: u64) -> Vec<Sample> {
+        self.0.metrics(sandbox, now)
+    }
 }
 
 fn body(id: &str, end_at: &str) -> Value {
@@ -201,10 +234,57 @@ async fn every_body_the_contract_does_not_allow_is_a_400() {
 async fn an_unknown_id_is_a_404_on_every_route_that_names_one() {
     let (_, service) = helper();
     for (method, path) in [("GET", format!("/v1/sandboxes/{OTHER}")), ("DELETE", format!("/v1/sandboxes/{OTHER}")), ("GET", format!("/v1/sandboxes/{OTHER}/metrics")),
-                           ("PUT", format!("/v1/sandboxes/{OTHER}/end")), ("GET", "/v1/sandboxes/nosuchid01234567890".to_string())] {
+                           ("PUT", format!("/v1/sandboxes/{OTHER}/end")), ("GET", "/v1/sandboxes/nosuchid01234567890".to_string()),
+                           ("PUT", format!("/v1/sandboxes/{OTHER}/pause")), ("PUT", format!("/v1/sandboxes/{OTHER}/resume"))] {
         let (status, _) = send(&service, method, &path, &json!({"end_at": LATER, "on_end": "kill"}), TOKEN).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{method} {path}");
     }
+}
+
+#[tokio::test]
+async fn a_pause_and_a_resume_answer_the_sandbox_with_its_end_time_where_it_was() {
+    let (_, service) = helper();
+    create(&service, body(ID, LATER)).await;
+    let (status, paused) = send(&service, "PUT", &format!("/v1/sandboxes/{ID}/pause"), &Value::Null, TOKEN).await;
+    assert_eq!((status, paused["state"].clone(), paused["end_at"].clone()), (StatusCode::OK, json!("paused"), json!(LATER)), "a pause does not move the end time");
+    let (_, list) = send(&service, "GET", "/v1/sandboxes", &Value::Null, TOKEN).await;
+    assert_eq!(list["sandboxes"][0]["state"], "paused", "the list says which sandboxes are paused");
+    let facts = serde_json::to_value(service.facts().await.ok().unwrap()).unwrap();
+    assert_eq!((&facts["sandbox"]["running"], &facts["sandbox"]["paused"], &facts["sandbox"]["booked"]["ram_mb"]), (&json!(0), &json!(1), &json!(0)), "a paused sandbox holds no memory");
+    let (status, paused_again) = send(&service, "PUT", &format!("/v1/sandboxes/{ID}/pause"), &Value::Null, TOKEN).await;
+    assert_eq!((status, paused_again["state"].clone()), (StatusCode::OK, json!("paused")), "a second pause changes nothing");
+    let (status, resumed) = send(&service, "PUT", &format!("/v1/sandboxes/{ID}/resume"), &Value::Null, TOKEN).await;
+    assert_eq!((status, resumed["state"].clone(), resumed["end_at"].clone()), (StatusCode::OK, json!("running"), json!(LATER)));
+    let (status, _) = send(&service, "PUT", &format!("/v1/sandboxes/{ID}/resume"), &Value::Null, TOKEN).await;
+    assert_eq!(status, StatusCode::OK, "a resume of one that runs changes nothing");
+    let (_, events) = send(&service, "GET", "/v1/sandbox-events?after=0", &Value::Null, TOKEN).await;
+    let kinds: Vec<Value> = events["events"].as_array().unwrap().iter().map(|event| event["kind"].clone()).collect();
+    assert_eq!(kinds, [json!("started"), json!("paused"), json!("resumed")], "one event for each thing that happened, and no more");
+}
+
+#[tokio::test]
+async fn a_paused_sandbox_is_deleted_and_ends_on_its_time_like_any_other() {
+    let (sandboxes, service) = helper();
+    create(&service, body(ID, LATER)).await;
+    send(&service, "PUT", &format!("/v1/sandboxes/{ID}/pause"), &Value::Null, TOKEN).await;
+    assert_eq!(send(&service, "DELETE", &format!("/v1/sandboxes/{ID}"), &Value::Null, TOKEN).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(send(&service, "GET", &format!("/v1/sandboxes/{ID}"), &Value::Null, TOKEN).await.0, StatusCode::NOT_FOUND);
+    create(&service, body(OTHER, LATER)).await;
+    send(&service, "PUT", &format!("/v1/sandboxes/{OTHER}/pause"), &Value::Null, TOKEN).await;
+    let now = json!({"end_at": super::time::iso8601(super::time::now()), "on_end": "kill"});
+    send(&service, "PUT", &format!("/v1/sandboxes/{OTHER}/end"), &now, TOKEN).await;
+    sandboxes.sweep();
+    assert_eq!(send(&service, "GET", &format!("/v1/sandboxes/{OTHER}"), &Value::Null, TOKEN).await.0, StatusCode::NOT_FOUND, "a pause never outlives its end time");
+}
+
+#[tokio::test]
+async fn an_engine_that_cannot_pause_is_a_409_and_the_record_says_running() {
+    let sandboxes = Sandboxes::new(Some(Arc::new(NoPauseEngine(SimulatedSandboxEngine::new(limits())))));
+    let service = service(sandboxes);
+    create(&service, body(ID, LATER)).await;
+    let (status, answer) = send(&service, "PUT", &format!("/v1/sandboxes/{ID}/pause"), &Value::Null, TOKEN).await;
+    assert_eq!((status, answer["error"]["code"].clone()), (StatusCode::CONFLICT, json!("not_pausable")));
+    assert_eq!(send(&service, "GET", &format!("/v1/sandboxes/{ID}"), &Value::Null, TOKEN).await.1["state"], "running", "a 409 never leaves the record saying paused");
 }
 
 #[tokio::test]

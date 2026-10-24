@@ -107,6 +107,16 @@ impl SandboxEngine for FirecrackerSandboxEngine {
         self.runner.stop(id)
     }
 
+    /// Firecracker's own pause, through its API socket in the sandbox's jail. Nothing about it lives here: the runner has the socket, and the record of
+    /// what is paused is the helper's.
+    fn pause(&self, id: &str) -> Result<(), String> {
+        self.runner.pause(id)
+    }
+
+    fn resume(&self, id: &str) -> Result<(), String> {
+        self.runner.resume(id)
+    }
+
     /// The process and then everything it had. The network goes even when the stop failed, so no namespace outlives its sandbox; the first thing that
     /// went wrong is what the helper logs.
     fn delete(&self, id: &str) -> Result<(), String> {
@@ -193,5 +203,16 @@ mod tests {
         let engine = FirecrackerSandboxEngine::connect(FakeRunner::new(), limits(), machine("metrics", true)).ok().unwrap();
         assert!(engine.metrics(&sandbox(), 1_792_834_300).is_empty());
         assert_eq!(engine.limits().max_running, 4);
+    }
+
+    #[test]
+    fn a_pause_and_a_resume_are_runner_requests_and_nothing_else() {
+        let runner = FakeRunner::new();
+        let engine = FirecrackerSandboxEngine::connect(runner.clone(), limits(), machine("pause", true)).ok().unwrap();
+        assert_eq!(engine.pause(ID), Ok(()));
+        assert_eq!(engine.resume(ID), Ok(()));
+        assert_eq!(runner.calls()[1..], ["pause abcdefghij0123456789", "resume abcdefghij0123456789"]);
+        runner.refuse_when("pause", "no Firecracker API on this sandbox");
+        assert_eq!(engine.pause(ID).err(), Some("no Firecracker API on this sandbox".into()), "the runner's reason is passed on as it is");
     }
 }
