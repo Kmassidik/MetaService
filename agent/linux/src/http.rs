@@ -106,7 +106,7 @@ async fn require_token(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectIn
     if app.locked_out(peer.ip()) {
         return error(StatusCode::TOO_MANY_REQUESTS, "rate_limited", "too many requests, try again shortly");
     }
-    let sent = bearer(request.headers());
+    let sent = command_token(request.headers(), request.uri().path());
     let good = sent.is_some_and(|s| s.as_bytes().ct_eq(app.token.as_bytes()).into());
     if !good {
         app.count_bad(peer.ip());
@@ -118,6 +118,29 @@ async fn require_token(State(app): State<Arc<App>>, ConnectInfo(peer): ConnectIn
 fn bearer(headers: &HeaderMap) -> Option<&str> {
     let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     value.strip_prefix("Bearer ").filter(|token| value.len() <= 600 && !token.is_empty())
+}
+
+/// The header the sandbox port route carries the command token in, instead of `Authorization`.
+const PORT_TOKEN_HEADER: &str = "x-metaservice-token";
+/// The longest token this route accepts, in bytes (the same bound as the bearer form).
+const MAX_TOKEN_BYTES: usize = 600;
+
+/// Where the command token is read from. The port route is the one exception: it takes the token from its own header, so the caller's
+/// own `Authorization` reaches the program inside the sandbox untouched (see `sandbox/helper.yaml`). Every other route uses `Bearer`.
+fn command_token<'a>(headers: &'a HeaderMap, path: &str) -> Option<&'a str> {
+    if !is_sandbox_port_route(path) {
+        return bearer(headers);
+    }
+    headers
+        .get(PORT_TOKEN_HEADER)?
+        .to_str()
+        .ok()
+        .filter(|token| !token.is_empty() && token.len() <= MAX_TOKEN_BYTES)
+}
+
+/// `/v1/sandboxes/{id}/ports/{port}/{path}`, and nothing else.
+fn is_sandbox_port_route(path: &str) -> bool {
+    path.starts_with("/v1/sandboxes/") && path.contains("/ports/")
 }
 
 // ---- replies
@@ -301,3 +324,51 @@ async fn command(State(app): State<Arc<App>>, Path(id): Path<String>) -> Respons
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
+        let mut map = HeaderMap::new();
+        for (name, value) in pairs {
+            map.insert(*name, HeaderValue::from_static(value));
+        }
+        map
+    }
+
+    const PORT_PATH: &str = "/v1/sandboxes/abcdefghij0123456789/ports/3000/index.html";
+
+    #[test]
+    fn every_other_route_reads_the_bearer_token() {
+        let map = headers(&[("authorization", "Bearer abc")]);
+        assert_eq!(command_token(&map, "/v1/workloads"), Some("abc"));
+    }
+
+    #[test]
+    fn the_port_route_reads_its_own_header_and_ignores_authorization() {
+        let map = headers(&[("authorization", "Bearer caller-owned"), (PORT_TOKEN_HEADER, "abc")]);
+        assert_eq!(command_token(&map, PORT_PATH), Some("abc"));
+    }
+
+    #[test]
+    fn the_port_route_refuses_a_bearer_token_alone() {
+        let map = headers(&[("authorization", "Bearer abc")]);
+        assert_eq!(command_token(&map, PORT_PATH), None);
+    }
+
+    #[test]
+    fn an_empty_or_oversized_port_token_is_refused() {
+        assert_eq!(command_token(&headers(&[(PORT_TOKEN_HEADER, "")]), PORT_PATH), None);
+        let long = "x".repeat(MAX_TOKEN_BYTES + 1);
+        assert_eq!(command_token(&headers(&[(PORT_TOKEN_HEADER, Box::leak(long.into_boxed_str()))]), PORT_PATH), None);
+    }
+
+    #[test]
+    fn only_the_port_route_is_treated_as_one() {
+        assert!(is_sandbox_port_route(PORT_PATH));
+        assert!(!is_sandbox_port_route("/v1/sandboxes"));
+        assert!(!is_sandbox_port_route("/v1/sandboxes/abcdefghij0123456789"));
+        assert!(!is_sandbox_port_route("/v1/workloads/ports/1"));
+    }
+}

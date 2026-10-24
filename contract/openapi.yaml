@@ -274,6 +274,10 @@ paths:
       - { $ref: '#/components/parameters/SandboxId' }
       - { $ref: '#/components/parameters/SandboxPort' }
       - { $ref: '#/components/parameters/SandboxPath' }
+    # This is the one route whose command token is not `Authorization`: the caller's own `Authorization` must reach the program
+    # inside the sandbox, so the helper's token travels in `X-MetaService-Token`. Every other route keeps the bearer token.
+    security:
+      - portToken: []
     get:
       summary: >
         The way into a sandbox: the request goes to `port` inside it and both directions are streamed, with no size limit and no buffering. This is how the
@@ -568,6 +572,9 @@ paths:
 components:
   securitySchemes:
     machineToken: { type: http, scheme: bearer }
+    # The one route that does not use `machineToken`: the sandbox port route takes the command token here instead, so the caller's
+    # own `Authorization` header reaches the program inside the sandbox untouched (see sandbox/helper.yaml).
+    portToken: { type: apiKey, in: header, name: X-MetaService-Token }
   parameters:
     ProcessesQuery:
       name: processes

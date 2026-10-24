@@ -108,6 +108,17 @@ async fn send(service: &Arc<Service>, method: &str, path: &str, body: &Value, to
     (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
 }
 
+/// The port route carries the command token in its own header, so the caller's `Authorization` can reach the program inside.
+async fn send_port(service: &Arc<Service>, method: &str, path: &str, credentials: &str) -> (StatusCode, Value) {
+    let app = router(App::new(service.clone(), TOKEN.into(), 10));
+    let mut request = Request::builder().method(method).uri(path).header("x-metaservice-token", credentials).body(Body::empty()).unwrap();
+    request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+    let response = app.oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+}
+
 async fn create(service: &Arc<Service>, sandbox: Value) -> (StatusCode, Value) {
     send(service, "POST", "/v1/sandboxes", &sandbox, TOKEN).await
 }
@@ -368,10 +379,13 @@ async fn the_way_into_a_sandbox_says_plainly_that_there_is_no_network_yet() {
     let (_, service) = helper();
     create(&service, body(ID, LATER)).await;
     for method in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
-        let (status, answer) = send(&service, method, &format!("/v1/sandboxes/{ID}/ports/8080/index.html"), &Value::Null, TOKEN).await;
+        let (status, answer) = send_port(&service, method, &format!("/v1/sandboxes/{ID}/ports/8080/index.html"), TOKEN).await;
         assert_eq!((status, answer["error"]["code"].clone()), (StatusCode::NOT_IMPLEMENTED, json!("no_port_proxy")), "{method}");
     }
-    let (status, answer) = send(&service, "GET", &format!("/v1/sandboxes/{OTHER}/ports/8080/index.html"), &Value::Null, TOKEN).await;
+    // The port route is the one route that does not take the bearer token: the caller's own Authorization must reach the program.
+    let (status, answer) = send(&service, "GET", &format!("/v1/sandboxes/{ID}/ports/8080/index.html"), &Value::Null, TOKEN).await;
+    assert_eq!((status, answer["error"]["code"].clone()), (StatusCode::UNAUTHORIZED, json!("unauthorized")), "bearer alone is refused here");
+    let (status, answer) = send_port(&service, "GET", &format!("/v1/sandboxes/{OTHER}/ports/8080/index.html"), TOKEN).await;
     assert_eq!((status, answer["error"]["code"].clone()), (StatusCode::BAD_GATEWAY, json!("not_found")), "E2B's SDKs read a 502 as not running");
 }
 
