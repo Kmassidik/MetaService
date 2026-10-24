@@ -26,10 +26,12 @@ class FakeHelper:
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
-    def call(self, method, path, body=None, token="default"):
+    def call(self, method, path, body=None, token="default", headers=None):
         import http.client
         import json
-        headers = {} if token is None else {"Authorization": f"Bearer {self.token if token == 'default' else token}"}
+        headers = dict(headers or {})
+        if token is not None:
+            headers.setdefault("Authorization", f"Bearer {self.token if token == 'default' else token}")
         connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
         connection.request(method, path, body=None if body is None else json.dumps(body), headers={**headers, "Content-Type": "application/json"})
         response = connection.getresponse()

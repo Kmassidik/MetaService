@@ -165,6 +165,28 @@ paths:
           content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SandboxMetric' } } } }
         '401': { $ref: '#/components/responses/401' }
         '404': { $ref: '#/components/responses/404' }
+  /v2/sandboxes/{sandboxID}/ports:
+    parameters: [ { $ref: '#/components/parameters/sandboxID' } ]
+    post:
+      summary: Open one of the sandbox's ports at an opaque public address
+      description: >
+        Answers with the host to fetch and a short-lived token that every request to it must carry. The host is
+        `https://{label}.{domain}`, where `{label}` is sixteen characters of lowercase base32 over the Root's signature for
+        (sandbox, port): a port in a public name would advertise what is listening, and a name is not authentication. The token
+        (15 minutes) travels in `?token=` or the `X-Port-Token` header. The same call twice answers the same host and a fresh
+        token, so a retry never leaves a program with two addresses for one port. 201 when this call opened the port, 200 when
+        it was already open. `getHost()` is therefore not E2B-compatible for ports; see the note at the top of this file.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OpenPort' } } }
+      responses:
+        '200': { description: 'it was already open', content: { application/json: { schema: { $ref: '#/components/schemas/PortAddress' } } } }
+        '201': { description: 'opened now', content: { application/json: { schema: { $ref: '#/components/schemas/PortAddress' } } } }
+        '400': { $ref: '#/components/responses/400' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '409': { description: 'the sandbox is paused or has ended; it has no port to reach now', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { $ref: '#/components/responses/429' }
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -312,6 +334,21 @@ components:
       properties:
         timeout: { type: integer, format: int32, minimum: 1, default: 300, description: 'Seconds from now, as in E2B''s API: absent means 300.' }
         memory: { type: boolean, nullable: true, description: 'false asks for a reboot instead of a resume (the SDK''s onResume reboot); not supported yet, a 400.' }
+    OpenPort:
+      type: object
+      required: [port]
+      properties:
+        port: { type: integer, minimum: 1, maximum: 65535, description: The port a program inside the sandbox listens on. }
+    PortAddress:
+      type: object
+      required: [host, token, expiresAt]
+      properties:
+        host: { type: string, description: '`{label}.{domain}`: fetch it with the token, on any path and any method.' }
+        token:
+          type: string
+          maxLength: 200
+          description: 'Send it in `?token=` or the `X-Port-Token` header. Never log it: it is the only thing between the address and the program.'
+        expiresAt: { type: string, format: date-time, description: 'When the token stops working; ask for the port again for a fresh one.' }
     SandboxMetric:
       type: object
       required: [timestamp, timestampUnix, cpuCount, cpuUsedPct, memUsed, memCache, memTotal, diskUsed, diskTotal]

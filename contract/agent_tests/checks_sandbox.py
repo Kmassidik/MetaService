@@ -204,13 +204,24 @@ def check_the_sandbox_templates_and_the_facts_say_what_this_machine_can_do():
         expect(facts["sandbox"]["changes"] >= 1, "the change number never moved")
 
 
-def check_the_way_into_a_sandbox_says_plainly_that_there_is_no_network_yet():
+def check_the_way_into_a_sandbox_answers_or_says_plainly_that_there_is_no_network_yet():
+    """A real helper without a proxy answers 501 `no_port_proxy`; the Fake Agent, which pretends a program answers, echoes the request.
+    Either way an unknown sandbox is the 502 the SDKs read as not running, and the command token is required in its own header. The Bearer
+    header goes too, because the Linux helper still authenticates this route with it; the Fake Agent reads only the header of the contract."""
+    fake = os.environ.get("MS_HELPER") == "fake"
     with helper() as one:
         sandbox = create_body()
         expect(create(one, sandbox)[0] == 201, "the create was not made")
-        status, refused = one.call("GET", f"{SANDBOXES}/{sandbox['id']}/ports/8080/index.html")
-        expect(status == 501 and code_of(refused) == "no_port_proxy", f"the port route gave {status}: {refused}")
-        status, refused = one.call("GET", f"{SANDBOXES}/{new_id()}/ports/8080/index.html")
+        way_in = f"{SANDBOXES}/{sandbox['id']}/ports/8080/index.html"
+        status, answered = one.call("GET", way_in, headers={"X-MetaService-Token": one.token})
+        if fake:
+            expect(status == 200 and answered["port"] == 8080 and answered["path"] == "index.html",
+                   f"the Fake Agent's port route gave {status}: {answered}")
+        else:
+            expect(status == 501 and code_of(answered) == "no_port_proxy", f"the port route gave {status}: {answered}")
+        status, refused = one.call("GET", way_in, token="wrong", headers={"X-MetaService-Token": "wrong"})
+        expect(status == 401, f"the port route without the command token gave {status}: {refused}")
+        status, refused = one.call("GET", f"{SANDBOXES}/{new_id()}/ports/8080/index.html", headers={"X-MetaService-Token": one.token})
         expect(status == 502 and code_of(refused) == "not_found", f"an unknown sandbox on the port route gave {status}: {refused}")
 
 

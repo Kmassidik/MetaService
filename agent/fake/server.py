@@ -11,7 +11,7 @@ from agent.fake.apps import AppInstallFailed
 from agent.fake.engine import HOST_CPU_MODEL, NotFound, Refused, SshdInstallFailed
 from agent.fake.sandboxes import DEFAULT_LIMIT as DEFAULT_EVENT_LIMIT
 from agent.fake.sandboxes import MAX_LIMIT as MAX_EVENT_LIMIT
-from agent.fake.sandboxes import NO_PORT_PROXY, SandboxNotFound, SandboxRefused, SandboxTooOld
+from agent.fake.sandboxes import SandboxNotFound, SandboxRefused, SandboxTooOld
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.terminal import Consoles, Session
@@ -30,6 +30,10 @@ CPU_FIELD_KINDS = {"cpu_sockets": "vm", "cpu_type": "vm", "cpu_flags": "vm", "cp
 PERCENT_PER_CPU = 100
 
 
+# The way into a sandbox carries the command token in its own header, so the caller's Authorization reaches the program inside
+# untouched (sandbox/helper.yaml). Every other route keeps the Bearer header.
+PORT_ROUTE_PATH = re.compile(r"/v1/sandboxes/[^/]+/ports/[0-9]+(?:/.*)?")
+COMMAND_TOKEN_HEADER = "X-MetaService-Token"
 # Only these refusals carry the numbers behind them (the Refusal schema); any other 409 is a plain Error.
 ROOM_REFUSALS = ("not_enough_room", "missing_capability")
 
@@ -94,8 +98,12 @@ class AgentHandler(BaseHTTPRequestHandler):
             self._send(500, {"error": {"code": "internal", "message": "internal error"}})
 
     def _require_token(self):
-        header = self.headers.get("Authorization", "")
-        supplied = header.removeprefix("Bearer ").encode()
+        """The command token, from the header this route's contract words: X-MetaService-Token on the way into a sandbox, Bearer elsewhere."""
+        path = self.path.split("?", 1)[0]
+        if PORT_ROUTE_PATH.fullmatch(path):
+            supplied = self.headers.get(COMMAND_TOKEN_HEADER, "").encode()
+        else:
+            supplied = self.headers.get("Authorization", "").removeprefix("Bearer ").encode()
         if not hmac.compare_digest(supplied, self.token):
             raise ApiError(401, "unauthorized", "missing or wrong token")
 
@@ -376,12 +384,30 @@ class AgentHandler(BaseHTTPRequestHandler):
         self._send(200, {"templates": self.engine.sandboxes.templates()})
 
     def sandbox_port(self, id, port, path):
-        """The way into a sandbox. Nothing pretended listens inside one, so a sandbox here answers 501; an unknown one is the 502 the SDKs read as not running."""
+        """The way into a sandbox. An unknown sandbox is the 502 the SDKs read as not running.
+
+        A pretended sandbox has no network, so nothing inside one really listens; instead of the honest 501 a real helper without a
+        proxy answers, this fake answers what it was asked (method, path, query, body and the headers that matter), so the parent's
+        forwarder can be checked end to end. X-Fake-Port-Status is a test tool, not part of the contract: it makes the fake answer
+        that status, so a check can prove the parent passes a refusal (the real helper's 501 included) on as it is.
+        """
         try:
             self.engine.sandboxes.get(id)
         except SandboxNotFound:
             raise ApiError(502, "not_found", "no such sandbox on this machine") from None
-        raise ApiError(501, "no_port_proxy", NO_PORT_PROXY)
+        asked = self.headers.get("X-Fake-Port-Status")
+        if asked is not None:
+            raise ApiError(_port_status(asked), "fake_port_status", "the fake answers the status this check asked for")
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        body = self.rfile.read(min(length, MAX_BODY_BYTES)).decode("utf-8", "replace")
+        query = urlsplit(self.path).query
+        self._send(200, {
+            "sandbox": id, "port": int(port), "method": self.command, "path": path, "query": query, "body": body,
+            "authorization": self.headers.get("Authorization"),
+            "command_token": self.headers.get(COMMAND_TOKEN_HEADER) is not None,
+            "port_token": "token" in parse_qs(query, keep_blank_values=True),
+            "port_token_header": self.headers.get("X-Port-Token") is not None,
+        })
 
     def _events_query(self):
         """`after` is required and `limit` is not, both as the contract writes them."""
@@ -409,6 +435,17 @@ class AgentHandler(BaseHTTPRequestHandler):
         if number < 0:
             raise ApiError(400, "invalid_input", f"{name} must be a whole number, 0 or more")
         return number
+
+
+def _port_status(asked):
+    """The status X-Fake-Port-Status names, when it names one this fake can send."""
+    try:
+        status = int(asked)
+    except ValueError:
+        raise ApiError(400, "invalid_input", "X-Fake-Port-Status must be a whole number") from None
+    if not 100 <= status <= 599:
+        raise ApiError(400, "invalid_input", "X-Fake-Port-Status must be a whole HTTP status")
+    return status
 
 
 def _accepted(record):

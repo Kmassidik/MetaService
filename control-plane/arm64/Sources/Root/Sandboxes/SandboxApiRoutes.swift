@@ -24,9 +24,11 @@ struct SandboxApiRoutes {
         group.post("/sandboxes/{sandboxID}/pause", use: pause)
         group.get("/sandboxes/{sandboxID}/metrics", use: metrics)
         group.post("/v2/sandboxes/{sandboxID}/connect", use: connect)
+        group.post("/v2/sandboxes/{sandboxID}/ports", use: exposePort)
     }
 
     private var service: SandboxApiService { SandboxApiService(services: services, helper: helper) }
+    private var ports: SandboxPortService { SandboxPortService(services: services, forwarder: services.sandboxPortForwarder) }
 
     // MARK: routes
 
@@ -101,6 +103,18 @@ struct SandboxApiRoutes {
             let body = try SandboxApiConnectBody.parse(try await body(request))
             let answer = try await service.connect(team: key.team, id: try sandboxID(context), body: body, key: key)
             return try SandboxApiJson.response(answer.sandbox, status: answer.resumed ? .created : .ok)
+        }
+    }
+
+    /// Open a port at `<label>.<domain>`. The same call twice answers the same host and a fresh token, because a program that
+    /// retries must not end up with two addresses for one port.
+    private func exposePort(_ request: Request, context: RootContext) async -> Response {
+        await attempt(context) {
+            let key = try gate.caller(request, context: context)
+            try gate.limitChanges(for: key)
+            let body = try SandboxApiPortBody.parse(try await body(request))
+            let answer = try ports.expose(team: key.team, id: try sandboxID(context), port: body.port)
+            return try SandboxApiJson.response(answer.port, status: answer.created ? .created : .ok)
         }
     }
 

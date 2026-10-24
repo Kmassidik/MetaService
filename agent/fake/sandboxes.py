@@ -1,7 +1,8 @@
 """The Fake Agent's sandboxes: the records, end times and events a real helper keeps, in memory (contract/openapi.yaml and sandbox/README.md).
 
 The same shape a real helper answers, with none of the work: `sandbox` records are plain dicts, the end-time sweep runs on every request instead of on a
-timer, and the way into a sandbox answers 501, because a pretended sandbox has no network and nothing inside it.
+timer, and the way into a sandbox echoes what it was asked, because a pretended sandbox has no network and the parent's forwarder needs an answer to
+carry back.
 """
 import calendar
 import hashlib
@@ -28,7 +29,6 @@ MAX_LIMIT = 1_000
 MIN_RAM_MB = 256
 MIN_DISK_MB = 512
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-NO_PORT_PROXY = "this helper cannot pass a request into a sandbox yet: it has no network for one"
 
 
 def iso(seconds):

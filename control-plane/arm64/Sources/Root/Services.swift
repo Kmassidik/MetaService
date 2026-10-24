@@ -45,7 +45,9 @@ struct Services {
     let apiKeys: ApiKeyStore
     let sandboxes: SandboxStore
     let sandboxUsage: SandboxUsageStore
+    let sandboxPorts: SandboxPortStore
     let sandboxHelper: AgentSandboxHelper
+    let sandboxPortForwarder: AgentSandboxPortForwarder
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -93,6 +95,8 @@ struct Services {
         apiKeys = ApiKeyStore(database)
         sandboxes = SandboxStore(database)
         sandboxUsage = SandboxUsageStore(database)
+        sandboxPorts = SandboxPortStore(database)
         sandboxHelper = AgentSandboxHelper(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
+        sandboxPortForwarder = AgentSandboxPortForwarder(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
     }
 }
