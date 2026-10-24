@@ -17,7 +17,7 @@ const OUTPUT_WAIT_MS = 15000
 /** The parent lets a console go a moment after Close; the next one is opened after this pause. */
 const CLOSE_SETTLE_MS = 1500
 const DEFAULT_COLS = 80
-const BUTTON = '▸ Web terminal'
+const BUTTON = 'Web terminal'
 
 /** Everything the page asked the Root for as a console ticket. */
 export interface TicketLog {
@@ -64,7 +64,7 @@ async function goToTheVmPage(b: Browse): Promise<void> {
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   await b.run((name) => [...document.querySelectorAll<HTMLAnchorElement>('td.c-name a')].find((link) => link.textContent?.trim() === name)?.click(), VM)
-  await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === '▸ Web terminal'), { timeout: AGENT_WAIT_MS })
+  await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Web terminal'), { timeout: AGENT_WAIT_MS })
 }
 
 async function opensAndWorks(b: Browse, tickets: TicketLog): Promise<void> {

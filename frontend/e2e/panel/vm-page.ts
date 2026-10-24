@@ -54,17 +54,24 @@ async function theFourTabs(b: Browse): Promise<void> {
   check('the parts MAAS has but MetaService has no data for stay hidden', !MAAS_ONLY_WORDS.test(await b.text()))
 }
 
-const webTerminalButton = (b: Browse) => b.run(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === '▸ Web terminal'))
+/** The Web terminal button of the VM page: always there, off with its reason when the terminal cannot open. */
+const webTerminal = (b: Browse) =>
+  b.run(() => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>('.phead button')].find((entry) => entry.getAttribute('aria-label')?.startsWith('Web terminal'))
+    return { found: button !== undefined, disabled: button?.disabled ?? false, label: button?.getAttribute('aria-label') ?? '' }
+  })
 
 async function stopThenStart(b: Browse): Promise<void> {
   await b.click('Stop')
   await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Start'), { timeout: ACTION_WAIT_MS })
   check('Stop on the VM page stops it and the button becomes Start', true)
-  check('a stopped VM has no Web terminal button', !(await webTerminalButton(b)))
+  const stopped = await webTerminal(b)
+  check('a stopped VM has a disabled Web terminal button that says why', stopped.found && stopped.disabled && /VM is stopped/.test(stopped.label), JSON.stringify(stopped))
   await b.click('Start')
   await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Stop'), { timeout: ACTION_WAIT_MS })
   check('Start on the VM page starts it again', true)
-  check('a running VM has the Web terminal button', await webTerminalButton(b))
+  const running = await webTerminal(b)
+  check('a running VM has an enabled Web terminal button', running.found && !running.disabled, JSON.stringify(running))
 }
 
 async function deleteGoesBackToTheMachine(b: Browse, vmId: string): Promise<void> {

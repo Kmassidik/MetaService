@@ -111,9 +111,9 @@ const notice = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('.
 /** The panel's list is a few seconds old: the Terminal button of a VM that has just stopped is still on. */
 async function terminalOnAVmThatJustStopped(b: Browse, world: World, token: string): Promise<void> {
   await vmPage(b, 'w-stale', 'stale')
-  await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === '▸ Web terminal'), { timeout: SHORT_WAIT_MS })
+  await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Web terminal'), { timeout: SHORT_WAIT_MS })
   await sendHeartbeat(world, token, beat([dead, evil, quiet, plain, vm('w-stale', 'stale', 'stopped', { stopped_reason: { exit_code: 255, log_tail: REASON_LOG } })]))
-  await b.click('▸ Web terminal')
+  await b.click('Web terminal')
   await b.until(() => document.querySelector('.term-box .notice') !== null, { timeout: AGENT_WAIT_MS })
   await b.until(() => /Start the VM/.test(document.querySelector<HTMLElement>('.term-box .notice')?.innerText ?? ''), { timeout: AGENT_WAIT_MS })
   const said = await notice(b)
@@ -168,8 +168,8 @@ async function stoppingUnderAnOpenTerminal(b: Browse, world: World): Promise<voi
     await createAVm(b, 'under-box')
     const id = await theVmIdOf(world, 'under-box')
     await b.go(`#/machines/details?id=${AGENT_MACHINE}&vm=${id}`)
-    await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === '▸ Web terminal'), { timeout: AGENT_WAIT_MS })
-    await b.click('▸ Web terminal')
+    await b.until(() => [...document.querySelectorAll('.phead button')].some((button) => button.textContent?.trim() === 'Web terminal'), { timeout: AGENT_WAIT_MS })
+    await b.click('Web terminal')
     await untilConnected(b)
     await stopFromOutside(world, id)
     await b.until(() => /right after it started/.test(document.querySelector<HTMLElement>('.term-box .notice')?.innerText ?? ''), { timeout: AGENT_WAIT_MS })
