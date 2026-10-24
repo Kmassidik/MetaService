@@ -181,6 +181,118 @@ paths:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Command' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes:
+    get:
+      summary: >
+        The sandboxes on this machine that are not gone (starting, running, pausing, paused, resuming, stopping). Optional, added without a version change:
+        a helper without these routes answers 404 and says nothing about sandboxes in its facts, so the Root places none on that machine. See sandbox/README.md.
+        Sandboxes are not workloads: they are short-lived, many, and made by programs, so they have their own routes, their own list and their own events.
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SandboxList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: >
+        Make a sandbox from a template and answer once it is ready (its in-guest daemon answers), within 30 seconds. Synchronous, unlike workloads: a sandbox
+        is meant to start in well under a second. The Root picks the id, so a retry with the same id and the same body answers the same sandbox (200) and never
+        makes a second one; the same id with a different body is a 409 `id_taken`. A create that does not get ready in time is removed again, leaving nothing
+        behind, and answers 504 `start_timeout` with the last lines the sandbox printed.
+        `access_token` is secret: it goes to the daemon inside and is never logged, returned or stored.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SandboxCreate' } } }
+      responses:
+        '200': { description: 'the same id and body were sent before; this is that sandbox', content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '201': { description: made and ready, content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: 'no room (`not_enough_room`), `template_not_ready`, or `id_taken`', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxRefusal' } } } }
+        '504': { description: 'it did not get ready in 30 seconds (`start_timeout`); it was removed', content: { application/json: { schema: { $ref: '#/components/schemas/SandboxStartFailure' } } } }
+  /v1/sandboxes/{id}:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    get:
+      summary: One sandbox
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: >
+        Stop the sandbox and remove everything it had (its process, disk, snapshot, network). Idempotent: a sandbox that is already gone answers 204 too.
+        A sandbox this helper never had is a 404. The `ended` event carries its final running time.
+      responses:
+        '204': { description: gone }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/end:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    put:
+      summary: >
+        Change when the sandbox ends and what happens then. The helper keeps this itself and acts on it even when the Root cannot be reached, so a sandbox
+        never outlives its time because the parent was down. POST to this same path answers the same thing, for callers that send it; the Root sends PUT.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SandboxEnd' } } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Sandbox' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/metrics:
+    parameters: [ { $ref: '#/components/parameters/SandboxId' } ]
+    get:
+      summary: CPU, memory and disk readings of one sandbox, one every 5 seconds while it runs, the last hour at most
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SandboxMetrics' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/sandboxes/{id}/ports/{port}/{path}:
+    parameters:
+      - { $ref: '#/components/parameters/SandboxId' }
+      - { $ref: '#/components/parameters/SandboxPort' }
+      - { $ref: '#/components/parameters/SandboxPath' }
+    get:
+      summary: >
+        The way into a sandbox: the request goes to `port` inside it and both directions are streamed, with no size limit and no buffering. This is how the
+        in-guest daemon's commands and files and the sandbox's own web servers are reached (see sandbox/README.md). An unknown, paused or ended sandbox, or a
+        closed port inside, is a 502 with a code, because E2B's SDKs read a 502 from the daemon's `/health` as "not running"; the Root passes it on as it is.
+        A helper that has no way into a sandbox yet (its engine serves no ports) answers 501 `no_port_proxy` with a plain reason, and the Root shows that as
+        the machine not being ready rather than an empty page. On port 49983 a helper refuses the in-guest daemon's own internal routes (403 `internal_route`).
+      responses:
+        '101': { description: WebSocket upgraded by the program inside }
+        '200': { description: whatever the program inside answers (any status) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: one of the daemon''s internal routes (`internal_route`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '501': { description: this helper cannot pass a request into a sandbox yet (`no_port_proxy`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'no such sandbox (`not_found`), it is paused (`paused`) or ended (`ended`), or nothing listens on that port inside (`port_closed`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      summary: Same as GET; so are PUT, PATCH and DELETE, since a program inside may take any of them.
+      responses:
+        '101': { description: WebSocket upgraded by the program inside }
+        '200': { description: whatever the program inside answers (any status) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: one of the daemon''s internal routes (`internal_route`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '501': { description: this helper cannot pass a request into a sandbox yet (`no_port_proxy`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: 'no such sandbox (`not_found`), it is paused (`paused`) or ended (`ended`), or nothing listens on that port inside (`port_closed`)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/sandbox-events:
+    get:
+      summary: >
+        What happened to sandboxes on this machine, in order, after change number `after`. The Root reads it whenever `Facts.sandbox.changes` moved, so it
+        learns of sandboxes the helper ended by itself (timeout, out of memory, crash) and of the exact running time to count. Kept for 24 hours or the last
+        10,000 events. When `after` is older than that, the answer is 410 `too_old` and the Root reads the full list instead (`after=0`).
+      parameters:
+        - { name: after, in: query, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 1000, default: 500 } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SandboxEvents' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { description: events before this are no longer kept (`too_old`), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/sandbox-templates:
+    get:
+      summary: The templates this machine has built or is building (building a template is a later slice; `PUT` and `DELETE` on one come with it).
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SandboxTemplateList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/agents/enroll:
     post:
       summary: Root endpoint. Exchange a one-time enrollment token for a permanent machine token.
@@ -455,6 +567,23 @@ components:
       in: path
       required: true
       schema: { $ref: '#/components/schemas/Id' }
+    SandboxId:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/SandboxId' }
+    SandboxPort:
+      name: port
+      in: path
+      required: true
+      description: The port inside the sandbox the request goes to.
+      schema: { type: integer, minimum: 1, maximum: 65535 }
+    SandboxPath:
+      name: path
+      in: path
+      required: true
+      description: The rest of the URL, slashes and query included, sent on to the program unchanged.
+      schema: { type: string }
   responses:
     Unauthorized: { description: missing or wrong token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Invalid: { description: input failed validation, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -956,7 +1085,7 @@ components:
           required: [name, version]
           additionalProperties: false
           properties:
-            name: { type: string, enum: [firecracker] }
+            name: { type: string, enum: [firecracker, simulated], description: 'The program that runs the sandboxes. `simulated` is the test engine of the Fake Agent and of a helper started with its simulated engine: it makes no real microVM, so a Root running a real deployment never sees it.' }
             version: { type: string, nullable: true, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$' }
         max_running: { type: integer, minimum: 0, description: 'How many sandboxes may run at once here (set on the machine).' }
         running: { type: integer, minimum: 0 }
@@ -986,6 +1115,186 @@ components:
               build: { type: string, pattern: '^[a-z0-9]{1,32}$' }
               ready: { type: boolean }
         changes: { type: integer, minimum: 0, description: 'The number of the last sandbox event. When it moves, the Root reads the helper''s sandbox events.' }
+    SandboxId:
+      type: string
+      pattern: '^[a-z0-9]{20}$'
+      description: Made by the Root. Lowercase letters and digits only, so `49983-<id>.<domain>` is a valid host name.
+    SandboxBuild:
+      type: string
+      pattern: '^[a-z0-9]{1,32}$'
+    SandboxTemplateId:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+    SandboxTime:
+      type: string
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+      description: UTC, as `2026-10-24T09:30:00Z`.
+    SandboxEndBehaviour:
+      type: string
+      enum: [kill, pause]
+      description: What happens at the end time. `pause` is a later slice; a helper that cannot pause treats it as `kill`, so a sandbox never outlives its time.
+    SandboxCreate:
+      type: object
+      required: [id, template, vcpu, ram_mb, disk_mb, end_at, on_end, internet, env_vars, access_token]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/SandboxId' }
+        template: { $ref: '#/components/schemas/SandboxTemplateId' }
+        vcpu: { type: integer, minimum: 1, maximum: 32 }
+        ram_mb: { type: integer, minimum: 256, maximum: 65536 }
+        disk_mb: { type: integer, minimum: 512, maximum: 102400 }
+        end_at: { $ref: '#/components/schemas/SandboxTime' }
+        on_end: { $ref: '#/components/schemas/SandboxEndBehaviour' }
+        internet:
+          type: boolean
+          description: 'False: the sandbox reaches nothing outside itself. True: the internet only; the office network, this machine, other sandboxes and private addresses stay closed either way.'
+        env_vars:
+          type: object
+          maxProperties: 100
+          additionalProperties: { type: string, maxLength: 16384 }
+          description: 'Set for every command run in the sandbox. Keys match ^[A-Za-z_][A-Za-z0-9_]{0,127}$.'
+        access_token:
+          type: string
+          minLength: 32
+          maxLength: 128
+          description: >
+            Secret. The Root derives it as hex(HMAC-SHA256(its own secret, sandbox id)), as E2B does, so it can hand the same token back on connect without
+            storing it. The helper sends it to the daemon inside (and its hash into the microVM's metadata service) and then forgets it: never logged, never
+            returned, never stored.
+    SandboxEnd:
+      type: object
+      required: [end_at, on_end]
+      additionalProperties: false
+      properties:
+        end_at: { $ref: '#/components/schemas/SandboxTime' }
+        on_end: { $ref: '#/components/schemas/SandboxEndBehaviour' }
+    Sandbox:
+      type: object
+      required: [id, template, build, state, vcpu, ram_mb, disk_mb, internet, started_at, end_at, on_end, running_ms, daemon_version]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/SandboxId' }
+        template: { $ref: '#/components/schemas/SandboxTemplateId' }
+        build: { $ref: '#/components/schemas/SandboxBuild' }
+        state: { type: string, enum: [starting, running, pausing, paused, resuming, stopping] }
+        vcpu: { type: integer, minimum: 1 }
+        ram_mb: { type: integer, minimum: 256 }
+        disk_mb: { type: integer, minimum: 512 }
+        internet: { type: boolean }
+        started_at: { $ref: '#/components/schemas/SandboxTime' }
+        end_at: { $ref: '#/components/schemas/SandboxTime' }
+        on_end: { $ref: '#/components/schemas/SandboxEndBehaviour' }
+        running_ms: { type: integer, minimum: 0, description: 'All the time it has been running, in milliseconds, paused time not counted. Worked out again each time it is sent, so it only grows.' }
+        daemon_version: { type: string, nullable: true, maxLength: 32, description: 'The in-guest daemon''s version, null when it did not say.' }
+        timings_ms:
+          type: object
+          additionalProperties: false
+          description: Optional. How long the last start or resume took, for the panel and for tuning.
+          properties:
+            restore: { type: integer, minimum: 0 }
+            ready: { type: integer, minimum: 0 }
+    SandboxList:
+      type: object
+      required: [sandboxes]
+      additionalProperties: false
+      properties:
+        sandboxes:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/Sandbox' }
+    SandboxRefusal:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [not_enough_room, template_not_ready, id_taken] }
+            message: { type: string }
+            resource: { type: string, enum: [slots, vcpu, ram_mb, disk_mb] }
+            needed: { type: integer, minimum: 0 }
+            free: { type: integer, minimum: 0 }
+    SandboxStartFailure:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required: [code, message, log_tail]
+          additionalProperties: false
+          properties:
+            code: { type: string, enum: [start_timeout] }
+            message: { type: string }
+            log_tail:
+              type: array
+              maxItems: 12
+              items: { type: string, maxLength: 200 }
+    SandboxEvents:
+      type: object
+      required: [events, last]
+      additionalProperties: false
+      properties:
+        last: { type: integer, minimum: 0, description: 'The number of the newest event this helper has.' }
+        events:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            required: [seq, at, id, kind, running_ms]
+            additionalProperties: false
+            properties:
+              seq: { type: integer, minimum: 1 }
+              at: { $ref: '#/components/schemas/SandboxTime' }
+              id: { $ref: '#/components/schemas/SandboxId' }
+              kind: { type: string, enum: [started, paused, resumed, ended] }
+              reason:
+                type: string
+                enum: [deleted, timeout, out_of_memory, crashed, helper_restart]
+                description: 'Only on `ended`. `helper_restart` means the helper found it left over after its own restart and removed it.'
+              running_ms: { type: integer, minimum: 0, description: 'The sandbox''s running time at that moment. The Root counts the difference from the last event it saw.' }
+    SandboxMetrics:
+      type: object
+      required: [samples]
+      additionalProperties: false
+      properties:
+        samples:
+          type: array
+          maxItems: 720
+          items:
+            type: object
+            required: [at, cpu_count, cpu_used_pct, mem_used_mb, mem_total_mb, disk_used_mb, disk_total_mb]
+            additionalProperties: false
+            properties:
+              at: { $ref: '#/components/schemas/SandboxTime' }
+              cpu_count: { type: integer, minimum: 1 }
+              cpu_used_pct: { type: number, minimum: 0, maximum: 100 }
+              mem_used_mb: { type: integer, minimum: 0 }
+              mem_total_mb: { type: integer, minimum: 0 }
+              disk_used_mb: { type: integer, minimum: 0 }
+              disk_total_mb: { type: integer, minimum: 0 }
+    SandboxTemplateList:
+      type: object
+      required: [templates]
+      additionalProperties: false
+      properties:
+        templates:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            required: [id, build, state, built_at, size_mb, message]
+            additionalProperties: false
+            properties:
+              id: { $ref: '#/components/schemas/SandboxTemplateId' }
+              build: { $ref: '#/components/schemas/SandboxBuild' }
+              state: { type: string, enum: [building, ready, failed] }
+              built_at: { type: string, nullable: true, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' }
+              size_mb: { type: integer, minimum: 0 }
+              message: { type: string, nullable: true, maxLength: 300, description: Why a build failed, in plain words. }
     Workload:
       type: object
       required: [id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, bundle_version]
