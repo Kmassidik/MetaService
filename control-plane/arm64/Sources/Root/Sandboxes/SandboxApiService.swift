@@ -89,7 +89,7 @@ struct SandboxApiService {
         } catch {
             throw Self.refusal(for: error)
         }
-        try finish(record, reason: .deleted, key: key)
+        try finish(record, reason: .deleted, actor: Self.actor(key))
     }
 
     func setTimeout(team: String, id: String, body: SandboxApiTimeoutBody, key: StoredApiKey) async throws {
@@ -97,7 +97,7 @@ struct SandboxApiService {
         let now = services.clock.now
         guard body.timeoutSeconds > 0 else {
             try await helper.setEnd(machine: record.machine, id: record.id, endAt: now)
-            try finish(record, reason: .timeout, key: key)
+            try finish(record, reason: .timeout, actor: Self.actor(key))
             return
         }
         let endAt = try endTime(of: record, now: now, timeoutSeconds: body.timeoutSeconds)
@@ -148,22 +148,64 @@ struct SandboxApiService {
         }
     }
 
+    // MARK: the panel's actions
+
+    /// The panel's kill: an operator may end any team's sandbox, so no team is asked. The record is closed, the run is counted
+    /// in the usage ledger, and the audit entry names the operator.
+    func operatorKill(id: String, actor: String) async throws {
+        let record = try alive(id: id)
+        do {
+            try await helper.delete(machine: record.machine, id: record.id)
+        } catch SandboxHelperError.refused(let status, _, _) where status == AgentSandboxHelper.notFound {
+            // Already gone at the machine: the record still has to be closed, or the team's room never comes back.
+        } catch {
+            throw Self.refusal(for: error)
+        }
+        try finish(record, reason: .deleted, actor: actor, action: SandboxAudit.sandboxKilled)
+    }
+
+    /// The panel's pause: a sandbox that has ended is no such sandbox, and one already paused is the panel's 409.
+    func operatorPause(id: String, actor: String) async throws {
+        let record = try alive(id: id)
+        if let refusal = SandboxPanelActions.refusal(.pause, sandbox: record.owner) {
+            throw SandboxApiFailure(status: 409, message: refusal.message, errorCode: refusal.rawValue)
+        }
+        do {
+            _ = try await helper.pause(machine: record.machine, id: record.id)
+        } catch SandboxHelperError.refused(let status, _, _) where status == AgentSandboxHelper.notPausable {
+            throw SandboxApiFailure.notPausable
+        } catch {
+            throw Self.refusal(for: error)
+        }
+        _ = try services.sandboxes.setState(id: record.id, state: .paused)
+        try services.audit.record(actor: actor, action: SandboxAudit.sandboxPaused, target: record.id,
+                                  detail: SandboxAudit.actionDetail(team: record.team, machine: record.machine), at: services.clock.now)
+    }
+
     // MARK: the record
 
     /// The record, when it is this team's and still alive. Ended and unknown are the same answer: there is no such sandbox.
     private func own(team: String, id: String) throws -> SandboxRecord {
-        guard let record = try services.sandboxes.get(id: id), record.team == team, record.isAlive else {
+        guard let record = try services.sandboxes.get(id: id), SandboxOwnership.permits(team: team, sandbox: record.owner) else {
             throw SandboxApiFailure.noSuchSandbox()
         }
         return record
     }
 
-    private func finish(_ record: SandboxRecord, reason: SandboxEndReason, key: StoredApiKey) throws {
+    /// The record, when it exists and has not ended. The panel acts for the operator, who sees every team, so no team is asked.
+    private func alive(id: String) throws -> SandboxRecord {
+        guard let record = try services.sandboxes.get(id: id), record.isAlive else { throw SandboxApiFailure.noSuchSandbox() }
+        return record
+    }
+
+    /// Closes the record, counts the run and writes one audit entry. `action` tells an operator's kill from a program's delete.
+    private func finish(_ record: SandboxRecord, reason: SandboxEndReason, actor: String,
+                        action: String = SandboxAudit.sandboxEnded) throws {
         let now = services.clock.now
         _ = try services.sandboxes.end(id: record.id, at: now, reason: reason)
         let seconds = SandboxUsageMath.seconds(from: record.createdAt, to: now)
         try services.sandboxUsage.record(team: record.team, sandbox: record.id, startedAt: record.createdAt, endedAt: now, shape: record.shape)
-        try services.audit.record(actor: Self.actor(key), action: SandboxAudit.sandboxEnded, target: record.id,
+        try services.audit.record(actor: actor, action: action, target: record.id,
                                   detail: SandboxAudit.endDetail(team: record.team, machine: record.machine, reason: reason, seconds: seconds),
                                   at: now)
     }
