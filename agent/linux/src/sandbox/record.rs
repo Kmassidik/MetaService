@@ -14,10 +14,10 @@ const SANDBOX_ID: &str = r"^[a-z0-9]{20}$";
 /// The environment variable names a sandbox gets.
 const ENV_KEY: &str = r"^[A-Za-z_][A-Za-z0-9_]{0,127}$";
 
-const MIN_VCPU: u64 = 1;
-const MAX_VCPU: u64 = 32;
+pub const MIN_VCPU: u64 = 1;
+pub const MAX_VCPU: u64 = 32;
 pub const MIN_RAM_MB: u64 = 256;
-const MAX_RAM_MB: u64 = 65536;
+pub const MAX_RAM_MB: u64 = 65536;
 pub const MIN_DISK_MB: u64 = 512;
 const MAX_DISK_MB: u64 = 102400;
 const MAX_ENV_VARS: usize = 100;

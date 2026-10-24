@@ -8,6 +8,7 @@
 //! has to be given as another `SandboxEngine`. A helper with no engine answers 404 on every sandbox route and says nothing about sandboxes in its facts,
 //! which is what the contract says a helper from before them does.
 mod engine;
+pub mod firecracker;
 mod record;
 mod routes;
 mod store;
