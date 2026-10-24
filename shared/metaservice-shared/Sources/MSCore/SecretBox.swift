@@ -42,6 +42,15 @@ public struct SecretBox: Sendable {
         return String(decoding: plain, as: UTF8.self)
     }
 
+    /// A value only this Root can make, from a purpose and a subject, without storing it: an HMAC under a key derived from
+    /// the box's own key. The sandbox access token is made this way, so the same id always gives the same token back and
+    /// nothing has to be kept next to it (see sandbox/README.md, "Access token").
+    public func signature(_ subject: String, purpose: String) -> String {
+        let subkey = HKDF<SHA256>.deriveKey(inputKeyMaterial: key, info: Data(purpose.utf8), outputByteCount: Self.keyBytes)
+        return HMAC<SHA256>.authenticationCode(for: Data(subject.utf8), using: subkey)
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
     private static func decode(_ text: String) -> Data? {
         var padded = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         padded += String(repeating: "=", count: (4 - padded.count % 4) % 4)

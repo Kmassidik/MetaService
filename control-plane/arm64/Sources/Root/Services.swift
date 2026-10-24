@@ -41,6 +41,11 @@ struct Services {
     let images: ImagesService
     let helperUpdates: HelperUpdates
     let helperUpdate: HelperUpdateService
+    let teams: TeamStore
+    let apiKeys: ApiKeyStore
+    let sandboxes: SandboxStore
+    let sandboxUsage: SandboxUsageStore
+    let sandboxHelper: AgentSandboxHelper
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -84,5 +89,10 @@ struct Services {
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))
+        teams = TeamStore(database)
+        apiKeys = ApiKeyStore(database)
+        sandboxes = SandboxStore(database)
+        sandboxUsage = SandboxUsageStore(database)
+        sandboxHelper = AgentSandboxHelper(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
     }
 }

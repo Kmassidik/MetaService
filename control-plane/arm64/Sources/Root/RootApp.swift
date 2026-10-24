@@ -25,6 +25,9 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     ImagesRoutes(services: services, guards: guards).register(on: router.group())
     HelperUpdateRoutes(services: services, guards: guards).register(on: router.group())
+    // The public sandbox API answers on this app (the panel's own name), with its own key guard: no cookie, no CSRF.
+    // It is registered before the UI catch-all so a `/v2/...` request is never answered by the panel's HTML.
+    SandboxApiRoutes(services: services, gate: SandboxApiGuard(services: services), helper: services.sandboxHelper).register(on: router.group())
     UIRoutes(directory: services.config.uiDirectory).register(on: router.group())
     return Application(router: router, server: .http1WebSocketUpgrade(webSocketRouter: consoleRouter(services: services, guards: guards), configuration: consoleSocketConfiguration),
                        configuration: .init(address: .hostname(services.config.bind, port: services.config.port)))

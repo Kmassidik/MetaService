@@ -47,6 +47,9 @@ struct RootConfig {
     var aiModel: String?
     var aiMaxTokens = BrainRules.defaultMaxTokens
     var capabilitySeconds = BrainRules.defaultCapabilitySeconds
+    /// The sandbox domain: the API is `api.<domain>` and everything inside a sandbox is `<port>-<id>.<domain>` (see
+    /// sandbox/README.md). Set once per deployment, because E2B's SDKs build every address from it; never in a route.
+    var sandboxDomain = RootConfig.defaultSandboxDomain
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
@@ -55,6 +58,8 @@ struct RootConfig {
     /// As in the MAAS panel: the env file and the data sit with the control plane, in the folder it is started from (control-plane/arm64).
     static let defaultEnvFile = ".env"
     static let defaultDatabase = "state/root.sqlite3"
+    /// Chosen for this deployment until the sandbox domain is final (sandbox/README.md, "Addresses").
+    static let defaultSandboxDomain = "sandbox.ruvio.site"
 }
 
 enum ConfigLoader {
@@ -155,6 +160,7 @@ enum ConfigLoader {
         config.historyIntervalSeconds = try number(env["HISTORY_INTERVAL_SECONDS"], named: "HISTORY_INTERVAL_SECONDS", in: historyIntervalRange, default: config.historyIntervalSeconds)
         try applyScan(env, to: &config)
         try applyBrain(env, to: &config)
+        try applySandboxes(env, to: &config)
         if let token = env["ROOT_SETUP_TOKEN"] {
             guard token.count >= SetupGate.minLength else { throw ConfigError(description: "ROOT_SETUP_TOKEN must be at least \(SetupGate.minLength) characters") }
             config.setupToken = token
@@ -172,6 +178,22 @@ enum ConfigLoader {
         guard !given.isEmpty else { return }
         guard given.count == 3 else { throw ConfigError(description: "AI_BASE_URL, AI_API_KEY and AI_DEFAULT_MODEL must all be set, or none of them") }
         guard BrainRules.isAcceptableBaseURL(config.aiBaseURL!) else { throw ConfigError(description: "AI_BASE_URL must be https (or http to a private address) with no credentials in it") }
+    }
+
+    /// The sandbox domain, as a host name: lowercase letters, digits, dots and dashes. It is never a URL (the SDK adds
+    /// `api.` and `<port>-<id>.` itself), so anything with a scheme or a slash is refused at start.
+    static func applySandboxes(_ env: [String: String], to config: inout RootConfig) throws {
+        guard let text = env["SANDBOX_DOMAIN"] else { return }
+        config.sandboxDomain = try hostName(text, named: "SANDBOX_DOMAIN")
+    }
+
+    static func hostName(_ text: String, named name: String) throws -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789.-")
+        guard !text.isEmpty, text.count <= 253, text.unicodeScalars.allSatisfy(allowed.contains),
+              !text.hasPrefix("."), !text.hasSuffix("."), text.contains(".") else {
+            throw ConfigError(description: "\(name) must be a lowercase host name such as sandbox.example.com")
+        }
+        return text
     }
 
     /// One second at the shortest (for tests), one minute at the longest.
