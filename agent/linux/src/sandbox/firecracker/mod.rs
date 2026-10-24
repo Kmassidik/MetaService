@@ -6,18 +6,23 @@
 //!
 //! - [`jailer_arguments`]: the exact argv for one sandbox's jailer, built from a validated id and two numbers.
 //! - [`config_json`]: the Firecracker JSON config, typed, with no user data pasted into a string.
+//! - [`api`]: the Firecracker API calls pause, resume and snapshot are made through, as values, plus the one HTTP-over-a-unix-socket call.
+//! - [`disk`]: the copy-on-write step that gives a sandbox its own root disk.
 //! - [`network_rules`]: the iptables rules that keep the office LAN, private ranges, the machine, other sandboxes, link-local and cloud metadata, and
 //!   outgoing mail closed from inside a sandbox.
 //!
 //! Everything is a plain function of its arguments, so a hostile id or an out-of-range size is refused here, before anything runs, and every one of
 //! them can be tested on a machine with no KVM and no root. There is no KVM machine in the session that wrote this slice, so no real microVM was
-//! started: what is proven is the argument lists, the config and the rules, not a boot.
+//! started: what is proven is the argument lists, the config, the API request values and the rules, not a boot, a pause or a snapshot.
+pub mod api;
 pub mod config;
+pub mod disk;
 pub mod engine;
 pub mod jailer;
 pub mod network;
 
 pub use config::config_json;
+pub use disk::copy_disk_step;
 pub use engine::FirecrackerSandboxEngine;
 pub use jailer::start_step;
 

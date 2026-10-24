@@ -19,9 +19,16 @@ const LAST_ID: u32 = 65_535;
 const NAMESPACE_MAX: usize = 64;
 /// Where the config lands inside the chroot: the jailer chroots before Firecracker reads it, so the path is absolute within that root.
 pub const CONFIG_IN_CHROOT: &str = "/config.json";
+/// Where Firecracker opens its API socket: the runner's way in for pause, resume and snapshot. Inside the chroot like every other path here, so the
+/// runner reaches it from the outside through the same jail directory.
+pub const API_SOCKET_IN_CHROOT: &str = super::api::SOCKET_IN_CHROOT;
 
 /// The argv for `jailer`, without the program itself. `chroot` is the jailer's `--chroot-dir`; `netns` is the sandbox's namespace; `config` is where
 /// this build wrote the Firecracker config, as Firecracker will see it after the chroot.
+///
+/// `--config-file` and `--api-sock` go together on purpose. Firecracker applies a config file through its own API at startup, which needs the socket;
+/// `--no-api` (slice 3) is a boot nothing can reach afterwards, and pause, resume and snapshot are exactly that reach. Booting from a file instead of a
+/// run of `PUT`s also keeps the boot itself one value this build wrote before the process existed, which is what the config tests pin down.
 pub fn jailer_arguments(id: &str, uid: u32, gid: u32, chroot: &Path, netns: &str, config: &Path) -> Result<Vec<String>, String> {
     if !is_sandbox_id(id) {
         return Err("a sandbox id is 20 lowercase letters or digits".into());
@@ -47,8 +54,8 @@ pub fn jailer_arguments(id: &str, uid: u32, gid: u32, chroot: &Path, netns: &str
         "--cgroup-version".into(), CGROUP_VERSION.into(),
         "--resource-limit".into(), RESOURCE_LIMIT.into(),
         // Not `--daemonize`: the jailer execs Firecracker in the process it forks, so the runner keeps that pid and can stop it later.
-        // Everything after this belongs to Firecracker: the config file and no API socket, so there is no second way in beside the one config.
-        "--".into(), "--no-api".into(),
+        // Everything after this belongs to Firecracker: the boot config, and the API socket pause, resume and snapshot are asked through.
+        "--".into(), "--api-sock".into(), API_SOCKET_IN_CHROOT.into(),
         "--config-file".into(), config,
     ])
 }
@@ -94,12 +101,13 @@ mod tests {
             "--cgroup-version", "2",
             "--resource-limit", "no-file=1024",
             "--",
-            "--no-api",
+            "--api-sock", "/firecracker.sock",
             "--config-file", "/config.json",
         ].map(String::from));
         let step = start_step(ID, 30_007, 30_007, Path::new("/jail/ms7"), "ms7", Path::new(CONFIG_IN_CHROOT)).ok().unwrap();
         assert_eq!(step.program, "/usr/local/bin/jailer");
-        assert_eq!(step.arguments.len(), 20, "the jailer's own flags, the `--`, and Firecracker's two");
+        assert_eq!(step.arguments.len(), 21, "the jailer's own flags, the `--`, and Firecracker's own");
+        assert!(!step.arguments.iter().any(|argument| argument == "--no-api"), "a boot with no API cannot be paused, resumed or snapshotted");
     }
 
     #[test]
