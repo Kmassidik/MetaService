@@ -154,6 +154,37 @@ public enum Migrations {
         (24, { try $0.exec("ALTER TABLE machines ADD COLUMN cpu_model TEXT;") }),
         // What a helper can offer for sandboxes (Facts.sandbox, as JSON), replaced with every heartbeat. Null for a helper that does not say, or that says it cannot run sandboxes.
         (25, { try $0.exec("ALTER TABLE machines ADD COLUMN sandbox_json TEXT;") }),
+        // Sandboxes, the teams that buy them and their API keys (see sandbox/README.md, phase 3). A key keeps only the SHA-256 of its
+        // secret and a prefix for display, never the key text. A sandbox keeps the shape it was given and its end time; the usage rows
+        // keep the seconds each finished run counted, so the ledger is written once and never recomputed.
+        (26, { try $0.exec("""
+            CREATE TABLE teams (
+              id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL,
+              max_running INTEGER NOT NULL, max_vcpu INTEGER NOT NULL, max_ram_mb INTEGER NOT NULL, max_sandboxes_per_hour INTEGER NOT NULL
+            );
+            CREATE TABLE api_keys (
+              id TEXT PRIMARY KEY, team TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+              prefix TEXT NOT NULL UNIQUE, secret_hash TEXT NOT NULL,
+              created_at INTEGER NOT NULL, last_used_at INTEGER, revoked_at INTEGER
+            );
+            CREATE INDEX api_keys_by_team ON api_keys (team);
+            CREATE TABLE sandboxes (
+              id TEXT PRIMARY KEY, team TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+              machine TEXT NOT NULL, state TEXT NOT NULL, template TEXT NOT NULL,
+              vcpu INTEGER NOT NULL, ram_mb INTEGER NOT NULL, disk_mb INTEGER NOT NULL,
+              created_at INTEGER NOT NULL, end_at INTEGER NOT NULL, ended_at INTEGER, ended_reason TEXT
+            );
+            CREATE INDEX sandboxes_by_team_state ON sandboxes (team, state);
+            CREATE INDEX sandboxes_by_team_created ON sandboxes (team, created_at);
+            CREATE INDEX sandboxes_by_machine_state ON sandboxes (machine, state);
+            CREATE TABLE sandbox_usage (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              team TEXT NOT NULL, sandbox TEXT NOT NULL,
+              started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL,
+              seconds INTEGER NOT NULL, vcpu_seconds INTEGER NOT NULL, ram_mb_seconds INTEGER NOT NULL
+            );
+            CREATE INDEX sandbox_usage_by_team ON sandbox_usage (team, ended_at);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
