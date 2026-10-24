@@ -26,6 +26,7 @@ mod ledger;
 mod live_space;
 mod models;
 mod preflight;
+mod sandbox;
 mod service;
 mod setup;
 mod ssh_install;
@@ -102,9 +103,18 @@ fn make_engine(config: &Config, specs: &models::Specs) -> Result<Arc<dyn engine:
         return Ok(Arc::new(engine::SimulatedEngine::new(engine::default_capabilities())));
     }
     let path = find_incus(config)?;
-    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false, cpu: cpu::CpuOffer::HOST_ONLY };
+    let capabilities = models::Capabilities { vm: std::path::Path::new("/dev/kvm").exists(), container: true, gpu_in_vm: false, gpu_in_container: false, cpu: cpu::CpuOffer::HOST_ONLY, sandbox: false };
     let backups = config.backup_dir.clone().unwrap_or_else(|| config.state_dir.join("backups"));
     Ok(Arc::new(incus::IncusEngine::new(Arc::new(incus::ProcessRunner { path }), capabilities, backups, config.default_image.clone(), 120).with_probe(Arc::new(preflight::SystemProbe::default())).with_gpu_found(!specs.gpu.is_empty()).with_cpu_vendor(cpu::this_machines_vendor())))
+}
+
+/// The sandbox engine this helper runs. None unless `--sandbox` says so, which is what a machine that cannot run sandboxes (every one, until the
+/// Firecracker engine lands) must say: its facts carry no `sandbox` block and every sandbox route is a 404.
+fn make_sandboxes(config: &Config, specs: &models::Specs, budget: &budget::SpaceBudget) -> Arc<sandbox::Sandboxes> {
+    match config.sandbox.as_deref() {
+        Some(sandbox::SIMULATED) => sandbox::Sandboxes::simulated(sandbox::Limits::of(specs, budget)),
+        _ => sandbox::Sandboxes::disabled(),
+    }
 }
 
 fn run(config: Config) -> Result<(), String> {
@@ -122,13 +132,14 @@ fn run(config: Config) -> Result<(), String> {
     budget.reserve_ram_pinned = config.reserve_ram_mb.is_some();
     budget.reserve_disk_pinned = config.reserve_disk_gb.is_some();
     let engine = make_engine(&config, &specs)?;
+    let sandboxes = make_sandboxes(&config, &specs, &budget);
     start_gpu_watch(&config, &specs)?;
     let supervisor = (std::env::var("MS_NO_CHAT").is_err()).then(|| config.python_path.clone().or_else(bundle::find_python)).flatten()
         .map(|python| supervisor::Supervisor::new(python, config.state_dir.join("chat.log")));
     let installer = bundle::BundleInstaller::new(config.clone(), engine.clone(), root.clone(), machine_token.clone(), supervisor.clone());
     installer.resume();
     let ledger = Arc::new(ledger::Ledger::new(2000, Some(config.state_dir.join("commands.json"))));
-    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()));
+    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()).with_sandboxes(sandboxes));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     if let (Some(root), Some(token)) = (root, machine_token) {
         let heartbeat = heartbeat::Heartbeat::new(root, token, config.port, config.heartbeat_seconds);

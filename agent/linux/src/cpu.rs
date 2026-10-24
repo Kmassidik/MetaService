@@ -141,7 +141,7 @@ mod tests {
     }
 
     fn capabilities(cpu: CpuOffer) -> Capabilities {
-        Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu }
+        Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu, sandbox: false }
     }
 
     const EVERYTHING: CpuOffer = CpuOffer { qemu: Some((9, 2)), topology: true, vendor: Some(CpuVendor::Amd) };

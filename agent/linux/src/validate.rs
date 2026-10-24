@@ -35,10 +35,11 @@ fn is_cpu_model(text: &str) -> bool {
 
 type Checked<T> = Result<T, String>;
 
-struct Object(Map<String, Value>);
+/// A JSON body, read strictly: only the fields the caller allows, each one checked where it is taken. The sandbox bodies use it too.
+pub(crate) struct Object(Map<String, Value>);
 
 impl Object {
-    fn parse(body: &[u8], allowed: &[&str]) -> Checked<Object> {
+    pub(crate) fn parse(body: &[u8], allowed: &[&str]) -> Checked<Object> {
         let value: Value = serde_json::from_slice(body).map_err(|_| "body must be a JSON object".to_string())?;
         let Value::Object(map) = value else { return Err("body must be a JSON object".into()) };
         if let Some(extra) = map.keys().find(|key| !allowed.contains(&key.as_str())) {
@@ -47,17 +48,17 @@ impl Object {
         Ok(Object(map))
     }
 
-    fn has(&self, key: &str) -> bool {
+    pub(crate) fn has(&self, key: &str) -> bool {
         self.0.get(key).is_some_and(|value| !value.is_null())
     }
 
     /// The key is in the body, even as null. The CPU settings use it: for them null is a wrong value, not a field left out.
-    fn sent(&self, key: &str) -> bool {
+    pub(crate) fn sent(&self, key: &str) -> bool {
         self.0.contains_key(key)
     }
 
     /// A nested object whose keys must all be in `allowed`.
-    fn object(&self, key: &str, allowed: &[&str]) -> Checked<Object> {
+    pub(crate) fn object(&self, key: &str, allowed: &[&str]) -> Checked<Object> {
         let map = self.0.get(key).and_then(Value::as_object).ok_or_else(|| format!("{key} must be an object"))?;
         if map.keys().any(|inner| !allowed.contains(&inner.as_str())) {
             return Err(format!("{key} may only hold {}", allowed.join(" and ")));
@@ -65,23 +66,32 @@ impl Object {
         Ok(Object(map.clone()))
     }
 
-    fn text(&self, key: &str) -> Checked<&str> {
+    pub(crate) fn text(&self, key: &str) -> Checked<&str> {
         self.0.get(key).and_then(Value::as_str).ok_or_else(|| format!("{key} must be a string"))
     }
 
-    fn id(&self, key: &str) -> Checked<String> {
+    pub(crate) fn id(&self, key: &str) -> Checked<String> {
         let text = self.text(key)?;
         if is_id(text) { Ok(text.to_string()) } else { Err(format!("{key} is not a valid id")) }
     }
 
-    fn int(&self, key: &str, low: u64, high: u64) -> Checked<u64> {
+    pub(crate) fn int(&self, key: &str, low: u64, high: u64) -> Checked<u64> {
         let number = self.0.get(key).and_then(Value::as_u64).ok_or_else(|| format!("{key} must be a whole number"))?;
         if (low..=high).contains(&number) { Ok(number) } else { Err(format!("{key} is out of range")) }
     }
 
-    fn choice<'a>(&'a self, key: &str, options: &[&'a str]) -> Checked<&'a str> {
+    pub(crate) fn choice<'a>(&'a self, key: &str, options: &[&'a str]) -> Checked<&'a str> {
         let text = self.text(key)?;
         options.iter().copied().find(|option| *option == text).ok_or_else(|| format!("{key} is not an allowed value"))
+    }
+
+    pub(crate) fn boolean(&self, key: &str) -> Checked<bool> {
+        self.0.get(key).and_then(Value::as_bool).ok_or_else(|| format!("{key} must be true or false"))
+    }
+
+    /// A nested object whose fields are not known in advance (a sandbox's environment), read as it is.
+    pub(crate) fn map(&self, key: &str) -> Checked<&Map<String, Value>> {
+        self.0.get(key).and_then(Value::as_object).ok_or_else(|| format!("{key} must be an object"))
     }
 }
 

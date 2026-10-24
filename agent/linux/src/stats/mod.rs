@@ -19,6 +19,7 @@ use sampler::{Environment, Sampler};
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+pub use clock::iso8601;
 pub use gpu::{query_pid_memory, PidMemory};
 pub use model::Stats;
 pub use request::wants_processes;

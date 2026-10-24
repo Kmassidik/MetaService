@@ -121,7 +121,7 @@ impl Runner for Recording {
 
 fn over(answer: Result<String, String>) -> (Arc<Recording>, Arc<crate::service::Service>) {
     let runner = Arc::new(Recording { calls: Mutex::new(Vec::new()), answer });
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY, sandbox: false };
     (runner.clone(), service_over(Arc::new(IncusEngine::new(runner, capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1))))
 }
 

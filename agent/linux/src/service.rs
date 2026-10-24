@@ -6,6 +6,7 @@ use crate::engine::Engine;
 use crate::gpu;
 use crate::gpu_check::{self, GpuCheck};
 use crate::models::*;
+use crate::sandbox::Sandboxes;
 use crate::ssh_install::{self, SshdFailure};
 use crate::ssh_keys::{Applied, SshRequest};
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
@@ -70,6 +71,8 @@ pub struct Service {
     create_lock: tokio::sync::Mutex<()>,
     flight: Mutex<Flight>,
     on_change: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    /// The sandboxes this helper runs. A helper with no engine cannot run any, and says nothing about them in its facts.
+    sandboxes: Arc<Sandboxes>,
 }
 
 /// The cause of a failed action goes to the Agent's own log and never to the Root, because it can name paths and program output.
@@ -84,7 +87,20 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
 impl Service {
     pub fn new(engine: Arc<dyn Engine>, budget: SpaceBudget, specs: Specs, version: &str, ledger: Arc<crate::ledger::Ledger>, installer: Arc<dyn BundleInstalling>, read_machine: impl Fn() -> Option<Reading> + Send + Sync + 'static) -> Self {
         let space = Arc::new(LiveSpace::new(budget, read_machine));
-        Service { engine, space, specs, version: version.into(), build: None, ledger, installer, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()), on_change: Mutex::new(None) }
+        Service {
+            engine, space, specs, version: version.into(), build: None, ledger, installer, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()),
+            on_change: Mutex::new(None), sandboxes: Sandboxes::disabled(),
+        }
+    }
+
+    /// The sandbox engine this helper runs, if any. Its records are the ones `/v1/facts` reports and the sandbox routes answer from.
+    pub fn with_sandboxes(mut self, sandboxes: Arc<Sandboxes>) -> Self {
+        self.sandboxes = sandboxes;
+        self
+    }
+
+    pub fn sandboxes(&self) -> Arc<Sandboxes> {
+        self.sandboxes.clone()
     }
 
     /// Says which build of the program this is (see build.rs); it goes into the facts.
@@ -124,12 +140,13 @@ impl Service {
         let problems = blocking(move || for_problems.problems()).await;
         let identity = blocking(move || engine.identity()).await;
         let capabilities = self.capabilities().await;
+        let sandbox = self.sandboxes.facts();
         let space = self.fresh_space().await;
         let engine_info = EngineInfo { name: identity.name, version: identity.version, ready: problems.is_empty() };
         Ok(Facts {
             os: self.specs.os.clone(), arch: self.specs.arch.clone(), cpu_cores: self.specs.cpu_cores, cpu_model: self.specs.cpu_model.clone(), ram_total_mb: space.budget.ram_total_mb, disk_total_gb: space.budget.disk_total_gb,
             free_ram_mb: space.budget.free_ram_mb(&all), free_disk_gb: space.budget.free_disk_gb(&all), gpu: self.specs.gpu.clone(), capabilities, problems,
-            agent_version: self.version.clone(), engine: engine_info, agent_build: self.build.clone(),
+            agent_version: self.version.clone(), engine: engine_info, agent_build: self.build.clone(), sandbox,
         })
     }
 
@@ -153,7 +170,8 @@ impl Service {
     /// What the engine can do right now. It looks at the host (for the GPU toolkit), so it runs off the async threads.
     async fn capabilities(&self) -> Capabilities {
         let engine = self.engine.clone();
-        blocking(move || engine.capabilities()).await
+        let offered = blocking(move || engine.capabilities()).await;
+        Capabilities { sandbox: self.sandboxes.enabled(), ..offered }
     }
 
     /// Looks inside a running container for the GPU. A VM, or a container that was not given the GPU, is answered without running anything inside it.

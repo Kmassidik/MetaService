@@ -117,7 +117,7 @@ impl Runner for Scripted {
 
 fn over(server: Option<&str>, vendor: Option<CpuVendor>) -> (IncusEngine, Arc<Scripted>) {
     let runner = Arc::new(Scripted { server: server.map(str::to_string), calls: Mutex::new(Vec::new()) });
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY, sandbox: false };
     (IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), IMAGE.into(), 1).with_cpu_vendor(vendor), runner)
 }
 

@@ -46,7 +46,7 @@ mod tests {
     }
 
     fn capabilities(gpu_in_container: bool) -> Capabilities {
-        Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container, cpu: CpuOffer::HOST_ONLY }
+        Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container, cpu: CpuOffer::HOST_ONLY, sandbox: false }
     }
 
     #[test]

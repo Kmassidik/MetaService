@@ -90,6 +90,8 @@ pub struct Capabilities {
     pub gpu_in_container: bool,
     /// What a VM's processors can be given here: `cpu_models`, `cpu_topology` and `cpu_flags`.
     pub cpu: CpuOffer,
+    /// True when this helper can run sandboxes right now. Its facts then carry `sandbox` too (see sandbox/README.md).
+    pub sandbox: bool,
 }
 
 /// This helper serves the console route (`GET /v1/workloads/{id}/terminal`), so it always says `terminal: true`.
@@ -98,10 +100,11 @@ const HAS_CONSOLE: bool = true;
 /// `gpu_memory_limit` is not stored: it is true exactly when `gpu_in_container` is (the watchdog needs the same NVIDIA card and toolkit).
 /// `cpu_limit` is not stored either: Incus can cap the CPU time of any container (`limits.cpu.allowance`, in every version), so it follows `container`.
 /// The CPU fields are always sent, like the two above; a machine that offers nothing new says `[host]`, false, `[]`.
+/// `sandbox` is always sent too; a helper that cannot run sandboxes says false, and its facts carry no `sandbox` block.
 impl Serialize for Capabilities {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut out = serializer.serialize_struct("Capabilities", 10)?;
+        let mut out = serializer.serialize_struct("Capabilities", 11)?;
         out.serialize_field("vm", &self.vm)?;
         out.serialize_field("container", &self.container)?;
         out.serialize_field("gpu_in_vm", &self.gpu_in_vm)?;
@@ -112,6 +115,7 @@ impl Serialize for Capabilities {
         out.serialize_field("cpu_topology", &self.cpu.topology)?;
         out.serialize_field("cpu_flags", self.cpu.flags())?;
         out.serialize_field("cpu_limit", &self.container)?;
+        out.serialize_field("sandbox", &self.sandbox)?;
         out.end()
     }
 }
@@ -172,6 +176,50 @@ pub struct Facts {
     /// The SHA-256 of this program's file (see build.rs). Left out of the facts when it is not known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_build: Option<String>,
+    /// What this helper can offer for sandboxes, exactly when `capabilities.sandbox` is true (see sandbox/README.md).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<SandboxFacts>,
+}
+
+/// What a helper can offer for sandboxes, as `Facts.sandbox` in contract/openapi.yaml. Filled from the helper's own records, so the Root places nothing
+/// here that this machine cannot take right now.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SandboxFacts {
+    pub engine: SandboxEngineInfo,
+    pub max_running: u32,
+    pub running: usize,
+    /// How many are paused. Nothing can be paused yet, so this is 0 until pausing lands.
+    pub paused: usize,
+    pub max_vcpu: u32,
+    pub max_ram_mb: u64,
+    pub max_disk_mb: u64,
+    pub booked: SandboxBooking,
+    pub templates: Vec<SandboxTemplateFacts>,
+    /// The number of the last sandbox event; the Root reads the events when it moves.
+    pub changes: u64,
+}
+
+/// The program that runs the sandboxes here, with its version when it can tell. Never guessed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SandboxEngineInfo {
+    pub name: String,
+    pub version: Option<String>,
+}
+
+/// What the sandboxes hold: vCPU and memory of the running ones, disk of every one of them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct SandboxBooking {
+    pub vcpu: u64,
+    pub ram_mb: u64,
+    pub disk_mb: u64,
+}
+
+/// One template built on this machine, and whether a sandbox can be made from it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SandboxTemplateFacts {
+    pub id: String,
+    pub build: String,
+    pub ready: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -236,7 +284,7 @@ mod tests {
     #[test]
     fn the_memory_limit_capability_follows_gpu_in_container() {
         for gpu in [true, false] {
-            let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu, cpu: CpuOffer::HOST_ONLY }).unwrap();
+            let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: gpu, cpu: CpuOffer::HOST_ONLY, sandbox: false }).unwrap();
             assert_eq!(json["gpu_memory_limit"], gpu);
             assert_eq!(json["gpu_in_container"], gpu);
             assert_eq!(json["terminal"], true);
@@ -245,14 +293,14 @@ mod tests {
 
     #[test]
     fn the_cpu_capabilities_are_always_said_and_the_cap_follows_container() {
-        let plain = serde_json::to_value(Capabilities { vm: true, container: false, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY }).unwrap();
+        let plain = serde_json::to_value(Capabilities { vm: true, container: false, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY, sandbox: false }).unwrap();
         assert_eq!((&plain["cpu_models"], &plain["cpu_topology"], &plain["cpu_flags"], &plain["cpu_limit"]), (&json!(["host"]), &json!(false), &json!([]), &json!(false)));
         let offer = CpuOffer::new("x86_64", Some((8, 0)), true, Some(crate::cpu::CpuVendor::Intel));
-        let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: offer }).unwrap();
+        let json = serde_json::to_value(Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: offer, sandbox: true }).unwrap();
         assert_eq!(json["cpu_models"][0], "host");
         assert!(json["cpu_models"].as_array().unwrap().contains(&json!("SapphireRapids")) && !json["cpu_models"].as_array().unwrap().contains(&json!("EPYC-Genoa")));
         assert_eq!((&json["cpu_topology"], &json["cpu_flags"], &json["cpu_limit"]), (&json!(true), &json!(["nested-virt", "aes"]), &json!(true)));
-        assert_eq!(json.as_object().unwrap().len(), 10);
+        assert_eq!((json["sandbox"].clone(), json.as_object().unwrap().len()), (json!(true), 11), "a helper that can run sandboxes says so");
     }
 
     #[test]

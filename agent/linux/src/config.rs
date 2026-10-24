@@ -1,4 +1,5 @@
 //! Settings from the command line. Secrets never go on the command line: the enrollment token comes from a file or an env variable.
+use crate::sandbox::SIMULATED;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -17,6 +18,8 @@ pub struct Config {
     pub port: u16,
     pub bind: String,
     pub engine: String,
+    /// Which sandbox engine to run: `simulated` for the test engine, absent for none (a helper that cannot run sandboxes says nothing about them).
+    pub sandbox: Option<String>,
     pub reserve_ram_mb: Option<u64>,
     pub reserve_disk_gb: Option<u64>,
     pub ram_allowance_mb: Option<u64>,
@@ -34,7 +37,7 @@ pub struct Config {
 pub const VERSION: &str = "0.1.0";
 pub const DEFAULT_IMAGE: &str = "images:ubuntu/24.04";
 const VALUED: &[&str] = &[
-    "--state-dir", "--port", "--bind", "--engine", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb", "--disk-allowance-gb", "--bad-token-limit",
+    "--state-dir", "--port", "--bind", "--engine", "--sandbox", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb", "--disk-allowance-gb", "--bad-token-limit",
     "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--incus-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file", "--user",
 ];
 
@@ -64,7 +67,7 @@ impl Config {
         Config {
             verb: Verb::Run,
             state_dir: PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into())).join(".metaservice-agent"),
-            port: 9101, bind: "127.0.0.1".into(), engine: "simulated".into(), reserve_ram_mb: None, reserve_disk_gb: None, ram_allowance_mb: None, disk_allowance_gb: None,
+            port: 9101, bind: "127.0.0.1".into(), engine: "simulated".into(), sandbox: None, reserve_ram_mb: None, reserve_disk_gb: None, ram_allowance_mb: None, disk_allowance_gb: None,
             bad_token_limit: 10, heartbeat_seconds: 15, chat_port: 9200, chat_bind: None, python_path: None, incus_path: None, default_image: DEFAULT_IMAGE.into(), backup_dir: None,
         }
     }
@@ -89,6 +92,10 @@ impl Config {
         if let Some(engine) = options.get("--engine") { self.engine = engine.clone(); }
         if !["simulated", "incus"].contains(&self.engine.as_str()) {
             return Err("--engine must be simulated or incus".into());
+        }
+        self.sandbox = options.get("--sandbox").cloned();
+        if self.sandbox.as_deref().is_some_and(|sandbox| sandbox != SIMULATED) {
+            return Err("--sandbox must be simulated (the Firecracker engine is not built yet)".into());
         }
         self.port = number(options, "--port", 1, 65535)?.map_or(self.port, |n| n as u16);
         self.chat_port = number(options, "--chat-port", 1, 65535)?.map_or(self.chat_port, |n| n as u16);
@@ -134,12 +141,14 @@ mod tests {
         let config = parse(&["run", "--port", "9999", "--engine", "incus", "--ram-allowance-mb", "8000"]).unwrap();
         assert_eq!((config.port, config.engine.as_str(), config.ram_allowance_mb, config.bind.as_str()), (9999, "incus", Some(8000), "127.0.0.1"));
         assert!(matches!(parse(&[]).unwrap().verb, Verb::Run));
+        assert_eq!(parse(&[]).unwrap().sandbox, None, "a helper runs no sandboxes unless it is told to");
+        assert_eq!(parse(&["run", "--sandbox", "simulated"]).unwrap().sandbox.as_deref(), Some("simulated"));
         assert!(matches!(parse(&["--port", "9100"]).unwrap().verb, Verb::Run), "no verb means run");
     }
 
     #[test]
     fn bad_input_is_refused() {
-        for bad in [&["--nope", "1"][..], &["--port"], &["--port", "0"], &["--port", "99999"], &["--port", "x"], &["--engine", "docker"], &["fly"], &["enroll", "--root", "http://x"],
+        for bad in [&["--nope", "1"][..], &["--port"], &["--port", "0"], &["--port", "99999"], &["--port", "x"], &["--engine", "docker"], &["--sandbox", "firecracker"], &["fly"], &["enroll", "--root", "http://x"],
                     &["enroll", "--name", "x"], &["run", "--enrollment-token", "secret"]] {
             assert!(parse(bad).is_err(), "{bad:?}");
         }

@@ -196,7 +196,7 @@ impl Engine for SimulatedEngine {
 }
 
 pub fn default_capabilities() -> Capabilities {
-    Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY }
+    Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY, sandbox: false }
 }
 
 #[allow(dead_code)]

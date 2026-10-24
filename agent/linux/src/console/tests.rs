@@ -210,7 +210,7 @@ fn incus_listing(kind: &str, gpu_mode: &str, address: Option<&str>) -> String {
 }
 
 fn incus_with(listing: &str, exec_works: bool) -> IncusEngine {
-    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY };
+    let capabilities = Capabilities { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false, cpu: CpuOffer::HOST_ONLY, sandbox: false };
     IncusEngine::new(Arc::new(ScriptedIncus { list: listing.to_string(), exec_works }), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1)
 }
 

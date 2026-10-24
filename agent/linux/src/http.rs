@@ -1,5 +1,6 @@
 //! The Agent half of contract/openapi.yaml, on axum.
 use crate::models::{CONTRACT_VERSION, Refusal};
+use crate::sandbox::{self, Sandboxes};
 use crate::service::{Failure, Service};
 use crate::ssh_install;
 use crate::ssh_keys::SshRequest;
@@ -28,13 +29,16 @@ pub struct App {
     pub token: String,
     pub bad_token_limit: u32,
     pub consoles: crate::console::Consoles,
+    /// The sandboxes this helper runs. The service owns the one of them, so `/v1/facts` and these routes always agree.
+    pub sandboxes: Arc<Sandboxes>,
     stats: Monitor,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32) -> Arc<App> {
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
+        let sandboxes = service.sandboxes();
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
     }
 
     fn locked_out(&self, ip: IpAddr) -> bool {
@@ -69,6 +73,13 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
         .route("/v1/commands/:id", get(command))
+        .route("/v1/sandboxes", get(sandbox::list).post(sandbox::create))
+        .route("/v1/sandboxes/:id", get(sandbox::get).delete(sandbox::delete))
+        .route("/v1/sandboxes/:id/end", put(sandbox::set_end).post(sandbox::set_end))
+        .route("/v1/sandboxes/:id/metrics", get(sandbox::metrics))
+        .route("/v1/sandboxes/:id/ports/:port/*path", get(sandbox::ports).post(sandbox::ports).put(sandbox::ports).patch(sandbox::ports).delete(sandbox::ports))
+        .route("/v1/sandbox-events", get(sandbox::events))
+        .route("/v1/sandbox-templates", get(sandbox::templates))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(app.clone(), require_token))
         .layer(middleware::from_fn(security_headers))
@@ -134,7 +145,7 @@ fn accepted(command: &crate::models::Command) -> Response {
 
 /// The body, if it is small enough. A declared length over the limit is refused without reading.
 #[allow(clippy::result_large_err)] // the Err is the finished reply, sent as it is
-async fn small_body(request: Request) -> Result<Vec<u8>, Response> {
+pub(crate) async fn small_body(request: Request) -> Result<Vec<u8>, Response> {
     let declared = request.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<usize>().ok());
     if declared.is_some_and(|n| n > MAX_BODY_BYTES) {
         return Err(error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "request body too large"));

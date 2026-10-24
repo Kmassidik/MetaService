@@ -23,7 +23,7 @@ impl Runner for Recording {
 
 fn start_and_collect(list: &'static str) -> Vec<String> {
     let runner = Arc::new(Recording { list, calls: Mutex::new(Vec::new()) });
-    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: true, cpu: CpuOffer::HOST_ONLY };
+    let capabilities = Capabilities { vm: false, container: true, gpu_in_vm: false, gpu_in_container: true, cpu: CpuOffer::HOST_ONLY, sandbox: false };
     let engine = IncusEngine::new(runner.clone(), capabilities, PathBuf::from("/nonexistent"), "images:ubuntu/24.04".into(), 1);
     let _ = engine.set_running("w-1", true);
     let calls = runner.calls.lock().unwrap();
