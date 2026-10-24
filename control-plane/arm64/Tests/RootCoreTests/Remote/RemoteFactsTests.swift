@@ -104,8 +104,32 @@ final class RemoteFactsTests: XCTestCase {
     }
 
     func testTheProbeScriptAsksForEveryFactTheParserReads() {
-        for key in ["os=", "arch=", "user=", "host=", "home=", "version=", "chip=", "cpu=", "ram_mb=", "disk_free_gb=", "kvm=", "tool=", "sudo=", "port_9101="] {
+        for key in ["os=", "arch=", "user=", "host=", "home=", "version=", "chip=", "cpu=", "ram_mb=", "disk_free_gb=", "kvm=", "virt=", "qemu=", "tool=", "sudo=", "port_9101="] {
             XCTAssertTrue(RemoteProbe.script.contains("echo \"\(key)") || RemoteProbe.script.contains("echo \"\(key)"), key)
         }
+    }
+
+    func testVirtualizationAndQemuAreReadFromAYesOrNo() throws {
+        let answer = "os=Linux\narch=x86_64\nkvm=no\nvirt=yes\nqemu=no\n"
+        let facts = try XCTUnwrap(RemoteProbe.parse(answer))
+        XCTAssertEqual([facts.virt, facts.qemu], [true, false])
+        let other = try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\nvirt=no\nqemu=yes\n"))
+        XCTAssertEqual([other.virt, other.qemu], [false, true])
+        XCTAssertNil(other.kvm, "a fact the answer did not hold stays unknown, never false")
+    }
+
+    func testAnUnknownOrMissingAnswerIsNotAMadeUpNo() throws {
+        let unknown = try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=aarch64\nvirt=unknown\nqemu=maybe\n"))
+        XCTAssertNil(unknown.virt)
+        XCTAssertNil(unknown.qemu)
+        let absent = try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=aarch64\n"))
+        XCTAssertNil(absent.virt)
+        XCTAssertNil(absent.qemu)
+    }
+
+    func testTheProbeNamesTheVirtualizationFlagsAndTheQemuPrograms() {
+        XCTAssertTrue(RemoteProbe.script.contains("-qwE 'svm|vmx'"), "svm on AMD, vmx on Intel")
+        XCTAssertTrue(RemoteProbe.script.contains("qemu-system-x86_64") && RemoteProbe.script.contains("qemu-system-aarch64"))
+        XCTAssertTrue(RemoteProbe.script.contains("echo \"virt=unknown\""), "a chip type that cannot answer says unknown instead of no")
     }
 }

@@ -19,6 +19,10 @@ public struct RemoteFacts: Equatable, Sendable {
     public var ramMb: Int?
     public var diskFreeGb: Int?
     public var kvm: Bool?
+    /// True when the CPU itself says it can virtualise (`svm` on AMD, `vmx` on Intel). nil when that computer did not say, which is not the same as "no".
+    public var virt: Bool?
+    /// True when a qemu program for this chip is on the PATH (`qemu-system-x86_64` or `qemu-system-aarch64`). nil when it was not asked (macOS).
+    public var qemu: Bool?
     public var tools: Set<String> = []
     /// The name of the first NVIDIA card `nvidia-smi -L` lists, or nil when there is no such card (or no such program).
     public var nvidiaGpu: String?
@@ -68,6 +72,14 @@ public enum RemoteProbe {
       echo "cpu=$(nproc 2>/dev/null)"
       echo "ram_mb=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
       if [ -e /dev/kvm ]; then echo "kvm=yes"; else echo "kvm=no"; fi
+      case "$(uname -m)" in
+        x86_64|amd64)
+          if grep -qwE 'svm|vmx' /proc/cpuinfo 2>/dev/null; then echo "virt=yes"
+          elif [ -r /proc/cpuinfo ]; then echo "virt=no"
+          else echo "virt=unknown"; fi ;;
+        *) echo "virt=unknown" ;;
+      esac
+      if command -v qemu-system-x86_64 >/dev/null 2>&1 || command -v qemu-system-aarch64 >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
     if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then
@@ -133,12 +145,23 @@ public enum RemoteProbe {
         case "ram_mb": facts.ramMb = Int(value)
         case "disk_free_gb": facts.diskFreeGb = Int(value)
         case "nvidia_gpu": facts.nvidiaGpu = value.isEmpty ? nil : value
-        case "kvm": facts.kvm = value == "yes"
+        case "kvm": facts.kvm = flag(value)
+        case "virt": facts.virt = flag(value)
+        case "qemu": facts.qemu = flag(value)
         case "tool": if knownTools.contains(value) { facts.tools.insert(value) }
         case "pkg": facts.packageManager = PackageManager(rawValue: value)
         case "sudo": facts.sudo = SudoAccess(rawValue: value) ?? .none
         case "port_9101": facts.port9101Free = value == "free" || value == "ours"; facts.port9101Ours = value == "ours"
         default: break
+        }
+    }
+
+    /// A yes or no answer. Anything else (an `unknown` line, or a word this parser does not know) is "did not find out", never a made-up no.
+    private static func flag(_ value: String) -> Bool? {
+        switch value {
+        case "yes": return true
+        case "no": return false
+        default: return nil
         }
     }
 }
