@@ -74,12 +74,24 @@ impl StoppedReason {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Gpu {
     pub vendor: String,
     pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory_mb: Option<u64>,
+    /// The GPU family ("Blackwell"), named from the compute capability. The five details below are left out when the driver does not say them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub architecture: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compute_capability: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub driver_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_clock_mhz: Option<u32>,
+    /// True when the GPU has no memory of its own and works in the machine's memory (a DGX Spark).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uses_system_memory: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,6 +143,8 @@ pub struct Specs {
     pub ram_total_mb: u64,
     pub disk_total_gb: u64,
     pub gpu: Vec<Gpu>,
+    /// What the machine is made of (see hardware.rs); None when the system says none of it.
+    pub hardware: Option<crate::hardware::Hardware>,
 }
 
 /// Something on the machine that stops it from running workloads, and how to fix it. Part of the facts.
@@ -169,6 +183,9 @@ pub struct Facts {
     pub free_ram_mb: u64,
     pub free_disk_gb: u64,
     pub gpu: Vec<Gpu>,
+    /// What the machine is made of; left out of the facts when the system says none of it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardware: Option<crate::hardware::Hardware>,
     pub capabilities: Capabilities,
     pub problems: Vec<Problem>,
     pub agent_version: String,

@@ -29,7 +29,7 @@ fn limits() -> Limits {
 }
 
 fn specs() -> Specs {
-    Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 8, cpu_model: None, ram_total_mb: 65536, disk_total_gb: 2000, gpu: Vec::new() }
+    Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 8, cpu_model: None, ram_total_mb: 65536, disk_total_gb: 2000, gpu: Vec::new(), hardware: None }
 }
 
 fn service(sandboxes: Arc<Sandboxes>) -> Arc<Service> {
