@@ -8,6 +8,7 @@
   import CardUpdate from './CardUpdate.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
   import { cpuModelText } from '../lib/cpuModel.ts'
+  import { gpuName, readHardware } from '../lib/hardware.ts'
   import { archName, bundleFlag, formatGb, formatMb, osName, profileLabel, relativeTime } from '../lib/format.ts'
 
   import type { Machine } from '../lib/types.ts'
@@ -18,6 +19,8 @@
   const isParent = $derived(machine.ip === '127.0.0.1')
   const chip = $derived(machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch))
   const cpuName = $derived(cpuModelText(machine.cpu_model))
+  const computer = $derived(readHardware(machine.hardware)?.system ?? null)
+  const gpuNames = $derived(machine.gpu.map(gpuName).join(', '))
   const vmCount = $derived(machine.workloads.length)
   const settings = $derived(machine.settings)
   const updateTag = $derived(listTag(machine))
@@ -33,11 +36,13 @@
       {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
     </div>
     <div class="where">{machine.ip ?? 'address unknown'}{#if settings} · {profileLabel(settings.profile)}{/if}</div>
+    {#if computer}<div class="where cpu-name" data-testid="machine-computer" title={computer}>{computer}</div>{/if}
     {#if cpuName}<div class="where cpu-name" data-testid="machine-cpu-model" title={cpuName}>{cpuName}</div>{/if}
     {#if settings?.labels?.length}<div class="labels">{#each settings.labels as label (label)}<span class="tag">{label}</span>{/each}</div>{/if}
     <div class="specs">
       <span>{osName(machine.os)} · {chip}</span>
       <span>{machine.cpu_cores ?? '–'} cores</span>
+      {#if gpuNames}<span data-testid="machine-gpu" title={gpuNames}>{gpuNames}</span>{/if}
       <span>{vmCount === 0 ? 'No VMs yet' : vmCount === 1 ? '1 VM' : `${vmCount} VMs`}</span>
       {#if machine.bundle_version}<span class:stale={flag.stale}>{flag.text}</span>{/if}
     </div>

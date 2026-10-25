@@ -8,6 +8,15 @@ export type WorkloadAction = 'start' | 'stop' | 'delete'
 export interface Gpu {
   vendor: string
   model: string
+  /** The card's own memory; left out for a GPU that uses the machine's memory, and by older helpers. */
+  memory_mb?: number | null
+  /** The details below are left out by a helper that does not say them (an older one, the macOS helper, an old NVIDIA driver). */
+  architecture?: string | null
+  compute_capability?: string | null
+  driver_version?: string | null
+  max_clock_mhz?: number | null
+  /** True when the GPU has no memory of its own and works in the machine's memory (a DGX Spark). */
+  uses_system_memory?: boolean | null
 }
 
 /** Something on a machine that stops it from running workloads, with the way to fix it. */
@@ -171,6 +180,8 @@ export interface Machine {
   cpu_cores?: number | null
   /** The CPU's name as the helper reports it (cleaned by the parent); null or left out for a helper that does not say. */
   cpu_model?: string | null
+  /** What the machine is made of (the computer, each kind of CPU core, the drives); null or left out for a helper that does not say. Read it with `readHardware`. */
+  hardware?: unknown
   ram_total_mb?: number | null
   disk_total_gb?: number | null
   free_ram_mb?: number | null

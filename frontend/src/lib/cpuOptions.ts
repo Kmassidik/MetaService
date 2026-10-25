@@ -30,6 +30,8 @@ const INTEL_MODELS = /^(Skylake|Cascadelake|Cooperlake|Icelake|SapphireRapids|Gr
 const GENERIC_MODELS = /^(kvm|qemu)(32|64)$/
 
 export const MAC_CPU_NOTE = "On a Mac a VM always gets the Mac's own CPU on one socket."
+export const ARM_CPU_NOTE = "On an Arm machine a VM always gets the machine's own CPU: the CPU types and extra flags are for x86 machines, so a newer helper does not add them."
+const ARM_ARCHES = ['aarch64', 'arm64']
 export const OLD_HELPER_CPU_NOTE = "This machine's helper cannot set sockets, the CPU type or CPU flags, so a VM gets the machine's own CPU on one socket. Update the helper to choose them."
 export const MAC_LIMIT_NOTE = "On a Mac a container's CPU time cannot be capped: it gets its cores."
 export const OLD_HELPER_LIMIT_NOTE = "This machine's helper cannot cap a container's CPU time. Update the helper to set a limit."
@@ -74,7 +76,8 @@ export function cpuNote(machine: Machine | undefined, kind: string, offer: CpuOf
   const mac = machine.os === MAC_OS
   if (kind === 'container') return offer.limit ? null : mac ? MAC_LIMIT_NOTE : OLD_HELPER_LIMIT_NOTE
   if (offer.sockets || offer.models.length > 1 || offer.flags.length > 0) return null
-  return mac ? MAC_CPU_NOTE : OLD_HELPER_CPU_NOTE
+  if (mac) return MAC_CPU_NOTE
+  return ARM_ARCHES.includes(machine.arch) ? ARM_CPU_NOTE : OLD_HELPER_CPU_NOTE
 }
 
 /** True for a box with nothing in it. */

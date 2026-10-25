@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { coresPerSocket, cpuAfterChange, cpuFields, cpuNote, cpuOffer, cpuProblem, flagMachines, flagSetting, limitPercent, modelVendor, totalFromCores, totalFromSockets, withFlag, HOST_VENDOR, MAC_CPU_NOTE, MAC_LIMIT_NOTE, OLD_HELPER_CPU_NOTE, OLD_HELPER_LIMIT_NOTE, ONE_SOCKET_TEXT, SOCKETS_TEXT, WHOLE_CORES_TEXT } from './cpuOptions.ts'
+import { coresPerSocket, cpuAfterChange, cpuFields, cpuNote, cpuOffer, cpuProblem, flagMachines, flagSetting, limitPercent, modelVendor, totalFromCores, totalFromSockets, withFlag, HOST_VENDOR, ARM_CPU_NOTE, MAC_CPU_NOTE, MAC_LIMIT_NOTE, OLD_HELPER_CPU_NOTE, OLD_HELPER_LIMIT_NOTE, ONE_SOCKET_TEXT, SOCKETS_TEXT, WHOLE_CORES_TEXT } from './cpuOptions.ts'
 import { machine } from './testing.ts'
 import type { WorkloadForm } from './types.ts'
 import { matchingSize } from './vmSize.ts'
@@ -31,6 +31,10 @@ test('the vendor column', () => {
 
 test('the note under the CPU fields says why there is no choice, a Mac in its own words', () => {
   expect(cpuNote(oldHelper, 'vm', cpuOffer(oldHelper))).toBe(OLD_HELPER_CPU_NOTE)
+  // An Arm machine never gets x86 CPU types or flags, so asking for a newer helper would send the operator to update for nothing.
+  const spark = machine({ ...oldHelper, os: 'linux', arch: 'aarch64' })
+  expect(cpuNote(spark, 'vm', cpuOffer(spark))).toBe(ARM_CPU_NOTE)
+  expect(cpuNote(machine({ ...oldHelper, os: 'linux', arch: 'x86_64' }), 'vm', cpuOffer(oldHelper))).toBe(OLD_HELPER_CPU_NOTE)
   expect(cpuNote(mac, 'vm', cpuOffer(mac))).toBe(MAC_CPU_NOTE)
   expect(cpuNote(oldHelper, 'container', cpuOffer(oldHelper))).toBe(OLD_HELPER_LIMIT_NOTE)
   expect(cpuNote(mac, 'container', cpuOffer(mac))).toBe(MAC_LIMIT_NOTE)
