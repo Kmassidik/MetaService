@@ -92,6 +92,23 @@ test('factRows put the CPU name before the cores when the machine gives one, cle
   expect(cpu(`${'z'.repeat(300)}`)).toBe(`${'z'.repeat(120)} · 16 cores`)
 })
 
+test('factRows of a DGX Spark add the computer and the drives, and name both kinds of core and the GPU in full', () => {
+  const spark = machine({
+    id: 'dgx-spark', state: 'online', ip: '10.0.0.30', os: 'linux', arch: 'aarch64', cpu_cores: 20, cpu_model: 'Cortex-X925 + Cortex-A725',
+    ram_total_mb: 123904, free_ram_mb: 105472, disk_total_gb: 3936, free_disk_gb: 3200, last_seen: '2026-10-21T11:59:58Z',
+    hardware: { system: 'NVIDIA DGX Spark', core_types: [{ name: 'Cortex-X925', cores: 10, max_mhz: 3900 }, { name: 'Cortex-A725', cores: 10, max_mhz: 2808 }], disks: [{ model: 'SAMSUNG MZALC4T0HBL1-00B07', size_gb: 4097, kind: 'nvme' }] },
+    gpu: [{ vendor: 'nvidia', model: 'NVIDIA GB10', architecture: 'Blackwell', compute_capability: '12.1', driver_version: '580.173.02', max_clock_mhz: 3003, uses_system_memory: true }],
+  })
+  const rows = factRows(spark, NOW)
+  expect(rows.map((row) => row.label)).toEqual(['Machine ID', 'Status', 'Address', 'System', 'Computer', 'CPU', 'Memory', 'Disk', 'Drives', 'GPU', 'Last seen'])
+  const value = (label: string) => rows.find((row) => row.label === label)?.value
+  expect(value('Computer')).toBe('NVIDIA DGX Spark')
+  expect(value('CPU')).toBe('10× Cortex-X925 up to 3.9 GHz + 10× Cortex-A725 up to 2.8 GHz · 20 cores')
+  expect(value('Memory')).toBe('103 GB free of 121 GB · shared with the GPU')
+  expect(value('Drives')).toBe('SAMSUNG MZALC4T0HBL1-00B07 · 4.1 TB NVMe')
+  expect(value('GPU')).toBe("NVIDIA GB10 · Blackwell · uses the machine's memory · compute 12.1 · up to 3,003 MHz · driver 580.173.02")
+})
+
 test('softwareRows of the real mac-studio record: nothing is invented', () => {
   const studio = machine({ id: 'mac-studio', name: 'mac-studio', agent_version: null, engine: null, box: null, agent_port: null })
   const rows = softwareRows(studio, null, '0.3.0', NOW)

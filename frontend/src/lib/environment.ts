@@ -1,5 +1,5 @@
 // What the machine page's Environment tab says about a machine: software, Ruvio, and what it can run. Pure functions, no DOM, no network.
-import { cpuModelText } from './cpuModel.ts'
+import { cpuText, drivesText, gpuDetailText, memorySharedWithGpu, readHardware, SHARED_WITH_GPU } from './hardware.ts'
 import { archName, formatGb, formatMb, osName, relativeTime } from './format.ts'
 import { connectionText } from './remote.ts'
 import type { Capabilities, Engine, Gpu, Machine, RemoteMachineInfo, Ruvio } from './types.ts'
@@ -65,27 +65,28 @@ export function canRunText(capabilities: Capabilities | undefined): string {
   return `Can run: ${kinds || 'nothing yet'} · GPU in a VM: ${yesNo(capabilities.gpu_in_vm)} · GPU in a container: ${yesNo(capabilities.gpu_in_container)}`
 }
 
-export const gpuText = (gpu: Gpu[]): string => (gpu.length ? gpu.map((entry) => `${entry.vendor} ${entry.model}`).join(', ') : 'none')
+export const gpuText = (gpu: Gpu[]): string => (gpu.length ? gpu.map(gpuDetailText).join(', ') : 'none')
 
-/** "AMD EPYC 7763 64-Core Processor · 64 cores"; just the cores for a machine whose helper does not give the CPU's name. */
-function cpuRowText(machine: Machine): string {
-  const name = cpuModelText(machine.cpu_model)
-  const cores = `${machine.cpu_cores ?? '–'} cores`
-  return name === null ? cores : `${name} · ${cores}`
-}
-
-/** What the machine is, one plain row each: the facts the old Overview tab showed. */
+/**
+ * What the machine is, one plain row each: the facts the old Overview tab showed, and the spec a newer helper gives (the computer, each kind of CPU core,
+ * the drives, the GPU's details). A row the helper has nothing for is left out rather than guessed.
+ */
 export function factRows(machine: Machine, now: number): SoftwareRow[] {
   const row = (label: string, value: string): SoftwareRow => ({ label, value, old: false })
   const system = machine.os === 'macos' && machine.arch === 'arm64' ? 'Apple Silicon' : archName(machine.arch)
+  const hardware = readHardware(machine.hardware)
+  const drives = drivesText(hardware)
+  const sharedMemory = memorySharedWithGpu(machine) ? ` · ${SHARED_WITH_GPU}` : ''
   return [
     row('Machine ID', machine.id),
     row('Status', machine.state),
     row('Address', machine.ip ?? 'unknown'),
     row('System', `${osName(machine.os)} · ${system}`),
-    row('CPU', cpuRowText(machine)),
-    row('Memory', `${formatMb(machine.free_ram_mb)} free of ${formatMb(machine.ram_total_mb)}`),
+    ...(hardware?.system ? [row('Computer', hardware.system)] : []),
+    row('CPU', cpuText(machine)),
+    row('Memory', `${formatMb(machine.free_ram_mb)} free of ${formatMb(machine.ram_total_mb)}${sharedMemory}`),
     row('Disk', `${formatGb(machine.free_disk_gb)} free of ${formatGb(machine.disk_total_gb)}`),
+    ...(drives ? [row('Drives', drives)] : []),
     row('GPU', gpuText(machine.gpu)),
     row('Last seen', relativeTime(machine.last_seen, now)),
   ]
