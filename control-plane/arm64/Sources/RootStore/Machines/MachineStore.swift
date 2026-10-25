@@ -79,11 +79,12 @@ public struct MachineStore: @unchecked Sendable {
         let seconds = Int(now.timeIntervalSince1970)
         try database.transaction {
             try database.execute("""
-                UPDATE machines SET ip = COALESCE(?, ip), os = ?, arch = ?, cpu_cores = ?, cpu_model = ?, ram_total_mb = ?, disk_total_gb = ?,
+                UPDATE machines SET ip = COALESCE(?, ip), os = ?, arch = ?, cpu_cores = ?, cpu_model = ?, hardware_json = ?, ram_total_mb = ?, disk_total_gb = ?,
                   free_ram_mb = ?, free_disk_gb = ?, gpu_json = ?, capabilities_json = ?, problems_json = ?, bundle_version = ?, last_seen = ?,
                   agent_port = COALESCE(?, agent_port), agent_version = ?, engine_json = ?, agent_build = ?, sandbox_json = ?
                 WHERE id = ?
-                """, [ip.map(SQLValue.text) ?? .null, .text(facts.os), .text(facts.arch), .int(facts.cpuCores), facts.cpuModel.map(SQLValue.text) ?? .null, .int(facts.ramTotalMb),
+                """, [ip.map(SQLValue.text) ?? .null, .text(facts.os), .text(facts.arch), .int(facts.cpuCores), facts.cpuModel.map(SQLValue.text) ?? .null,
+                      try facts.hardware.map { .text(try json($0)) } ?? .null, .int(facts.ramTotalMb),
                       .int(facts.diskTotalGb), .int(facts.freeRamMb), .int(facts.freeDiskGb), .text(try json(facts.gpu)),
                       .text(try json(facts.capabilities)), .text(try json(facts.problems)), request.bundleVersion.map(SQLValue.text) ?? .null, .int(seconds),
                       request.agentPort.map(SQLValue.int) ?? .null, facts.agentVersion.map(SQLValue.text) ?? .null,
@@ -110,7 +111,7 @@ public struct MachineStore: @unchecked Sendable {
 
     public func list(now: Date) throws -> [MachineSummary] {
         let rows = try database.query("""
-            SELECT id, name, ip, os, arch, cpu_cores, cpu_model, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
+            SELECT id, name, ip, os, arch, cpu_cores, cpu_model, hardware_json, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
                    gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, sandbox_json, bundle_version, last_seen
             FROM machines ORDER BY name
             """)
@@ -119,7 +120,7 @@ public struct MachineStore: @unchecked Sendable {
 
     public func get(id: String, now: Date) throws -> MachineSummary {
         let rows = try database.query("""
-            SELECT id, name, ip, os, arch, cpu_cores, cpu_model, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
+            SELECT id, name, ip, os, arch, cpu_cores, cpu_model, hardware_json, ram_total_mb, disk_total_gb, free_ram_mb, free_disk_gb,
                    gpu_json, capabilities_json, problems_json, agent_version, engine_json, agent_build, sandbox_json, bundle_version, last_seen
             FROM machines WHERE id = ?
             """, [.text(id)])
@@ -135,7 +136,8 @@ public struct MachineStore: @unchecked Sendable {
         let capabilities = try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8))
         return MachineSummary(
             id: row.string("id"), name: row.string("name"), ip: row.optionalString("ip"), os: row.optionalString("os"),
-            arch: row.optionalString("arch"), cpuCores: row.optionalInt("cpu_cores"), cpuModel: row.optionalString("cpu_model"), ramTotalMb: row.optionalInt("ram_total_mb"),
+            arch: row.optionalString("arch"), cpuCores: row.optionalInt("cpu_cores"), cpuModel: row.optionalString("cpu_model"),
+            hardware: row.optionalString("hardware_json").flatMap { try? decoder.decode(HardwareReport.self, from: Data($0.utf8)) }, ramTotalMb: row.optionalInt("ram_total_mb"),
             diskTotalGb: row.optionalInt("disk_total_gb"), freeRamMb: row.optionalInt("free_ram_mb"), freeDiskGb: row.optionalInt("free_disk_gb"),
             gpu: gpu, capabilities: capabilities,
             settings: try? MachineSettingsStore(database).get(machine: row.string("id")),

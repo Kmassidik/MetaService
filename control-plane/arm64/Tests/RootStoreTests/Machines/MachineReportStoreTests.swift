@@ -73,6 +73,70 @@ final class MachineReportStoreTests: XCTestCase {
         XCTAssertNil(try machines.get(id: "mini", now: now).cpuModel, "an older helper that does not say it must not keep the last answer")
     }
 
+    private static let card: [String: Any] = ["vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768, "architecture": "Blackwell",
+                                              "compute_capability": "12.0", "driver_version": "580.178.04", "max_clock_mhz": 3090, "uses_system_memory": false]
+
+    private func heartbeat(hardware: [String: Any]?, gpu: [[String: Any]] = []) throws -> HeartbeatRequest {
+        var facts: [String: Any] = ["os": "linux", "arch": "x86_64", "cpu_cores": 64, "ram_total_mb": 65536, "disk_total_gb": 1000, "free_ram_mb": 50000, "free_disk_gb": 800,
+                                    "gpu": gpu, "capabilities": ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]]
+        facts["hardware"] = hardware
+        return try HeartbeatRequest(body: JSONSerialization.data(withJSONObject: ["facts": facts, "workloads": []]))
+    }
+
+    private func listedJson() throws -> [String: Any] {
+        let snake = JSONEncoder()
+        snake.keyEncodingStrategy = .convertToSnakeCase
+        return try JSONSerialization.jsonObject(with: snake.encode(try XCTUnwrap(try machines.list(now: now).first))) as! [String: Any]
+    }
+
+    func testTheHardwareIsKeptCleanedReplacedAndClearedWhenNotSaid() throws {
+        XCTAssertNil(try machines.get(id: "mini", now: now).hardware)
+        let server: [String: Any] = ["system": "Dell  PowerEdge\u{0} R7525", "core_types": [["name": "AMD EPYC 7763 64-Core Processor", "cores": 64, "max_mhz": 3529]],
+                                     "disks": [["model": "Dell Ent NVMe P5600 MU U.2 3.2TB", "size_gb": 3200, "kind": "nvme"]]]
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: server), ip: nil, now: now)
+        let kept = HardwareReport(system: "Dell PowerEdge R7525", coreTypes: [.init(name: "AMD EPYC 7763 64-Core Processor", cores: 64, maxMhz: 3529)],
+                                  disks: [.init(model: "Dell Ent NVMe P5600 MU U.2 3.2TB", sizeGb: 3200, kind: "nvme")])
+        XCTAssertEqual(try machines.get(id: "mini", now: now).hardware, kept)
+        XCTAssertEqual(try machines.list(now: now).first?.hardware, kept)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: ["system": "NVIDIA DGX Spark"]), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).hardware, HardwareReport(system: "NVIDIA DGX Spark"), "the next heartbeat replaces the whole report")
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: nil), ip: nil, now: now)
+        XCTAssertNil(try machines.get(id: "mini", now: now).hardware, "a helper that does not say it must not keep the last answer")
+    }
+
+    func testTheHardwareIsInTheJsonOfEveryMachineInSnakeCaseAsNullWhenNotSaidAndWithoutTheLeftOutParts() throws {
+        XCTAssertTrue(try listedJson()["hardware"] is NSNull)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: ["core_types": [["name": "Cortex-X925", "cores": 10, "max_mhz": 4004], ["name": "Cortex-A725", "cores": 10]],
+                                                                                          "disks": [["model": "ESL04TBTLCZ-27J2-TYN", "size_gb": 4096, "kind": "nvme"]]]), ip: nil, now: now)
+        let hardware = try XCTUnwrap(try listedJson()["hardware"] as? [String: Any])
+        XCTAssertEqual(Set(hardware.keys), ["core_types", "disks"], "a part the helper left out is left out, not null")
+        let cores = try XCTUnwrap(hardware["core_types"] as? [[String: Any]])
+        XCTAssertEqual(cores[0]["max_mhz"] as? Int, 4004)
+        XCTAssertEqual(Set(cores[1].keys), ["name", "cores"])
+        let disk = try XCTUnwrap((hardware["disks"] as? [[String: Any]])?.first)
+        XCTAssertEqual(disk["size_gb"] as? Int, 4096)
+        XCTAssertEqual(disk["kind"] as? String, "nvme")
+    }
+
+    func testTheGpuDetailsAreKeptAndInTheJsonInSnakeCase() throws {
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: nil, gpu: [Self.card]), ip: nil, now: now)
+        XCTAssertEqual(try machines.get(id: "mini", now: now).gpu, [GpuInfo(vendor: "nvidia", model: "NVIDIA GeForce RTX 5090", memoryMb: 32768, architecture: "Blackwell",
+                                                                             computeCapability: "12.0", driverVersion: "580.178.04", maxClockMhz: 3090, usesSystemMemory: false)])
+        let card = try XCTUnwrap((try listedJson()["gpu"] as? [[String: Any]])?.first)
+        XCTAssertEqual(card["compute_capability"] as? String, "12.0")
+        XCTAssertEqual(card["driver_version"] as? String, "580.178.04")
+        XCTAssertEqual(card["max_clock_mhz"] as? Int, 3090)
+        XCTAssertEqual(card["uses_system_memory"] as? Bool, false)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(hardware: nil, gpu: [["vendor": "nvidia", "model": "NVIDIA GB10", "uses_system_memory": true]]), ip: nil, now: now)
+        let spark = try XCTUnwrap((try listedJson()["gpu"] as? [[String: Any]])?.first)
+        XCTAssertEqual(Set(spark.keys), ["vendor", "model", "uses_system_memory"], "details the helper does not say are left out, like memory_mb")
+    }
+
+    func testAGpuListSavedBeforeTheDetailsStillReads() throws {
+        try database.execute("UPDATE machines SET gpu_json = ? WHERE id = ?", [.text(#"[{"vendor":"nvidia","model":"NVIDIA GB10","memoryMb":131072}]"#), .text("mini")])
+        XCTAssertEqual(try machines.get(id: "mini", now: now).gpu, [GpuInfo(vendor: "nvidia", model: "NVIDIA GB10", memoryMb: 131072)])
+    }
+
     private func heartbeat(sandbox: [String: Any]?) throws -> HeartbeatRequest {
         var caps: [String: Any] = ["vm": true, "container": false, "gpu_in_vm": false, "gpu_in_container": false]
         if sandbox != nil { caps["sandbox"] = true }
