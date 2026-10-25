@@ -711,3 +711,44 @@ export interface SandboxUsageReply {
   ends_at: string
   teams: SandboxUsageTeam[]
 }
+
+/** What a tile of the Storage tab is: disktree's kinds of data, plus the folders VMs and containers live in. */
+export type StorageKind = 'code' | 'agent' | 'toolchain' | 'synced' | 'git' | 'media' | 'documents' | 'cache' | 'vms' | 'other'
+/** Why a folder's space could be had back (disktree's reasons). The panel only shows it; nothing is ever deleted from here. */
+export type StorageReclaim = 'regenerable' | 'sync_history' | 'package_store' | 'build_output' | 'reinstallable' | 'sandbox_layers' | 'snapshots' | 'trash' | 'temporary'
+
+/** One entry of a storage map. `parent` is the place of its folder in the list (-1 for the first); a `rest` is a folder's smaller entries added together. */
+export interface StorageNode {
+  parent: number
+  name: string
+  type: 'dir' | 'file' | 'rest'
+  bytes: number
+  files: number
+  items: number
+  kind: StorageKind
+  reclaim: StorageReclaim | null
+  modified: number | null
+}
+
+export interface StorageMap {
+  root: string
+  finished_at: string
+  seconds: number
+  entries: number
+  unreadable: number
+  disk: { total_bytes: number; used_bytes: number; free_bytes: number }
+  nodes: StorageNode[]
+}
+
+export interface Storage {
+  scanning: boolean
+  progress: { entries: number; bytes: number } | null
+  error: string | null
+  map: StorageMap | null
+}
+
+/** GET /api/machines/{id}/storage and POST .../storage/scan. */
+export interface MachineStorageReply {
+  state: 'online' | 'offline' | 'old_helper'
+  storage: Storage | null
+}

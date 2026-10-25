@@ -24,7 +24,16 @@ const MIN_COLOUR_DISTANCE = 60
 
 const chartOnCards: Pair[] = CHART_COLOURS.flatMap((name): Pair[] => ['--surface', '--surface-2'].map((floor): Pair => [`--chart-${name}`, floor, AA_LARGE_TEXT_AND_MARKS, `chart colour ${name} on ${floor}`]))
 
+const STORE_KINDS: readonly string[] = ['code', 'agent', 'toolchain', 'synced', 'git', 'media', 'documents', 'cache', 'vms', 'other']
+const storeTiles: Pair[] = STORE_KINDS.flatMap((kind): Pair[] => [
+  ['--text', `--store-${kind}`, AA_TEXT, `a name on a ${kind} tile of the Storage tab`],
+  ['--m60', `--store-${kind}`, AA_TEXT, `a size on a ${kind} tile of the Storage tab`],
+  [`--store-${kind}-mark`, '--surface', AA_LARGE_TEXT_AND_MARKS, `the ${kind} swatch of the Storage legend`],
+])
+
 const PAIRS: readonly Pair[] = [
+  ...storeTiles,
+  ['--text', '--store-hidden', AA_TEXT, 'the name on the hidden tile of the Storage tab'],
   ...chartOnCards,
   ...textOnFloors,
   ...mutedOnFloors,

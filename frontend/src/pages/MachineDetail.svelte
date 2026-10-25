@@ -1,5 +1,5 @@
 <script lang="ts">
-  // One machine, not one VM: how it is doing right now (Live), the VMs on it, what it is and how it is set (Environment), and what has happened on it (Activity).
+  // One machine, not one VM: how it is doing right now (Live), the VMs on it, what fills its disk (Storage), what it is and how it is set (Environment), and what has happened on it (Activity).
   import Owl from '../components/Owl.svelte'
   import StatePill from '../components/StatePill.svelte'
   import IconButton from '../components/IconButton.svelte'
@@ -9,6 +9,7 @@
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
   import Monitor from '../components/monitor/Monitor.svelte'
   import PendingVms from '../components/vms/PendingVms.svelte'
+  import StorageTab from '../components/storage/StorageTab.svelte'
   import { machineTabs, nextTab, pollsLive, type MachineTab } from '../lib/machineTabs.ts'
   import { pendingFor, type PendingVm } from '../lib/pendingVms.ts'
   import { machineTabFromRoute } from '../lib/routes.ts'
@@ -96,6 +97,11 @@
   <div class="tabbody" role="tabpanel" id={panelId('vms')} aria-labelledby={tabId('vms')} hidden={tab !== 'vms'}>
     {#if tab === 'vms'}
       <DeploymentsView {machine} {pinned} making={making.length} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
+    {/if}
+  </div>
+  <div class="tabbody" role="tabpanel" id={panelId('storage')} aria-labelledby={tabId('storage')} hidden={tab !== 'storage'}>
+    {#if tab === 'storage'}
+      {#key machine.id}<StorageTab {machine} {now} />{/key}
     {/if}
   </div>
   <div class="tabbody" role="tabpanel" id={panelId('environment')} aria-labelledby={tabId('environment')} hidden={tab !== 'environment'}>

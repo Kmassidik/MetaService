@@ -25,6 +25,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     SshKeyRoutes(services: services, guards: guards).register(on: router.group())
     AppRoutes(services: services, guards: guards).register(on: router.group())
     StatsRoutes(services: services, guards: guards).register(on: router.group())
+    StorageRoutes(services: services, guards: guards).register(on: router.group())
     GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     ImagesRoutes(services: services, guards: guards).register(on: router.group())
     HelperUpdateRoutes(services: services, guards: guards).register(on: router.group())

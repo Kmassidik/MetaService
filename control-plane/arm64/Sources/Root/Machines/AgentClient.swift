@@ -23,7 +23,8 @@ struct AgentClient: Sendable {
     let tunnels: TunnelPorts
 
     static let defaultTimeout: TimeInterval = 15
-    private static let maxReplyBytes = 256 * 1024
+    /// The most a reply may carry unless a call asks for more (the storage map does).
+    static let maxReplyBytes = 256 * 1024
     private static let session: URLSession = {
         let options = URLSessionConfiguration.ephemeral
         options.timeoutIntervalForRequest = defaultTimeout
@@ -32,8 +33,9 @@ struct AgentClient: Sendable {
         return URLSession(configuration: options, delegate: NoRedirect(), delegateQueue: nil)
     }()
 
-    func call(machine: String, method: String, path: String, body: [String: Any]? = nil, commandId: String? = nil, timeout: TimeInterval = defaultTimeout) async throws -> AgentReply {
-        let reply = try await send(machine: machine, method: method, path: path, body: body, commandId: commandId, timeout: timeout)
+    func call(machine: String, method: String, path: String, body: [String: Any]? = nil, commandId: String? = nil, timeout: TimeInterval = defaultTimeout,
+              maxBytes: Int = maxReplyBytes) async throws -> AgentReply {
+        let reply = try await send(machine: machine, method: method, path: path, body: body, commandId: commandId, timeout: timeout, maxBytes: maxBytes)
         return AgentReply(status: reply.status, json: (try? JSONSerialization.jsonObject(with: reply.data)) as? [String: Any], data: reply.data)
     }
 
@@ -45,7 +47,8 @@ struct AgentClient: Sendable {
         return (url, try secrets.open(endpoint.sealedCommandToken))
     }
 
-    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?, timeout: TimeInterval) async throws -> (status: Int, contentType: String?, data: Data) {
+    private func send(machine: String, method: String, path: String, body: [String: Any]?, commandId: String?, timeout: TimeInterval,
+                      maxBytes: Int) async throws -> (status: Int, contentType: String?, data: Data) {
         let (url, token) = try target(machine: machine, scheme: "http", path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -56,7 +59,7 @@ struct AgentClient: Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
-        guard let (data, response) = try? await Self.session.data(for: request), let http = response as? HTTPURLResponse, data.count <= Self.maxReplyBytes else { throw AgentCallFailure.unreachable }
+        guard let (data, response) = try? await Self.session.data(for: request), let http = response as? HTTPURLResponse, data.count <= maxBytes else { throw AgentCallFailure.unreachable }
         return (http.statusCode, http.value(forHTTPHeaderField: "Content-Type"), data)
     }
 

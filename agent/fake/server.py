@@ -14,6 +14,7 @@ from agent.fake.sandboxes import MAX_LIMIT as MAX_EVENT_LIMIT
 from agent.fake.sandboxes import SandboxNotFound, SandboxRefused, SandboxTooOld
 from agent.fake.ssh_keys import is_valid_key
 from agent.fake.stats import FakeStats, wants_processes
+from agent.fake.storage import FakeStorage
 from agent.fake.terminal import Consoles, Session
 from contract import spec, wsproto
 
@@ -162,6 +163,12 @@ class AgentHandler(BaseHTTPRequestHandler):
         if with_processes is None:
             raise ApiError(400, "invalid_input", "processes must be 1 or 0")
         self._send(200, self.stats.reading(with_processes))
+
+    def get_storage(self):
+        self._send(200, self.storage.answer())
+
+    def scan_storage(self):
+        self._send(202, self.storage.scan())
 
     def list_images(self):
         if not self.engine.spec.serves_images:
@@ -456,6 +463,8 @@ ROUTES = [
     ("GET", r"/v1/health", AgentHandler.health),
     ("GET", r"/v1/facts", AgentHandler.facts),
     ("GET", r"/v1/stats", AgentHandler.get_stats),
+    ("GET", r"/v1/storage", AgentHandler.get_storage),
+    ("POST", r"/v1/storage/scan", AgentHandler.scan_storage),
     ("GET", r"/v1/images", AgentHandler.list_images),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
@@ -493,6 +502,6 @@ ROUTES = [
 ]
 
 
-def make_server(engine, token, host="127.0.0.1", port=0, stats=None):
-    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles(), "stats": stats or FakeStats()})
+def make_server(engine, token, host="127.0.0.1", port=0, stats=None, storage=None):
+    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles(), "stats": stats or FakeStats(), "storage": storage or FakeStorage()})
     return ThreadingHTTPServer((host, port), handler)
