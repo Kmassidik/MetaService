@@ -38,6 +38,7 @@ mod ssh_keys_tests;
 #[cfg(test)]
 mod space_service_tests;
 mod stats;
+mod storage;
 mod supervisor;
 mod validate;
 mod version;

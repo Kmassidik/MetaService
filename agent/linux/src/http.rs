@@ -5,6 +5,7 @@ use crate::service::{Failure, Service};
 use crate::ssh_install;
 use crate::ssh_keys::SshRequest;
 use crate::stats::{wants_processes, Monitor};
+use crate::storage::Storage;
 use crate::validate::{is_id, BundleRequest, BundleUninstallRequest, CreateRequest};
 use axum::body::Body;
 use axum::extract::{ConnectInfo, Path, RawQuery, Request, State};
@@ -32,13 +33,15 @@ pub struct App {
     /// The sandboxes this helper runs. The service owns the one of them, so `/v1/facts` and these routes always agree.
     pub sandboxes: Arc<Sandboxes>,
     stats: Monitor,
+    /// The map of what fills the disk (the panel's Storage tab), scanned on request.
+    storage: Storage,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32) -> Arc<App> {
         let sandboxes = service.sandboxes();
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), storage: Storage::system(), bad: Mutex::new(HashMap::new()) })
     }
 
     fn locked_out(&self, ip: IpAddr) -> bool {
@@ -61,6 +64,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/facts", get(facts))
         .route("/v1/stats", get(stats))
+        .route("/v1/storage", get(storage))
+        .route("/v1/storage/scan", post(storage_scan))
         .route("/v1/images", get(images))
         .route("/v1/workloads", get(list).post(create))
         .route("/v1/workloads/:id/start", post(start))
@@ -223,6 +228,16 @@ async fn stats(State(app): State<Arc<App>>, RawQuery(query): RawQuery) -> Respon
         }
         Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error"),
     }
+}
+
+/// The last map of what fills the disk, and whether a scan runs now. Never starts one.
+async fn storage(State(app): State<Arc<App>>) -> Response {
+    ok(app.storage.answer())
+}
+
+/// Starts a scan in the background (unless one runs or one just ended) and answers at once with the same document as the read.
+async fn storage_scan(State(app): State<Arc<App>>) -> Response {
+    (StatusCode::ACCEPTED, Json(app.storage.scan())).into_response()
 }
 
 async fn images() -> Response {
