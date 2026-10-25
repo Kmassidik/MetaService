@@ -1,4 +1,5 @@
 """In-memory engine for the Fake Agent: pretends to be a machine with VMs and containers."""
+import copy
 import hashlib
 import itertools
 import threading
@@ -37,6 +38,15 @@ CPU_FLAGS = (NESTED_VIRT, "aes")
 X86 = "x86_64"
 DEFAULT_CPU_MODEL = "AMD EPYC 7763 64-Core Processor"
 MAC_CPU_MODEL = "Apple M4"
+# What the machine is made of (Facts.hardware), as a Linux helper of this build reads it: a server to go with DEFAULT_CPU_MODEL. The macOS helper does not say it.
+DEFAULT_HARDWARE = {
+    "system": "Dell PowerEdge R7525",
+    "core_types": [{"name": DEFAULT_CPU_MODEL, "cores": 64, "max_mhz": 3529}],
+    "disks": [{"model": "Dell Ent NVMe P5600 MU U.2 3.2TB", "size_gb": 3200, "kind": "nvme"}],
+}
+# The card --nvidia announces, with the details a Linux helper of this build reads from the driver.
+RTX_5090 = {"vendor": "nvidia", "model": "NVIDIA GeForce RTX 5090", "memory_mb": 32768, "architecture": "Blackwell", "compute_capability": "12.0",
+            "driver_version": "580.178.04", "max_clock_mhz": 3090, "uses_system_memory": False}
 # Every CPU setting a helper of this build offers, as --cpu-options turns them on: MachineSpec(**CPU_OPTIONS).
 CPU_OPTIONS = {"cpu_models": CPU_MODELS, "cpu_topology": True, "cpu_flags": CPU_FLAGS, "cpu_limit": True}
 
@@ -48,6 +58,8 @@ class MachineSpec:
     cpu_cores: int = 16
     # The CPU name the facts announce (cpu_model). None plays an older helper that does not say it: the key is left out.
     cpu_model: str | None = DEFAULT_CPU_MODEL
+    # What the machine is made of (Facts.hardware). None plays an older helper, or the macOS one, which do not say it: the key is left out.
+    hardware: dict | None = field(default_factory=lambda: copy.deepcopy(DEFAULT_HARDWARE))
     ram_total_mb: int = 65536
     disk_total_gb: int = 2000
     reserve_ram_mb: int = 8192
@@ -137,6 +149,7 @@ class FakeEngine:
         return {
             "os": spec.os, "arch": spec.arch, "cpu_cores": spec.cpu_cores,
             **({"cpu_model": spec.cpu_model} if spec.cpu_model is not None else {}),
+            **({"hardware": copy.deepcopy(spec.hardware)} if spec.hardware is not None else {}),
             "ram_total_mb": spec.ram_total_mb, "disk_total_gb": spec.disk_total_gb,
             "free_ram_mb": self._free_ram(), "free_disk_gb": self._free_disk(),
             "gpu": list(spec.gpu),
