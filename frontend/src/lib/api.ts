@@ -10,9 +10,10 @@ import { LONG_REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, TIMEOUT_MESSAGE } from './
 import { parseSshKeyList } from './sshKeys.ts'
 import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
+import { parseStorageReply } from './storageParse.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -237,6 +238,12 @@ export async function checkGpu(machine: string, workload: string): Promise<GpuCh
 export const getMachineStats = async (id: string, withProcesses: boolean): Promise<MachineStatsReply> => parseStatsReply(await call<unknown>('GET', statsPath(id, withProcesses)))
 
 /** The last hour of readings the parent kept for a machine, oldest first, so the charts are full when the page opens. */
+/** The machine's storage map (the Storage tab). Never starts a scan. */
+export const getMachineStorage = async (id: string): Promise<MachineStorageReply> => parseStorageReply(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/storage`))
+
+/** Asks the machine's helper to scan its disk again; answers like the read. */
+export const scanMachineStorage = async (id: string): Promise<MachineStorageReply> => parseStorageReply(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/storage/scan`))
+
 export const getMachineHistory = async (id: string): Promise<StatsHistoryReply> => parseHistoryReply(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/stats/history`))
 
 /** What the Create VM window may offer for one machine: the parent's catalog joined with what the machine has ready. */

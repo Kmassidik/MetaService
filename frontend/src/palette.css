@@ -21,6 +21,12 @@
   --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
   /* chart series (stacked areas and lines on a card): each at least 3:1 against the card, far enough apart to tell apart, and every chart also names its series in a legend and gives lines different patterns */
   --chart-green: #2e7d32; --chart-red: #c62828; --chart-purple: #6a3fb5; --chart-orange: #bf5a00; --chart-olive: #7a6b00; --chart-ink: #231b15; --chart-teal: #00796b; --chart-blue: #1565c0; --chart-navy: #1a237e;
+  /* the Storage tab, drawn like disktree: a light tile per kind of data (dark text on it) and a stronger mark for its legend swatch and edge.
+     The hatch marks space that could be had back; the hidden tile is what the scan could not see. */
+  --store-code: #dce5f4; --store-code-mark: #3b64b0; --store-agent: #f6dfcf; --store-agent-mark: #a8552a; --store-toolchain: #d5ebdf; --store-toolchain-mark: #2e7a58;
+  --store-synced: #d3eaeb; --store-synced-mark: #22727a; --store-git: #f4d9de; --store-git-mark: #a3324c; --store-media: #e4ddf3; --store-media-mark: #6646ab;
+  --store-documents: #e2e4e9; --store-documents-mark: #59606e; --store-cache: #efe6cb; --store-cache-mark: #846817; --store-vms: #deecd5; --store-vms-mark: #4c7c3c;
+  --store-other: #ecebe8; --store-other-mark: #77736d; --store-hidden: #d9d9d6; --store-hatch: rgba(35,27,21,.2); --store-tile-line: rgba(35,27,21,.28);
   /* shadows and the dim layer behind a window */
   --scrim: rgba(35,27,21,.6); --shadow-window: 0 20px 60px rgba(35,27,21,.4); --shadow-card: 0 18px 40px -24px rgba(35,27,21,.35); --pane-line: rgba(35,27,21,.18);
   /* the terminal window: dark */
