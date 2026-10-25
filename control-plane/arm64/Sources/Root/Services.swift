@@ -37,6 +37,7 @@ struct Services {
     let apps: AppService
     let stats: StatsService
     let history: HistoryService
+    let storage: StorageService
     let gpuCheck: GpuCheckService
     let images: ImagesService
     let helperUpdates: HelperUpdates
@@ -89,6 +90,7 @@ struct Services {
         sshKeys = SshKeyService(machines: machines, remoteMachines: remoteMachines, keys: sshKeyStore, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
+        storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))
         teams = TeamStore(database)
