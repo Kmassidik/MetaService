@@ -39,6 +39,25 @@ paths:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Stats' } } } }
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/storage:
+    get:
+      summary: >
+        A map of what fills this machine's root file system, for the panel's Storage tab (drawn like disktree): the last finished scan, and whether one runs now. Read only, and it never
+        starts a scan. Optional, added without a version change (a helper without it answers 404). A scan walks `/` without leaving its file system (other mounts are not entered),
+        counts the space files really take (blocks) and a hard-linked file once, and keeps only entries big enough to see: anything under the used space split 4000 ways (at least 1 MiB)
+        is added into its folder's `rest`, and the list is cut to at most 12000 entries the same way. Folders the helper cannot open are counted in `unreadable` and add only their own size,
+        so `disk.used_bytes` minus the first node's `bytes` is the space the scan could not see.
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Storage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/storage/scan:
+    post:
+      summary: >
+        Starts a scan in the background, at the lowest CPU and disk priority, unless one runs already or the last one ended less than 30 seconds ago, and answers at once with the same
+        document as GET /v1/storage (`scanning` true when a scan runs). No body. Optional, added without a version change (a helper without it answers 404).
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/Storage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/images:
     get:
       summary: >
@@ -553,6 +572,33 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/storage:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
+    get:
+      summary: >
+        Root endpoint for the panel. The machine's storage map (GET /v1/storage), passed on after the Root has checked it: state online with the helper's answer, old_helper (a helper
+        without the route; storage null) or offline (the machine is offline or did not answer; storage null). Never starts a scan. Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/MachineStorageReply' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/storage/scan:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (an operator write) } ]
+    post:
+      summary: >
+        Root endpoint for the panel. Asks the helper to scan (POST /v1/storage/scan) and answers with the same envelope as the read. No body. Optional, added without a version change.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { type: string } }
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/MachineStorageReply' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host or Origin, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/terminal/{ticket}:
     servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
     get:
@@ -860,6 +906,75 @@ components:
         fetched_at: { type: string, nullable: true }
         stats:
           oneOf: [ { $ref: '#/components/schemas/Stats' }, { type: 'null' } ]
+    Storage:
+      type: object
+      required: [scanning, progress, error, map]
+      additionalProperties: false
+      properties:
+        scanning: { type: boolean }
+        progress:
+          description: 'How far the running scan is; null when none runs.'
+          nullable: true
+          type: object
+          required: [entries, bytes]
+          additionalProperties: false
+          properties:
+            entries: { type: integer, minimum: 0, description: 'files and folders looked at so far' }
+            bytes: { $ref: '#/components/schemas/Bytes' }
+        error: { type: string, nullable: true, maxLength: 300, description: 'Why the last scan failed, in plain words; null after a good one.' }
+        map:
+          description: 'The last finished scan (kept while a new one runs); null before the first one ends.'
+          oneOf: [ { $ref: '#/components/schemas/StorageMap' }, { type: 'null' } ]
+    StorageMap:
+      type: object
+      required: [root, finished_at, seconds, entries, unreadable, disk, nodes]
+      additionalProperties: false
+      properties:
+        root: { type: string, maxLength: 4096, description: 'the folder scanned, / today' }
+        finished_at: { type: string, description: 'YYYY-MM-DDTHH:MM:SSZ' }
+        seconds: { type: number, minimum: 0, description: 'how long the scan took' }
+        entries: { type: integer, minimum: 0, description: 'files and folders looked at' }
+        unreadable: { type: integer, minimum: 0, description: 'folders the helper could not open (root only, or another user)' }
+        disk:
+          type: object
+          required: [total_bytes, used_bytes, free_bytes]
+          additionalProperties: false
+          properties:
+            total_bytes: { $ref: '#/components/schemas/Bytes' }
+            used_bytes: { $ref: '#/components/schemas/Bytes' }
+            free_bytes: { $ref: '#/components/schemas/Bytes' }
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 12000
+          description: 'The kept entries, a folder before what it holds; the first is the scanned folder itself. Siblings come largest first.'
+          items: { $ref: '#/components/schemas/StorageNode' }
+    StorageNode:
+      type: object
+      required: [parent, name, type, bytes, files, items, kind, reclaim, modified]
+      additionalProperties: false
+      properties:
+        parent: { type: integer, minimum: -1, description: 'the place in `nodes` of the folder holding it, always an earlier dir; -1 only for the first node' }
+        name: { type: string, maxLength: 255, description: 'empty for a rest' }
+        type: { type: string, enum: [dir, file, rest], description: 'rest = the smaller entries of its folder, added together' }
+        bytes: { $ref: '#/components/schemas/Bytes' }
+        files: { type: integer, minimum: 0, description: 'files below it (folders not counted)' }
+        items: { type: integer, minimum: 0, description: 'dir: entries right inside it; rest: how many entries it stands for; file: 0' }
+        kind: { type: string, enum: [code, agent, toolchain, synced, git, media, documents, cache, vms, other], description: "disktree's kinds of data, plus vms (Incus, Docker, libvirt and the like)" }
+        reclaim:
+          type: string
+          nullable: true
+          enum: [regenerable, sync_history, package_store, build_output, reinstallable, sandbox_layers, snapshots, trash, temporary, null]
+          description: 'why its space could be had back (disktree''s reasons); null when nothing says so. The panel only shows it, it never deletes.'
+        modified: { type: integer, nullable: true, description: 'Unix seconds of the newest change below it' }
+    MachineStorageReply:
+      type: object
+      required: [state, storage]
+      additionalProperties: false
+      properties:
+        state: { type: string, enum: [online, offline, old_helper] }
+        storage:
+          oneOf: [ { $ref: '#/components/schemas/Storage' }, { type: 'null' } ]
     GpuCheck:
       type: object
       required: [gpu_visible, how, detail, note]
