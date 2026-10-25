@@ -76,6 +76,8 @@ public struct MachineSummary: Encodable, Equatable {
     public let cpuCores: Int?
     /// The CPU's name as the helper reported it (cleaned by the parent); null for a helper that does not say.
     public let cpuModel: String?
+    /// What the machine is made of as the helper reported it (cleaned by the parent); null for a helper that does not say. Inside it, a part the helper left out is left out too.
+    public let hardware: HardwareReport?
     public let ramTotalMb: Int?
     public let diskTotalGb: Int?
     public let freeRamMb: Int?
@@ -98,7 +100,7 @@ public struct MachineSummary: Encodable, Equatable {
     public let gpuBooking: GpuBookingSummary?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, ip, os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, cpuModel
+        case id, name, ip, os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, cpuModel, hardware
         case gpu, capabilities, settings, problems, agentVersion, agentBuild, engine, sandbox, bundleVersion, state, lastSeen, workloads, gpuBooking
     }
 
@@ -111,6 +113,7 @@ public struct MachineSummary: Encodable, Equatable {
         try box.encode(arch, forKey: .arch)
         try box.encode(cpuCores, forKey: .cpuCores)
         try box.encode(cpuModel, forKey: .cpuModel)
+        try box.encode(hardware, forKey: .hardware)
         try box.encode(ramTotalMb, forKey: .ramTotalMb)
         try box.encode(diskTotalGb, forKey: .diskTotalGb)
         try box.encode(freeRamMb, forKey: .freeRamMb)

@@ -9,7 +9,7 @@ final class SandboxMigrationTests: XCTestCase {
     func testMigration27AddsEverySandboxTable() throws {
         let database = try Database(path: ":memory:")
         try Migrations.migrate(database)
-        XCTAssertEqual(Migrations.latest, 27)
+        XCTAssertEqual(Migrations.latest, 28)
         let names = Set(try database.query("SELECT name FROM sqlite_master WHERE type = 'table'").map { $0.string("name") })
         for table in tables {
             XCTAssertTrue(names.contains(table), "every sandbox table is created: \(table)")
@@ -20,8 +20,8 @@ final class SandboxMigrationTests: XCTestCase {
         let database = try Database(path: ":memory:")
         try Migrations.migrate(database)
         try Migrations.migrate(database)
-        XCTAssertEqual(try database.query("SELECT MAX(version) AS version FROM schema_version").first?.int("version"), 27)
-        XCTAssertEqual(try database.query("SELECT COUNT(*) AS steps FROM schema_version").first?.int("steps"), 27)
+        XCTAssertEqual(try database.query("SELECT MAX(version) AS version FROM schema_version").first?.int("version"), 28)
+        XCTAssertEqual(try database.query("SELECT COUNT(*) AS steps FROM schema_version").first?.int("steps"), 28)
     }
 
     func testAKeyCannotBeStoredTwiceByPrefix() throws {

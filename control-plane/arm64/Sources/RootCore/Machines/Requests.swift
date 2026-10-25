@@ -17,6 +17,42 @@ public struct GpuInfo: Equatable, Codable {
     public let vendor: String
     public let model: String
     public let memoryMb: Int?
+    /// The details below are optional: a helper that does not say them, and a card saved before them, give nil (left out of the JSON, like `memoryMb`).
+    /// The GPU family, for example Blackwell.
+    public let architecture: String?
+    /// NVIDIA's compute capability, for example 12.1.
+    public let computeCapability: String?
+    public let driverVersion: String?
+    /// The highest core clock.
+    public let maxClockMhz: Int?
+    /// True when the GPU has no memory of its own and works in the machine's memory (a DGX Spark); `memoryMb` is then nil.
+    public let usesSystemMemory: Bool?
+
+    public init(vendor: String, model: String, memoryMb: Int?, architecture: String? = nil, computeCapability: String? = nil, driverVersion: String? = nil,
+                maxClockMhz: Int? = nil, usesSystemMemory: Bool? = nil) {
+        self.vendor = vendor
+        self.model = model
+        self.memoryMb = memoryMb
+        self.architecture = architecture
+        self.computeCapability = computeCapability
+        self.driverVersion = driverVersion
+        self.maxClockMhz = maxClockMhz
+        self.usesSystemMemory = usesSystemMemory
+    }
+
+    static let keys: Set<String> = ["vendor", "model", "memory_mb", "architecture", "compute_capability", "driver_version", "max_clock_mhz", "uses_system_memory"]
+    private static let computeCapabilityPattern = #/^[0-9]{1,2}\.[0-9]{1,2}$/#
+    private static let driverVersionPattern = #/^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/#
+
+    init(_ item: StrictObject) throws {
+        self.init(vendor: try item.string("vendor", maxLength: 100), model: try item.string("model", maxLength: 200),
+                  memoryMb: item.has("memory_mb") ? try item.int("memory_mb", range: 0...100_000_000) : nil,
+                  architecture: item.has("architecture") ? CpuModelText.clean(try item.string("architecture", maxLength: 32)) : nil,
+                  computeCapability: item.has("compute_capability") ? try item.string("compute_capability", pattern: Self.computeCapabilityPattern, maxLength: 5) : nil,
+                  driverVersion: item.has("driver_version") ? try item.string("driver_version", pattern: Self.driverVersionPattern, maxLength: 32, minLength: 1) : nil,
+                  maxClockMhz: item.has("max_clock_mhz") ? try item.int("max_clock_mhz", range: 1...20_000) : nil,
+                  usesSystemMemory: item.has("uses_system_memory") ? try item.bool("uses_system_memory") : nil)
+    }
 }
 
 /// Something on the machine itself that stops it from running workloads, with the way to fix it. Reported by the Agent in its facts.
@@ -103,10 +139,12 @@ public struct FactsReport: Equatable {
     public let agentBuild: String?
     /// The CPU's name as the helper reported it, cleaned and cut to 120 characters (see CpuModelText). Helpers that do not say it give nil.
     public let cpuModel: String?
+    /// What the machine is made of, its texts cleaned like `cpuModel` (see HardwareReport). Helpers that do not say it (an older one, the macOS one) give nil.
+    public let hardware: HardwareReport?
     /// What the helper can offer for sandboxes. Only kept from a helper that says `capabilities.sandbox`; nil otherwise.
     public let sandbox: SandboxFacts?
 
-    static let keys: Set<String> = ["os", "arch", "cpu_cores", "cpu_model", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build", "sandbox"]
+    static let keys: Set<String> = ["os", "arch", "cpu_cores", "cpu_model", "hardware", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine", "agent_build", "sandbox"]
     static let maxGpus = 16
     static let maxProblems = 20
     private static let codePattern = #/^[a-z0-9_]{1,64}$/#
@@ -116,11 +154,12 @@ public struct FactsReport: Equatable {
         arch = try object.choice("arch", among: ["arm64", "aarch64", "x86_64"])
         cpuCores = try object.int("cpu_cores", range: 1...100_000)
         cpuModel = try CpuModelText.optional(object, "cpu_model")
+        hardware = try HardwareReport.optional(object, "hardware")
         ramTotalMb = try object.int("ram_total_mb", range: 1...100_000_000)
         diskTotalGb = try object.int("disk_total_gb", range: 1...100_000_000)
         freeRamMb = try object.int("free_ram_mb", range: 0...100_000_000)
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
-        gpu = try object.objects("gpu", allowed: ["vendor", "model", "memory_mb"], maxCount: Self.maxGpus).map(Self.gpuInfo)
+        gpu = try object.objects("gpu", allowed: GpuInfo.keys, maxCount: Self.maxGpus).map(GpuInfo.init)
         let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal",
                                                                "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit", "sandbox"])
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
@@ -143,11 +182,6 @@ public struct FactsReport: Equatable {
     private static func problem(_ item: StrictObject) throws -> HostProblem {
         HostProblem(code: try item.string("code", pattern: codePattern, maxLength: 64, minLength: 1), message: try item.string("message", maxLength: 300, minLength: 1),
                     fix: try item.string("fix", maxLength: 500))
-    }
-
-    private static func gpuInfo(_ item: StrictObject) throws -> GpuInfo {
-        GpuInfo(vendor: try item.string("vendor", maxLength: 100), model: try item.string("model", maxLength: 200),
-                memoryMb: item.has("memory_mb") ? try item.int("memory_mb", range: 0...100_000_000) : nil)
     }
 }
 

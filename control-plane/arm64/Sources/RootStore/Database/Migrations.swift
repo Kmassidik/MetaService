@@ -198,6 +198,8 @@ public enum Migrations {
             );
             CREATE INDEX sandbox_ports_by_sandbox ON sandbox_ports (sandbox);
             """) }),
+        // What a machine is made of (Facts.hardware, cleaned by the parent, as JSON), replaced with every heartbeat. Null for a helper that does not say.
+        (28, { try $0.exec("ALTER TABLE machines ADD COLUMN hardware_json TEXT;") }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
