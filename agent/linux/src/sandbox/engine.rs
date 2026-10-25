@@ -207,7 +207,7 @@ mod tests {
     use super::*;
 
     fn specs(cores: u32) -> Specs {
-        Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: cores, cpu_model: None, ram_total_mb: 65536, disk_total_gb: 2000, gpu: Vec::new() }
+        Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: cores, cpu_model: None, ram_total_mb: 65536, disk_total_gb: 2000, gpu: Vec::new(), hardware: None }
     }
 
     #[test]

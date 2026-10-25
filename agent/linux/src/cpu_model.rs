@@ -1,25 +1,30 @@
 //! The name of this machine's CPU, read once at start from `/proc/cpuinfo` (for example `AMD EPYC 7763 64-Core Processor`).
 //! x86 says `model name`. Many ARM kernels do not: they say `Model` (a board), only `CPU part` (a code), or nothing at all, so when `/proc/cpuinfo`
-//! gives no name the helper asks `lscpu`, which resolves the part code itself (a DGX Spark says `Cortex-X925`).
+//! has no `model name` the helper names the cores `lscpu` lists, since it resolves the part codes itself. A DGX Spark has two kinds of core and says
+//! `Cortex-X925 + Cortex-A725`; only without `lscpu` does the board or the bare part code stand in.
 
 const CPUINFO_PATH: &str = "/proc/cpuinfo";
 const LSCPU_PROGRAM: &str = "lscpu";
 const MAX_CHARS: usize = 120;
 
-/// The CPU name of this machine, or None when the system does not say.
-pub fn read() -> Option<String> {
-    let from_kernel = std::fs::read_to_string(CPUINFO_PATH).ok().and_then(|text| parse_cpuinfo(&text));
-    from_kernel.or_else(read_lscpu)
+/// The CPU name of this machine, or None when the system does not say. `lscpu` is the text of `lscpu`, read once by the caller (see `read_lscpu`).
+pub fn read(lscpu: Option<&str>) -> Option<String> {
+    name_from(&std::fs::read_to_string(CPUINFO_PATH).unwrap_or_default(), lscpu)
 }
 
-/// The `Model name` line of `lscpu`, for a kernel whose `/proc/cpuinfo` has no name (ARM boards). A missing or failing `lscpu` is not an error:
-/// the name is optional, so the machine simply does not report one.
-fn read_lscpu() -> Option<String> {
-    let output = std::process::Command::new(LSCPU_PROGRAM).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    parse_lscpu(&String::from_utf8_lossy(&output.stdout))
+/// The first `model name` of `/proc/cpuinfo` (x86); else the cores `lscpu` names; else what `/proc/cpuinfo` says without a name (`Model`, then `CPU part`).
+pub fn name_from(cpuinfo: &str, lscpu: Option<&str>) -> Option<String> {
+    first_value(cpuinfo, "model name").and_then(|name| tidy(&name))
+        .or_else(|| lscpu.and_then(|text| crate::hardware::cores_name(&crate::hardware::parse_core_types(text))))
+        .or_else(|| lscpu.and_then(parse_lscpu))
+        .or_else(|| parse_cpuinfo(cpuinfo))
+}
+
+/// The text `lscpu` prints, read once at start for the CPU name and the core types. A missing or failing `lscpu` is not an error:
+/// both are optional, so the machine simply does not report them.
+pub fn read_lscpu() -> Option<String> {
+    let output = std::process::Command::new(LSCPU_PROGRAM).stdin(std::process::Stdio::null()).output().ok()?;
+    output.status.success().then(|| String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// The first `Model name` value in `lscpu` text, cleaned and cut like every other name.
@@ -94,6 +99,25 @@ mod tests {
     #[test]
     fn lscpu_names_an_arm_cpu_the_kernel_does_not_name() {
         assert_eq!(parse_lscpu(LSCPU_ARM).as_deref(), Some("Cortex-X925"));
+    }
+
+    /// `/proc/cpuinfo` of a DGX Spark: no `model name`, only part codes (0xd87 Cortex-A725 comes first, 0xd85 Cortex-X925 after).
+    const SPARK_CPUINFO: &str = "processor\t: 0\nBogoMIPS\t: 2000.00\nCPU implementer\t: 0x41\nCPU part\t: 0xd87\n\nprocessor\t: 10\nCPU implementer\t: 0x41\nCPU part\t: 0xd85\n";
+    const SPARK_LSCPU: &str = "Architecture: aarch64\nModel name: Cortex-X925\nCore(s) per socket: 10\nSocket(s): 1\nCPU max MHz: 3900.0000\nModel name: Cortex-A725\nCore(s) per socket: 10\nSocket(s): 1\nCPU max MHz: 2808.0000\n";
+
+    #[test]
+    fn a_dgx_spark_is_named_by_its_two_kinds_of_core_not_a_part_code() {
+        assert_eq!(name_from(SPARK_CPUINFO, Some(SPARK_LSCPU)).as_deref(), Some("Cortex-X925 + Cortex-A725"));
+        assert_eq!(name_from(SPARK_CPUINFO, None).as_deref(), Some("ARM CPU part 0xd87"));
+    }
+
+    #[test]
+    fn x86_keeps_its_model_name_and_lscpu_names_the_cpu_before_the_board() {
+        assert_eq!(name_from(INTEL, Some(LSCPU_ARM)).as_deref(), Some("Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz"));
+        assert_eq!(name_from(ARM_BOARD, Some("Model name: Cortex-A72\nCore(s) per cluster: 4\nCluster(s): 1\n")).as_deref(), Some("Cortex-A72"));
+        assert_eq!(name_from(ARM_NO_NAME, Some(LSCPU_ARM)).as_deref(), Some("Cortex-X925"));
+        assert_eq!(name_from(ARM_BOARD, Some("")).as_deref(), Some("Raspberry Pi 4 Model B Rev 1.2"));
+        assert_eq!(name_from("", None), None);
     }
 
     #[test]

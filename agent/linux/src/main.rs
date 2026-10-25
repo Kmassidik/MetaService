@@ -16,6 +16,7 @@ mod files;
 mod gpu;
 mod gpu_check;
 mod gpu_watch;
+mod hardware;
 #[cfg(test)]
 mod gpu_service_tests;
 mod heartbeat;
