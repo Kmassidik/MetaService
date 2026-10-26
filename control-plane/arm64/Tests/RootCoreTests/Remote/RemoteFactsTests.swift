@@ -139,7 +139,7 @@ final class RemoteFactsTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\nhome=/home/build\nautostart=no\n")).autostart, false)
         XCTAssertNil(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\nautostart=unknown\n")).autostart)
         XCTAssertNil(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\n")).autostart, "absent is 'did not say', never 'not registered'")
-        XCTAssertTrue(RemoteProbe.script.contains(AutostartScript.macPath), "a LaunchDaemon on a Mac")
+        XCTAssertTrue(RemoteProbe.script.contains(AutostartScript.macPath), "a LaunchAgent of the login on a Mac")
         XCTAssertTrue(RemoteProbe.script.contains(AutostartScript.linuxPath), "a unit file on Linux, and nothing else on both")
         XCTAssertTrue(RemoteProbe.script.contains("[ -d \"$HOME/\(RemoteInstallOptions.boxFolderName)\" ]"), "only asked when a box of ours is there")
     }

@@ -121,13 +121,18 @@ final class PlanScriptsTests: XCTestCase {
     }
 
     /// The boot registration goes with the box, and before `stop.sh`: launchd or systemd would start the program again seconds after it was stopped, with no
-    /// folder and nothing in the panel able to see it. `sudo -n` only, so a removal never waits for a password.
+    /// folder and nothing in the panel able to see it. The helper's LaunchAgent is the login's own file and needs no sudo; the jobs of the earlier system-domain
+    /// design may still be there and go too. `sudo -n` only, so a removal never waits for a password.
     func testRemovalAlsoTakesTheBootRegistrationAway() throws {
         let script = PlanScripts.removeScript(box: options.box, key: nil)
-        for part in ["launchctl bootout system/\(AutostartScript.label)", "sudo -n rm -f \(AutostartScript.macPath)",
-                     "launchctl bootout system/\(AutostartScript.containerStartLabel)", "sudo -n rm -f \(AutostartScript.containerStartPath)",
+        for part in ["launchctl bootout gui/$(id -u)/\(AutostartScript.label)", "rm -f \"\(AutostartScript.macPath)\"",
+                     "launchctl bootout system/\(AutostartScript.label)", "sudo -n rm -f \(AutostartScript.legacyDaemonPath)",
+                     "launchctl bootout system/\(AutostartScript.legacyContainerStartLabel)", "sudo -n rm -f \(AutostartScript.legacyContainerStartPath)",
                      "systemctl disable --now \(AutostartScript.unitName)", "sudo -n rm -f \(AutostartScript.linuxPath)", "systemctl daemon-reload"] {
             XCTAssertTrue(script.contains(part), part)
+        }
+        for line in script.split(separator: "\n") where line.contains("gui/") {
+            XCTAssertFalse(line.contains("sudo"), "the login's own job is stopped without sudo: \(line)")
         }
         XCTAssertFalse(script.contains("sudo -S"), "a removal never asks for a password")
         let registration = try XCTUnwrap(script.range(of: "launchctl bootout"))
