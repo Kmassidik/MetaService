@@ -79,7 +79,9 @@ public enum RemoteProbe {
           else echo "virt=unknown"; fi ;;
         *) echo "virt=unknown" ;;
       esac
-      if command -v qemu-system-x86_64 >/dev/null 2>&1 || command -v qemu-system-aarch64 >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
+      # A full VM needs both what runs it (qemu-system-*) and what reads its image (qemu-img, in qemu-utils): Incus fails on an
+      # image with 'Failed to find executable "qemu-img"' when only the first is installed.
+      if { command -v qemu-system-x86_64 >/dev/null 2>&1 || command -v qemu-system-aarch64 >/dev/null 2>&1; } && command -v qemu-img >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
     if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then
