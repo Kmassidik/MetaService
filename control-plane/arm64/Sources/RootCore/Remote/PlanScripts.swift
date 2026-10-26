@@ -204,17 +204,22 @@ public enum PlanScripts {
         "done",
     ]
 
-    /// The boot registration the "Starts at boot" part added, taken away with the box: the helper's own job and the one-shot job that starts Apple's container
-    /// service. It goes before `stop.sh`: launchd and systemd would start the program again seconds after it was stopped, with no folder left and nothing in the
-    /// panel able to see it. Best effort, and `sudo -n` never waits for a password, so a removal stays one plain SSH command that cannot hang on a prompt.
+    /// The boot registration the "Starts at boot" part added, taken away with the box: the helper's LaunchAgent in the login's own domain, and the two jobs of the
+    /// earlier design that a Mac may still carry (the helper as a system daemon, and the one-shot job that started Apple's container service). It goes before
+    /// `stop.sh`: launchd and systemd would start the program again seconds after it was stopped, with no folder left and nothing in the panel able to see it.
+    /// Best effort, and `sudo -n` never waits for a password, so a removal stays one plain SSH command that cannot hang on a prompt.
     static let bootRemoval = [
-        "if [ -f \(AutostartScript.macPath) ]; then",
-        "  sudo -n launchctl bootout system/\(AutostartScript.label) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.label)\"",
-        "  sudo -n rm -f \(AutostartScript.macPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.macPath)\"",
+        "if [ -f \"\(AutostartScript.macPath)\" ]; then",
+        "  launchctl bootout gui/$(id -u)/\(AutostartScript.label) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.label)\"",
+        "  rm -f \"\(AutostartScript.macPath)\" >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.macPath)\"",
         "fi",
-        "if [ -f \(AutostartScript.containerStartPath) ]; then",
-        "  sudo -n launchctl bootout system/\(AutostartScript.containerStartLabel) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.containerStartLabel)\"",
-        "  sudo -n rm -f \(AutostartScript.containerStartPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.containerStartPath)\"",
+        "if [ -f \(AutostartScript.legacyDaemonPath) ]; then",
+        "  sudo -n launchctl bootout system/\(AutostartScript.label) >/dev/null 2>&1 || echo \"ms-note: could not stop the old system job \(AutostartScript.label)\"",
+        "  sudo -n rm -f \(AutostartScript.legacyDaemonPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.legacyDaemonPath)\"",
+        "fi",
+        "if [ -f \(AutostartScript.legacyContainerStartPath) ]; then",
+        "  sudo -n launchctl bootout system/\(AutostartScript.legacyContainerStartLabel) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.legacyContainerStartLabel)\"",
+        "  sudo -n rm -f \(AutostartScript.legacyContainerStartPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.legacyContainerStartPath)\"",
         "fi",
         "if [ -f \(AutostartScript.linuxPath) ]; then",
         "  sudo -n systemctl disable --now \(AutostartScript.unitName) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.unitName)\"",

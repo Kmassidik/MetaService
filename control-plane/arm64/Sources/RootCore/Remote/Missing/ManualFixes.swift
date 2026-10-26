@@ -47,9 +47,10 @@ enum ManualFixes {
         return "Install qemu with `sudo apt install \(packages)`, then check again."
     }
 
-    /// "Starts at boot" is one file outside the home folder, which a person can only write with admin rights; without them the box keeps its own start script.
+    /// "Starts at boot" is one file the system's own boot service reads: a LaunchAgent in the login's folder on a Mac, a unit file outside the home folder on
+    /// Linux. Without it the box keeps its own start script.
     static func autostart(_ facts: RemoteFacts) -> String {
-        let service = facts.isMac ? AutostartScript.macPath : AutostartScript.linuxPath
+        let service = facts.isMac ? "~/\(AutostartScript.agentFolder)/\(AutostartScript.label).plist" : AutostartScript.linuxPath
         return "Run `sh \(facts.box)/start.sh` after each restart, or have an admin add the boot service file \(service), as the install does."
     }
 }
