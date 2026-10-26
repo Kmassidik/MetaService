@@ -79,9 +79,11 @@ public enum RemoteProbe {
           else echo "virt=unknown"; fi ;;
         *) echo "virt=unknown" ;;
       esac
-      # A full VM needs both what runs it (qemu-system-*) and what reads its image (qemu-img, in qemu-utils): Incus fails on an
-      # image with 'Failed to find executable "qemu-img"' when only the first is installed.
-      if { command -v qemu-system-x86_64 >/dev/null 2>&1 || command -v qemu-system-aarch64 >/dev/null 2>&1; } && command -v qemu-img >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
+      # A full VM needs three things, and Ubuntu 24.04 splits the last two off: what runs it (qemu-system-*), what reads its image
+      # (qemu-img, in qemu-utils), and the SPICE display module (qemu-system-modules-spice). Incus uses all three, so any one
+      # missing must make this "no" — otherwise the panel offers nothing and the first create fails.
+      qemu=$(command -v qemu-system-x86_64 2>/dev/null || command -v qemu-system-aarch64 2>/dev/null)
+      if [ -n "$qemu" ] && command -v qemu-img >/dev/null 2>&1 && "$qemu" -spice help >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
     if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then

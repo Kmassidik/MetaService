@@ -11,12 +11,12 @@ enum VmSupport {
 
     static let kvmThere = "/dev/kvm is there: VMs and containers."
     /// `/dev/kvm` is there but qemu is not: containers work, full VMs do not, so the row must not claim "VMs and containers".
-    static let kvmThereButNoQemu = "Containers only: /dev/kvm is there, but qemu is not installed."
+    static let kvmThereButNoQemu = "Containers only: /dev/kvm is there, but qemu is not fully installed."
     static let biosOff = "Containers only: virtualization is off in the BIOS."
     static let moduleNotLoaded = "Containers only: virtualization is on, but the KVM module is not loaded."
     static let noKvm = "Containers only: there is no /dev/kvm, so full VMs cannot run."
     static let unknownKvm = "Could not check /dev/kvm."
-    static let noQemu = "qemu is not installed."
+    static let noQemu = "qemu is not fully installed."
 
     static let amdModule = "kvm_amd"
     static let intelModule = "kvm_intel"

@@ -61,7 +61,7 @@ final class VmSupportTests: XCTestCase {
             XCTAssertTrue(qemuOnly.fix!.contains(package), "\(package) in \(qemuOnly.fix!)")
         }
         let both = requirement("kvm=no\nvirt=yes\nqemu=no\n" + amdChip)
-        XCTAssertEqual(both.detail, "Containers only: virtualization is on, but the KVM module is not loaded. qemu is not installed.")
+        XCTAssertEqual(both.detail, "Containers only: virtualization is on, but the KVM module is not loaded. qemu is not fully installed.")
         XCTAssertTrue(both.fix!.contains("kvm_amd") && both.fix!.contains("qemu-system-x86"), both.fix!)
     }
 
