@@ -41,7 +41,7 @@
   /** The press that spoke last, and the words of its success line: the button may change meaning while it runs (Start becomes Stop), but the line must say what was asked. */
   let asked = $state<{ id: GuardedId | null; done: string }>({ id: null, done: '' })
   const current = $derived(asked.id ? runs[asked.id] : null)
-  const line = $derived(current ? lineOf({ status: current.status, message: current.message }, asked.done) : '')
+  const line = $derived(current ? lineOf(current.view, asked.done) : '')
   const layout = $derived(vmActions(vmActionFacts(workload)))
   const access = $derived(terminalAccess(machine, workload))
   const installed = $derived(Boolean(workload.bundle_version))

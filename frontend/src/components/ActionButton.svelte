@@ -27,7 +27,7 @@
   const current = $derived(action ?? own)
   /** The words of the press that started the work: the page may change the button's own words while it runs (Start becomes Stop), but the line must still say what was asked. */
   let asked = $state({ busy: '', done: '' })
-  const line = $derived(lineOf({ status: current.status, message: current.message }, asked.done))
+  const line = $derived(lineOf(current.view, asked.done))
 
   function press() {
     if (current.busy) return
@@ -46,7 +46,7 @@
     class:sm={small}
     type="button"
     {title}
-    disabled={disabled || current.busy}
+    disabled={disabled || current.busy || current.cooling}
     aria-busy={current.busy}
     onclick={press}
   >{#if current.busy}<span class="btn-spin" aria-hidden="true"></span>{asked.busy}{:else}{label}{/if}</button>

@@ -10,6 +10,8 @@ export const LONG_REQUEST_TIMEOUT_MS = 5 * 60_000
 export const APP_POLL_MS = 5_000
 /** The small success line next to a button stays this long. */
 export const SUCCESS_LINE_MS = 2_000
+/** After the parent refuses with its throttle (429), its buttons let nothing start again for this long: the parent's own window. */
+export const THROTTLE_COOLDOWN_MS = 60_000
 
 export const TIMEOUT_MESSAGE = 'The server did not answer in time. It may still be working: check the list, then try again.'
 export const FAILED_MESSAGE = 'Something went wrong.'

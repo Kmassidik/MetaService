@@ -20,7 +20,7 @@
   /** Where the switch was pushed to, shown while the request runs; if it fails the switch goes back to what is true. */
   let wanted = $state(false)
   const shownOn = $derived(saving.busy ? wanted : view.on)
-  const line = $derived(lineOf({ status: saving.status, message: saving.message }, 'Saved'))
+  const line = $derived(lineOf(saving.view, 'Saved'))
 
   function flip() {
     if (saving.busy) return
