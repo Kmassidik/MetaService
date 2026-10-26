@@ -204,13 +204,17 @@ public enum PlanScripts {
         "done",
     ]
 
-    /// The boot registration the "Starts at boot" part added, taken away with the box. It goes before `stop.sh`: launchd and systemd would start the program
-    /// again seconds after it was stopped, with no folder left and nothing in the panel able to see it. Best effort, and `sudo -n` never waits for a password,
-    /// so a removal stays one plain SSH command that cannot hang on a prompt.
+    /// The boot registration the "Starts at boot" part added, taken away with the box: the helper's own job and the one-shot job that starts Apple's container
+    /// service. It goes before `stop.sh`: launchd and systemd would start the program again seconds after it was stopped, with no folder left and nothing in the
+    /// panel able to see it. Best effort, and `sudo -n` never waits for a password, so a removal stays one plain SSH command that cannot hang on a prompt.
     static let bootRemoval = [
         "if [ -f \(AutostartScript.macPath) ]; then",
         "  sudo -n launchctl bootout system/\(AutostartScript.label) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.label)\"",
         "  sudo -n rm -f \(AutostartScript.macPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.macPath)\"",
+        "fi",
+        "if [ -f \(AutostartScript.containerStartPath) ]; then",
+        "  sudo -n launchctl bootout system/\(AutostartScript.containerStartLabel) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.containerStartLabel)\"",
+        "  sudo -n rm -f \(AutostartScript.containerStartPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.containerStartPath)\"",
         "fi",
         "if [ -f \(AutostartScript.linuxPath) ]; then",
         "  sudo -n systemctl disable --now \(AutostartScript.unitName) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.unitName)\"",
