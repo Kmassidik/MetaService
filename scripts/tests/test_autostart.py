@@ -15,6 +15,7 @@ AUTOSTART = os.path.join(ROOT, "scripts", "autostart.sh")
 INSTALL = os.path.join(ROOT, "install.sh")
 PARENT = "io.metaservice.parent"
 CONNECTOR = "io.metaservice.connector"
+WATCHDOG = "io.metaservice.watchdog"
 AGENT = "io.metaservice.cloudflared"
 FAKE_LAUNCHCTL = '#!/bin/sh\necho "$@" >> "$FAKE_LAUNCHCTL_LOG"\n[ "$1" = print ] || exit 0\nfor label in $FAKE_LOADED; do\n  [ "$2" = "system/$label" ] && { printf "\\tpid = 4242\\n"; exit 0; }\ndone\nexit 1\n'
 FAKE_SUDO = "#!/bin/sh\nexit 1\n"  # sudo never works in these tests: no real sudo is ever called, and the password-less path is the one under test
@@ -121,14 +122,14 @@ class PlistTest(AutostartCase):
         if not plutil:
             self.skipTest("plutil is not on this computer")
         self.autostart("on")
-        for label in (PARENT, CONNECTOR):
+        for label in (PARENT, CONNECTOR, WATCHDOG):
             path = os.path.join(self.daemons, label + ".plist")
             checked = subprocess.run([plutil, "-lint", path], capture_output=True, text=True)
             self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
 
     def test_the_plist_files_are_mode_644(self):
         self.autostart("on")
-        for label in (PARENT, CONNECTOR):
+        for label in (PARENT, CONNECTOR, WATCHDOG):
             self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.daemons, label + ".plist")).st_mode), 0o644)
 
     def test_without_a_token_the_connector_is_skipped_and_the_user_job_is_left_alone(self):
@@ -189,7 +190,7 @@ class HandOverTest(AutostartCase):
         calls = self.calls()
         user_job_out = max(self.position(calls, f"bootout gui/{os.getuid()}/{AGENT}"), self.position(calls, f"bootout user/{os.getuid()}/{AGENT}"))
         self.assertLess(user_job_out, self.position(calls, "bootstrap system"))
-        for label in (PARENT, CONNECTOR):
+        for label in (PARENT, CONNECTOR, WATCHDOG):
             self.assertLess(self.position(calls, f"bootout system/{label}"), self.position(calls, f"bootstrap system {self.daemons}/{label}.plist"))
         self.assertFalse(os.path.exists(agent_plist))
         self.assertIn("Autostart is on", result.stdout)
@@ -199,12 +200,12 @@ class HandOverTest(AutostartCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("does not answer", result.stdout)
 
-    def test_off_boots_out_and_removes_both_and_says_how_to_start_by_hand(self):
+    def test_off_boots_out_and_removes_all_three_and_says_how_to_start_by_hand(self):
         self.autostart("on")
         open(self.calls_log, "w").close()
         result = self.autostart("off")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.calls(), [f"bootout system/{PARENT}", f"bootout system/{CONNECTOR}"])
+        self.assertEqual(self.calls(), [f"bootout system/{PARENT}", f"bootout system/{CONNECTOR}", f"bootout system/{WATCHDOG}"])
         self.assertEqual(os.listdir(self.daemons), [])
         self.assertIn("stopped", result.stdout)
         self.assertIn("./install.sh install", result.stdout)
