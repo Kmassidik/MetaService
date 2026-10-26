@@ -176,8 +176,9 @@ public enum PlanScripts {
         let recorded = "[ -f \(Shell.quote(box + "/manifest.json")) ] && grep -q '\"made_by\":\"\(madeBy)\"' \(Shell.quote(box + "/manifest.json"))"
         let partial = rollingBack ? " || [ -f \(Shell.quote(box + "/" + InstallPlan.partialMarker)) ]" : ""
         var lines = ["set -u",
-                     "if ! { \(recorded)\(partial); }; then echo \"ms-error: that is not a MetaService box, so nothing was removed\"; exit 30; fi",
-                     "if [ -x \(Shell.quote(box + "/stop.sh")) ]; then sh \(Shell.quote(box + "/stop.sh")); fi"]
+                     "if ! { \(recorded)\(partial); }; then echo \"ms-error: that is not a MetaService box, so nothing was removed\"; exit 30; fi"]
+        lines += bootRemoval
+        lines += ["if [ -x \(Shell.quote(box + "/stop.sh")) ]; then sh \(Shell.quote(box + "/stop.sh")); fi"]
         lines += workloadRemoval
         if let key { lines += keyRemoval(key) }
         lines += ["rm -rf -- \(Shell.quote(box))", "echo removed"]
@@ -201,6 +202,21 @@ public enum PlanScripts {
         "  done",
         "  break",
         "done",
+    ]
+
+    /// The boot registration the "Starts at boot" part added, taken away with the box. It goes before `stop.sh`: launchd and systemd would start the program
+    /// again seconds after it was stopped, with no folder left and nothing in the panel able to see it. Best effort, and `sudo -n` never waits for a password,
+    /// so a removal stays one plain SSH command that cannot hang on a prompt.
+    static let bootRemoval = [
+        "if [ -f \(AutostartScript.macPath) ]; then",
+        "  sudo -n launchctl bootout system/\(AutostartScript.label) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.label)\"",
+        "  sudo -n rm -f \(AutostartScript.macPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.macPath)\"",
+        "fi",
+        "if [ -f \(AutostartScript.linuxPath) ]; then",
+        "  sudo -n systemctl disable --now \(AutostartScript.unitName) >/dev/null 2>&1 || echo \"ms-note: could not stop \(AutostartScript.unitName)\"",
+        "  sudo -n rm -f \(AutostartScript.linuxPath) >/dev/null 2>&1 || echo \"ms-note: could not remove \(AutostartScript.linuxPath)\"",
+        "  sudo -n systemctl daemon-reload >/dev/null 2>&1 || true",
+        "fi",
     ]
 
     public struct RemovedKey: Equatable, Sendable {

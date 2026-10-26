@@ -120,6 +120,20 @@ final class PlanScriptsTests: XCTestCase {
         XCTAssertEqual(script, PlanScripts.removeScript(box: options.box, key: nil), "the script is fixed text")
     }
 
+    /// The boot registration goes with the box, and before `stop.sh`: launchd or systemd would start the program again seconds after it was stopped, with no
+    /// folder and nothing in the panel able to see it. `sudo -n` only, so a removal never waits for a password.
+    func testRemovalAlsoTakesTheBootRegistrationAway() throws {
+        let script = PlanScripts.removeScript(box: options.box, key: nil)
+        for part in ["launchctl bootout system/\(AutostartScript.label)", "sudo -n rm -f \(AutostartScript.macPath)",
+                     "systemctl disable --now \(AutostartScript.unitName)", "sudo -n rm -f \(AutostartScript.linuxPath)", "systemctl daemon-reload"] {
+            XCTAssertTrue(script.contains(part), part)
+        }
+        XCTAssertFalse(script.contains("sudo -S"), "a removal never asks for a password")
+        let registration = try XCTUnwrap(script.range(of: "launchctl bootout"))
+        let stop = try XCTUnwrap(script.range(of: "stop.sh"))
+        XCTAssertLessThan(registration.lowerBound, stop.lowerBound, "the service is unregistered before the program is stopped")
+    }
+
     func testTheProgramStartsFromTheBoxAndStopsAgain() throws {
         var withoutKey = options
         withoutKey.installKey = false
