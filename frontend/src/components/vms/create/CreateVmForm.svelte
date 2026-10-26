@@ -13,15 +13,18 @@
   import RuntimeSelect from './RuntimeSelect.svelte'
   import SizeSelect from './SizeSelect.svelte'
   import { ActionState } from '../../../lib/action.svelte.ts'
-  import { ApiError, createWorkload, getMachineImages, refusalText } from '../../../lib/api.ts'
+  import { ApiError, createWorkload, getMachineImages, getMachineStats, refusalText } from '../../../lib/api.ts'
   import { cpuAfterChange, cpuOffer, cpuProblem } from '../../../lib/cpuOptions.ts'
   import { blankForm, machineChoices, machineOptions, pickMachine, runtimeCards, startingMachine, type NewVmForm } from '../../../lib/createVm.ts'
-  import { gpuMemoryProblem, gpuOffer, sharedPartition } from '../../../lib/gpuChoice.ts'
+  import { gpuMemoryProblem, gpuOffer, gpuRoom, nvidiaCard, sharedPartition } from '../../../lib/gpuChoice.ts'
+  import { readGpuBooking } from '../../../lib/gpuBooking.ts'
   import { nameProblem, workloadBody, workloadProblem } from '../../../lib/format.ts'
+  import { readGpuLive } from '../../../lib/gpuLive.ts'
   import { imageAfterChange, imageOptions, STOCK_IMAGE, type MachineImages } from '../../../lib/images.ts'
   import { trackCreateAnswer } from '../../../lib/pendingStore.svelte.ts'
+  import { isStale } from '../../../lib/stats.ts'
   import { FAILED_MESSAGE } from '../../../lib/timeouts.ts'
-  import type { Machine } from '../../../lib/types.ts'
+  import type { Machine, MachineStats } from '../../../lib/types.ts'
   import { EXAMPLE_GENERATED_NAME, nameToSend } from '../../../lib/vmName.ts'
   import { sizeCards } from '../../../lib/vmSize.ts'
 
@@ -56,6 +59,9 @@
   let imageAnswer: MachineImages | null = $state(null)
   let imagesUnreadable = $state(false)
   let latestImageAsk = 0
+  /** The machine's latest reading, so the GPU choice can say how much of the card is free before anything is typed. */
+  let stats = $state<MachineStats | null>(null)
+  let latestStatsAsk = 0
   let formElement: HTMLFormElement | undefined
   const action = new ActionState()
   const picked = $derived(choices.find((choice) => choice.id === form.machine))
@@ -64,7 +70,12 @@
   const sizes = $derived(sizeCards(pickedMachine))
   const runtimes = $derived(runtimeCards(picked))
   const sizeReason = $derived(sizes.find((card) => card.key === form.size)?.reason ?? null)
-  const gpuProblem = $derived(gpuMemoryProblem(form.gpuMode, form.gpuMemoryGb, sharedPartition(pickedMachine, gpuOffer(pickedMachine, form.kind))))
+  const gpu = $derived(pickedMachine === undefined ? null : readGpuLive(pickedMachine, stats?.gpus ?? [], stats !== null))
+  /** The card's honest free memory, from its own reading and the machine's bookings (see `gpuLive.ts`). */
+  const room = $derived(gpuRoom(gpu, readGpuBooking(pickedMachine?.gpu_booking)))
+  /** Only a machine with a card has a reading worth asking for. */
+  const hasCard = $derived(nvidiaCard(pickedMachine) !== null)
+  const gpuProblem = $derived(gpuMemoryProblem(form.gpuMode, form.gpuMemoryGb, sharedPartition(pickedMachine, gpuOffer(pickedMachine, form.kind)), room))
   const offer = $derived(cpuOffer(pickedMachine))
   const problem = $derived(workloadProblem({ ...form, name: form.name || EXAMPLE_GENERATED_NAME }) ?? sizeReason ?? gpuProblem ?? cpuProblem(form, offer))
   const ready = $derived(picked !== undefined && !picked.disabled && problem === null)
@@ -84,6 +95,13 @@
     void loadImages(machine)
   })
 
+  // The same for the card's free memory: one reading when the form opens or the machine changes, and only for a machine with a card to report.
+  // It is a single read of the route the machine cards already use, never a poller of its own.
+  $effect(() => {
+    const machine = hasCard ? form.machine : ''
+    void loadStats(machine)
+  })
+
   $effect(() => {
     form.bundle = imageAfterChange(images, form.bundle ?? STOCK_IMAGE)
   })
@@ -94,6 +112,18 @@
     const same = kept.cpuSockets === form.cpuSockets && kept.cpuType === form.cpuType && kept.cpuLimit === form.cpuLimit && JSON.stringify(kept.cpuFlags) === JSON.stringify(form.cpuFlags)
     if (!same) Object.assign(form, kept)
   })
+
+  async function loadStats(machine: string) {
+    const ask = ++latestStatsAsk
+    stats = null
+    if (machine === '') return
+    try {
+      const reply = await getMachineStats(machine, false)
+      if (ask === latestStatsAsk) stats = isStale(reply) ? null : reply.stats
+    } catch {
+      if (ask === latestStatsAsk) stats = null
+    }
+  }
 
   async function loadImages(machine: string) {
     const ask = ++latestImageAsk
@@ -145,7 +175,7 @@
     </FieldBlock>
     <ImageSections serverId={IMAGE_ID} frameworkId={FRAMEWORK_ID} options={images} bundle={form.bundle} unreadable={imagesUnreadable} onpick={(bundle) => (form.bundle = bundle)} />
     <RuntimeSelect id={RUNTIME_ID} cards={runtimes} chosen={form.kind} os={pickedMachine?.os} onpick={(kind) => (form.kind = kind)} />
-    <GpuChoice bind:form machine={pickedMachine} />
+    <GpuChoice bind:form machine={pickedMachine} {room} />
     <hr />
     <SizeSelect id={SIZE_ID} cards={sizes} chosen={form.size} bind:form onpick={(key) => (form.size = key)} />
     <ProcessorFields bind:form {offer} machine={pickedMachine} />

@@ -1,6 +1,8 @@
 <script lang="ts">
-  // The number under the GPU select while "Shared partition" is picked: how many GB of the card's memory this VM may use. It is checked as it is typed.
-  import { freeWholeGb, gpuMemoryHint, gpuMemoryProblem, MIN_LIMIT_GB, OVER_LIMIT_WARNING } from '../lib/gpuChoice.ts'
+  // The number under the GPU select while "Shared partition" is picked: how many GB of the card's memory this VM may use. It is checked as it is typed,
+  // and the box never keeps more than the card can still give: the arrows stop at the cap, and a number typed over it is brought back to the cap when the
+  // box is left (the sentence under it named the refusal while it was there).
+  import { freeWholeGb, gpuMemoryHint, gpuMemoryProblem, MIN_LIMIT_GB, OVER_LIMIT_WARNING, type GpuRoom } from '../lib/gpuChoice.ts'
   import type { GpuBooking } from '../lib/gpuBooking.ts'
   import type { WorkloadForm } from '../lib/types.ts'
 
@@ -8,15 +10,24 @@
   const PROBLEM_ID = `${INPUT_ID}-problem`
   const HINT_ID = `${INPUT_ID}-hint`
 
-  let { form = $bindable(), booking }: { form: WorkloadForm; booking: GpuBooking } = $props()
-  const problem = $derived(gpuMemoryProblem('shared', form.gpuMemoryGb, { available: true, booking }))
+  let { form = $bindable(), booking, room = null }: { form: WorkloadForm; booking: GpuBooking; room?: GpuRoom | null } = $props()
+  /** The most whole GB the box may take: the card's honest free memory, or the parent's booking when the machine has not reported. */
+  const capGb = $derived(room?.capGb ?? freeWholeGb(booking))
+  const problem = $derived(gpuMemoryProblem('shared', form.gpuMemoryGb, { available: true, booking }, room))
+
+  /** Leaving the box with a number over the cap keeps it at the cap, so the number never promises memory the card does not have. */
+  function keepWithinCap(): void {
+    const value = form.gpuMemoryGb
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= capGb) return
+    form.gpuMemoryGb = capGb
+  }
 </script>
 
 <div class="memory" data-gpu-memory>
   <label for={INPUT_ID}>GPU memory for this VM (GB)</label>
-  <input id={INPUT_ID} type="number" inputmode="numeric" step="1" min={MIN_LIMIT_GB} max={freeWholeGb(booking)} bind:value={form.gpuMemoryGb} aria-invalid={problem === null ? 'false' : 'true'} aria-describedby="{HINT_ID} {problem === null ? '' : PROBLEM_ID}" />
+  <input id={INPUT_ID} type="number" inputmode="numeric" step="1" min={MIN_LIMIT_GB} max={capGb} bind:value={form.gpuMemoryGb} onblur={keepWithinCap} aria-invalid={problem === null ? 'false' : 'true'} aria-describedby="{HINT_ID} {problem === null ? '' : PROBLEM_ID}" />
   {#if problem !== null}<p class="problem" id={PROBLEM_ID} role="alert" data-gpu-memory-problem>{problem}</p>{/if}
-  <p class="hint" id={HINT_ID}>{gpuMemoryHint(booking)}</p>
+  <p class="hint" id={HINT_ID}>{gpuMemoryHint(booking, room)}</p>
   <p class="hint">{OVER_LIMIT_WARNING}</p>
 </div>
 

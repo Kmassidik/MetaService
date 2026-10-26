@@ -15,13 +15,14 @@ const SHARED_LABEL = "Shared partition — limit this VM's GPU memory"
 const OPTION_ORDER = ['none', 'container', 'shared', 'passthrough']
 const FREE_GB = TOTAL_GB - 8
 const DEFAULT_GB = 4
-const OVER_TEXT = `Only ${FREE_GB} GB of the card's ${TOTAL_GB} GB is still free to book.`
-const HINT_TEXT = `${FREE_GB} GB of the card's ${TOTAL_GB} GB is still free to book. The limit stays booked for this VM even while it is stopped.`
+const OVER_TEXT = `Only ${FREE_GB} GB of the card is free, so ${FREE_GB + 1} GB cannot be reserved.`
+const HINT_TEXT = 'The limit stays booked for this VM even while it is stopped.'
 const WARNING_TEXT = 'If the VM stays over its limit for about 15 seconds it is stopped.'
 const REFUSAL_TEXT = "Only 20 GB of the card's 31 GB is still free to book."
+const FREE_LINE_START = `GPU: ${FREE_GB} GB free of `
 const REASONS: [string, string][] = [
   [OLD_PC, 'Update the helper on this machine first.'],
-  [FULL_PC, "The card's memory is fully booked."],
+  [FULL_PC, 'The card is fully in use.'],
   [BLIND_PC, 'This machine cannot book GPU memory.'],
 ]
 
@@ -62,6 +63,8 @@ export async function optionsPerMachine(b: Browse, base: string): Promise<void> 
   const order = (await lines(b, GPU)).map((line) => line.value)
   check('on a machine with 23 GB free the options are None, Container, Shared partition, Dedicated passthrough, and Custom partition is gone', JSON.stringify(order) === JSON.stringify(OPTION_ORDER), order.join(','))
   check('Shared partition is enabled there, with its exact label', shared?.disabled === false && shared.text === SHARED_LABEL, JSON.stringify(shared))
+  const free = await b.run(() => document.querySelector('dialog[open] [data-gpu-room]')?.textContent?.trim() ?? '')
+  check(`the card's free memory sits next to the choice: "${FREE_LINE_START}…"`, free.startsWith(FREE_LINE_START), free)
   for (const [machine, reason] of REASONS) {
     await openCreate(b, base, machine)
     const line = (await lines(b, GPU)).find((entry) => entry.value === 'shared')
