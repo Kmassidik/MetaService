@@ -15,6 +15,7 @@ panel_url="${METASERVICE_PANEL_URL:-http://127.0.0.1:9100}"
 wait_seconds="${METASERVICE_WAIT_SECONDS:-90}"
 parent_label="io.metaservice.parent"
 connector_label="io.metaservice.connector"
+watchdog_label="io.metaservice.watchdog"
 agent_label="io.metaservice.cloudflared"  # the user job that scripts/remote_access made before; the connector daemon replaces it
 control_plane="$root/control-plane/arm64"
 log_dir="${METASERVICE_LOG_DIR:-$root/logs}"
@@ -51,14 +52,14 @@ explain_by_hand() {
 }
 
 staged_labels() {
-  for label in "$parent_label" "$connector_label"; do
+  for label in "$parent_label" "$connector_label" "$watchdog_label"; do
     [ -f "$(staged_path "$label")" ] && echo "$label"
   done
 }
 
 stage_plists() {
   mkdir -p "$staging_dir" && chmod 700 "$staging_dir" || return 1
-  rm -f "$(staged_path "$parent_label")" "$(staged_path "$connector_label")"
+  rm -f "$(staged_path "$parent_label")" "$(staged_path "$connector_label")" "$(staged_path "$watchdog_label")"
   written="$(python3 "$here/scripts/autostart_plists.py" --root "$root" --out "$staging_dir" --user "$(id -un)" --home "$HOME")" || return 1
   echo "$written" | sed 's/^/      /'
 }
@@ -67,7 +68,7 @@ stage_plists() {
 prepare_logs() {
   mkdir -p "$control_plane/run" "$control_plane/state" "$log_dir" || return 1
   chmod 700 "$log_dir" || return 1
-  (umask 077; : >> "$log_dir/parent.log" && : >> "$log_dir/cloudflared.log")
+  (umask 077; : >> "$log_dir/parent.log" && : >> "$log_dir/cloudflared.log" && : >> "$log_dir/watchdog.log")
 }
 
 # bootout first, so a daemon that is already loaded is replaced; "not loaded" is the normal case and is not an error.
@@ -141,10 +142,10 @@ autostart_on() {
 autostart_off() {
   if ! choose_privilege; then
     explain_by_hand
-    for label in "$parent_label" "$connector_label"; do daemon_remove "$label"; done
+    for label in "$parent_label" "$connector_label" "$watchdog_label"; do daemon_remove "$label"; done
     return 1
   fi
-  for label in "$parent_label" "$connector_label"; do daemon_remove "$label"; done
+  for label in "$parent_label" "$connector_label" "$watchdog_label"; do daemon_remove "$label"; done
   echo "      ✓ Autostart is off. The daemons are removed, so MetaService is now stopped and will not start at boot."
   echo "        Start it by hand with ./install.sh install. If remote access was set up, ./install.sh remote up puts its connector back."
 }
@@ -160,6 +161,7 @@ describe_daemon() {
 autostart_status() {
   describe_daemon "$parent_label"
   describe_daemon "$connector_label"
+  describe_daemon "$watchdog_label"
   if panel_answers; then echo "      The panel answers: $panel_url"; else echo "      The panel does not answer on $panel_url."; fi
 }
 

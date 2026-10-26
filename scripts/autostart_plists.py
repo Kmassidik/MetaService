@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shutil
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +21,7 @@ import log_folder  # noqa: E402
 
 PARENT_LABEL = "io.metaservice.parent"
 CONNECTOR_LABEL = cf_connector.DAEMON_LABEL
+WATCHDOG_LABEL = "io.metaservice.watchdog"
 CONTROL_PLANE = os.path.join("control-plane", "arm64")
 PARENT_BINARY = os.path.join(CONTROL_PLANE, ".build", "debug", "metaservice-root")
 TOKEN_FILE = "cloudflared.token"
@@ -51,6 +53,18 @@ def find_cloudflared() -> str:
     return override
 
 
+def watchdog_job(root: str, user: str, home: str) -> dict:
+    """The health loop: launchd keeps it alive, and it restarts the parent when the parent stops answering. It runs as the same person
+    as the parent, because it starts and stops that person's process."""
+    arguments = [python3_path(), os.path.join(root, "scripts", "watchdog.py"), "--root", root]
+    return base_job(WATCHDOG_LABEL, arguments, user, home, os.path.join(log_folder.log_dir(root), log_folder.WATCHDOG_LOG))
+
+
+def python3_path() -> str:
+    """An absolute interpreter: launchd does not search PATH for ProgramArguments[0] the way a shell does."""
+    return shutil.which("python3") or "/usr/bin/python3"
+
+
 def connector_job(root: str, user: str, home: str) -> dict:
     state_dir = os.path.join(root, CONTROL_PLANE, "state")
     token_file = os.path.join(state_dir, TOKEN_FILE)
@@ -73,6 +87,7 @@ def main(argv: list) -> int:
         parser.add_argument("--" + name, required=True)
     args = parser.parse_args(argv)
     print("wrote " + write_plist(args.out, parent_job(args.root, args.user, args.home)))
+    print("wrote " + write_plist(args.out, watchdog_job(args.root, args.user, args.home)))
     try:
         job = connector_job(args.root, args.user, args.home)
     except cf_connector.ConnectorError as reason:

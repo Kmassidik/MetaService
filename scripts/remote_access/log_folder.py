@@ -5,6 +5,7 @@ LOG_FOLDER = "logs"
 LOG_DIR_VARIABLE = "METASERVICE_LOG_DIR"  # for tests and odd installs: the folder to use instead of <root>/logs
 CONNECTOR_LOG = "cloudflared.log"
 PARENT_LOG = "parent.log"
+WATCHDOG_LOG = "watchdog.log"
 
 
 def log_dir(root: str) -> str:
