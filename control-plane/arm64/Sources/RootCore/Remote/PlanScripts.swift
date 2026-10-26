@@ -176,10 +176,30 @@ public enum PlanScripts {
         var lines = ["set -u",
                      "if ! { \(recorded)\(partial); }; then echo \"ms-error: that is not a MetaService box, so nothing was removed\"; exit 30; fi",
                      "if [ -x \(Shell.quote(box + "/stop.sh")) ]; then sh \(Shell.quote(box + "/stop.sh")); fi"]
+        lines += workloadRemoval
         if let key { lines += keyRemoval(key) }
         lines += ["rm -rf -- \(Shell.quote(box))", "echo removed"]
         return lines.joined(separator: "\n") + "\n"
     }
+
+    /// The containers and VMs this machine made for MetaService, removed before the box goes away. Without this the machine keeps
+    /// running them after it is forgotten, using memory and disk with nothing left that can see them. Names are the helper's own
+    /// `ms-<id>`; nothing comes from the request. Fixed text, and a failure to delete one names it but does not stop the removal.
+    static let workloadRemoval = [
+        #"PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/sbin""#,
+        "if command -v incus >/dev/null 2>&1; then",
+        "  for instance in $(incus list --format csv -c n 2>/dev/null | grep '^ms-'); do",
+        "    incus delete --force \"$instance\" >/dev/null 2>&1 || echo \"ms-note: could not delete $instance\"",
+        "  done",
+        "fi",
+        "for tool in /usr/local/bin/container /opt/homebrew/bin/container container; do",
+        "  command -v \"$tool\" >/dev/null 2>&1 || continue",
+        "  for instance in $(\"$tool\" list --format json 2>/dev/null | grep -o '\"name\":\"ms-[^\"]*\"' | cut -d'\"' -f4); do",
+        "    \"$tool\" delete --force \"$instance\" >/dev/null 2>&1 || echo \"ms-note: could not delete $instance\"",
+        "  done",
+        "  break",
+        "done",
+    ]
 
     public struct RemovedKey: Equatable, Sendable {
         public let file: String

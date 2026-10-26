@@ -109,6 +109,17 @@ final class PlanScriptsTests: XCTestCase {
         XCTAssertEqual(sh(PlanScripts.removeScript(box: options.box, key: nil, rollingBack: true)).status, 30, "a folder with no marker is never ours")
     }
 
+    /// Removing a machine must take its containers and VMs with it: left behind they keep running, using memory and disk, with
+    /// nothing in the panel able to see them.
+    func testRemovalDeletesTheWorkloadsThatMachineMade() {
+        let script = PlanScripts.removeScript(box: options.box, key: nil)
+        for part in ["incus delete --force \"$instance\"", "delete --force \"$instance\"", "grep '^ms-'", "grep -o '\"name\":\"ms-", "ms-note: could not delete"] {
+            XCTAssertTrue(script.contains(part), part)
+        }
+        XCTAssertFalse(script.contains("incus delete --force all"), "only the names the helper made, never everything")
+        XCTAssertEqual(script, PlanScripts.removeScript(box: options.box, key: nil), "the script is fixed text")
+    }
+
     func testTheProgramStartsFromTheBoxAndStopsAgain() throws {
         var withoutKey = options
         withoutKey.installKey = false

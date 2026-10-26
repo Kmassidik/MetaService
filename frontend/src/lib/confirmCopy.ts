@@ -47,10 +47,20 @@ export function removeMachineCopy(machine: Pick<Machine, 'name'>): ConfirmCopy {
 }
 
 /** The machine was installed over SSH: the same dialog, with the choice of taking MetaService off that computer or only forgetting it. */
-export function removeRemoteMachineCopy(machine: Pick<Machine, 'name'>, info: Pick<RemoteMachineInfo, 'ssh_user' | 'host'>): ConfirmCopy {
+export function removeRemoteMachineCopy(
+  machine: Pick<Machine, 'name'> & { workloads?: unknown[] },
+  info: Pick<RemoteMachineInfo, 'ssh_user' | 'host'>,
+): ConfirmCopy {
   return {
     ...removeMachineCopy(machine),
     what: `${machine.name} was installed on ${info.ssh_user}@${info.host}. Removing it forgets the machine here and, if you choose, takes MetaService away from that computer.`,
-    consequence: 'Its token stops working. To manage it again it must be installed or enrolled again.',
+    consequence: `Its token stops working. To manage it again it must be installed or enrolled again.${workloadConsequence(machine.workloads?.length ?? 0)}`,
   }
+}
+
+/** What happens to the containers and VMs the machine made, so the count is never a surprise after the fact. */
+function workloadConsequence(count: number): string {
+  if (count === 0) return ''
+  const things = count === 1 ? '1 VM or container' : `${count} VMs and containers`
+  return ` Taking it away also deletes the ${things} it made on that computer; forgetting it here leaves them running there.`
 }
