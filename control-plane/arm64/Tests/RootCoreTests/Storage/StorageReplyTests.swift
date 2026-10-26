@@ -4,6 +4,14 @@ import XCTest
 final class StorageReplyTests: XCTestCase {
     private let storage = Storage(scanning: false, progress: nil, error: nil, map: nil)
 
+    /// The answer as a JSON object. Compared as a value, never as text: JSON key order is not promised, so comparing strings
+    /// made these tests pass or fail at random.
+    private func json(_ reply: StorageReply) throws -> NSDictionary {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return try JSONSerialization.jsonObject(with: encoder.encode(reply)) as! NSDictionary
+    }
+
     private func text(_ reply: StorageReply) throws -> String {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -20,13 +28,13 @@ final class StorageReplyTests: XCTestCase {
         let reply = StorageReply.make(.oldHelper)
         XCTAssertEqual(reply.state, "old_helper")
         XCTAssertNil(reply.storage)
-        XCTAssertEqual(try text(reply), "{\"state\":\"old_helper\",\"storage\":null}")
+        XCTAssertEqual(try json(reply), ["state": "old_helper", "storage": NSNull()] as NSDictionary)
     }
 
     func testAnOfflineOrSilentMachineIsOfflineWithStorageWrittenAsNull() throws {
         let reply = StorageReply.make(.unreachable)
         XCTAssertEqual(reply.state, "offline")
-        XCTAssertEqual(try text(reply), "{\"state\":\"offline\",\"storage\":null}")
+        XCTAssertEqual(try json(reply), ["state": "offline", "storage": NSNull()] as NSDictionary)
     }
 
     func testTheHelpersAnswerIsWrittenWithEveryKey() throws {

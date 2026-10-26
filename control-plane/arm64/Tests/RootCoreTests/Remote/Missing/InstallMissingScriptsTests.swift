@@ -27,7 +27,7 @@ final class InstallMissingScriptsTests: XCTestCase {
     func testTheVmPackagesScriptIsFixedTextAndNamesThePackagesAndModules() {
         let script = InstallMissingScripts.script(for: .vmPackages, user: "build")
         XCTAssertEqual(script, InstallMissingScripts.script(for: .vmPackages, user: "someone-else"), "the script holds nothing from the request")
-        for part in ["qemu-system-x86 ovmf", "qemu-system-arm qemu-efi-aarch64", "apt-get -y", "for module in kvm_amd kvm_intel", "modprobe \"$module\"", "[ -e /dev/kvm ]", InstallMissingScripts.doneMarker] {
+        for part in ["qemu-system-x86", "qemu-system-arm", "qemu-utils", "qemu-system-modules-spice", "ovmf", "qemu-efi-aarch64", "apt-get -y", "for module in kvm_amd kvm_intel", "modprobe \"$module\"", "[ -e /dev/kvm ]", InstallMissingScripts.doneMarker] {
             XCTAssertTrue(script.contains(part), part)
         }
         XCTAssertFalse(script.contains("kvm_amd kvm_intel\n"), "the modules are tried one by one, not as one name")

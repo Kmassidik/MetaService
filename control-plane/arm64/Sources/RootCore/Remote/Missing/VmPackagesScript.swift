@@ -6,13 +6,15 @@ import Foundation
 /// Debian and Ubuntu name the package after the machine it emulates: `qemu-system-x86` (it holds `qemu-system-x86_64`) with the firmware in `ovmf` on x86, and
 /// `qemu-system-arm` (it holds `qemu-system-aarch64`) with the arm64 firmware in `qemu-efi-aarch64` on ARM.
 ///
+/// `qemu-system-modules-spice` is not optional either: Ubuntu 24.04 splits qemu into modules and Incus asks for a SPICE
+/// display, so a machine without it fails with `There is no option group 'spice'` (RTX 5090, 2026-10-26).
 /// `qemu-utils` is not optional: Incus runs `qemu-img` on an image before it can start a VM from it, and a machine with only
 /// `qemu-system-*` fails with `Failed to find executable "qemu-img"` (seen on the RTX 5090, 2026-10-26).
 enum VmPackagesScript {
     static let body = """
     case "$(uname -m)" in
-      x86_64|amd64) packages='qemu-system-x86 ovmf qemu-utils' ;;
-      aarch64|arm64) packages='qemu-system-arm qemu-efi-aarch64 qemu-utils' ;;
+      x86_64|amd64) packages='qemu-system-x86 qemu-system-modules-spice ovmf qemu-utils' ;;
+      aarch64|arm64) packages='qemu-system-arm qemu-system-modules-spice qemu-efi-aarch64 qemu-utils' ;;
       *) fail 'this computer'"'"'s CPU type is not one qemu is installed for here' ;;
     esac
     aptget install --no-install-recommends $packages || fail 'installing qemu did not work'

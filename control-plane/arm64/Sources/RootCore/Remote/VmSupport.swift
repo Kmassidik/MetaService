@@ -23,8 +23,8 @@ enum VmSupport {
 
     /// Debian and Ubuntu name these by the emulated machine: `qemu-system-x86` and its UEFI firmware `ovmf` on x86, `qemu-system-arm` (it holds `qemu-system-aarch64`)
     /// and `qemu-efi-aarch64` (the arm64 UEFI firmware) on ARM.
-    static let x86Packages = "qemu-system-x86 ovmf qemu-utils"
-    static let armPackages = "qemu-system-arm qemu-efi-aarch64 qemu-utils"
+    static let x86Packages = "qemu-system-x86 qemu-system-modules-spice ovmf qemu-utils"
+    static let armPackages = "qemu-system-arm qemu-system-modules-spice qemu-efi-aarch64 qemu-utils"
 
     /// The row is a tick with something to do exactly when the part it can install is missing: no `/dev/kvm`, or no qemu. A fact the computer did not answer is never
     /// counted as missing, so a machine that could not say is never told it is broken.

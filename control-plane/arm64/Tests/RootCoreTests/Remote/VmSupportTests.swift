@@ -57,7 +57,9 @@ final class VmSupportTests: XCTestCase {
         // It must not claim "VMs and containers" while qemu is missing: the badge takes the first words of this sentence.
         XCTAssertEqual(qemuOnly.detail, VmSupport.kvmThereButNoQemu)
         XCTAssertFalse(qemuOnly.detail.contains("VMs and containers"))
-        XCTAssertTrue(qemuOnly.fix!.contains("sudo apt install qemu-system-x86 ovmf"), qemuOnly.fix!)
+        for package in ["qemu-system-x86", "qemu-utils", "qemu-system-modules-spice", "ovmf"] {
+            XCTAssertTrue(qemuOnly.fix!.contains(package), "\(package) in \(qemuOnly.fix!)")
+        }
         let both = requirement("kvm=no\nvirt=yes\nqemu=no\n" + amdChip)
         XCTAssertEqual(both.detail, "Containers only: virtualization is on, but the KVM module is not loaded. qemu is not installed.")
         XCTAssertTrue(both.fix!.contains("kvm_amd") && both.fix!.contains("qemu-system-x86"), both.fix!)
@@ -66,7 +68,9 @@ final class VmSupportTests: XCTestCase {
     func testAnArmComputerGetsTheArmPackageNames() {
         let row = RemoteVerify.run(facts: RemoteProbe.parse("os=Linux\narch=aarch64\nuser=u\nkvm=no\nvirt=unknown\nqemu=no\ndisk_free_gb=400\nram_mb=32000\nport_9101=free\n")!,
                                    fingerprint: "SHA256:a", agentBuilds: ["linux-arm64"], parentURL: "http://x:9102").requirements.first { $0.id == "vm_support" }!
-        XCTAssertTrue(row.fix!.contains("qemu-system-arm qemu-efi-aarch64"), row.fix!)
+        for package in ["qemu-system-arm", "qemu-efi-aarch64", "qemu-utils", "qemu-system-modules-spice"] {
+            XCTAssertTrue(row.fix!.contains(package), "\(package) in \(row.fix!)")
+        }
     }
 
     func testTheMacRowIsUnchanged() {
