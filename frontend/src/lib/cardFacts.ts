@@ -45,7 +45,8 @@ function coresValue(machine: Machine): string {
 }
 
 /** "NVIDIA GeForce RTX 5090", the cards of a machine that has more than one, or the dash. */
-function gpuValue(machine: Machine): string {
+function gpuValue(machine: Machine, live: string | null): string {
+  if (live !== null) return live
   const gpus = machine.gpu.map(gpuName).join(', ')
   return gpus === '' ? UNKNOWN : gpus
 }
@@ -56,15 +57,15 @@ export function vmsChip(count: number): string {
   return count === 1 ? '1 VM' : `${count} VMs`
 }
 
-/** The card's facts, in the one order every card uses. A row is always here; only its value may be the dash. */
-export function cardFacts(machine: Machine): CardFact[] {
+/** The card's facts, in the one order every card uses. A row is always here; only its value may be the dash. `liveGpu` is the card's short live value (see `gpuFact`), which replaces the name while the machine reports its numbers. */
+export function cardFacts(machine: Machine, liveGpu: string | null = null): CardFact[] {
   return [
     { key: 'address', label: 'ADDRESS', value: machine.ip || UNKNOWN },
     { key: 'type', label: 'TYPE', value: profileLabel(machine.settings?.profile) },
     { key: 'os', label: 'OS', value: osValue(machine) },
     { key: 'cores', label: 'CORES', value: coresValue(machine) },
     { key: 'cpu', label: 'CPU', value: cpuModelText(machine.cpu_model) ?? UNKNOWN },
-    { key: 'gpu', label: 'GPU', value: gpuValue(machine) },
+    { key: 'gpu', label: 'GPU', value: gpuValue(machine, liveGpu) },
     { key: 'vms', label: 'VMS', value: vmsChip(machine.workloads.length) },
   ]
 }
