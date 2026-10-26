@@ -437,6 +437,8 @@ export interface ConnectForm {
   user: string
   password: string
   useKey: boolean
+  /** Set when the login is for a machine that is already added: the parent reads its address and host key from the machine's own record. */
+  machineId?: string
 }
 
 /** "What will change": the install plan for another computer, before anything is done. */

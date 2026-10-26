@@ -8,12 +8,11 @@
 </script>
 
 {#if note}
-  <div class="op-alerts flush" role="status" data-gpu-note="machine">
+  <div class="op-alerts" role="status" data-gpu-note="machine">
     <div class="op-alert"><b>{note.title}</b><p>{note.fix}</p></div>
   </div>
 {/if}
 
 <style>
-  .flush { padding-left: 0; padding-right: 0; margin-left: 0; }
   p { overflow-wrap: anywhere; }
 </style>

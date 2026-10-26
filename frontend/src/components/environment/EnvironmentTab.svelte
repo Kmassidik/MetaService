@@ -2,7 +2,6 @@
   // The Environment tab: what the machine is, what is on it, Ruvio on or off, limits, what a new VM gets, and names. One Save; changes apply to new VMs only.
   import { untrack } from 'svelte'
   import CollapsibleSection from './CollapsibleSection.svelte'
-  import MachineAlerts from './MachineAlerts.svelte'
   import MachineFacts from './MachineFacts.svelte'
   import SoftwareSection from './SoftwareSection.svelte'
   import RuvioSection from './RuvioSection.svelte'
@@ -148,7 +147,6 @@
 
 {#if loadFailure}<p class="failure" role="alert">{loadFailure}</p>{/if}
 <div class="env">
-  <MachineAlerts {machine} />
   <div class="tools"><button class="expand" type="button" onclick={toggleAll}>{allOpen ? 'Collapse all' : 'Expand all'}</button></div>
   <div class="rows">
     <CollapsibleSection id="machine" title="This machine" summary={machineSummary(full)} bind:open={opened.machine}>

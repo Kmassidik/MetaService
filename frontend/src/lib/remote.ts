@@ -38,8 +38,13 @@ export function loginProblem(form: ConnectForm): string | null {
 
 export const probeBody = (form: ConnectForm) => ({ host: form.host.trim(), port: portOf(form) ?? SSH_PORT })
 
-/** The login request. A password is sent only when the password way is chosen, and never together with the key. */
-export function verifyBody(form: ConnectForm, fingerprint: string): Record<string, unknown> {
+/**
+ * The login request. A password is sent only when the password way is chosen, and never together with the key.
+ * A machine that is already added is named instead of an address: the parent takes its address and host key from its own record, so a re-check can only ever
+ * look at that machine, and a check never adds a second one. The fingerprint argument is unused then.
+ */
+export function verifyBody(form: ConnectForm, fingerprint = ''): Record<string, unknown> {
+  if (form.machineId) return form.useKey ? { machine: form.machineId, use_key: true } : { machine: form.machineId, password: form.password }
   const base = { ...probeBody(form), user: form.user, fingerprint }
   return form.useKey ? { ...base, use_key: true } : { ...base, password: form.password }
 }

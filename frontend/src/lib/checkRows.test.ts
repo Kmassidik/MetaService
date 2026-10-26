@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { checkCards, checkRows, hostKeyShort, isBlocking, machineLine, manualSteps, readyCount, stoppedEarly, verdict } from './checkRows.ts'
+import { againVerdict, checkCards, checkRows, hostKeyShort, isBlocking, machineLine, manualSteps, readyCount, stoppedEarly, verdict } from './checkRows.ts'
 import type { Requirement } from './types.ts'
 
 const KEY = 'SHA256:DmQeV3tR8xYb2LfZkq0WnH5uAa7cPjE1sGdXoTi9Qki0+g'
@@ -207,6 +207,14 @@ test('the verdict counts what must be fixed and what is only missing', () => {
   expect(verdict(checkRows(extra))).toEqual({ tone: 'optional', text: 'Ready to add. One extra is missing, and it does not block adding.' })
   const windows = [ok('login', 'Login', 'Logged in as x.'), cross('system', 'System', 'Windows is not supported yet.')]
   expect(verdict(checkRows(windows))).toEqual({ tone: 'blocking', text: 'This computer cannot be added: this kind of computer is not supported yet.' })
+})
+
+test('the verdict says what an already added machine is missing, not what blocks adding it', () => {
+  expect(againVerdict(checkRows(linux()))).toEqual({ tone: 'ready', text: 'All 11 checks passed. Nothing is missing on this machine.' })
+  const one = swap(linux(), cross('python', 'Python (runs the chat)', 'Not installed.'))
+  expect(againVerdict(checkRows(one))).toEqual({ tone: 'blocking', text: '1 thing to fix on this machine.' })
+  const extra = [...linux(), cross('gpu_toolkit', 'NVIDIA container toolkit', 'Not installed.')]
+  expect(againVerdict(checkRows(extra))).toEqual({ tone: 'optional', text: 'Nothing this machine needs is missing. One extra is missing, and the machine works without it.' })
 })
 
 test('the machine line lists what is known and leaves out what is not', () => {

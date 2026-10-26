@@ -2,13 +2,14 @@
   // The top of the Check step: the ring, the machine in one line, the short host key with Copy, and what is left to do.
   import CopyButton from './CopyButton.svelte'
   import ProgressRing from './ProgressRing.svelte'
-  import { hostKeyShort, machineLine, readyCount, verdict } from '../../lib/checkRows.ts'
+  import { againVerdict, hostKeyShort, machineLine, readyCount, verdict } from '../../lib/checkRows.ts'
   import type { CheckRow } from '../../lib/checkRows.ts'
   import type { VerifyResult } from '../../lib/types.ts'
 
-  let { result, rows }: { result: VerifyResult; rows: CheckRow[] } = $props()
+  /** added: the machine is already there, so the words are about what it is missing, not about adding it. */
+  let { result, rows, added = false }: { result: VerifyResult; rows: CheckRow[]; added?: boolean } = $props()
   const counts = $derived(readyCount(rows))
-  const line = $derived(verdict(rows))
+  const line = $derived(added ? againVerdict(rows) : verdict(rows))
 </script>
 
 <div class="head">

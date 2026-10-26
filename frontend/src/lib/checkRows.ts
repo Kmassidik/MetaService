@@ -222,6 +222,14 @@ export function verdict(rows: CheckRow[]): { tone: Tone; text: string } {
   return { tone: 'ready', text: `All ${rows.length} checks passed. This computer can be added.` }
 }
 
+/** The same line for a machine that is already added: the same rows, worded about this machine instead of about adding it. */
+export function againVerdict(rows: CheckRow[]): { tone: Tone; text: string } {
+  const blocking = rows.filter(isBlocking)
+  if (blocking.length > 0) return { tone: 'blocking', text: `${things(blocking.length)} to fix on this machine.` }
+  if (rows.some((row) => row.state === 'optional')) return { tone: 'optional', text: 'Nothing this machine needs is missing. One extra is missing, and the machine works without it.' }
+  return { tone: 'ready', text: `All ${rows.length} checks passed. Nothing is missing on this machine.` }
+}
+
 /** The machine in one line: cores, memory, free disk and the user. A fact the check could not read (a Windows computer has none) is left out, not shown as a dash. */
 export function machineLine(facts: { cpu_cores: number | null; ram_mb: number | null; disk_free_gb: number | null; user: string }): string {
   const parts = [

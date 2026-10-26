@@ -7,6 +7,7 @@
   import Activity from '../components/Activity.svelte'
   import DeploymentsView from '../components/deployments/DeploymentsView.svelte'
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
+  import MachineAlerts from '../components/environment/MachineAlerts.svelte'
   import Monitor from '../components/monitor/Monitor.svelte'
   import PendingVms from '../components/vms/PendingVms.svelte'
   import StorageTab from '../components/storage/StorageTab.svelte'
@@ -32,6 +33,8 @@
     onCreate: (machine: Machine) => void
     onRemove: (machine: Machine) => void
     onRename: (machine: Machine) => void
+    /** Look at this machine again over SSH: the Check, with its address and user from the record. */
+    onCheck: (machine: Machine) => void
     onAct: (machine: Machine, workload: Workload, action: 'start' | 'stop') => Promise<void>
     onDelete: (machine: Machine, workload: Workload) => void
     onOpenChat: (machine: Machine, workload: Workload | null) => void
@@ -42,7 +45,7 @@
     onChanged: () => void
   }
 
-  let { machine, remote, commands, pending, route, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onRename, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
+  let { machine, remote, commands, pending, route, now, pinned, newestHelper, chatsBuilt, onCreate, onRemove, onRename, onCheck, onAct, onDelete, onOpenChat, onInstall, onRuvio, onChanged }: Props = $props()
   /** The tab the person picked; empty until they pick one, so the address decides which tab opens. */
   let picked: MachineTab | null = $state(null)
   const tab = $derived(picked ?? machineTabFromRoute(route))
@@ -78,11 +81,13 @@
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › {machine.id}</div>
     </div>
     <div class="sp">
+      <button class="btn line sm" type="button" onclick={() => onCheck(machine)} title="Look at this machine again over SSH. Nothing is installed unless you ask for it.">Check again</button>
       <button class="btn green sm" type="button" disabled={!readyForVms} title={readyForVms ? '' : 'This machine cannot create VMs yet.'} onclick={() => onCreate(machine)}>＋ Create a VM here</button>
       <button class="btn danger sm" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
     </div>
   </div>
 
+  <MachineAlerts {machine} onCheck={() => onCheck(machine)} />
   <PendingVms pending={making} showMachine={false} compact />
 
   <div class="tabs" role="tablist" aria-label="This machine">
