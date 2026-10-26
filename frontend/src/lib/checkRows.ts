@@ -175,8 +175,12 @@ function tickText(req: Requirement): { value: string; sentence: string } {
 
 const crossText = (req: Requirement): { value: string; sentence: string } => ({ value: '', sentence: CROSS_SENTENCE[req.id]?.(req) ?? req.detail })
 
+/**
+ * A tick that still offers an install is not plain "ready": the computer can be added, but something is missing, so the row is
+ * drawn as optional (amber, "not needed to add, but missing") instead of the green ready mark.
+ */
 function stateOf(req: Requirement): RowState {
-  if (req.ok) return 'ready'
+  if (req.ok) return req.install ? 'optional' : 'ready'
   return OPTIONAL_IDS.has(req.id) ? 'optional' : 'blocking'
 }
 

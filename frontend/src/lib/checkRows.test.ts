@@ -96,7 +96,8 @@ test('a tick that still has something to do shows the parent\'s sentence, the ma
   const fix = 'Load the KVM module on that computer: `sudo modprobe kvm_amd`. Then check again.'
   const offer = { part: 'vm_packages', needs_password: false }
   const row = need([{ id: 'vm_support', label: 'Can run workloads', ok: true, detail, fix, install: offer }], 'vm_support')
-  expect(row.state).toBe('ready')
+  // A tick with something still to install is drawn as optional (amber), not as plain ready.
+  expect(row.state).toBe('optional')
   expect(row.value).toBe('Containers only')
   expect(row.sentence).toBe(detail)
   expect(row.manual).toEqual({ text: 'Load the KVM module on that computer: sudo modprobe kvm_amd. Then check again.', commands: ['sudo modprobe kvm_amd'] })
@@ -170,7 +171,7 @@ test('the offer to install is carried on the row, whether it is a cross or a tic
   expect(byId(linux(), 'vm_tool')?.install).toBeUndefined()
   const packages = { part: 'vm_packages', needs_password: true }
   const vm = swap(linux(), { ...ok('vm_support', 'Can run workloads', 'Containers only: virtualization is off in the BIOS.'), fix: 'Turn it on in the BIOS.', install: packages })
-  expect(byId(vm, 'vm_support')).toMatchObject({ state: 'ready', install: packages })
+  expect(byId(vm, 'vm_support')).toMatchObject({ state: 'optional', install: packages })
 })
 
 test('the manual steps split the parent\'s fix into a sentence and the real commands', () => {

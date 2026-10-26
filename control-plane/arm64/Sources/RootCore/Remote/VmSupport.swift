@@ -10,6 +10,8 @@ enum VmSupport {
     static let label = "Can run workloads"
 
     static let kvmThere = "/dev/kvm is there: VMs and containers."
+    /// `/dev/kvm` is there but qemu is not: containers work, full VMs do not, so the row must not claim "VMs and containers".
+    static let kvmThereButNoQemu = "Containers only: /dev/kvm is there, but qemu is not installed."
     static let biosOff = "Containers only: virtualization is off in the BIOS."
     static let moduleNotLoaded = "Containers only: virtualization is on, but the KVM module is not loaded."
     static let noKvm = "Containers only: there is no /dev/kvm, so full VMs cannot run."
@@ -33,7 +35,7 @@ enum VmSupport {
 
     static func detail(_ facts: RemoteFacts) -> String {
         switch facts.kvm {
-        case .some(true): return withQemu(kvmThere, facts)
+        case .some(true): return facts.qemu == false ? kvmThereButNoQemu : kvmThere
         case .some(false): return withQemu(reasonWithoutKvm(facts), facts)
         case .none: return withQemu(unknownKvm, facts)
         }

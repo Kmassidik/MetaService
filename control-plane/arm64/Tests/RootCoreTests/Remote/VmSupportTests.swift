@@ -54,7 +54,9 @@ final class VmSupportTests: XCTestCase {
 
     func testMissingQemuIsAddedToTheSentenceAndCanComeWithAMissingKvm() {
         let qemuOnly = requirement("kvm=yes\nvirt=yes\nqemu=no\n")
-        XCTAssertEqual(qemuOnly.detail, "/dev/kvm is there: VMs and containers. qemu is not installed.")
+        // It must not claim "VMs and containers" while qemu is missing: the badge takes the first words of this sentence.
+        XCTAssertEqual(qemuOnly.detail, VmSupport.kvmThereButNoQemu)
+        XCTAssertFalse(qemuOnly.detail.contains("VMs and containers"))
         XCTAssertTrue(qemuOnly.fix!.contains("sudo apt install qemu-system-x86 ovmf"), qemuOnly.fix!)
         let both = requirement("kvm=no\nvirt=yes\nqemu=no\n" + amdChip)
         XCTAssertEqual(both.detail, "Containers only: virtualization is on, but the KVM module is not loaded. qemu is not installed.")
