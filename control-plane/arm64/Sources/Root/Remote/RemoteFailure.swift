@@ -25,7 +25,7 @@ enum RemoteFailure: Error {
         case .closed: return ApiFailure(status: .badGateway, code: "remote_closed", message: "that computer closed the connection. It may be blocking repeated login attempts (OpenSSH does that after a failed login): wait a minute and try again")
         case .machineExists: return ApiFailure(status: .conflict, code: "machine_exists", message: "a machine with that name is already added")
         case .installRunning: return ApiFailure(status: .conflict, code: "install_running", message: "another install is still running")
-        case .notRemote: return ApiFailure(status: .notFound, code: "not_found", message: "that machine was not installed over SSH")
+        case .notRemote: return ApiFailure(status: .notFound, code: "not_found", message: "that machine was not added over SSH (or it was removed since), so there is no saved login to check it with")
         case .badOptions(let message): return ApiFailure(status: .badRequest, code: "invalid_input", message: message)
         case .fixUnavailable: return ApiFailure(status: .conflict, code: "remote_fix_unavailable", message: "MetaService cannot install that for you on this computer. Use the To fix line instead")
         case .missing(let failure): return Self.apiFailure(failure)

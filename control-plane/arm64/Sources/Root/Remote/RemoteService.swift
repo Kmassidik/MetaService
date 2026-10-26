@@ -31,19 +31,22 @@ struct VerifyResult: Encodable {
 
 /// Connect: look at another computer over SSH without changing it. Step one shows its host key; step two logs in (a password used once and never kept,
 /// or the parent's own key) and reads what the computer is. Only computers on this network are allowed, and a key we trusted is never replaced.
+/// The same step two checks a machine that is already added ("Check again"): it reads that machine's own record for the address and host key, and writes nothing.
 final class RemoteService: @unchecked Sendable {
     private let ssh: RemoteSsh
     private let config: RootConfig
     private let audit: AuditStore
     private let clock: Clock
+    private let records: RemoteRecords
 
     private static let loginSeconds: TimeInterval = 40
 
-    init(ssh: RemoteSsh, config: RootConfig, audit: AuditStore, clock: Clock) {
+    init(ssh: RemoteSsh, config: RootConfig, audit: AuditStore, clock: Clock, remoteMachines: RemoteMachineStore) {
         self.ssh = ssh
         self.config = config
         self.audit = audit
         self.clock = clock
+        records = RemoteRecords(store: remoteMachines)
     }
 
     // MARK: step one
@@ -59,19 +62,20 @@ final class RemoteService: @unchecked Sendable {
 
     // MARK: step two
 
+    /// A check of a typed address, or (`machine`) of one that is already added: the same read, and nothing is written to the database.
     func verify(_ request: VerifyRequest, actor: String) async throws -> VerifyResult {
-        let target = request.target
         do {
-            let result = try await verifyChecked(request)
-            record(actor, "remote.verify", target, ["result": "ok", "system": result.system])
+            let login = try records.resolved(request.target, login: request.login)
+            let result = try await verifyChecked(login)
+            record(actor, "remote.verify", login.target, ["result": "ok", "system": result.system])
             return result
         } catch let failure as RemoteFailure {
-            record(actor, "remote.verify", target, ["result": "\(failure)"])
+            recordRefusal(actor, request.target, failure)
             throw failure
         }
     }
 
-    private func verifyChecked(_ request: VerifyRequest) async throws -> VerifyResult {
+    private func verifyChecked(_ request: ResolvedLogin) async throws -> VerifyResult {
         let target = request.target
         _ = try ssh.allowedAddress(target)
         try ssh.allowTry(target)
@@ -110,5 +114,15 @@ final class RemoteService: @unchecked Sendable {
 
     private func record(_ actor: String, _ action: String, _ target: RemoteTarget, _ detail: [String: String]) {
         try? audit.record(actor: actor, action: action, target: "\(target.user)@\(target.host):\(target.port)", detail: detail, at: clock.now)
+    }
+
+    /// A refusal is audited against what the request named: the address it typed, or the machine it asked about (its record may be missing).
+    private func recordRefusal(_ actor: String, _ target: RemoteLoginTarget, _ failure: RemoteFailure) {
+        let named: String
+        switch target {
+        case .typed(let typed, _): named = "\(typed.user)@\(typed.host):\(typed.port)"
+        case .stored(let machine): named = machine
+        }
+        try? audit.record(actor: actor, action: "remote.verify", target: named, detail: ["result": "\(failure)"], at: clock.now)
     }
 }

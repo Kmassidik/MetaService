@@ -1,4 +1,5 @@
 import XCTest
+import RootCore
 @testable import RootStore
 
 final class RemoteMachineStoreTests: XCTestCase {
@@ -29,6 +30,13 @@ final class RemoteMachineStoreTests: XCTestCase {
 
     func testAnUnknownMachineIsNil() throws {
         XCTAssertNil(try store().get("nobody"))
+        XCTAssertNil(try store().stored("nobody"), "a machine that was not added over SSH has no re-check target")
+    }
+
+    func testTheReCheckTargetIsTheRecordWithoutItsKeyAndBox() throws {
+        let machines = try store()
+        try machines.save(mini, now: Date())
+        XCTAssertEqual(try machines.stored("office-mini"), StoredMachine(host: "192.168.100.50", port: 22, user: "kurnia", fingerprint: "SHA256:abc"))
     }
 
     func testRemovingForgetsItAndCanBeRepeated() throws {

@@ -20,8 +20,9 @@ final class RemoteRequestsTests: XCTestCase {
     func testAPasswordLoginIsRead() throws {
         let request = try verify()
         XCTAssertEqual(request.login, .password("secret"))
-        XCTAssertEqual(request.target.user, "kurnia")
-        XCTAssertEqual(request.fingerprint, fingerprint)
+        guard case .typed(let target, let fingerprint) = request.target else { return XCTFail("a typed address") }
+        XCTAssertEqual(target.user, "kurnia")
+        XCTAssertEqual(fingerprint, self.fingerprint)
     }
 
     func testTheParentsKeyCanBeUsedInsteadOfAPassword() throws {
@@ -45,6 +46,32 @@ final class RemoteRequestsTests: XCTestCase {
         for bad in [["user": ""], ["fingerprint": "nope"], ["extra": 1]] as [[String: Any]] {
             XCTAssertThrowsError(try verify(bad)) { XCTAssertFalse("\($0)".contains("secret"), "\($0)") }
         }
+    }
+
+    // MARK: check again, on a machine that is already added
+
+    func testARecheckNamesTheMachineAndCarriesOnlyTheLogin() throws {
+        let request = try VerifyRequest(body: data(["machine": "office-mini", "password": "secret"]))
+        XCTAssertEqual(request.target, .stored(machine: "office-mini"))
+        XCTAssertEqual(request.login, .password("secret"))
+        XCTAssertEqual(try VerifyRequest(body: data(["machine": "office-mini", "use_key": true])).login, .parentKey)
+    }
+
+    func testARecheckTakesAnAddressOrAMachineNeverBoth() {
+        for bad in [["machine": "office-mini", "host": "192.168.100.40"], ["machine": "office-mini", "user": "kurnia"],
+                    ["machine": "office-mini", "fingerprint": fingerprint], ["machine": "Bad Name", "password": "x"],
+                    ["machine": "", "password": "x"], ["machine": "office-mini"]] as [[String: Any]] {
+            XCTAssertThrowsError(try VerifyRequest(body: data(bad)), "\(bad)")
+        }
+    }
+
+    func testAFixForARecheckCarriesTheMachineThePartAndThePassword() throws {
+        let request = try RemoteFixRequest(body: data(["machine": "office-mini", "password": "secret", "fix": "autostart", "sudo_password": "sudopw"]))
+        XCTAssertEqual(request.target, .stored(machine: "office-mini"))
+        XCTAssertEqual(request.login, .password("secret"))
+        XCTAssertEqual(request.part, .autostart)
+        XCTAssertEqual(String(decoding: request.sudoPassword.standardInput(), as: UTF8.self), "sudopw\n")
+        XCTAssertThrowsError(try RemoteFixRequest(body: data(["machine": "office-mini", "password": "x", "fix": "vm_tool", "host": "10.0.0.5"])))
     }
 
     // MARK: add and plan

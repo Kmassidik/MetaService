@@ -1,4 +1,5 @@
 import Foundation
+import RootCore
 
 /// What the parent remembers about a machine it installed over SSH: where it is, which host key it trusts, where its box is, and what the install added, so it can be removed exactly.
 public struct RemoteMachine: Equatable {
@@ -58,6 +59,11 @@ public struct RemoteMachineStore {
 
     public func all() throws -> [RemoteMachine] {
         try database.query("SELECT * FROM remote_machines ORDER BY machine").map(Self.read)
+    }
+
+    /// The record as a re-check needs it: where the machine is, as whom, and the host key trusted at install. Nil when it was never added over SSH (or is gone since).
+    public func stored(_ machine: String) throws -> StoredMachine? {
+        try get(machine).map { StoredMachine(host: $0.host, port: $0.sshPort, user: $0.sshUser, fingerprint: $0.fingerprint) }
     }
 
     public func remove(_ machine: String) throws {

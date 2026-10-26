@@ -38,15 +38,27 @@ public struct RemoteLoginRequest: Equatable {
     static let fields: Set<String> = ["host", "port", "user", "password", "use_key", "fingerprint"]
 
     init(_ object: StrictObject) throws {
+        let typed = try Self.typed(object)
+        target = typed.target
+        fingerprint = typed.fingerprint
+        login = try Self.login(object)
+    }
+
+    /// Where, as whom, and the host key the operator confirmed.
+    static func typed(_ object: StrictObject) throws -> (target: RemoteTarget, fingerprint: String) {
         let user = try object.string("user", maxLength: 32, minLength: 1)
-        target = try ProbeRequest.target(object, user: user)
-        fingerprint = try object.string("fingerprint", maxLength: 80)
+        let fingerprint = try object.string("fingerprint", maxLength: 80)
         guard HostKeys.isFingerprint(fingerprint) else { throw InputError("fingerprint is not an SHA256 host key fingerprint") }
+        return (try ProbeRequest.target(object, user: user), fingerprint)
+    }
+
+    /// Just how: a password used once, or the parent's own key. Shared by every request that logs in, including a re-check that names a machine instead of an address.
+    static func login(_ object: StrictObject) throws -> Login {
         let useKey = object.has("use_key") ? try object.bool("use_key") : false
         let password = try object.optionalString("password", maxLength: Self.longestPassword) ?? ""
         switch (useKey, password.isEmpty) {
-        case (true, true): login = .parentKey
-        case (false, false): login = .password(password)
+        case (true, true): return .parentKey
+        case (false, false): return .password(password)
         case (true, false): throw InputError("give a password or use the key, not both")
         case (false, true): throw InputError("give a password, or use the parent's key")
         }
@@ -54,20 +66,19 @@ public struct RemoteLoginRequest: Equatable {
 }
 
 /// Step two of Connect: log in and read what the computer is. Either a password (used once, never kept) or the parent's own key.
+/// The computer is either the address typed in now, or a machine that is already added (see RemoteLoginTarget).
 public struct VerifyRequest: Equatable {
     public typealias Login = RemoteLoginRequest.Login
 
-    public let target: RemoteTarget
+    public let target: RemoteLoginTarget
     public let login: Login
-    public let fingerprint: String
 
     public static let longestPassword = RemoteLoginRequest.longestPassword
 
     public init(body: Data) throws {
-        let shared = try RemoteLoginRequest(try StrictObject(data: body, allowed: RemoteLoginRequest.fields))
-        target = shared.target
-        login = shared.login
-        fingerprint = shared.fingerprint
+        let object = try StrictObject(data: body, allowed: RemoteLoginRequest.fields.union([RemoteLoginTarget.machineField]))
+        target = try RemoteLoginTarget.parse(object)
+        login = try RemoteLoginRequest.login(object)
     }
 }
 

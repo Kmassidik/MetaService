@@ -10,7 +10,9 @@ final class RemoteFixRequestTests: XCTestCase {
 
     func testItHasTheLoginThePartAndThePassword() throws {
         let value = try request()
-        XCTAssertEqual(value.login.login, .parentKey)
+        XCTAssertEqual(value.login, .parentKey)
+        guard case .typed(let target, _) = value.target else { return XCTFail("a typed address") }
+        XCTAssertEqual(target.user, "build")
         XCTAssertEqual(value.part, .vmTool)
         XCTAssertEqual(value.sudoPassword.standardInput(), Data("Fake-Pass-9f3a\n".utf8))
         XCTAssertFalse("\(value)".contains("Fake-Pass-9f3a"), "printing the request must not show the password")
