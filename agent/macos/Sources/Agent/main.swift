@@ -72,6 +72,9 @@ func runAgent(_ config: AgentConfig) async throws {
                              reserveRamMb: config.reserveRamMb, reserveDiskGb: config.reserveDiskGb)
     let ledger = makeLedger(config)
     let engine = try makeEngine(config)
+    // A Mac that has just booted has no container service yet; start it now, in the background, so the machine is ready
+    // before the first VM is asked for rather than reporting a fault nobody needs to fix.
+    if let container = engine as? AppleContainerEngine { Task.detached { await container.prepareSystem() } }
     let root = rootAddress(config)
     let machineToken = root == nil ? nil : try readToken(config.tokenFile)
     let supervisor = ProcessInfo.processInfo.environment["MS_NO_CHAT"] == nil ? makeSupervisor(config) : nil

@@ -50,8 +50,8 @@ actor AppleContainerEngine: Engine {
 
     /// What is wrong with reading right now. A stopped container service must not make the whole machine fall silent: it reports a problem and the machine keeps reporting in.
     nonisolated var problems: [HostProblem] {
-        service.isDown ? [HostProblem(code: "container_service_stopped", message: "Apple's container service is not running on this Mac, so VMs cannot be listed or created right now.",
-                                      fix: "Run `container system start` in a terminal on this Mac. MetaService starts it by itself the next time a VM is created.")] : []
+        service.isDown ? [HostProblem(code: "container_service_stopped", message: "Apple's container service is starting on this Mac. VMs cannot be listed until it answers.",
+                                      fix: "Nothing to do: MetaService starts it by itself when the helper starts, and again when a VM is created. If this stays for more than a minute, run `container system start` on that Mac.")] : []
     }
 
     func list() async throws -> [Workload] {
@@ -208,6 +208,14 @@ actor AppleContainerEngine: Engine {
     }
 
     // MARK: helpers
+
+    /// Bring Apple's container service up when the helper starts. Without this a Mac that has just booted reports
+    /// "needs setup" until somebody creates a VM, which reads as a fault when it is only a service that has not been asked yet.
+    func prepareSystem() async {
+        guard !(await systemRunning()) else { return }
+        _ = try? await cli.run(AppleContainer.systemStart, timeout: 120)
+        service.isDown = !(await systemRunning())
+    }
 
     private func ensureSystemRunning() async throws {
         if await systemRunning() { return }
