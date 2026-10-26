@@ -24,5 +24,6 @@
 {/if}
 
 <style>
-  .cf { margin-top: 10px; }
+  /* The card puts the button in its own reserved row, so the margin comes from there. */
+  .cf { margin-top: 0; }
 </style>

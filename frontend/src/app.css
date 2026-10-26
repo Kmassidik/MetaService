@@ -88,17 +88,12 @@ button{font-family:inherit;cursor:pointer}
 .segmented button:last-child{border-right:0}
 .segmented button.on{background:var(--accent);color:var(--text)}
 
-/* server cards */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:24px 28px}
+/* server cards: every card keeps the same rows, and the cards of one row are stretched to the same height */
+.grid{display:grid;align-items:stretch;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:24px 28px}
 .card{border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column}
 .card.terminating{opacity:.5;pointer-events:none}
-.card .ch{padding:15px 16px 12px;border-bottom:1px solid var(--line)}
-.card .row1{display:flex;align-items:center;gap:9px}
 .card .nm{font-weight:700;font-size:15px}
 .card .id{font-family:var(--mono);font-size:11px;color:var(--m40)}
-.card .specs{display:flex;gap:14px;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--m60);flex-wrap:wrap}
-.card .dom{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--m60)}
-.card .dom .ok{color:var(--ok);font-weight:700}
 .card .acts{padding:11px 16px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .card .acts .del{margin-left:auto}
 

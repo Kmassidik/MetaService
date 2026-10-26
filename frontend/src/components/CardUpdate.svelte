@@ -26,7 +26,8 @@
 {/if}
 
 <style>
-  .cu { margin-top: 10px; }
+  /* The card puts the button in its own reserved row, so the margin comes from there. */
+  .cu { margin-top: 0; }
   .cu-note, .cu-out { margin: 8px 0 0; font-size: 12.5px; overflow-wrap: anywhere; }
   .cu-note { color: var(--warn); }
   .cu-out.ok { color: var(--ok-note-text); }
