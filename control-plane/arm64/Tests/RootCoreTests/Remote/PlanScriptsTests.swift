@@ -125,6 +125,7 @@ final class PlanScriptsTests: XCTestCase {
     func testRemovalAlsoTakesTheBootRegistrationAway() throws {
         let script = PlanScripts.removeScript(box: options.box, key: nil)
         for part in ["launchctl bootout system/\(AutostartScript.label)", "sudo -n rm -f \(AutostartScript.macPath)",
+                     "launchctl bootout system/\(AutostartScript.containerStartLabel)", "sudo -n rm -f \(AutostartScript.containerStartPath)",
                      "systemctl disable --now \(AutostartScript.unitName)", "sudo -n rm -f \(AutostartScript.linuxPath)", "systemctl daemon-reload"] {
             XCTAssertTrue(script.contains(part), part)
         }
