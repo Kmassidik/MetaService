@@ -32,8 +32,11 @@ export interface GpuLive {
 /** A tenth of a GB is as fine as the strip goes; rounding every number once keeps them adding up when read. */
 const tenths = (gb: number): number => Math.round(gb * TENTHS) / TENTHS
 /** A GB with at most one decimal, as the panel writes sizes: "2 GB", "30.2 GB". */
-const amount = (gb: number): string => `${tenths(gb)} GB`
-const shown = (gb: number | null): string => (gb === null ? UNKNOWN : amount(gb))
+export const gbText = (gb: number): string => `${tenths(gb)} GB`
+const shown = (gb: number | null): string => (gb === null ? UNKNOWN : gbText(gb))
+
+/** "1.8 GB free of 32 GB": the card's two numbers as the strip, the machine card and the create forms write them. */
+export const gpuFreeText = (free: number, total: number): string => `${gbText(free)} free of ${gbText(total)}`
 
 /** A reading's bytes as GB in tenths; null when the machine gave no number. */
 const tenthsOfGb = (bytes: number | null): number | null => (bytes === null ? null : tenths(bytes / BYTES_PER_GIB))
@@ -81,21 +84,21 @@ export function readGpuLive(machine: Machine, gpus: readonly StatsGpu[], reporti
 /** "GPU RTX 5090 · 32 GB total · 2 GB booked · 30.2 GB used · 1.8 GB free"; the card's name and a dash for a machine that has not reported. */
 export function gpuStrip(gpu: GpuLive): string {
   if (gpu.totalGb === null) return `GPU ${gpu.name}${SEPARATOR}${UNKNOWN}`
-  return [`GPU ${gpu.name}`, `${amount(gpu.totalGb)} total`, `${amount(gpu.bookedGb)} booked`, `${shown(gpu.usedGb)} used`, `${shown(gpu.freeGb)} free`].join(SEPARATOR)
+  return [`GPU ${gpu.name}`, `${gbText(gpu.totalGb)} total`, `${gbText(gpu.bookedGb)} booked`, `${shown(gpu.usedGb)} used`, `${shown(gpu.freeGb)} free`].join(SEPARATOR)
 }
 
 /** The plain sentence for the gap between booked and used: the memory promised and not yet taken, or the memory taken that nothing booked. Null when the two match or the machine has not reported. */
 export function gpuNote(gpu: GpuLive): string | null {
   if (gpu.usedGb === null) return null
-  if (gpu.bookedGb > gpu.usedGb) return `${amount(gpu.bookedGb - gpu.usedGb)} reserved by bookings, not yet used.`
-  if (gpu.usedGb > gpu.bookedGb) return `${amount(gpu.usedGb - gpu.bookedGb)} used by something MetaService does not manage.`
+  if (gpu.bookedGb > gpu.usedGb) return `${gbText(gpu.bookedGb - gpu.usedGb)} reserved by bookings, not yet used.`
+  if (gpu.usedGb > gpu.bookedGb) return `${gbText(gpu.usedGb - gpu.bookedGb)} used by something MetaService does not manage.`
   return null
 }
 
 /** The card's one row when the whole strip does not fit: "RTX 5090 · 1.8 GB free of 32 GB". Null when the numbers are not there, or the machine has more than one card. */
 export function gpuFact(gpu: GpuLive): string | null {
   if (gpu.cards > 1 || gpu.totalGb === null || gpu.freeGb === null) return null
-  return `${gpu.name}${SEPARATOR}${amount(gpu.freeGb)} free of ${amount(gpu.totalGb)}`
+  return `${gpu.name}${SEPARATOR}${gpuFreeText(gpu.freeGb, gpu.totalGb)}`
 }
 
 /** The hover text of the card's GPU row: the whole strip and what the gap between its numbers means. */

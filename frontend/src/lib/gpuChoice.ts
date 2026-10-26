@@ -1,5 +1,6 @@
 // The GPU part of the new-VM form and of a machine's page: what to offer (or say) for a machine and a kind, and how a workload shows that it has the GPU. Pure functions, no DOM, no network.
 import { readGpuBooking, type GpuBooking } from './gpuBooking.ts'
+import { gbText, gpuFreeText, gpuNote as liveNote, type GpuLive } from './gpuLive.ts'
 import type { Machine, Workload } from './types.ts'
 
 export type GpuMode = 'none' | 'container' | 'shared'
@@ -28,11 +29,15 @@ export interface GpuOption {
 export const SHARED_LABEL = "Shared partition — limit this VM's GPU memory"
 export const HELPER_TOO_OLD_REASON = 'Update the helper on this machine first.'
 export const FULLY_BOOKED_REASON = "The card's memory is fully booked."
+export const FULLY_IN_USE_TEXT = 'The card is fully in use.'
+export const HELD_BY_OTHER_TEXT = 'Something MetaService does not manage holds it.'
+export const BOOKED_BY_VMS_TEXT = 'Its memory is booked for other VMs.'
 export const CANNOT_BOOK_REASON = 'This machine cannot book GPU memory.'
 export const DEFAULT_LIMIT_GB = 4
 export const MIN_LIMIT_GB = 1
 export const SHARED_LIMIT_HINT = 'The limit stays booked for this VM even while it is stopped.'
 export const OVER_LIMIT_WARNING = 'If the VM stays over its limit for about 15 seconds it is stopped.'
+export const WHOLE_NUMBER_TEXT = `GPU memory must be a whole number of GB, ${MIN_LIMIT_GB} or more.`
 
 export const GPU_OPTIONS: readonly GpuOption[] = [
   { value: 'none', label: 'No GPU — CPU compute only', disabled: false, caption: 'No GPU is given to this VM.' },
@@ -44,7 +49,7 @@ export const GPU_OPTIONS: readonly GpuOption[] = [
 /** Whether "Shared partition" can be picked on the machine: with the card's booking, or why not (null: the container line already says why). */
 export type SharedPartition = { available: true; booking: GpuBooking } | { available: false; reason: string | null }
 
-/** The most GB a new VM can still book: the whole GB of the card that is free. */
+/** The most GB a new VM can still book from the parent's booking: the whole GB of the card that is free. */
 export const freeWholeGb = (booking: GpuBooking): number => Math.floor(booking.free_gb)
 
 /** Shared partition is open exactly when GPU in a container is, the helper can limit memory, the machine reports a booking and at least 1 GB is free. */
@@ -56,30 +61,103 @@ export function sharedPartition(machine: Machine | undefined, offer: GpuOffer): 
   return freeWholeGb(booking) >= MIN_LIMIT_GB ? { available: true, booking } : { available: false, reason: FULLY_BOOKED_REASON }
 }
 
-/** What the number starts at: 4 GB, or all that is free when that is less. */
-export const defaultGpuMemory = (booking: GpuBooking): number => Math.min(DEFAULT_LIMIT_GB, freeWholeGb(booking))
-
-/** What is wrong with the number typed for a shared partition, or null (also null while the choice is not shared). */
-export function gpuMemoryProblem(mode: string | undefined, value: unknown, sharing: SharedPartition): string | null {
-  if (mode !== 'shared' || !sharing.available) return null
-  const free = freeWholeGb(sharing.booking)
-  const gb = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
-  if (typeof gb !== 'number' || !Number.isInteger(gb) || gb < MIN_LIMIT_GB) return `GPU memory must be a whole number of GB, ${MIN_LIMIT_GB} or more.`
-  return gb > free ? `Only ${free} GB of the card's ${sharing.booking.total_gb} GB is still free to book.` : null
+/**
+ * What the card can still give a new VM right now: the smaller of what the card reports free (its total less the larger of what was booked and what is
+ * really used, see `gpuLive.ts`) and what the parent still lets us book. The form shows it next to the GPU choice and the number field stays under it.
+ */
+export interface GpuRoom {
+  /** The free memory in tenths of a GB, the smaller of the two numbers; null while neither is known. */
+  freeGb: number | null
+  /** floor(freeGb): the most whole GB the number field may take; null while freeGb is not known. */
+  capGb: number | null
+  /** The card's whole memory, the number the free GB is read against; null while neither number is known. */
+  totalGb: number | null
+  /** "GPU: 1.8 GB free of 32 GB."; null while no number is known. */
+  line: string | null
+  /** The strip's sentence on the gap between booked and used; null when there is nothing to explain. */
+  note: string | null
+  /** "The card is fully in use." and which side holds the memory; null while a whole GB is free. */
+  fullReason: string | null
 }
 
-/** "N GB of the card's M GB is still free to book. The limit stays booked ..." */
-export const gpuMemoryHint = (booking: GpuBooking): string => `${freeWholeGb(booking)} GB of the card's ${booking.total_gb} GB is still free to book. ${SHARED_LIMIT_HINT}`
+/** The smallest of the numbers that are known; null when none is. */
+function smallest(values: readonly (number | null)[]): number | null {
+  const known = values.filter((value): value is number => value !== null)
+  return known.length === 0 ? null : Math.min(...known)
+}
+
+/** Why nothing can be given to a new VM, in plain words: the bookings hold the memory, or something outside MetaService does. Null while a whole GB is free. */
+function inUseReason(capGb: number | null, card: GpuLive | null): string | null {
+  if (capGb === null || capGb >= MIN_LIMIT_GB) return null
+  const held = card !== null && card.usedGb !== null && card.bookedGb < card.usedGb
+  return `${FULLY_IN_USE_TEXT} ${held ? HELD_BY_OTHER_TEXT : BOOKED_BY_VMS_TEXT}`
+}
+
+/** The card's room for a new VM: the machine's live reading when it has one card, the parent's booking when it has not reported, and nothing for a machine with several cards (one strip cannot speak for all of them). */
+export function gpuRoom(live: GpuLive | null, booking: GpuBooking | null): GpuRoom {
+  const card = live !== null && live.cards === 1 ? live : null
+  const cardFree = card?.freeGb ?? null
+  const freeGb = smallest([cardFree, booking?.free_gb ?? null])
+  // A booking's free GB is read against the booking's own total, never against a total the card gave without its used number.
+  const totalGb = cardFree === null ? (booking?.total_gb ?? null) : card?.totalGb ?? null
+  const capGb = freeGb === null ? null : Math.floor(freeGb)
+  return {
+    freeGb,
+    capGb,
+    totalGb,
+    line: freeGb === null || totalGb === null ? null : `GPU: ${gpuFreeText(freeGb, totalGb)}.`,
+    note: card === null ? null : liveNote(card),
+    fullReason: inUseReason(capGb, card),
+  }
+}
+
+/** The paragraph under the GPU select: the free memory, and then why nothing is left (or what the gap between booked and used means). Empty when nothing is known. */
+export function gpuRoomText(room: GpuRoom): string {
+  const parts = [room.line, room.fullReason ?? room.note].filter((part): part is string => part !== null)
+  return parts.join(' ')
+}
+
+/** True when the card has no whole GB left, so neither GPU line can be picked. */
+const noRoom = (room: GpuRoom | null): boolean => room !== null && room.fullReason !== null
+
+/** What the number starts at: 4 GB, or all that the card can still give when that is less. */
+export const defaultGpuMemory = (booking: GpuBooking, room: GpuRoom | null = null): number => Math.min(DEFAULT_LIMIT_GB, room?.capGb ?? freeWholeGb(booking))
+
+/** What is wrong with the number typed for a shared partition, or null (also null while the choice is not shared). A number over the free GB names what is free and what was asked, and is never moved silently. */
+export function gpuMemoryProblem(mode: string | undefined, value: unknown, sharing: SharedPartition, room: GpuRoom | null = null): string | null {
+  if (mode !== 'shared' || !sharing.available) return null
+  const gb = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof gb !== 'number' || !Number.isInteger(gb) || gb < MIN_LIMIT_GB) return WHOLE_NUMBER_TEXT
+  const cap = room?.capGb ?? freeWholeGb(sharing.booking)
+  if (gb <= cap) return null
+  if (room === null || room.freeGb === null) return `Only ${cap} GB of the card's ${sharing.booking.total_gb} GB is still free to book.`
+  return `Only ${gbText(room.freeGb)} of the card is free, so ${gb} GB cannot be reserved.`
+}
+
+/** The hint under the number: what is still free to book, unless the card's own free number is already above the field, and that the booking stays. */
+export function gpuMemoryHint(booking: GpuBooking, room: GpuRoom | null = null): string {
+  if (room !== null && room.line !== null) return SHARED_LIMIT_HINT
+  return `${freeWholeGb(booking)} GB of the card's ${booking.total_gb} GB is still free to book. ${SHARED_LIMIT_HINT}`
+}
 
 /** The sentence under the select for the mode that is picked. */
 export const gpuCaption = (mode: string | undefined): string => GPU_OPTIONS.find((option) => option.value === (mode ?? 'none'))?.caption ?? ''
 
-/** The lines of the GPU select: "GPU in a container" can be picked only while the offer is a real choice, "Shared partition" only while it is available (else its reason is in brackets). */
-export function gpuLines(offer: GpuOffer, sharing: SharedPartition): GpuOption[] {
+/** Why the shared line cannot be picked: nothing free at all first, then the line's own reason (null: the container line already says why). */
+function sharedOff(sharing: SharedPartition, full: boolean): { disabled: boolean; reason: string | null } {
+  if (full) return { disabled: true, reason: FULLY_IN_USE_TEXT }
+  if (sharing.available) return { disabled: false, reason: null }
+  return { disabled: true, reason: sharing.reason }
+}
+
+/** The lines of the GPU select: "GPU in a container" can be picked only while the offer is a real choice and the card has room, "Shared partition" only while it is available (else its reason is in brackets). */
+export function gpuLines(offer: GpuOffer, sharing: SharedPartition, room: GpuRoom | null = null): GpuOption[] {
+  const full = noRoom(room)
   return GPU_OPTIONS.map((option) => {
-    if (option.value === 'container') return { ...option, disabled: offer.show !== 'choice' }
+    if (option.value === 'container') return { ...option, disabled: offer.show !== 'choice' || full }
     if (option.value !== 'shared') return option
-    return { ...option, disabled: !sharing.available, label: sharing.available || sharing.reason === null ? option.label : `${option.label} (${sharing.reason})` }
+    const off = sharedOff(sharing, full)
+    return { ...option, disabled: off.disabled, label: off.reason === null ? option.label : `${option.label} (${off.reason})` }
   })
 }
 
@@ -106,9 +184,10 @@ export function gpuOffer(machine: Machine | undefined, kind: string): GpuOffer {
   return { show: 'needs_toolkit', text: NEEDS_TOOLKIT_TEXT }
 }
 
-/** The mode to send: the GPU only when it was chosen and the offer is still a choice (a changed kind or machine drops it); a shared partition also needs it to be available. */
-export function gpuModeToSend(offer: GpuOffer, chosen: string | undefined, sharing: SharedPartition): GpuMode {
+/** The mode to send: the GPU only when it was chosen, the offer is still a choice and the card has room (a changed kind, machine or full card drops it); a shared partition also needs it to be available. */
+export function gpuModeToSend(offer: GpuOffer, chosen: string | undefined, sharing: SharedPartition, room: GpuRoom | null = null): GpuMode {
   if (offer.show !== 'choice') return 'none'
+  if (noRoom(room)) return 'none'
   if (chosen === 'shared') return sharing.available ? 'shared' : 'none'
   return chosen === 'container' ? 'container' : 'none'
 }

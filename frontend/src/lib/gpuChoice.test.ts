@@ -1,6 +1,8 @@
 import { test, expect } from 'bun:test'
-import { GPU_OPTIONS, gpuCaption, gpuLines, gpuModeToSend, gpuNote, gpuOffer, hasGpu, needsToolkit, nvidiaCard, sharedPartition, defaultGpuMemory, gpuMemoryHint, gpuMemoryProblem, OVER_LIMIT_WARNING, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT, type SharedPartition } from './gpuChoice.ts'
+import { GPU_OPTIONS, gpuCaption, gpuLines, gpuModeToSend, gpuNote, gpuOffer, gpuRoom, gpuRoomText, hasGpu, needsToolkit, nvidiaCard, sharedPartition, defaultGpuMemory, gpuMemoryHint, gpuMemoryProblem, OVER_LIMIT_WARNING, toolkitNote, VM_GPU_TEXT, NEEDS_TOOLKIT_TEXT, SHARED_LABEL, type SharedPartition } from './gpuChoice.ts'
+import { readGpuLive, type GpuLive } from './gpuLive.ts'
 import { machine, workload } from './testing.ts'
+import type { StatsGpu } from './types.ts'
 
 const card = { vendor: 'nvidia', model: 'NVIDIA GeForce RTX 5090' }
 const caps = (gpu_in_container: boolean) => ({ vm: false, container: true, gpu_in_vm: false, gpu_in_container })
@@ -151,4 +153,92 @@ test('the number is checked live: a whole number from 1 to the free GB', () => {
 test('the hint under the number says what is free and that the booking stays', () => {
   expect(gpuMemoryHint(booking(23))).toBe("23 GB of the card's 31 GB is still free to book. The limit stays booked for this VM even while it is stopped.")
   expect(OVER_LIMIT_WARNING).toBe('If the VM stays over its limit for about 15 seconds it is stopped.')
+})
+
+const GIB = 1024 ** 3
+const gib = (gb: number): number => Math.round(gb * GIB)
+/** The RTX 5090 of the production machine as one reading: 32 GB of its own, and whatever is held right now. */
+const reading = (usedGb: number | null, totalGb: number | null = 32): StatsGpu => ({
+  name: 'NVIDIA GeForce RTX 5090', vendor: 'nvidia', utilization_percent: 40, temperature_celsius: 48,
+  memory_used_bytes: usedGb === null ? null : gib(usedGb), memory_total_bytes: totalGb === null ? null : gib(totalGb),
+})
+/** A machine with the card and a VM booking of `booked` GB (none when left out), read against the given reading. */
+const live = (gpu: StatsGpu, booked?: number): GpuLive => {
+  const read = readGpuLive(machine({ os: 'linux', arch: 'x86_64', gpu: [card], workloads: booked === undefined ? [] : [workload({ id: 'a', gpu_mode: 'container', gpu_memory_gb: booked })] }), [gpu])
+  if (read === null) throw new Error('the test machine has a card')
+  return read
+}
+const FREE_18 = gpuRoom(live(reading(30.2)), null)
+const FULL = gpuRoom(live(reading(32)), null)
+
+test('a card nothing booked and nothing else uses is free to the last GB', () => {
+  const room = gpuRoom(live(reading(0)), null)
+  expect(room).toMatchObject({ freeGb: 32, capGb: 32, totalGb: 32, line: 'GPU: 32 GB free of 32 GB.', note: null, fullReason: null })
+  expect(gpuRoomText(room)).toBe('GPU: 32 GB free of 32 GB.')
+})
+
+test('booked only: the note says the memory is reserved and not yet used, and free counts the booking', () => {
+  const room = gpuRoom(live(reading(0.4), 2), null)
+  expect(room).toMatchObject({ freeGb: 30, capGb: 30, line: 'GPU: 30 GB free of 32 GB.', note: '1.6 GB reserved by bookings, not yet used.' })
+  expect(gpuRoomText(room)).toBe('GPU: 30 GB free of 32 GB. 1.6 GB reserved by bookings, not yet used.')
+})
+
+test('used only: something MetaService does not manage holds the card, and that is what free counts', () => {
+  expect(FREE_18).toMatchObject({ freeGb: 1.8, capGb: 1, totalGb: 32, line: 'GPU: 1.8 GB free of 32 GB.', note: '30.2 GB used by something MetaService does not manage.', fullReason: null })
+  expect(gpuRoomText(FREE_18)).toBe('GPU: 1.8 GB free of 32 GB. 30.2 GB used by something MetaService does not manage.')
+})
+
+test('both: the programs are named, and the smaller of the card and the booking wins', () => {
+  expect(gpuRoom(live(reading(30.2), 2), booking(23))).toMatchObject({ freeGb: 1.8, capGb: 1, note: '28.2 GB used by something MetaService does not manage.' })
+})
+
+test('a full card says so, and names what holds it', () => {
+  expect(FULL).toMatchObject({ freeGb: 0, capGb: 0, line: 'GPU: 0 GB free of 32 GB.', fullReason: 'The card is fully in use. Something MetaService does not manage holds it.' })
+  expect(gpuRoomText(FULL)).toBe('GPU: 0 GB free of 32 GB. The card is fully in use. Something MetaService does not manage holds it.')
+  expect(gpuRoom(null, { total_gb: 32, booked_gb: 32, free_gb: 0 })).toMatchObject({ freeGb: 0, capGb: 0, line: 'GPU: 0 GB free of 32 GB.', note: null, fullReason: 'The card is fully in use. Its memory is booked for other VMs.' })
+})
+
+test('no reading: the parent booking speaks alone, and nothing is known without it', () => {
+  expect(gpuRoom(live(reading(null)), booking(23))).toMatchObject({ freeGb: 23, capGb: 23, totalGb: 31, line: 'GPU: 23 GB free of 31 GB.', note: null, fullReason: null })
+  expect(gpuRoom(null, null)).toEqual({ freeGb: null, capGb: null, totalGb: null, line: null, note: null, fullReason: null })
+  expect(gpuRoomText(gpuRoom(null, null))).toBe('')
+})
+
+test('a machine with two cards leaves the strip to the booking, not to the first card', () => {
+  const two = readGpuLive(machine({ os: 'linux', arch: 'x86_64', gpu: [card, card] }), [reading(30.2), reading(0)])
+  expect(gpuRoom(two, booking(23))).toMatchObject({ freeGb: 23, capGb: 23, line: 'GPU: 23 GB free of 31 GB.', note: null })
+})
+
+test('the number starts at 4 GB, or at what the card can still give', () => {
+  expect(defaultGpuMemory(booking(23), gpuRoom(null, booking(23)))).toBe(4)
+  expect(defaultGpuMemory(booking(23), FREE_18)).toBe(1)
+  expect(defaultGpuMemory(booking(3), null)).toBe(3)
+  expect(defaultGpuMemory(booking(23))).toBe(4)
+})
+
+test("a number over the card's free GB is refused in words that name both numbers", () => {
+  const sharing: SharedPartition = { available: true, booking: booking(23) }
+  expect(gpuMemoryProblem('shared', 1, sharing, FREE_18)).toBeNull()
+  expect(gpuMemoryProblem('shared', 4, sharing, FREE_18)).toBe('Only 1.8 GB of the card is free, so 4 GB cannot be reserved.')
+  expect(gpuMemoryProblem('shared', 2, sharing, FULL)).toBe('Only 0 GB of the card is free, so 2 GB cannot be reserved.')
+  expect(gpuMemoryProblem('shared', 24, sharing, gpuRoom(null, booking(23)))).toBe('Only 23 GB of the card is free, so 24 GB cannot be reserved.')
+  expect(gpuMemoryProblem('shared', 24, sharing)).toBe("Only 23 GB of the card's 31 GB is still free to book.")
+})
+
+test('a full card greys both GPU lines with the plain sentence and sends no GPU at all', () => {
+  const offer = gpuOffer(rtx, 'container')
+  const sharing: SharedPartition = { available: true, booking: booking(23) }
+  const lines = gpuLines(offer, sharing, FULL)
+  expect(lines.map((line) => [line.value, line.disabled])).toEqual([['none', false], ['container', true], ['shared', true], ['passthrough', true]])
+  expect(lines.find((line) => line.value === 'shared')?.label).toBe(`${SHARED_LABEL} (The card is fully in use.)`)
+  expect(gpuModeToSend(offer, 'container', sharing, FULL)).toBe('none')
+  expect(gpuModeToSend(offer, 'shared', sharing, FULL)).toBe('none')
+  expect(gpuModeToSend(offer, 'container', sharing, FREE_18)).toBe('container')
+  expect(gpuModeToSend(offer, 'shared', sharing, FREE_18)).toBe('shared')
+  expect(gpuLines(offer, sharing, FREE_18).filter((line) => line.disabled).map((line) => line.value)).toEqual(['passthrough'])
+})
+
+test('the hint under the number does not repeat the line above it, and keeps the booking sentence', () => {
+  expect(gpuMemoryHint(booking(23), FREE_18)).toBe('The limit stays booked for this VM even while it is stopped.')
+  expect(gpuMemoryHint(booking(23))).toBe("23 GB of the card's 31 GB is still free to book. The limit stays booked for this VM even while it is stopped.")
 })
