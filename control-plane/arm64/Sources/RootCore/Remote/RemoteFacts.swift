@@ -82,8 +82,11 @@ public enum RemoteProbe {
       # A full VM needs three things, and Ubuntu 24.04 splits the last two off: what runs it (qemu-system-*), what reads its image
       # (qemu-img, in qemu-utils), and the SPICE display module (qemu-system-modules-spice). Incus uses all three, so any one
       # missing must make this "no" — otherwise the panel offers nothing and the first create fails.
+      # `-spice help` exits 1 even when the module is there, so the answer is read from its output, never from its status.
       qemu=$(command -v qemu-system-x86_64 2>/dev/null || command -v qemu-system-aarch64 2>/dev/null)
-      if [ -n "$qemu" ] && command -v qemu-img >/dev/null 2>&1 && "$qemu" -spice help >/dev/null 2>&1; then echo "qemu=yes"; else echo "qemu=no"; fi
+      spice=no
+      if [ -n "$qemu" ] && "$qemu" -spice help 2>&1 | grep -q 'spice options'; then spice=yes; fi
+      if [ -n "$qemu" ] && command -v qemu-img >/dev/null 2>&1 && [ "$spice" = yes ]; then echo "qemu=yes"; else echo "qemu=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
     if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then
