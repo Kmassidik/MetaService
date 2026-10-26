@@ -23,6 +23,9 @@ interface GpuLook {
   zeroText: boolean
   cardGroups: string[]
   lineCounts: number[]
+  /** The four numbers of the header's strip, and the sentence under them about the gap between booked and used. */
+  strip: string
+  note: string
 }
 
 /** What the page shows about the GPU, read in one go. */
@@ -32,6 +35,8 @@ const look = (b: Browse): Promise<GpuLook> =>
     const charts = [...document.querySelectorAll<HTMLElement>('[data-testid=monitor-numbers] .chart')].map((chart) => chart.dataset.testid ?? '').filter((name) => name.startsWith('chart-GPU'))
     const gpuCard = document.querySelector<HTMLElement>('section[aria-label=GPU]:not(:has(.dial))')
     return {
+      strip: text('[data-testid=gpu-strip] .strip'),
+      note: text('[data-testid=gpu-note]'),
       gauge: text('[data-testid=gauge-gpu]'),
       gaugeCaption: document.querySelector('[data-testid=gauge-gpu]')?.closest('section')?.querySelector<HTMLElement>('.caption')?.innerText ?? '',
       charts,
@@ -64,6 +69,8 @@ async function oneNvidia(page: Page, b: Browse, world: StandIn) {
   check('studio: "Programs using the GPU" lists the programs with their memory', seen.programs === 2 && (await b.text()).toLowerCase().includes('programs using the gpu') && (await b.text()).includes('llama-server'))
   check('studio: no Mac note on an NVIDIA machine', !seen.macNote)
   check('studio: one GPU is named "GPU · RTX 5090" in the legend', seen.legendNames.join() === 'GPU · RTX 5090', seen.legendNames.join())
+  check('studio: the header strip has the card\'s total, booked, used and free memory', /^GPU RTX 5090 · 32 GB total · 0 GB booked · \d+(\.\d)? GB used · \d+(\.\d)? GB free$/.test(seen.strip), seen.strip)
+  check('studio: the strip says the memory used without a booking is not MetaService\'s', /^\d+(\.\d)? GB used by something MetaService does not manage\.$/.test(seen.note), seen.note)
   await b.shot('gpu-studio-desktop.png', true)
   await page.setViewport(SIZES.phone)
   await wait(SETTLE_MS)
@@ -112,7 +119,7 @@ async function noGpu(page: Page, b: Browse, world: StandIn) {
   await page.setViewport(SIZES.desktop)
   await openGpuMachine(b, world, 'mini')
   const seen = await look(b)
-  check('mini (no GPU): no GPU gauge, charts, card or note', seen.gauge === '' && seen.charts.length === 0 && seen.cardGroups.length === 0 && seen.chips.length === 0 && !seen.macNote)
+  check('mini (no GPU): no GPU gauge, charts, card, note or header strip', seen.gauge === '' && seen.charts.length === 0 && seen.cardGroups.length === 0 && seen.chips.length === 0 && !seen.macNote && seen.strip === '')
   check('mini (no GPU): the page still has its other cards', await b.run(() => document.querySelectorAll('[data-testid=gauge-row] section').length === 5 && !!document.querySelector('[data-testid=band-network]')))
   await b.shot('gpu-none-desktop.png', true)
   await page.setViewport(SIZES.phone)
@@ -128,6 +135,7 @@ async function offlineKeepsTheHour(page: Page, b: Browse, world: StandIn) {
   const seen = await look(b)
   const grey = await b.run(() => getComputedStyle(document.querySelector('[data-testid=monitor-numbers]') ?? document.body).opacity)
   check('offline: the GPU charts stay with their last hour, greyed', Number(grey) < 1 && seen.charts.length === 4 && seen.lineCounts.every((length) => length > 40), `${grey} ${seen.charts.length} ${seen.lineCounts}`)
+  check('offline: the header strip keeps the card\'s name and dashes its numbers', seen.strip === 'GPU RTX 5090 · —' && seen.note === '', seen.strip)
   await b.shot('gpu-duo-offline.png', true)
 }
 

@@ -10,6 +10,7 @@
   import { appendPoint, DEFAULT_INTERVAL_SECONDS, mergeHistory, pointFromReading, pointsFromHistory, type LivePoint } from '../../lib/liveSeries.ts'
   import { cpuModelText } from '../../lib/cpuModel.ts'
   import { readGpuBooking } from '../../lib/gpuBooking.ts'
+  import { readGpuLive } from '../../lib/gpuLive.ts'
   import { processesFromReply } from '../../lib/processList.ts'
   import { pollIntervalMs, reservedText } from '../../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../../lib/statsPoll.ts'
@@ -90,10 +91,12 @@
   const stats = $derived(reply?.stats ?? null)
   const grey = $derived(failed || reply?.state === 'offline')
   const canListPrograms = $derived(reply?.state === 'online' && stats !== null)
+  /** The card's strip: the numbers from this same reading; a machine that is off keeps the card's name and dashes its numbers. */
+  const gpu = $derived(readGpuLive(machine, stats?.gpus ?? [], reply?.state !== 'offline'))
 </script>
 
 <section class="monitor" aria-label="Live monitor" data-testid="monitor">
-  <MonitorHeader {reply} {failed} {now}>
+  <MonitorHeader {reply} {failed} {now} {gpu}>
     {#snippet actions()}
       {#if canListPrograms}<button class="btn line sm" type="button" data-testid="processes-button" aria-haspopup="dialog" onclick={openList}>Top processes</button>{/if}
     {/snippet}

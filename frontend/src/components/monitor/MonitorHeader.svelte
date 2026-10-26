@@ -1,15 +1,20 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import Owl from '../Owl.svelte'
+  import Icon from '../Icon.svelte'
+  import { CARD_ICONS } from '../../lib/machineIcons.ts'
+  import { gpuNote, gpuStrip } from '../../lib/gpuLive.ts'
   import { formatUptime, LIVE_FAST_POLL_MS, needsHelperUpdate, offlineText } from '../../lib/stats.ts'
+  import type { GpuLive } from '../../lib/gpuLive.ts'
   import type { MachineStatsReply } from '../../lib/types.ts'
 
   const REFRESH_SECONDS = LIVE_FAST_POLL_MS / 1000
 
-  /** `actions` sits at the right, after the status note. */
-  let { reply, failed, now, actions }: { reply: MachineStatsReply | null; failed: boolean; now: number; actions?: Snippet } = $props()
+  /** `actions` sits at the right, after the status note. `gpu` is the machine's card with the same reading's numbers, null for a machine without one. */
+  let { reply, failed, now, gpu = null, actions }: { reply: MachineStatsReply | null; failed: boolean; now: number; gpu?: GpuLive | null; actions?: Snippet } = $props()
   /** The machine gives no live numbers: it is off, or its helper is too old. */
   const silent = $derived(reply !== null && (needsHelperUpdate(reply) || reply.state === 'offline'))
+  const note = $derived(gpu === null ? null : gpuNote(gpu))
 </script>
 
 <div class="head">
@@ -32,6 +37,13 @@
   </div>
 </div>
 
+{#if gpu !== null}
+  <div class="gpu" data-testid="gpu-strip">
+    <span class="strip nums"><Icon path={CARD_ICONS.gpu} />{gpuStrip(gpu)}</span>
+    {#if note !== null}<span class="gap" data-testid="gpu-note">{note}</span>{/if}
+  </div>
+{/if}
+
 <style>
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -39,4 +51,8 @@
   .note { font-family: var(--mono); font-size: 12px; color: var(--m60); }
   .caption { font-family: var(--mono); font-size: 11px; color: var(--m50); }
   .note.warn { color: var(--warn); }
+  /* The card's four numbers, then the plain sentence for the gap between what was booked and what is really held. */
+  .gpu { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface-2); }
+  .strip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .gap { font-family: var(--mono); font-size: 11px; color: var(--m50); }
 </style>

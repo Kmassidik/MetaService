@@ -3,6 +3,9 @@
   // and value rows, the CPU and memory right now, the memory and disk bars, and when it was last seen with its buttons. A fact the machine does
   // not report keeps its row and shows a dash, so cards side by side line up. Both helper buttons sit in their own reserved slot, so they never
   // move a row.
+  // The card asks for the machine's reading once, for its own two rows: the CPU and memory line, and the GPU row, which carries the card's free
+  // and total memory while the machine reports. It asks again every 15 seconds while the browser tab is shown, and stops for a machine that is off.
+  import { untrack } from 'svelte'
   import StatePill from './StatePill.svelte'
   import Icon from './Icon.svelte'
   import IconButton from './IconButton.svelte'
@@ -14,16 +17,25 @@
   import CardFix from './CardFix.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
   import { cardFacts, vmsChip } from '../lib/cardFacts.ts'
+  import { gpuFact, gpuTitle, readGpuLive } from '../lib/gpuLive.ts'
+  import { getMachineStats } from '../lib/api.ts'
+  import { isStale, LIST_POLL_MS } from '../lib/stats.ts'
+  import { browserEnvironment, startPolling } from '../lib/statsPoll.ts'
   import { formatGb, formatMb, bundleFlag, relativeTime } from '../lib/format.ts'
 
   import type { FactKey } from '../lib/cardFacts.ts'
-  import type { Machine, RemoteMachineInfo } from '../lib/types.ts'
+  import type { Machine, MachineStats, RemoteMachineInfo } from '../lib/types.ts'
 
   let { machine, remote, now, pinned, onRemove, onRename, onChanged, onCheck }: { machine: Machine; remote: RemoteMachineInfo | null; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onChanged: () => void; onCheck: (machine: Machine) => void } = $props()
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
   const updateTag = $derived(listTag(machine))
-  const facts = $derived(cardFacts(machine))
+  /** The card's name for the route; a new machine object with the same id must not restart the polling. */
+  const machineId = $derived(machine.id)
+  let stats = $state<MachineStats | null>(null)
+  const gpu = $derived(readGpuLive(machine, stats?.gpus ?? [], stats !== null))
+  const gpuValue = $derived(gpu === null ? null : gpuFact(gpu))
+  const facts = $derived(cardFacts(machine, gpuValue))
   const vms = $derived(vmsChip(machine.workloads.length))
   const awake = $derived(machine.state !== 'offline')
   const labels = $derived(machine.settings?.labels ?? [])
@@ -42,6 +54,24 @@
   const rowTestId = (key: FactKey): string | undefined => (key === 'address' ? 'machine-address' : undefined)
   /** The CPU's name keeps the card's old hook, so it stays findable in the tests. */
   const valueTestId = (key: FactKey): string | undefined => (key === 'cpu' ? 'machine-cpu-model' : undefined)
+  /** The card's GPU row is short; the whole strip and what its numbers mean are in its hover text. */
+  const rowTitle = (key: FactKey): string | undefined => (key === 'gpu' && gpu !== null ? gpuTitle(gpu) : undefined)
+
+  async function load(id: string) {
+    try {
+      const reply = await getMachineStats(id, false)
+      stats = isStale(reply) ? null : reply.stats
+    } catch {
+      stats = null
+    }
+  }
+
+  // Asks only for a machine that is awake: coming back to the tab asks at once, and a hidden tab has no timer.
+  $effect(() => {
+    if (!awake) return
+    const id = machineId
+    return untrack(() => startPolling(browserEnvironment(), LIST_POLL_MS, () => load(id)))
+  })
 </script>
 
 <article class="card" class:offline={!awake}>
@@ -64,7 +94,7 @@
       {#each facts as fact (fact.key)}
         <div class="fact" data-testid={rowTestId(fact.key)}>
           <dt class="flabel"><Icon path={FACT_ICONS[fact.key]} />{fact.label}</dt>
-          <dd class="fvalue" data-testid={valueTestId(fact.key)} title={fact.value}>{fact.value}</dd>
+          <dd class="fvalue" data-testid={valueTestId(fact.key)} title={rowTitle(fact.key) ?? fact.value}>{fact.value}</dd>
         </div>
       {/each}
     </dl>
@@ -74,7 +104,7 @@
     </div>
   </div>
 
-  <LiveLine machineId={machine.id} live={awake} />
+  <LiveLine {stats} />
 
   <div class="meters">
     <Meter label="Memory" free={machine.free_ram_mb} total={machine.ram_total_mb} format={formatMb} icon={CARD_ICONS.memory} />
