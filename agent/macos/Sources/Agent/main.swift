@@ -89,6 +89,12 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
     StatsRoutes(sampler: StatsSampler(source: DarwinStatsSource())).register(on: router)
+    let storageCounters = StorageCounters()
+    let storageScanner = DarwinStorageScanner(root: "/", counters: storageCounters)
+    let storage = StorageState(counters: storageCounters) { completion in
+        DarwinStorageExecution.start(scanner: storageScanner, completion: completion)
+    }
+    StorageRoutes(state: storage).register(on: router)
     ImagesRoutes().register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)
     terminal.registerPlain(on: router)

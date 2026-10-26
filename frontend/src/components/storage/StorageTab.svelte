@@ -138,7 +138,7 @@
   {#if failed && !reply}
     <p class="note">The storage map could not be read. Trying again…</p>
   {:else if reply?.state === 'old_helper'}
-    <p class="note">This machine's helper cannot map its disk yet. Update the helper on the Environment tab (a Linux machine is needed).</p>
+    <p class="note">This machine's helper cannot map its disk yet. Update the helper on the Environment tab.</p>
   {:else if reply?.state === 'offline'}
     <p class="note">The machine is offline or did not answer, so its disk cannot be read now.</p>
   {/if}

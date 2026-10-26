@@ -22,5 +22,6 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore", .product(name: "MSCore", package: "metaservice-shared")], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "AgentTests", dependencies: ["Agent", "AgentCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )

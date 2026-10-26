@@ -1,5 +1,5 @@
-// A stand-in parent for the Storage tab test. It holds "dgx spark" (a Linux arm64 machine with a 4 TB disk that has never been scanned)
-// and "mac-studio" (whose helper has no storage route). A scan "runs" for SCAN_MS with climbing numbers, then the map in sparkMap.ts is served.
+// A stand-in parent for the Storage tab test. It holds a Linux machine, a current Mac, and a legacy Mac without Storage.
+// A scan "runs" for SCAN_MS with climbing numbers, then the map in sparkMap.ts is served.
 // It counts the scans the page asks for. It is not the parent: the parent's own checks have their own tests.
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -32,7 +32,11 @@ export interface FakeParent {
 }
 
 export function startFakeParent(dist: string, plan: StoragePlan = { scanned: false }): FakeParent {
-  const machines = [machine('spark-20ec', 'dgx spark', 'linux'), machine('mac-studio', 'mac-studio', 'macos', { engine: { name: 'apple', version: null, ready: true } })]
+  const machines = [
+    machine('spark-20ec', 'dgx spark', 'linux'),
+    machine('mac-studio', 'mac-studio', 'macos', { engine: { name: 'apple', version: null, ready: true } }),
+    machine('legacy-mac', 'legacy-mac', 'macos', { engine: { name: 'apple', version: null, ready: true } }),
+  ]
   let started: number | null = plan.scanned ? Date.now() - SCAN_MS - 60_000 : null
   let finished: number | null = plan.scanned ? (started ?? 0) + SCAN_MS : null
   let scans = 0
@@ -62,7 +66,7 @@ export function startFakeParent(dist: string, plan: StoragePlan = { scanned: fal
     if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [] })
     if (path.endsWith('/storage') || path.endsWith('/storage/scan')) {
-      if (id === 'mac-studio') return reply({ state: 'old_helper', storage: null }, request.method === 'POST' ? 202 : 200)
+      if (id === 'legacy-mac') return reply({ state: 'old_helper', storage: null }, request.method === 'POST' ? 202 : 200)
       if (request.method === 'POST') {
         if (request.headers.get('x-csrf-token') !== CSRF) return reply({ error: { code: 'csrf', message: 'bad token' } }, 403)
         scans += 1

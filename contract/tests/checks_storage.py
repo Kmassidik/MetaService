@@ -1,4 +1,4 @@
-"""The storage map: GET /v1/storage and POST /v1/storage/scan (optional: a helper without them answers 404 to both, and passes)."""
+"""The storage map: every current helper serves GET /v1/storage and POST /v1/storage/scan."""
 import time
 
 from contract.tests.support import expect, expect_error, expect_schema
@@ -8,11 +8,7 @@ POLL_SECONDS = 0.5
 
 
 def _served(ctx):
-    reply = ctx.get("/v1/storage")
-    if reply.status == 404:
-        expect_error(ctx.post("/v1/storage/scan"), 404, "a helper without GET /v1/storage still has POST /v1/storage/scan")
-        return None
-    return reply
+    return ctx.get("/v1/storage")
 
 
 def check_storage_needs_the_token(ctx):
@@ -23,8 +19,6 @@ def check_storage_needs_the_token(ctx):
 
 def check_storage_read_fits_and_never_starts_a_scan(ctx):
     reply = _served(ctx)
-    if reply is None:
-        return
     expect(reply.status == 200, f"GET /v1/storage gave {reply.status}")
     expect_schema("Storage", reply.body, "storage")
     expect((reply.body["progress"] is None) == (not reply.body["scanning"]), "progress must be there exactly while a scan runs")
@@ -41,8 +35,7 @@ def _finished(ctx):
 
 
 def check_a_scan_ends_in_a_map_the_panel_can_draw(ctx):
-    if _served(ctx) is None:
-        return
+    _served(ctx)
     started = ctx.post("/v1/storage/scan")
     expect(started.status == 202, f"POST /v1/storage/scan gave {started.status}")
     expect_schema("Storage", started.body, "scan")

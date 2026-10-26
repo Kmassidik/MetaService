@@ -112,10 +112,17 @@ async function rescan(b: Browse, scans: () => number) {
   check('the button comes back when the scan ends', true)
 }
 
-async function olderHelper(b: Browse) {
+async function currentMac(b: Browse) {
   await b.go('#/machines/details?id=mac-studio&tab=storage')
+  await untilMap(b)
+  check('a current Mac shows its storage map without an update or reload', !(await b.text()).includes('cannot map its disk yet'))
+}
+
+async function olderHelper(b: Browse) {
+  await b.go('#/machines/details?id=legacy-mac&tab=storage')
   await b.until(() => document.body.innerText.includes('cannot map its disk yet'), { timeout: SHORT_WAIT_MS })
-  check('a helper without the storage route gets a plain note to update it', (await b.text()).includes('Update the helper on the Environment tab'))
+  const text = await b.text()
+  check('a genuinely old helper gets a plain update note without claiming Linux is required', text.includes('Update the helper on the Environment tab') && !text.includes('Linux machine is needed'))
 }
 
 const errors: string[] = []
@@ -148,6 +155,7 @@ try {
   await expectNoSideScroll(b, 'Storage at phone width')
   await b.shot('storage-phone.png', true)
   await page.setViewport(DESKTOP)
+  await currentMac(b)
   await olderHelper(b)
   check('no script errors', errors.length === 0, errors.join(' | '))
 } finally {
