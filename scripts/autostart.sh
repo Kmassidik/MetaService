@@ -72,10 +72,38 @@ prepare_logs() {
 }
 
 # bootout first, so a daemon that is already loaded is replaced; "not loaded" is the normal case and is not an error.
+# bootout only asks launchd to stop the job; it returns before the label is free. A bootstrap in that window fails with
+# "Bootstrap failed: 5: Input/output error", which is how the connector was left NOT loaded on 2026-10-26 and the panel
+# answered 530 until someone bootstrapped it by hand. Wait for the label to go, then retry once if launchd still refuses.
+RELEASE_WAIT_SECONDS=10
+RELEASE_POLL_SECONDS=1
+BOOTSTRAP_TRIES=2
+
+wait_until_released() {
+  waited=0
+  while is_loaded "$1" && [ "$waited" -lt "$RELEASE_WAIT_SECONDS" ]; do
+    sleep "$RELEASE_POLL_SECONDS"
+    waited=$((waited + RELEASE_POLL_SECONDS))
+  done
+  ! is_loaded "$1"
+}
+
+bootstrap_with_retry() {
+  tries=1
+  while :; do
+    priv_step "$launchctl" bootstrap system "$(plist_path "$1")" && return 0
+    [ "$tries" -lt "$BOOTSTRAP_TRIES" ] || return 1
+    tries=$((tries + 1))
+    sleep "$RELEASE_POLL_SECONDS"
+  done
+}
+
 daemon_replace() {
   priv_step "$launchctl" bootout "system/$1" 2>/dev/null
+  # In print mode nothing is loaded, so there is nothing to wait for: the commands are only shown.
+  [ "$mode" = print ] || wait_until_released "$1" || true
   priv_step install -m 644 $owner_flags "$(staged_path "$1")" "$(plist_path "$1")"
-  priv_step "$launchctl" bootstrap system "$(plist_path "$1")"
+  bootstrap_with_retry "$1"
 }
 
 daemon_remove() {
