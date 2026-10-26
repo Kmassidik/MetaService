@@ -55,6 +55,7 @@ const FIX_WHAT: Record<string, string> = {
   python: 'Installs Python 3 with apt.',
   gpu_toolkit: "Adds NVIDIA's own package source and signing key to this computer (a source that is not part of the system), then installs NVIDIA's container toolkit from it with apt, so containers can use the GPU.",
   vm_packages: 'Installs qemu and its firmware with apt, and loads the KVM module, so this computer can run full VMs instead of only containers.',
+  autostart: "Registers this computer's helper with the boot service of the system (launchd on a Mac, systemd on Linux), so it is online again by itself after a restart.",
 }
 
 const FIX_BUTTON: Record<string, string> = {

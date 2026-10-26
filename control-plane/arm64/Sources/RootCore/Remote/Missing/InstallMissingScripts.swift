@@ -15,16 +15,20 @@ public enum InstallMissingScripts {
         "LC_ALL=C LANGUAGE=C sudo \(withPassword ? "-S" : "-n") -p '' -- sh -c \(Shell.quote(script))"
     }
 
-    public static func script(for part: MissingPart, user: String) -> String {
-        prelude + body(for: part, user: user) + "echo \(doneMarker)\n"
+    public static func script(for part: MissingPart, user: String, box: String) -> String {
+        guard let steps = aptSteps(for: part, user: user) else { return AutostartScript.script(box: box, user: user) }
+        return prelude + steps + "echo \(doneMarker)\n"
     }
 
-    private static func body(for part: MissingPart, user: String) -> String {
+    /// The Debian and Ubuntu steps of a part the package manager installs, or nil for "starts at boot", which is one file for the system's boot service and no
+    /// package at all (see `AutostartScript`).
+    private static func aptSteps(for part: MissingPart, user: String) -> String? {
         switch part {
         case .vmTool: return incus(user: user)
         case .python: return python
         case .gpuToolkit: return GpuToolkitScript.body
         case .vmPackages: return VmPackagesScript.body
+        case .autostart: return nil
         }
     }
 

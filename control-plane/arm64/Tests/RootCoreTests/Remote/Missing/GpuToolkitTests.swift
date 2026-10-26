@@ -3,6 +3,7 @@ import XCTest
 
 final class GpuToolkitTests: XCTestCase {
     private func facts(_ text: String) -> RemoteFacts { RemoteProbe.parse(text)! }
+    private let home = "/home/build/metaservice-box"
     private let head = "os=Linux\narch=x86_64\nuser=build\nram_mb=32000\nkvm=no\ndisk_free_gb=400\npkg=apt\nsudo=password\ntool=incus\ntool=python3\nport_9101=free\n"
     private let card = "nvidia_gpu=NVIDIA GeForce RTX 5090\n"
 
@@ -53,7 +54,7 @@ final class GpuToolkitTests: XCTestCase {
     }
 
     func testTheScriptIsNVIDIAsOfficialStepsInOrder() {
-        let script = InstallMissingScripts.script(for: .gpuToolkit, user: "build")
+        let script = InstallMissingScripts.script(for: .gpuToolkit, user: "build", box: home)
         let steps = ["https://nvidia.github.io/libnvidia-container/gpgkey", "gpg --dearmor", "/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg",
                      "https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list", "signed-by=", "/etc/apt/sources.list.d/nvidia-container-toolkit.list",
                      "aptget update", "aptget install nvidia-container-toolkit", "ms-done"]

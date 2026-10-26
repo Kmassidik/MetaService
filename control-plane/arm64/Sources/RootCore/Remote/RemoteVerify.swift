@@ -14,14 +14,15 @@ public enum RemoteVerify {
     public static let minimumRamMb = 4096
     public static let agentPort = 9101
     /// Rows whose cross does not stop the computer from being added: the computer works without them, only one feature does not.
-    static let optionalRows: Set<String> = [gpuToolkitRow]
+    static let optionalRows: Set<String> = [gpuToolkitRow, Autostart.rowId]
     static let gpuToolkitRow = "gpu_toolkit"
 
     /// `parentURL` is where an Agent there will find the parent: its own loopback, through the SSH connection (see ParentUrl).
     public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String) -> RemoteVerification {
         guard !facts.isWindows else { return windows(facts, fingerprint) }
-        let rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts)] + gpuToolkit(facts)
+        var rows = [login(facts, fingerprint), system(facts), agent(facts, agentBuilds), memory(facts), disk(facts), vmSupport(facts), vmTool(facts)] + gpuToolkit(facts)
             + [python(facts), admin(facts), port(facts), parent(parentURL)]
+        rows += [Autostart.requirement(facts)].compactMap { $0 }
         return RemoteVerification(requirements: rows, canAdd: rows.filter { !optionalRows.contains($0.id) }.allSatisfy(\.ok), isolation: facts.sudo == .none ? ["folder"] : ["folder", "dedicated_user"],
                                   system: [facts.version, facts.chip, facts.arch].filter { !$0.isEmpty }.joined(separator: " · "))
     }

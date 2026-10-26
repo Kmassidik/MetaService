@@ -46,7 +46,7 @@ final class RemoteFixService: @unchecked Sendable {
         let before = try await RemoteService.readFacts(ssh, target, credentials)
         if alreadyThere(request.part, before) { return result(target, key.fingerprint, before) }
         guard InstallOffers.offer(for: request.part, facts: before) != nil else { throw RemoteFailure.fixUnavailable }
-        try await runInstall(request, user: before.user, target: target, credentials: credentials)
+        try await runInstall(request, user: before.user, box: before.box, target: target, credentials: credentials)
         return result(target, key.fingerprint, try await RemoteService.readFacts(ssh, target, credentials))
     }
 
@@ -56,11 +56,12 @@ final class RemoteFixService: @unchecked Sendable {
         case .python: return facts.tools.contains("python3")
         case .gpuToolkit: return facts.hasGpuToolkit
         case .vmPackages: return facts.kvm == true && facts.qemu == true
+        case .autostart: return facts.autostart == true
         }
     }
 
-    private func runInstall(_ request: RemoteFixRequest, user: String, target: RemoteTarget, credentials: SshCredentials) async throws {
-        let script = InstallMissingScripts.script(for: request.part, user: user)
+    private func runInstall(_ request: RemoteFixRequest, user: String, box: String, target: RemoteTarget, credentials: SshCredentials) async throws {
+        let script = InstallMissingScripts.script(for: request.part, user: user, box: box)
         let command = InstallMissingScripts.sudoCommand(script: script, withPassword: !request.sudoPassword.isEmpty)
         let sent = try await ssh.run(command: command, input: request.sudoPassword.standardInput(), on: target, with: credentials, timeout: Self.installSeconds)
         if sent.status == Self.sshFailureStatus { throw RemoteFailure.fromSsh(request.sudoPassword.redacted(sent.errors), status: sent.status, auth: credentials.auth) }

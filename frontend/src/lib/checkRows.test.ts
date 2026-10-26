@@ -63,6 +63,19 @@ test('a missing Incus or Python is a blocking cross', () => {
   expect(isBlocking(need(reqs, 'vm_tool'))).toBe(true)
 })
 
+test('"Starts at boot" sits with the computer, says yes in a word, and warns without blocking', () => {
+  const registered = [...linux(), ok('autostart', 'Starts at boot', "Registered: this computer's helper starts again by itself after a restart.")]
+  expect(byId(registered, 'autostart')).toMatchObject({ group: 'computer', label: 'Starts at boot', state: 'ready', value: 'Yes', sentence: '' })
+  const offer = { part: 'autostart', needs_password: true }
+  const missing = cross('autostart', 'Starts at boot', "This computer's helper is not registered to start at boot, so it shows offline after a restart.")
+  const row = need([...linux(), { ...missing, fix: 'Run `sh /home/build/metaservice-box/start.sh` after each restart.', install: offer }], 'autostart')
+  expect(row).toMatchObject({ state: 'optional', value: '', sentence: missing.detail, install: offer })
+  expect(row.manual?.commands).toEqual(['sh /home/build/metaservice-box/start.sh'])
+  expect(isBlocking(row)).toBe(false)
+  expect(checkCards(checkRows([...linux(), missing])).some((card) => card.hasBlocking)).toBe(false)
+  expect(byId([...linux(), missing], 'autostart')?.state).toBe('optional')
+})
+
 test('ticks get a short value, from the parent\'s own words', () => {
   const value = (id: string) => byId(linux(), id)?.value
   expect(value('login')).toBe('luca')

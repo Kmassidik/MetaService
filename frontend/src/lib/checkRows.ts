@@ -42,7 +42,7 @@ const HOST_KEY_TAIL = 8
 const HOST_KEY_SHORT_MAX = 20
 const SYSTEM_ID = 'system'
 /** The rows whose cross does not stop the computer from being added. The parent decides this too (`optionalRows`); the panel only needs it to draw the cross calmly. */
-const OPTIONAL_IDS: ReadonlySet<string> = new Set(['gpu_toolkit'])
+const OPTIONAL_IDS: ReadonlySet<string> = new Set(['gpu_toolkit', 'autostart'])
 
 const GROUPS: { id: CheckGroup; title: string }[] = [
   { id: 'computer', title: 'This computer' },
@@ -52,7 +52,7 @@ const GROUPS: { id: CheckGroup; title: string }[] = [
 ]
 
 const GROUP_OF: Record<string, CheckGroup> = {
-  login: 'computer', system: 'computer', agent: 'computer', memory: 'computer', disk: 'computer', vm_support: 'computer',
+  login: 'computer', system: 'computer', agent: 'computer', memory: 'computer', disk: 'computer', vm_support: 'computer', autostart: 'computer',
   vm_tool: 'software', gpu_toolkit: 'software', python: 'software', admin: 'software',
   port: 'connection', parent: 'connection',
 }
@@ -62,6 +62,7 @@ const LABEL_OF: Record<string, string> = {
   admin: 'Admin rights',
   parent: 'Parent can reach it',
   gpu_toolkit: 'NVIDIA toolkit for containers',
+  autostart: 'Starts at boot',
 }
 
 type Reader = (detail: string) => string | null
@@ -93,6 +94,8 @@ const TICK_VALUE: Record<string, Reader> = {
   memory: firstGroup(/^(\d+ GB)\.?$/),
   disk: firstGroup(/^(\d+ GB) free/),
   vm_support: VM_SUPPORT_VALUE,
+  /** "Starts at boot" is one short yes when it is registered; when it is not, the parent's whole sentence is the warning under the row. */
+  autostart: whenMatches(/^Registered/, 'Yes'),
   vm_tool: whenMatches(/^Installed/, 'Installed'),
   gpu_toolkit: whenMatches(/^Installed/, 'Installed'),
   python: whenMatches(/^Found/, 'Found'),
