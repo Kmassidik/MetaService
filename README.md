@@ -69,7 +69,7 @@ Once `PUBLIC_BASE_URL` is set the panel answers only under that name. The API to
 
 - The parent with its panel: Overview, Machines, per-machine Deployments, Token ledger, Health and Settings.
 - The macOS and Linux Agents, and the Ruvio chat on a machine or VM.
-- Adding another computer on the same network from the panel: Connect over SSH (password once, or the parent's key), read-only Verify, "What will change", then Install into an isolated folder (`~/metaservice-box`). The parent keeps an SSH tunnel to it, shows connected or offline, and removal puts the computer back exactly as it was. Tested on this laptop only.
+- Adding another computer on the same network from the panel: Connect over SSH (password once, or the parent's key), read-only Verify, "What will change", then Install into an isolated folder (`~/metaservice-box`). The parent keeps an SSH tunnel to it, shows connected or offline, and removal puts the computer back exactly as it was. A machine that is already added can be checked again from its page: the same check and the same "Install it for me" offers, with its address, port and user taken from the record it saved, so a missing package or boot registration never means removing it and adding it again. Tested on this laptop only.
 - Built but not switched on: the own-user install on Linux (needs sudo) and the WireGuard transport. Both are unit-tested and unverified on real hardware.
 - Not yet: the chat's files, connected apps and routines.
 - CPU settings in Create VM, as in Proxmox's Processors window: sockets, a CPU type and CPU flags for a VM on a Linux machine, and a CPU limit for a container. A Mac gives a VM its own CPU. A Linux machine offers them only when it can make VMs (see below).
