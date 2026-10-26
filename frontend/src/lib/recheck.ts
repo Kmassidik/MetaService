@@ -1,7 +1,10 @@
 // "Check again" for a machine that is already added: what it starts from and which problems it can help with, as plain functions so they are easy to test.
 // No DOM, no network.
 import { emptyConnectForm } from './remote.ts'
-import type { ConnectForm, Problem, RemoteMachineInfo } from './types.ts'
+import type { ConnectForm, Machine, Problem, RemoteMachineInfo } from './types.ts'
+
+export const FIX_BUTTON = 'Fix'
+export const FIX_EXPLANATION = 'Check this computer and fix what it can.'
 
 /**
  * The form of a re-check, from what the parent recorded when the machine was added: where it is, its SSH port and the user it logs in as.
@@ -36,3 +39,17 @@ const CHECKED_CODES: ReadonlySet<string> = new Set([
 
 /** True when "Check again" is the useful action for this problem. */
 export const problemHasCheck = (problem: Pick<Problem, 'code'>): boolean => CHECKED_CODES.has(problem.code)
+
+/** True when at least one of the machine's problems is one the check covers. */
+export const hasCheckedProblem = (machine: Pick<Machine, 'problems'>): boolean => (machine.problems ?? []).some(problemHasCheck)
+
+/**
+ * The "Fix" button of a machine card: the same check as the machine page, offered where the person looks, the list.
+ * It shows only when the machine answers and one of its problems is one the check covers. A machine the parent did not add over SSH has no
+ * saved login to check it with, so it gets no button either: never a button that opens a dialog saying it cannot do anything.
+ */
+export function offersCardFix(machine: Pick<Machine, 'state' | 'problems'>, remote: RemoteMachineInfo | null): boolean {
+  if (machine.state === 'offline') return false
+  if (recheckProblem(remote) !== null) return false
+  return hasCheckedProblem(machine)
+}
