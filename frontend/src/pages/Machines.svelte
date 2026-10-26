@@ -3,9 +3,9 @@
   // Find machines and Add a machine live in the sidebar, under Machines.
   import MachineList from '../components/MachineList.svelte'
   import ScanView from '../components/ScanView.svelte'
-  import type { Machine } from '../lib/types.ts'
+  import type { Machine, RemoteMachineInfo } from '../lib/types.ts'
 
-  let { machines, now, pinned, banner, onAdd, onConnect, onRemove, onRename, onChanged, view }: { machines: Machine[]; now: number; pinned: string | null | undefined; banner: string; onAdd: () => void; onConnect: (host?: string) => void; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onChanged: () => void; view: 'list' | 'find' } = $props()
+  let { machines, remotes, now, pinned, banner, onAdd, onConnect, onRemove, onRename, onChanged, onCheck, view }: { machines: Machine[]; remotes: RemoteMachineInfo[]; now: number; pinned: string | null | undefined; banner: string; onAdd: () => void; onConnect: (host?: string) => void; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onChanged: () => void; onCheck: (machine: Machine) => void; view: 'list' | 'find' } = $props()
 </script>
 
 <div class="phead">
@@ -15,5 +15,5 @@
 {#if view === 'find'}
   <div class="body"><ScanView {machines} {onConnect} /></div>
 {:else}
-  <MachineList {machines} {now} {pinned} {onRemove} {onRename} {onAdd} {onChanged} />
+  <MachineList {machines} {remotes} {now} {pinned} {onRemove} {onRename} {onAdd} {onChanged} {onCheck} />
 {/if}

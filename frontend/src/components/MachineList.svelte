@@ -1,9 +1,10 @@
 <script lang="ts">
   import Owl from './Owl.svelte'
   import MachineRow from './MachineRow.svelte'
-  import type { Machine } from '../lib/types.ts'
+  import type { Machine, RemoteMachineInfo } from '../lib/types.ts'
 
-  let { machines, now, pinned, onRemove, onRename, onAdd, onChanged }: { machines: Machine[]; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onAdd: () => void; onChanged: () => void } = $props()
+  let { machines, remotes, now, pinned, onRemove, onRename, onAdd, onChanged, onCheck }: { machines: Machine[]; remotes: RemoteMachineInfo[]; now: number; pinned: string | null | undefined; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onAdd: () => void; onChanged: () => void; onCheck: (machine: Machine) => void } = $props()
+  const remoteOf = (machine: Machine) => remotes.find((info) => info.machine === machine.id) ?? null
 </script>
 
 {#if machines.length === 0}
@@ -15,7 +16,7 @@
 {:else}
   <section class="grid" aria-label="Machines">
     {#each machines as machine (machine.id)}
-      <MachineRow {machine} {now} {pinned} {onRemove} {onRename} {onChanged} />
+      <MachineRow {machine} remote={remoteOf(machine)} {now} {pinned} {onRemove} {onRename} {onChanged} {onCheck} />
     {/each}
   </section>
 {/if}

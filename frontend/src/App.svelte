@@ -270,7 +270,7 @@
       {:else if page === 'machines' && detailId}
         <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onCheck={(machine) => (rechecking = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} onChanged={refresh} />
+        <Machines {machines} remotes={remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} onChanged={refresh} onCheck={(machine) => (rechecking = machine)} />
       {:else if page === 'vms'}
         <VmsList {machines} {route} {banner} {pending} handlers={vmHandlers} />
       {:else if page === 'usage'}
