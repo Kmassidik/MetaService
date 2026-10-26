@@ -10,6 +10,8 @@ public enum PlanScriptError: Error, Equatable {
 public enum PlanScripts {
     private static let heredocEnd = "__METASERVICE_END__"
     public static let madeBy = "metaservice"
+    /// How often the helper reports to the parent. The service files of "starts at boot" repeat it, so a service start looks like a `start.sh` start to the parent.
+    public static let heartbeatSeconds = 5
 
     public static func keyMarker(_ machine: String) -> String { "metaservice-\(machine)" }
 
@@ -18,7 +20,7 @@ public enum PlanScripts {
     public static func runArguments(_ options: RemoteInstallOptions, box: String? = nil) -> [String] {
         let state = (box ?? options.box) + "/state"
         var arguments = ["run", "--state-dir", state, "--engine", options.engine, "--port", String(options.agentPort), "--bind", "127.0.0.1",
-                         "--chat-port", String(options.chatPort), "--chat-bind", "127.0.0.1", "--heartbeat-seconds", "5"]
+                         "--chat-port", String(options.chatPort), "--chat-bind", "127.0.0.1", "--heartbeat-seconds", String(heartbeatSeconds)]
         let limits: [(String, Int?)] = [("--ram-reserve-mb", options.settings.ramReserveMb), ("--disk-reserve-gb", options.settings.diskReserveGb),
                                         ("--ram-allowance-mb", options.settings.ramAllowanceMb), ("--disk-allowance-gb", options.settings.diskAllowanceGb)]
         for (flag, value) in limits { if let value { arguments += [flag, String(value)] } }

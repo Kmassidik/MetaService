@@ -132,4 +132,22 @@ final class RemoteFactsTests: XCTestCase {
         XCTAssertTrue(RemoteProbe.script.contains("qemu-system-x86_64") && RemoteProbe.script.contains("qemu-system-aarch64"))
         XCTAssertTrue(RemoteProbe.script.contains("echo \"virt=unknown\""), "a chip type that cannot answer says unknown instead of no")
     }
+
+    /// Whether the helper comes back by itself after a restart: one file per system, looked at and never run, and only for a folder of ours.
+    func testWhetherTheHelperStartsAtBootIsReadFromTheOneFileOfEachSystem() throws {
+        XCTAssertEqual(try XCTUnwrap(RemoteProbe.parse("os=Darwin\narch=arm64\nhome=/Users/mac\nautostart=yes\n")).autostart, true)
+        XCTAssertEqual(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\nhome=/home/build\nautostart=no\n")).autostart, false)
+        XCTAssertNil(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\nautostart=unknown\n")).autostart)
+        XCTAssertNil(try XCTUnwrap(RemoteProbe.parse("os=Linux\narch=x86_64\n")).autostart, "absent is 'did not say', never 'not registered'")
+        XCTAssertTrue(RemoteProbe.script.contains(AutostartScript.macPath), "a LaunchDaemon on a Mac")
+        XCTAssertTrue(RemoteProbe.script.contains(AutostartScript.linuxPath), "a unit file on Linux, and nothing else on both")
+        XCTAssertTrue(RemoteProbe.script.contains("[ -d \"$HOME/\(RemoteInstallOptions.boxFolderName)\" ]"), "only asked when a box of ours is there")
+    }
+
+    /// The box is the folder the install makes, next to the home folder; a computer that did not say where its home is has none.
+    func testTheBoxIsTheInstallFolderOfThatComputer() throws {
+        XCTAssertEqual(try XCTUnwrap(RemoteProbe.parse(mac)).box, "/Users/mac/metaservice-box")
+        XCTAssertEqual(try XCTUnwrap(RemoteProbe.parse(linux)).box, "/home/build/metaservice-box")
+        XCTAssertEqual(RemoteFacts().box, "")
+    }
 }

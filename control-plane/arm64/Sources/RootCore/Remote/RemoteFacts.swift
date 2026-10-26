@@ -32,11 +32,17 @@ public struct RemoteFacts: Equatable, Sendable {
     public var port9101Free: Bool?
     /// True when what listens on the port is MetaService's own program from an earlier install, which an install can replace.
     public var port9101Ours = false
+    /// True when this computer's helper is registered with the system's boot service (a LaunchDaemon on a Mac, a systemd unit on Linux), so it comes back by
+    /// itself after a restart. Only asked about a computer that already has a box of ours: a computer without one has nothing to register, so this stays nil.
+    public var autostart: Bool?
 
     public init() {}
 
     /// True when the NVIDIA container toolkit is there (either of its programs).
     public var hasGpuToolkit: Bool { tools.contains("nvidia-ctk") || tools.contains("nvidia-container-cli") }
+
+    /// Where MetaService's folder is on that computer: the folder the install makes, next to the home folder. Empty when it did not say where its home is.
+    public var box: String { home.isEmpty ? "" : home + "/" + RemoteInstallOptions.boxFolderName }
 
     public var isMac: Bool { os == "Darwin" }
     public var isLinux: Bool { os == "Linux" }
@@ -89,6 +95,12 @@ public enum RemoteProbe {
       if [ -n "$qemu" ] && command -v qemu-img >/dev/null 2>&1 && [ "$spice" = yes ]; then echo "qemu=yes"; else echo "qemu=no"; fi
     fi
     echo "disk_free_gb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
+    # Whether the helper of this computer starts again at boot. Only asked when a box of ours is there: another computer's folder is never looked at.
+    if [ -d "$HOME/\(RemoteInstallOptions.boxFolderName)" ]; then
+      if [ "$os" = Darwin ]; then boot_unit=\(AutostartScript.macPath)
+      else boot_unit=\(AutostartScript.linuxPath); fi
+      if [ -f "$boot_unit" ]; then echo "autostart=yes"; else echo "autostart=no"; fi
+    fi
     if [ "$os" = Linux ] && command -v nvidia-smi >/dev/null 2>&1; then
       card=$(nvidia-smi -L 2>/dev/null | sed -n 's/^GPU 0: //p' | sed 's/ (UUID.*//' | head -1)
       [ -n "$card" ] && echo "nvidia_gpu=$card"
@@ -155,6 +167,7 @@ public enum RemoteProbe {
         case "kvm": facts.kvm = flag(value)
         case "virt": facts.virt = flag(value)
         case "qemu": facts.qemu = flag(value)
+        case "autostart": facts.autostart = flag(value)
         case "tool": if knownTools.contains(value) { facts.tools.insert(value) }
         case "pkg": facts.packageManager = PackageManager(rawValue: value)
         case "sudo": facts.sudo = SudoAccess(rawValue: value) ?? .none
