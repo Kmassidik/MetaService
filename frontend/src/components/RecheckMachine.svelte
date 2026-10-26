@@ -6,9 +6,12 @@
   import CheckResult from './connect/CheckResult.svelte'
   import Dialog from './Dialog.svelte'
   import SecretField from './SecretField.svelte'
-  import { ApiError, remoteVerify } from '../lib/api.ts'
+  import { remoteVerify } from '../lib/api.ts'
+  import { ActionState } from '../lib/action.svelte.ts'
+  import { actionLabel, retryLine } from '../lib/action.ts'
   import { emptyConnectForm, fixPasswordLabel, loginProblem, verifyBody } from '../lib/remote.ts'
   import { recheckForm, recheckProblem } from '../lib/recheck.ts'
+  import { LONG_REQUEST_TIMEOUT_MS } from '../lib/timeouts.ts'
   import type { ConnectForm, Machine, RemoteMachineInfo, VerifyResult } from '../lib/types.ts'
 
   interface Props {
@@ -24,11 +27,13 @@
   let { open, machine, remote, onClose, onChecked }: Props = $props()
   let form = $state(recheckFormOrEmpty())
   let result: VerifyResult | null = $state(null)
-  let busy = $state(false)
-  let failure = $state('')
+  const verify = new ActionState({ timeoutMs: LONG_REQUEST_TIMEOUT_MS })
+  const busy = $derived(verify.busy)
   const cannot = $derived(machine ? recheckProblem(remote) : 'This machine is no longer in the list. Close this and open it from Machines again.')
   const loginWrong = $derived(loginProblem(form))
   const title = $derived(machine ? `Check ${machine.name} again` : 'Check this machine again')
+  const checkLabel = $derived(actionLabel(verify.view, 'Log in and check', 'Checking…'))
+  const retry = $derived(retryLine(verify.view))
 
   function recheckFormOrEmpty(): ConnectForm {
     return remote ? recheckForm(remote) : emptyConnectForm()
@@ -40,28 +45,14 @@
     untrack(() => {
       form = recheckFormOrEmpty()
       result = null
-      failure = ''
-      busy = false
+      verify.reset()
     })
   })
-
-  /** Runs one step against the control panel, showing its refusal in plain words. */
-  async function attempt(work: () => Promise<void>) {
-    busy = true
-    failure = ''
-    try {
-      await work()
-    } catch (error) {
-      failure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      busy = false
-    }
-  }
 
   const check = (event: SubmitEvent) => {
     event.preventDefault()
     if (loginWrong || cannot || !machine) return
-    attempt(async () => {
+    void verify.run(async () => {
       try {
         result = await remoteVerify(verifyBody(form))
       } finally {
@@ -74,13 +65,13 @@
   /** Back to the login, with the password empty: the parent never keeps it. */
   function again() {
     result = null
-    failure = ''
+    verify.reset()
     form = { ...form, password: '' }
   }
 
   function useKey() {
     form = { ...form, useKey: true, password: '' }
-    failure = ''
+    verify.reset()
   }
 </script>
 
@@ -107,10 +98,11 @@
         <p class="hint">{loginWrong ?? 'Typed once and not kept. With Install it for me the same password is used for the install, then forgotten.'}</p>
         {#if remote?.has_key}<button class="link" type="button" onclick={useKey}>No password for it? Use MetaService's key instead</button>{/if}
       {/if}
-      {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
+      {#if verify.message}<p class="bad" role="alert">{verify.message}</p>{/if}
+      {#if retry}<p class="hint">{retry}</p>{/if}
       <div class="row">
         <button class="btn line" type="button" onclick={onClose}>Cancel</button>
-        <button class="btn green" type="submit" disabled={busy || loginWrong !== null}>{busy ? 'Checking…' : 'Log in and check'}</button>
+        <button class="btn green" type="submit" disabled={busy || verify.cooling || loginWrong !== null} aria-busy={busy}>{checkLabel}</button>
       </div>
     </form>
   {/if}

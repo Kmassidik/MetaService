@@ -3,37 +3,38 @@
   // password field. The password goes to the parent in one request and is forgotten as soon as it is answered.
   // It draws into the grid of its row: the button in the action column, the form across the text and action columns.
   import SecretField from '../SecretField.svelte'
-  import { ApiError, remoteFix } from '../../lib/api.ts'
+  import { remoteFix } from '../../lib/api.ts'
+  import { ActionState } from '../../lib/action.svelte.ts'
+  import { actionLabel, retryLine } from '../../lib/action.ts'
   import { fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat } from '../../lib/remote.ts'
+  import { LONG_REQUEST_TIMEOUT_MS } from '../../lib/timeouts.ts'
   import type { ConnectForm, InstallOffer, VerifyResult } from '../../lib/types.ts'
 
   let { offer, form, fingerprint, onChecked }: { offer: InstallOffer; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
   let open = $state(false)
   let password = $state('')
-  let busy = $state(false)
-  let failure = $state('')
+  const installAction = new ActionState({ timeoutMs: LONG_REQUEST_TIMEOUT_MS })
   const needsPassword = $derived(fixNeedsPassword(form, offer))
-  const ready = $derived(!busy && (!needsPassword || password !== ''))
+  const ready = $derived(!installAction.busy && !installAction.cooling && (!needsPassword || password !== ''))
+  const installLabel = $derived(actionLabel(installAction.view, 'Install', 'Installing…'))
+  const retry = $derived(retryLine(installAction.view))
 
   async function install(event: SubmitEvent) {
     event.preventDefault()
     if (!ready) return
-    busy = true
-    failure = ''
-    try {
-      onChecked(await remoteFix(fixBody(form, fingerprint, offer, password)))
-    } catch (error) {
-      failure = error instanceof ApiError ? error.message : 'Something went wrong.'
-    } finally {
-      password = ''
-      busy = false
-    }
+    void installAction.run(async () => {
+      try {
+        onChecked(await remoteFix(fixBody(form, fingerprint, offer, password)))
+      } finally {
+        password = ''
+      }
+    })
   }
 
   function cancel() {
     open = false
     password = ''
-    failure = ''
+    installAction.reset()
   }
 </script>
 
@@ -48,11 +49,12 @@
     {:else}
       <p class="hint">It needs no password.</p>
     {/if}
-    {#if busy}<p class="hint" role="status">Installing… this can take a few minutes.</p>{/if}
-    {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
+    {#if installAction.busy}<p class="hint" role="status">Installing… this can take a few minutes.</p>{/if}
+    {#if installAction.message}<p class="bad" role="alert">{installAction.message}</p>{/if}
+    {#if retry}<p class="hint">{retry}</p>{/if}
     <div class="buttons">
-      <button class="btn line sm" type="button" disabled={busy} onclick={cancel}>Cancel</button>
-      <button class="btn green sm" type="submit" disabled={!ready}>{busy ? 'Installing…' : 'Install'}</button>
+      <button class="btn line sm" type="button" disabled={installAction.busy} onclick={cancel}>Cancel</button>
+      <button class="btn green sm" type="submit" disabled={!ready} aria-busy={installAction.busy}>{installLabel}</button>
     </div>
   </form>
 {/if}

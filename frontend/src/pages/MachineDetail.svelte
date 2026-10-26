@@ -12,6 +12,8 @@
   import PendingVms from '../components/vms/PendingVms.svelte'
   import StorageTab from '../components/storage/StorageTab.svelte'
   import { machineTabs, nextTab, pollsLive, type MachineTab } from '../lib/machineTabs.ts'
+  import { actionLabel } from '../lib/action.ts'
+  import { ActionState } from '../lib/action.svelte.ts'
   import { pendingFor, type PendingVm } from '../lib/pendingVms.ts'
   import { machineTabFromRoute } from '../lib/routes.ts'
   import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
@@ -53,6 +55,14 @@
   const making = $derived(machine ? pendingFor(pending, machine.id) : [])
   const tabs = $derived(machineTabs(machine ? machine.workloads.length + making.length : 0))
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
+  /** The page's own Check again: one press opens the check dialog, and nothing more starts until it is open. */
+  const checking = new ActionState()
+  const checkLabel = $derived(actionLabel(checking.view, 'Check again', 'Opening…'))
+
+  function startCheck() {
+    if (!machine) return
+    void checking.run(async () => onCheck(machine))
+  }
 
   // A new address (another machine, or a link that names a tab) starts from what the address says.
   $effect(() => {
@@ -81,7 +91,7 @@
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › {machine.id}</div>
     </div>
     <div class="sp">
-      <button class="btn line sm" type="button" onclick={() => onCheck(machine)} title="Look at this machine again over SSH. Nothing is installed unless you ask for it.">Check again</button>
+      <button class="btn line sm" type="button" disabled={checking.busy} aria-busy={checking.busy} onclick={startCheck} title="Look at this machine again over SSH. Nothing is installed unless you ask for it.">{checkLabel}</button>
       <button class="btn green sm" type="button" disabled={!readyForVms} title={readyForVms ? '' : 'This machine cannot create VMs yet.'} onclick={() => onCreate(machine)}>＋ Create a VM here</button>
       <button class="btn danger sm" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
     </div>
