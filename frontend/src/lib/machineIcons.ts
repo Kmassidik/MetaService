@@ -12,8 +12,12 @@ export const MACHINE_ICONS = {
 export const CARD_ICONS = {
   /** A globe on a stand: the machine's address on the network. */
   network: 'M12 3a9 9 0 100 18 9 9 0 000-18 M3 12h18 M12 3c2.6 2.5 4 5.6 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.6-4-9s1.4-6.5 4-9',
-  /** A screen on a stand: what the machine is, its system, chip and cores. */
+  /** A screen on a stand: the machine's system, and the name of its main chip. */
   computer: 'M3 4h18v12H3z M9 20h6 M12 16v4',
+  /** A tag with its hole: the profile the person saved for the machine. */
+  tag: 'M3 4h7l11 11-6 6L4 10z M7.5 7.5h.01',
+  /** A board with a fan: the machine's own graphics card. */
+  gpu: 'M3 7h17v10H3z M22 11h1 M22 14h1 M6 17v3 M18 17v3 M15 12a2.5 2.5 0 10-5 0 2.5 2.5 0 005 0',
   /** A chip with its pins: the CPU as it is running now. */
   cpu: 'M6 6h12v12H6z M9 9h6v6H9z M9 3v3 M15 3v3 M9 18v3 M15 18v3 M3 9h3 M3 15h3 M18 9h3 M18 15h3',
   /** A memory stick with its pins: the RAM. */

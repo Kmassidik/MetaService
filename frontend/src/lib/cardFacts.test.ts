@@ -1,6 +1,8 @@
 import { test, expect } from 'bun:test'
-import { addressLine, chipName, hardwareLine, hardwareParts, NO_VMS, UNKNOWN, vmsChip } from './cardFacts.ts'
-import { machine } from './testing.ts'
+import { cardFacts, chipName, NO_VMS, UNKNOWN, vmsChip } from './cardFacts.ts'
+import { machine, workload } from './testing.ts'
+import type { FactKey } from './cardFacts.ts'
+import type { Machine } from './types.ts'
 
 /** The real DGX Spark, as its helper reports it: the board, both kinds of core, and a GPU that works in the machine's memory. */
 const SPARK = machine({
@@ -15,38 +17,55 @@ const MAC = machine({ id: 'mac-mini', os: 'macos', arch: 'arm64', cpu_cores: 14,
 /** A PC chosen for its card. */
 const PC = machine({ id: 'pc', os: 'linux', arch: 'x86_64', cpu_cores: 32, ip: '192.168.0.42', gpu: [{ vendor: 'nvidia', model: 'NVIDIA GeForce RTX 5090', memory_mb: 32607 }] })
 
-test('the one hardware line reads the system, the chip, the cores and the machine name', () => {
-  expect(hardwareLine(MAC)).toBe('macOS · Apple Silicon · 14 cores · Apple M4 Max')
-  expect(hardwareLine(SPARK)).toBe('Linux · ARM · 20 cores · NVIDIA GB10')
-  expect(hardwareLine(PC)).toBe('Linux · x86 · 32 cores · NVIDIA GeForce RTX 5090')
+/** The facts as the card draws them, one "LABEL value" string per row. */
+const rows = (m: Machine) => cardFacts(m).map((fact) => `${fact.label} ${fact.value}`)
+
+/** The one row of a fact, which every card always has. */
+const factOf = (m: Machine, key: FactKey): string | undefined => cardFacts(m).find((fact) => fact.key === key)?.value
+
+test('a full machine gets a row per fact, in the one order every card uses', () => {
+  expect(rows(PC)).toEqual([
+    'ADDRESS 192.168.0.42',
+    'TYPE Other',
+    'OS Linux · x86',
+    'CORES 32',
+    'CPU —',
+    'GPU NVIDIA GeForce RTX 5090',
+    'VMS No VMs',
+  ])
+  expect(cardFacts(PC).map((fact) => fact.key)).toEqual(['address', 'type', 'os', 'cores', 'cpu', 'gpu', 'vms'])
 })
 
-test('the board and the CPU name share the one line, never two rows', () => {
-  const withBoard = machine({ os: 'linux', arch: 'aarch64', cpu_cores: 6, cpu_model: 'Cortex-A76', hardware: { system: 'Radxa Rock 5B', core_types: [], disks: [] } })
-  const line = hardwareLine(withBoard)
-  expect(line).toBe('Linux · ARM · 6 cores · Cortex-A76')
-  expect(line.split(' · ')).toHaveLength(4)
-  expect(hardwareParts(withBoard).map((part) => part.kind)).toEqual(['os', 'chip', 'cores', 'cpu'])
+test('the OS row carries the system and the chip, and the CPU keeps its own row', () => {
+  expect(rows(MAC)).toEqual([
+    'ADDRESS 192.168.0.41',
+    'TYPE Other',
+    'OS macOS · Apple Silicon',
+    'CORES 14',
+    'CPU Apple M4 Max',
+    'GPU —',
+    'VMS No VMs',
+  ])
+  expect(rows(SPARK)).toEqual([
+    'ADDRESS 192.168.0.40',
+    'TYPE Other',
+    'OS Linux · ARM',
+    'CORES 20',
+    'CPU Cortex-X925 + Cortex-A725',
+    'GPU NVIDIA GB10',
+    'VMS No VMs',
+  ])
 })
 
-test('a machine with no GPU or CPU name falls back to the computer model, then to the dash', () => {
-  const boardOnly = machine({ os: 'macos', arch: 'arm64', cpu_cores: 8, hardware: { system: 'Mac mini (2024)', core_types: [], disks: [] } })
-  expect(hardwareLine(boardOnly)).toBe('macOS · Apple Silicon · 8 cores · Mac mini (2024)')
-  expect(hardwareLine(machine({ os: 'macos', arch: 'arm64', cpu_cores: 8 }))).toBe('macOS · Apple Silicon · 8 cores · —')
+test('a machine with no hardware still fills every row, with a dash', () => {
+  const bare = machine({ os: '', arch: '', ip: '' })
+  expect(rows(bare)).toEqual(['ADDRESS —', 'TYPE Other', 'OS —', 'CORES —', 'CPU —', 'GPU —', 'VMS No VMs'])
 })
 
-test('every missing piece keeps its place as a dash, so the line is always one line', () => {
-  expect(hardwareLine(machine({ os: 'linux', arch: 'x86_64', cpu_cores: 4 }))).toBe('Linux · x86 · 4 cores · —')
-  expect(hardwareLine(machine({ os: 'linux', arch: '', cpu_cores: 4 }))).toBe('Linux · — · 4 cores · —')
-  expect(hardwareLine(machine({ os: '', arch: '', cpu_cores: 4 }))).toBe('— · — · 4 cores · —')
-  expect(hardwareLine(machine({ os: 'linux', arch: 'x86_64', cpu_cores: 1 }))).toBe('Linux · x86 · 1 core · —')
-  expect(hardwareLine(machine({ os: 'linux', arch: 'x86_64', cpu_cores: null }))).toBe('Linux · x86 · — · —')
-  expect(hardwareLine(machine({ os: 'linux', arch: 'x86_64', cpu_cores: 0 }))).toBe('Linux · x86 · — · —')
-})
-
-test('a machine that says nothing about itself gets the one dash', () => {
-  expect(hardwareLine(machine({ os: 'plan9', arch: 'z80' }))).toBe(UNKNOWN)
-  expect(hardwareLine(machine({ os: '', arch: '' }))).toBe(UNKNOWN)
+test('the OS row keeps the half it knows, and the dash when it knows neither', () => {
+  expect(factOf(machine({ os: 'linux', arch: '' }), 'os')).toBe('Linux')
+  expect(factOf(machine({ os: '', arch: '' }), 'os')).toBe(UNKNOWN)
+  expect(factOf(machine({ os: 'plan9', arch: 'z80' }), 'os')).toBe(UNKNOWN)
 })
 
 test('the chip is "Apple Silicon" only for a Mac on Apple chips', () => {
@@ -56,22 +75,29 @@ test('the chip is "Apple Silicon" only for a Mac on Apple chips', () => {
   expect(chipName(machine({ os: 'linux', arch: '' }))).toBe(UNKNOWN)
 })
 
-test('a card with no hardware data still fills every row', () => {
-  const bare = machine({ os: '', arch: '' })
-  expect(hardwareLine(bare)).toBe(UNKNOWN)
-  expect(addressLine(bare)).toBe('— · Other')
-  expect(vmsChip(bare.workloads.length)).toBe(NO_VMS)
+test('the GPU row names the card, every card of a machine with more than one, or the dash', () => {
+  expect(factOf(PC, 'gpu')).toBe('NVIDIA GeForce RTX 5090')
+  expect(factOf(MAC, 'gpu')).toBe(UNKNOWN)
+  expect(factOf(machine({ gpu: [{ vendor: 'nvidia', model: 'NVIDIA L4' }, { vendor: 'nvidia', model: 'NVIDIA L4' }] }), 'gpu')).toBe('NVIDIA L4, NVIDIA L4')
 })
 
-test('the address line is the address and the profile, one line', () => {
-  expect(addressLine(machine({ ip: '192.168.0.40', settings: { profile: 'gpu-box' } }))).toBe('192.168.0.40 · GPU box (DGX)')
-  expect(addressLine(machine({ ip: '192.168.0.40' }))).toBe('192.168.0.40 · Other')
-  expect(addressLine(machine({}))).toBe('— · Other')
+test('the TYPE row is the profile the person saved, and "Other" when there is none', () => {
+  expect(factOf(machine({ settings: { profile: 'gpu-box' } }), 'type')).toBe('GPU box (DGX)')
+  expect(factOf(machine({}), 'type')).toBe('Other')
 })
 
-test('the header chip says how many VMs, and "No VMs" when there are none', () => {
+test('the VMS row says how many, and "No VMs" when there are none', () => {
+  expect(factOf(machine({ workloads: [] }), 'vms')).toBe(NO_VMS)
+  expect(factOf(machine({ workloads: [workload()] }), 'vms')).toBe('1 VM')
+  expect(factOf(machine({ workloads: [workload(), workload({ id: 'w2' }), workload({ id: 'w3' })] }), 'vms')).toBe('3 VMs')
   expect(vmsChip(0)).toBe(NO_VMS)
   expect(vmsChip(1)).toBe('1 VM')
   expect(vmsChip(2)).toBe('2 VMs')
   expect(vmsChip(7)).toBe('7 VMs')
+})
+
+test('a core count that is not a whole number of cores is the dash, and one core is "1"', () => {
+  expect(factOf(machine({ cpu_cores: 1 }), 'cores')).toBe('1')
+  expect(factOf(machine({ cpu_cores: 0 }), 'cores')).toBe(UNKNOWN)
+  expect(factOf(machine({ cpu_cores: null }), 'cores')).toBe(UNKNOWN)
 })
