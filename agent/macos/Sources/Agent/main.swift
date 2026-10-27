@@ -91,9 +91,11 @@ func runAgent(_ config: AgentConfig) async throws {
     StatsRoutes(sampler: StatsSampler(source: DarwinStatsSource())).register(on: router)
     let storageCounters = StorageCounters()
     let storageScanner = DarwinStorageScanner(root: "/", counters: storageCounters)
-    let storage = StorageState(counters: storageCounters) { completion in
+    let storageCache = DarwinStorageCache(path: config.stateDirectory + "/storage.json")
+    let storage = StorageState(counters: storageCounters, restored: storageCache.load(), persist: { try storageCache.save($0) }) { completion in
         DarwinStorageExecution.start(scanner: storageScanner, completion: completion)
     }
+    _ = storage.startIfNeeded()
     StorageRoutes(state: storage).register(on: router)
     ImagesRoutes().register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)

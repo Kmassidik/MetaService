@@ -192,7 +192,8 @@ fn run(config: Config) -> Result<(), String> {
         service.set_on_change(Arc::new(move || nudge.beat_soon()));
         heartbeat.spawn(service.clone(), runtime.handle().clone());
     }
-    let app = http::App::new(service, command_token, config.bad_token_limit);
+    let app = http::App::new(service, command_token, config.bad_token_limit, Some(config.state_dir.join("storage.json")));
+    app.start_storage_if_needed();
     runtime.block_on(serve(app, &config, supervisor))
 }
 

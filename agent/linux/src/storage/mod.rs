@@ -1,6 +1,6 @@
 //! `GET /v1/storage` and `POST /v1/storage/scan`: a map of what fills this machine's disk, for the panel's Storage tab (drawn like disktree).
 //! A scan walks `/` in one background thread at the lowest CPU and disk priority, never leaving the root file system, and keeps the
-//! last finished map in memory. Read only: nothing here writes, moves or deletes a file.
+//! last finished map in memory and in the helper's state directory. The disk walk itself remains read only.
 mod flat;
 mod kinds;
 #[cfg(test)]
@@ -8,7 +8,7 @@ mod tests;
 mod walk;
 
 use crate::stats::iso8601;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -22,17 +22,18 @@ const TILES_PER_LEVEL: u64 = 4_000;
 const MIN_FLOOR_BYTES: u64 = 1024 * 1024;
 const KEEP_DEPTH: usize = 24;
 const MAX_ERROR_CHARS: usize = 300;
+const MAX_CACHE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 #[cfg(target_os = "linux")]
 const LOWEST_NICE: libc::c_int = 19;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Disk {
     pub total_bytes: u64,
     pub used_bytes: u64,
     pub free_bytes: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Map {
     pub root: String,
     pub finished_at: String,
@@ -80,23 +81,42 @@ struct State {
 
 pub struct Storage {
     root: PathBuf,
+    cache: Option<PathBuf>,
     state: Arc<Mutex<State>>,
     counters: Arc<Counters>,
 }
 
 impl Storage {
-    pub fn system() -> Storage {
-        Storage::at(PathBuf::from("/"))
+    pub fn system(cache: Option<PathBuf>) -> Storage {
+        Storage::new(PathBuf::from("/"), cache)
     }
 
+    #[cfg(test)]
     pub fn at(root: PathBuf) -> Storage {
-        Storage { root, state: Default::default(), counters: Default::default() }
+        Storage::new(root, None)
+    }
+
+    #[cfg(test)]
+    pub fn at_with_cache(root: PathBuf, cache: PathBuf) -> Storage {
+        Storage::new(root, Some(cache))
+    }
+
+    fn new(root: PathBuf, cache: Option<PathBuf>) -> Storage {
+        let map = cache.as_ref().and_then(|path| fresh_cache(path)).and_then(|bytes| serde_json::from_slice(&bytes).ok()).map(Arc::new);
+        let state = State { map, ..Default::default() };
+        Storage { root, cache, state: Arc::new(Mutex::new(state)), counters: Default::default() }
     }
 
     pub fn answer(&self) -> Answer {
         let state = self.state.lock().unwrap();
         let progress = state.scanning.then(|| Progress { entries: self.counters.entries.load(Ordering::Relaxed), bytes: self.counters.bytes.load(Ordering::Relaxed) });
         Answer { scanning: state.scanning, progress, error: state.error.clone(), map: state.map.clone() }
+    }
+
+    /// Starts the first scan at helper startup unless a completed map was restored.
+    pub fn start_if_needed(&self) -> Answer {
+        let empty = self.state.lock().unwrap().map.is_none();
+        if empty { self.scan() } else { self.answer() }
     }
 
     /// Starts a scan unless one runs or the last one ended less than `COOLDOWN` ago, then answers like `answer`.
@@ -107,23 +127,28 @@ impl Storage {
             if !state.scanning && rested {
                 state.scanning = true;
                 self.counters.reset();
-                let (root, shared, counters) = (self.root.clone(), self.state.clone(), self.counters.clone());
+                let (root, cache, shared, counters) = (self.root.clone(), self.cache.clone(), self.state.clone(), self.counters.clone());
                 let started = std::thread::Builder::new().name("storage-scan".into()).spawn(move || {
                     lower_priority();
                     let outcome = scan_once(&root, &counters);
                     let mut state = shared.lock().unwrap();
-                    state.scanning = false;
-                    state.ended = Some(Instant::now());
                     match outcome {
                         Ok(map) => {
-                            state.map = Some(Arc::new(map));
+                            let map = Arc::new(map);
+                            state.map = Some(map.clone());
                             state.error = None;
+                            drop(state);
+                            let saved = persist(cache.as_deref(), &map);
+                            state = shared.lock().unwrap();
+                            state.error = saved.err().map(|cause| cause.chars().take(MAX_ERROR_CHARS).collect());
                         }
                         Err(cause) => {
                             eprintln!("storage scan failed: {cause}");
                             state.error = Some(cause.chars().take(MAX_ERROR_CHARS).collect());
                         }
                     }
+                    state.scanning = false;
+                    state.ended = Some(Instant::now());
                 });
                 if let Err(cause) = started {
                     eprintln!("storage scan could not start: {cause}");
@@ -140,6 +165,20 @@ impl Storage {
             std::thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+fn fresh_cache(path: &Path) -> Option<Vec<u8>> {
+    let age = std::fs::metadata(path).ok()?.modified().ok()?.elapsed().ok()?;
+    if age > MAX_CACHE_AGE { return None; }
+    std::fs::read(path).ok()
+}
+
+fn persist(cache: Option<&Path>, map: &Map) -> Result<(), String> {
+    let Some(path) = cache else { return Ok(()) };
+    let bytes = serde_json::to_vec(map).map_err(|cause| format!("the map could not be encoded: {cause}"))?;
+    let temporary = path.with_extension("tmp");
+    crate::files::write_private(&temporary, &bytes).map_err(|cause| format!("the map could not be written: {cause}"))?;
+    std::fs::rename(&temporary, path).map_err(|cause| format!("the map could not be replaced: {cause}"))
 }
 
 fn scan_once(root: &Path, counters: &Counters) -> Result<Map, String> {

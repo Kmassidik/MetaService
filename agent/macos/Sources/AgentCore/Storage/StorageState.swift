@@ -40,6 +40,7 @@ public final class StorageState: @unchecked Sendable {
     private let start: Start
     private let now: @Sendable () -> TimeInterval
     private let cooldown: TimeInterval
+    private let persist: (@Sendable (StorageMap) throws -> Void)?
     private var scanning = false
     private var ended: TimeInterval?
     private var error: String?
@@ -47,10 +48,13 @@ public final class StorageState: @unchecked Sendable {
 
     public init(counters: StorageCounters = StorageCounters(), cooldown: TimeInterval = 30,
                 now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                restored: StorageMap? = nil, persist: (@Sendable (StorageMap) throws -> Void)? = nil,
                 start: @escaping Start) {
         self.counters = counters
         self.cooldown = cooldown
         self.now = now
+        self.persist = persist
+        self.map = restored
         self.start = start
     }
 
@@ -59,6 +63,19 @@ public final class StorageState: @unchecked Sendable {
         defer { lock.unlock() }
         let progress = scanning ? counters.snapshot() : nil
         return StorageAnswer(scanning: scanning, progress: progress, error: error, map: map)
+    }
+
+    /// Starts the initial scan only when no map was restored and no earlier scan has finished.
+    public func startIfNeeded() -> StorageAnswer {
+        lock.lock()
+        let shouldStart = map == nil && !scanning && ended == nil
+        if shouldStart {
+            scanning = true
+            counters.reset()
+        }
+        lock.unlock()
+        guard shouldStart else { return answer() }
+        return begin()
     }
 
     /// Starts at most one scan. Repeated posts and posts within 30 seconds of completion return the current answer.
@@ -72,6 +89,10 @@ public final class StorageState: @unchecked Sendable {
         }
         lock.unlock()
         guard shouldStart else { return answer() }
+        return begin()
+    }
+
+    private func begin() -> StorageAnswer {
         start { [weak self] result in
             switch result {
             case .success(let map): self?.finish(map)
@@ -88,6 +109,13 @@ public final class StorageState: @unchecked Sendable {
         map = completed
         error = nil
         lock.unlock()
+        do {
+            try persist?(completed)
+        } catch {
+            lock.lock()
+            self.error = String("the map could not be saved: \(error)".prefix(300))
+            lock.unlock()
+        }
     }
 
     private func fail(_ message: String) {

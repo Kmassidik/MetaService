@@ -43,7 +43,7 @@ paths:
     get:
       summary: >
         A map of what fills this machine's root file system, for the panel's Storage tab (drawn like disktree): the last finished scan, and whether one runs now. Read only, and it never
-        starts a scan. Required for current helpers, added without a version change; the parent still treats a legacy helper's 404 as `old_helper`. A scan walks `/` without leaving its file system (other mounts are not entered),
+        starts a scan. Required for current helpers, added without a version change; the parent still treats a legacy helper's 404 as `old_helper`. At helper startup a valid `<state-dir>/storage.json` no older than 24 hours is restored; otherwise the first scan starts automatically without a panel request. A scan walks `/` without leaving its file system (other mounts are not entered),
         counts the space files really take (blocks) and a hard-linked file once, and keeps only entries big enough to see: anything under the used space split 4000 ways (at least 1 MiB)
         is added into its folder's `rest`, and the list is cut to at most 12000 entries the same way. Folders the helper cannot open are counted in `unreadable` and add only their own size,
         so `disk.used_bytes` minus the first node's `bytes` is the space the scan could not see.
@@ -921,7 +921,7 @@ components:
           properties:
             entries: { type: integer, minimum: 0, description: 'files and folders looked at so far' }
             bytes: { $ref: '#/components/schemas/Bytes' }
-        error: { type: string, nullable: true, maxLength: 300, description: 'Why the last scan failed, in plain words; null after a good one.' }
+        error: { type: string, nullable: true, maxLength: 300, description: 'Why the last scan failed or the completed map could not be saved, in plain words; null after a good scan and save.' }
         map:
           description: 'The last finished scan (kept while a new one runs); null before the first one ends.'
           oneOf: [ { $ref: '#/components/schemas/StorageMap' }, { type: 'null' } ]

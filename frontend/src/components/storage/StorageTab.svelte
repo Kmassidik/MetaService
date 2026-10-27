@@ -143,7 +143,7 @@
     <p class="note">The machine is offline or did not answer, so its disk cannot be read now.</p>
   {/if}
   {#if askFailed}<p class="note">The scan could not be started. Try Rescan again.</p>{/if}
-  {#if storage?.error}<p class="note">The last scan failed: {storage.error}</p>{/if}
+  {#if storage?.error}<p class="note">Storage warning: {storage.error}</p>{/if}
 
   {#if map}
     <nav class="trail" aria-label="Where you are">

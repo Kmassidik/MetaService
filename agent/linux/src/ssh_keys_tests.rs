@@ -97,7 +97,7 @@ async fn a_stopped_workload_is_refused_with_not_running_and_nothing_is_written()
 // ---- route
 
 pub(crate) async fn send(service: &Arc<Service>, method: &str, path: &str, body: &str, token: &str) -> (StatusCode, Value) {
-    let app = router(App::new(service.clone(), TOKEN.into(), 10));
+    let app = router(App::new(service.clone(), TOKEN.into(), 10, None));
     let mut request = Request::builder().method(method).uri(path).header("authorization", format!("Bearer {token}")).body(Body::from(body.to_string())).unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
     let response = app.oneshot(request).await.unwrap();

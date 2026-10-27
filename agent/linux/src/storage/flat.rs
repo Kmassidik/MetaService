@@ -1,24 +1,25 @@
 //! The walked tree as the contract sends it: a flat list, each entry naming its folder by place, at most `MAX_NODES` long.
+use super::kinds::{Kind, Reclaim};
 use super::walk::{Entry, EntryType};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const MAX_NODES: usize = 12_000;
 pub const MAX_NAME_CHARS: usize = 255;
 /// Rounds of folding before giving up on getting under the limit (each round folds strictly more).
 const MAX_FOLD_ROUNDS: usize = 16;
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Node {
     /// The place of its folder in the list; -1 for the first entry, the scanned folder itself.
     pub parent: i64,
     pub name: String,
     #[serde(rename = "type")]
-    pub kind_of: &'static str,
+    pub kind_of: EntryType,
     pub bytes: u64,
     pub files: u64,
     pub items: u64,
-    pub kind: &'static str,
-    pub reclaim: Option<&'static str>,
+    pub kind: Kind,
+    pub reclaim: Option<Reclaim>,
     pub modified: Option<i64>,
 }
 
@@ -81,12 +82,12 @@ pub fn flatten(root: &Entry) -> Vec<Node> {
         nodes.push(Node {
             parent,
             name: entry.name.chars().take(MAX_NAME_CHARS).collect(),
-            kind_of: entry.kind_of.word(),
+            kind_of: entry.kind_of,
             bytes: entry.bytes,
             files: entry.files,
             items: entry.items,
-            kind: entry.kind.word(),
-            reclaim: entry.reclaim.map(|reclaim| reclaim.word()),
+            kind: entry.kind,
+            reclaim: entry.reclaim,
             modified: entry.modified,
         });
         // Pushed smallest first, so the largest child comes out (and is listed) first.

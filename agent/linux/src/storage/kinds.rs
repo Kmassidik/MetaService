@@ -2,10 +2,13 @@
 //! The rules are disktree's (github.com/tobi/disktree, crates/disktree-core/src/classify.rs, MIT), kept close to the original
 //! so the panel reads like disktree. Added here: `Vms`, for the folders a machine's VMs and containers live in.
 use super::walk::{Entry, EntryType, Marks};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Kind {
     Code,
+    #[serde(rename = "agent")]
     AgentScratch,
     Toolchain,
     Synced,
@@ -18,25 +21,8 @@ pub enum Kind {
     Other,
 }
 
-impl Kind {
-    /// The word in the contract.
-    pub const fn word(self) -> &'static str {
-        match self {
-            Self::Code => "code",
-            Self::AgentScratch => "agent",
-            Self::Toolchain => "toolchain",
-            Self::Synced => "synced",
-            Self::Git => "git",
-            Self::Media => "media",
-            Self::Documents => "documents",
-            Self::Cache => "cache",
-            Self::Vms => "vms",
-            Self::Other => "other",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Reclaim {
     Regenerable,
     SyncHistory,
@@ -47,23 +33,6 @@ pub enum Reclaim {
     Snapshots,
     Trash,
     Temporary,
-}
-
-impl Reclaim {
-    /// The word in the contract.
-    pub const fn word(self) -> &'static str {
-        match self {
-            Self::Regenerable => "regenerable",
-            Self::SyncHistory => "sync_history",
-            Self::PackageStore => "package_store",
-            Self::BuildOutput => "build_output",
-            Self::Reinstallable => "reinstallable",
-            Self::SandboxLayers => "sandbox_layers",
-            Self::Snapshots => "snapshots",
-            Self::Trash => "trash",
-            Self::Temporary => "temporary",
-        }
-    }
 }
 
 /// The kind a folder name says on its own, if any.

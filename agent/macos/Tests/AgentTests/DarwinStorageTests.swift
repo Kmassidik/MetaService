@@ -36,6 +36,45 @@ final class DarwinStorageTests: XCTestCase {
         try XCTUnwrap(parent.children.first { $0.name == name })
     }
 
+    private func map(_ marker: UInt64) -> StorageMap {
+        let disk = StorageDisk(totalBytes: 100, usedBytes: 60, freeBytes: 40)
+        let node = StorageNode(parent: -1, name: "/", type: .dir, bytes: marker, files: 0, items: 0, kind: .other, reclaim: nil, modified: nil)
+        return StorageMap(root: "/", finishedAt: "2026-10-26T00:00:00Z", seconds: 0.1, entries: 1, unreadable: 0, disk: disk, nodes: [node])
+    }
+
+    func testStorageCacheRoundTripUsesPrivatePermissions() throws {
+        let path = root + "/storage.json"
+        let cache = DarwinStorageCache(path: path)
+        let expected = map(42)
+
+        try cache.save(expected)
+
+        XCTAssertEqual(cache.load(), expected)
+        let attributes = try FileManager.default.attributesOfItem(atPath: path)
+        let mode = try XCTUnwrap(attributes[.posixPermissions] as? NSNumber).intValue
+        XCTAssertEqual(mode & 0o777, 0o600)
+    }
+
+    func testMissingAndCorruptStorageCacheAreRejected() throws {
+        let path = root + "/storage.json"
+        let cache = DarwinStorageCache(path: path)
+        XCTAssertNil(cache.load())
+
+        try Data("not a storage map".utf8).write(to: URL(fileURLWithPath: path))
+
+        XCTAssertNil(cache.load())
+    }
+
+    func testStorageCacheOlderThanADayIsIgnored() throws {
+        let path = root + "/storage.json"
+        let cache = DarwinStorageCache(path: path)
+        try cache.save(map(42))
+        let old = Date.distantPast
+        try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: path)
+
+        XCTAssertNil(cache.load())
+    }
+
     func testAllocatedSizesAndSmallEntriesJoinRest() throws {
         try write("big.bin", 600_000)
         try write("notes/note.md", 100)

@@ -182,10 +182,10 @@ fn the_flat_list_names_each_folder_by_an_earlier_place() {
     let nodes: Vec<Node> = flatten(&tree);
     assert_eq!(nodes.len(), tree.count());
     assert_eq!(nodes[0].parent, -1);
-    assert_eq!(nodes[0].kind_of, "dir");
+    assert_eq!(nodes[0].kind_of, EntryType::Dir);
     for (place, node) in nodes.iter().enumerate().skip(1) {
         assert!((0..place as i64).contains(&node.parent), "{} points at {}", node.name, node.parent);
-        assert_eq!(nodes[node.parent as usize].kind_of, "dir");
+        assert_eq!(nodes[node.parent as usize].kind_of, EntryType::Dir);
     }
     // Largest first among siblings.
     let tops: Vec<u64> = nodes.iter().filter(|node| node.parent == 0).map(|node| node.bytes).collect();
@@ -217,4 +217,121 @@ fn the_answer_has_exactly_the_contract_keys() {
     let again = serde_json::to_value(storage.scan()).unwrap();
     assert_eq!(again["scanning"], false);
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn empty_startup_starts_once_and_coalesces_scan_requests() {
+    let root = sample();
+    let state = scratch("empty-startup");
+    let cache = state.join("storage.json");
+    let storage = Storage::at_with_cache(root.clone(), cache.clone());
+
+    let started = serde_json::to_value(storage.start_if_needed()).unwrap();
+    assert_eq!(started["scanning"], true);
+    let repeated_startup = serde_json::to_value(storage.start_if_needed()).unwrap();
+    assert_eq!(repeated_startup["scanning"], true);
+    let manual = serde_json::to_value(storage.scan()).unwrap();
+    assert_eq!(manual["scanning"], true);
+    storage.wait();
+
+    let answer = serde_json::to_value(storage.answer()).unwrap();
+    assert_eq!(answer["scanning"], false);
+    assert!(answer["map"].is_object());
+    let cached: serde_json::Value = serde_json::from_slice(&fs::read(&cache).unwrap()).unwrap();
+    assert_eq!(cached, answer["map"]);
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(state).unwrap();
+}
+
+#[test]
+fn restored_map_skips_startup_and_preserves_finished_at() {
+    let root = sample();
+    let state = scratch("restored-startup");
+    let cache = state.join("storage.json");
+    let first = Storage::at_with_cache(root.clone(), cache.clone());
+    first.start_if_needed();
+    first.wait();
+    let finished_at = serde_json::to_value(first.answer()).unwrap()["map"]["finished_at"].clone();
+    assert!(finished_at.is_string());
+
+    let restored = Storage::at_with_cache(root.clone(), cache);
+    let answer = serde_json::to_value(restored.start_if_needed()).unwrap();
+    assert_eq!(answer["scanning"], false);
+    assert_eq!(answer["map"]["finished_at"], finished_at);
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(state).unwrap();
+}
+
+#[test]
+fn a_cache_older_than_a_day_is_scanned_again() {
+    let root = sample();
+    let state = scratch("stale-cache");
+    let cache = state.join("storage.json");
+    let first = Storage::at_with_cache(root.clone(), cache.clone());
+    first.start_if_needed();
+    first.wait();
+    std::process::Command::new("touch").args(["-t", "200001010000.00"]).arg(&cache).status().unwrap();
+
+    let restored = Storage::at_with_cache(root.clone(), cache);
+    let started = serde_json::to_value(restored.start_if_needed()).unwrap();
+    assert_eq!(started["scanning"], true);
+    restored.wait();
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(state).unwrap();
+}
+
+#[test]
+fn corrupt_cache_is_treated_as_empty_and_replaced_after_startup() {
+    let root = sample();
+    let state = scratch("corrupt-startup");
+    let cache = state.join("storage.json");
+    fs::write(&cache, b"{not a storage map").unwrap();
+    let storage = Storage::at_with_cache(root.clone(), cache.clone());
+
+    let started = serde_json::to_value(storage.start_if_needed()).unwrap();
+    assert_eq!(started["scanning"], true);
+    storage.wait();
+    let answer = serde_json::to_value(storage.answer()).unwrap();
+    assert!(answer["map"].is_object());
+    let cached: serde_json::Value = serde_json::from_slice(&fs::read(&cache).unwrap()).unwrap();
+    assert_eq!(cached, answer["map"]);
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(state).unwrap();
+}
+
+#[test]
+fn persistence_failure_is_reported_without_losing_the_map() {
+    let root = sample();
+    let state = scratch("unwritable-cache");
+    let storage = Storage::at_with_cache(root.clone(), state.clone());
+    storage.start_if_needed();
+    storage.wait();
+
+    let answer = serde_json::to_value(storage.answer()).unwrap();
+    assert!(answer["map"].is_object());
+    assert!(answer["error"].as_str().unwrap().contains("map could not be"));
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(state).unwrap();
+}
+
+#[test]
+fn a_failed_scan_does_not_replace_the_last_good_cached_map() {
+    let root = sample();
+    let state = scratch("failed-startup");
+    let cache = state.join("storage.json");
+    let first = Storage::at_with_cache(root.clone(), cache.clone());
+    first.start_if_needed();
+    first.wait();
+    let good = serde_json::to_value(first.answer()).unwrap()["map"].clone();
+    let cached_before = fs::read(&cache).unwrap();
+    fs::remove_dir_all(&root).unwrap();
+
+    let restored = Storage::at_with_cache(root, cache.clone());
+    restored.scan();
+    restored.wait();
+    let answer = serde_json::to_value(restored.answer()).unwrap();
+    assert!(answer["error"].is_string());
+    assert_eq!(answer["map"], good);
+    assert_eq!(fs::read(&cache).unwrap(), cached_before);
+    fs::remove_dir_all(state).unwrap();
 }

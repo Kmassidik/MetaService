@@ -39,7 +39,7 @@ async fn machine(program: &str, arguments: &[&str]) -> Machine {
     let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
     engine.create(WORKLOAD, &request(Kind::Container)).ok().unwrap();
     engine.set_attach(program, arguments);
-    let app = App::new(service_over(engine.clone()), TOKEN.into(), 10);
+    let app = App::new(service_over(engine.clone()), TOKEN.into(), 10, None);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, router(app).into_make_service_with_connect_info::<SocketAddr>()).await });

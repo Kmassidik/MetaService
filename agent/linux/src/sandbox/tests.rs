@@ -99,7 +99,7 @@ fn body(id: &str, end_at: &str) -> Value {
 }
 
 async fn send(service: &Arc<Service>, method: &str, path: &str, body: &Value, token: &str) -> (StatusCode, Value) {
-    let app = router(App::new(service.clone(), TOKEN.into(), 10));
+    let app = router(App::new(service.clone(), TOKEN.into(), 10, None));
     let mut request = Request::builder().method(method).uri(path).header("authorization", format!("Bearer {token}")).body(Body::from(body.to_string())).unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
     let response = app.oneshot(request).await.unwrap();
@@ -110,7 +110,7 @@ async fn send(service: &Arc<Service>, method: &str, path: &str, body: &Value, to
 
 /// The port route carries the command token in its own header, so the caller's `Authorization` can reach the program inside.
 async fn send_port(service: &Arc<Service>, method: &str, path: &str, credentials: &str) -> (StatusCode, Value) {
-    let app = router(App::new(service.clone(), TOKEN.into(), 10));
+    let app = router(App::new(service.clone(), TOKEN.into(), 10, None));
     let mut request = Request::builder().method(method).uri(path).header("x-metaservice-token", credentials).body(Body::empty()).unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
     let response = app.oneshot(request).await.unwrap();

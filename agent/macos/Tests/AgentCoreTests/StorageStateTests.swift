@@ -11,10 +11,67 @@ final class StorageStateTests: XCTestCase {
         var value: TimeInterval = 100
     }
 
+    private final class Saves: @unchecked Sendable {
+        var maps: [StorageMap] = []
+    }
+
     private func map(_ marker: UInt64 = 1) -> StorageMap {
         let disk = StorageDisk(totalBytes: 100, usedBytes: 60, freeBytes: 40)
         let node = StorageNode(parent: -1, name: "/", type: .dir, bytes: marker, files: 0, items: 0, kind: .other, reclaim: nil, modified: nil)
         return StorageMap(root: "/", finishedAt: "2026-10-26T00:00:00Z", seconds: 0.1, entries: 1, unreadable: 0, disk: disk, nodes: [node])
+    }
+
+    func testEmptyStartupStartsOnceAndCoalescesManualPost() {
+        let starts = Starts()
+        let state = StorageState { starts.completions.append($0) }
+
+        _ = state.startIfNeeded()
+        _ = state.startIfNeeded()
+        _ = state.scan()
+
+        XCTAssertTrue(state.answer().scanning)
+        XCTAssertEqual(starts.count, 1)
+    }
+
+    func testRestoredMapSkipsStartup() {
+        let starts = Starts()
+        let restored = map(42)
+        let state = StorageState(restored: restored) { starts.completions.append($0) }
+
+        _ = state.startIfNeeded()
+
+        XCTAssertFalse(state.answer().scanning)
+        XCTAssertEqual(state.answer().map, restored)
+        XCTAssertEqual(starts.count, 0)
+    }
+
+    func testSuccessfulCompletionPersistsAndFailureDoesNotReplaceLastGoodMap() {
+        let starts = Starts()
+        let clock = Clock()
+        let saves = Saves()
+        let state = StorageState(now: { clock.value }, persist: { saves.maps.append($0) }) { starts.completions.append($0) }
+        _ = state.scan()
+        starts.completions[0](.success(map(10)))
+        XCTAssertEqual(saves.maps, [map(10)])
+
+        clock.value += 30
+        _ = state.scan()
+        starts.completions[1](.failure(StorageScanFailure("scan failed")))
+
+        XCTAssertEqual(saves.maps, [map(10)])
+        XCTAssertEqual(state.answer().map, map(10))
+        XCTAssertEqual(state.answer().error, "scan failed")
+    }
+
+    func testPersistenceFailureIsReportedWithoutLosingTheMap() {
+        enum TestError: Error { case writeFailed }
+        let starts = Starts()
+        let state = StorageState(persist: { _ in throw TestError.writeFailed }) { starts.completions.append($0) }
+        _ = state.scan()
+        starts.completions[0](.success(map(10)))
+
+        XCTAssertEqual(state.answer().map, map(10))
+        XCTAssertEqual(state.answer().error, "the map could not be saved: writeFailed")
     }
 
     func testConcurrentPostsCoalesceAndCooldownDoesNotRestart() {

@@ -7,25 +7,17 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use serde::{Deserialize, Serialize};
 
 const BLOCK_BYTES: u64 = 512;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EntryType {
     Dir,
     File,
     /// The smaller entries of one folder, added together.
     Rest,
-}
-
-impl EntryType {
-    pub const fn word(self) -> &'static str {
-        match self {
-            Self::Dir => "dir",
-            Self::File => "file",
-            Self::Rest => "rest",
-        }
-    }
 }
 
 /// Names inside a folder that the kind rules look for. Seen during the walk, because small files are not kept.

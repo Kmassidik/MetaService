@@ -18,6 +18,7 @@ use rand::Rng;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use subtle::ConstantTimeEq;
@@ -33,15 +34,19 @@ pub struct App {
     /// The sandboxes this helper runs. The service owns the one of them, so `/v1/facts` and these routes always agree.
     pub sandboxes: Arc<Sandboxes>,
     stats: Monitor,
-    /// The map of what fills the disk (the panel's Storage tab), scanned on request.
+    /// The map of what fills the disk (the panel's Storage tab), scanned at startup and on request.
     storage: Storage,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
-    pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32) -> Arc<App> {
+    pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32, storage_cache: Option<PathBuf>) -> Arc<App> {
         let sandboxes = service.sandboxes();
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), storage: Storage::system(), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
+    }
+
+    pub fn start_storage_if_needed(&self) {
+        self.storage.start_if_needed();
     }
 
     fn locked_out(&self, ip: IpAddr) -> bool {
