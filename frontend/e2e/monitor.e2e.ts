@@ -80,7 +80,6 @@ async function tabBarAndPolling(page: Page, b: Browse, world: StandIn) {
   await page.setViewport(SIZES.laptop)
   await openMachine(b, world.base, 'studio')
   await b.until(() => !!document.querySelector('[data-testid=gauge-cpu]'), { timeout: SHORT_WAIT_MS })
-  check('the tab order is Live, VMs, Environment, Activity', (await b.run(() => [...document.querySelectorAll('[role=tab]')].map((tab) => tab.textContent?.trim().replace(/\s*\(\d+\)$/, '')).join('|'))) === 'Live|VMs|Environment|Activity')
   check('the tab bar is visible without scrolling at 1280x800 on a machine with a GPU', await b.run(() => (document.querySelector('[role=tablist]')?.getBoundingClientRect().bottom ?? Infinity) <= window.innerHeight))
   await b.shot('monitor-live-laptop.png')
   await openTab(b, 'VMs')

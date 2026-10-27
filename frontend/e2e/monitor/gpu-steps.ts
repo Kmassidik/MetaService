@@ -25,6 +25,7 @@ interface GpuLook {
   lineCounts: number[]
   /** The four numbers of the header's strip, and the sentence under them about the gap between booked and used. */
   strip: string
+  grid: string
   note: string
 }
 
@@ -36,6 +37,7 @@ const look = (b: Browse): Promise<GpuLook> =>
     const gpuCard = document.querySelector<HTMLElement>('section[aria-label=GPU]:not(:has(.dial))')
     return {
       strip: text('[data-testid=gpu-strip] .strip'),
+      grid: text('[data-testid=gpu-memory-grid]').replace(/\s+/g, ' ').trim(),
       note: text('[data-testid=gpu-note]'),
       gauge: text('[data-testid=gauge-gpu]'),
       gaugeCaption: document.querySelector('[data-testid=gauge-gpu]')?.closest('section')?.querySelector<HTMLElement>('.caption')?.innerText ?? '',
@@ -69,7 +71,7 @@ async function oneNvidia(page: Page, b: Browse, world: StandIn) {
   check('studio: "Programs using the GPU" lists the programs with their memory', seen.programs === 2 && (await b.text()).toLowerCase().includes('programs using the gpu') && (await b.text()).includes('llama-server'))
   check('studio: no Mac note on an NVIDIA machine', !seen.macNote)
   check('studio: one GPU is named "GPU · RTX 5090" in the legend', seen.legendNames.join() === 'GPU · RTX 5090', seen.legendNames.join())
-  check('studio: the header strip has the card\'s total, booked, used and free memory', /^GPU RTX 5090 · 32 GB total · 0 GB booked · \d+(\.\d)? GB used · \d+(\.\d)? GB free$/.test(seen.strip), seen.strip)
+  check('studio: the 2x2 grid shows free, total, booked and used externally', /^FREE \d+(\.\d)? GB TOTAL 32 GB BOOKED 0 GB USED EXTERNALLY \d+(\.\d)? GB$/.test(seen.grid), seen.grid)
   check('studio: the strip says the memory used without a booking is not MetaService\'s', /^\d+(\.\d)? GB used by something MetaService does not manage\.$/.test(seen.note), seen.note)
   await b.shot('gpu-studio-desktop.png', true)
   await page.setViewport(SIZES.phone)
@@ -135,7 +137,7 @@ async function offlineKeepsTheHour(page: Page, b: Browse, world: StandIn) {
   const seen = await look(b)
   const grey = await b.run(() => getComputedStyle(document.querySelector('[data-testid=monitor-numbers]') ?? document.body).opacity)
   check('offline: the GPU charts stay with their last hour, greyed', Number(grey) < 1 && seen.charts.length === 4 && seen.lineCounts.every((length) => length > 40), `${grey} ${seen.charts.length} ${seen.lineCounts}`)
-  check('offline: the header strip keeps the card\'s name and dashes its numbers', seen.strip === 'GPU RTX 5090 · —' && seen.note === '', seen.strip)
+  check('offline: the header keeps the card name and the grid dashes its numbers', seen.strip === 'GPU RTX 5090' && seen.grid === 'FREE — TOTAL — BOOKED 0 GB USED EXTERNALLY —' && seen.note === '', `${seen.strip} | ${seen.grid}`)
   await b.shot('gpu-duo-offline.png', true)
 }
 
