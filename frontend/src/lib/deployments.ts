@@ -4,7 +4,7 @@ import type { BuildingHost, BuildingServer } from './building.ts'
 import { hasGpu } from './gpuChoice.ts'
 import type { Machine } from './types.ts'
 
-const PROGRESS = new Set(['creating', 'starting', 'provisioning'])
+const PROGRESS = new Set(['creating', 'starting', 'provisioning', 'deleting'])
 
 /** The VMs on one machine in the shape the building, cards and table all use. */
 export function vmServers(machine: Machine): BuildingServer[] {

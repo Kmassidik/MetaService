@@ -5,7 +5,7 @@ import puppeteer from 'puppeteer-core'
 import { check, finish } from './support/check.ts'
 import { browse } from './support/page.ts'
 import { chromePath } from './support/paths.ts'
-import { deleteRefusalKeepsTheDialog, deleteStaysOpenWhileWorking, keysSendOneRequest, onAPhone, refusalShowsNextToTheButton, silentRootFreesTheButton, startAndStopSendOneRequest, successLineGoesAway, watchVmRequests } from './actions/guard.ts'
+import { deleteOrderShowsProgressAndFailure, deleteRefusalKeepsTheDialog, deleteStaysOpenWhileWorking, keysSendOneRequest, onAPhone, refusalShowsNextToTheButton, silentRootFreesTheButton, startAndStopSendOneRequest, successLineGoesAway, watchVmRequests } from './actions/guard.ts'
 import * as bundles from './actions/bundles.ts'
 import { everyDestructiveButtonAsksFirst, watchWrites } from './actions/confirm.ts'
 import { iconButtonsLookAndWork } from './actions/icons.ts'
@@ -30,6 +30,7 @@ try {
   await successLineGoesAway(b, standin)
   await deleteStaysOpenWhileWorking(b, standin, watch)
   await deleteRefusalKeepsTheDialog(b, standin)
+  await deleteOrderShowsProgressAndFailure(b, standin)
   await onAPhone(b, standin)
   await everyDestructiveButtonAsksFirst(b, standin, watchWrites(page))
   await iconButtonsLookAndWork(b, standin)

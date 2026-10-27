@@ -32,14 +32,15 @@
   import Terminal from './components/Terminal.svelte'
   import { closeConsole, consoleTarget } from './lib/terminalStore.svelte.ts'
   import { stopNote } from './lib/stoppedReason.ts'
-  import { dismissedOrders, sessionOrders, stopWatching, watchedOrder } from './lib/pendingStore.svelte.ts'
+  import { dismissedOrders, reconcileDeleteOrders, sessionOrders, stopWatching, trackOrder, watchedOrder } from './lib/pendingStore.svelte.ts'
   import { progressView } from './lib/createProgress.ts'
-  import { mergeOrders, pendingVms } from './lib/pendingVms.ts'
+  import { deleteFailure, hasDeleteInProgress, withDeleting } from './lib/deleteOrders.ts'
+  import { mergeOrders, parseCommand, pendingVms } from './lib/pendingVms.ts'
   import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
   const CLOCK_MS = 5_000
-  /** While a VM is being made the lists are read this often, so it shows up soon after the machine reports it. */
-  const MAKING_POLL_MS = 3_000
+  /** While a VM is being made or deleted the lists are read this often, so progress and the real outcome show promptly. */
+  const WORKING_POLL_MS = 3_000
 
   let phase = $state<'loading' | 'signedOut' | 'ready' | 'error'>('loading')
   let username = $state('')
@@ -76,17 +77,21 @@
   const recheckRemote = $derived(remoteInfos.find((info) => info.machine === rechecking?.id) ?? null)
   const vmHandlers: VmActionHandlers = { onAct: act, onInstall: install, onOpenChat: openChat, onDelete: (machine, workload) => (deleting = { machine, workload }) }
   const deleteCopy = $derived(deleting ? deleteVmCopy(deleting.machine, deleting.workload) : deleteVmCopy({ name: '' }, { name: '' }))
-  const pending = $derived(pendingVms(mergeOrders(commands, sessionOrders()), machines, now, dismissedOrders()))
+  const orders = $derived(mergeOrders(commands, sessionOrders()))
+  const shownMachines = $derived(withDeleting(machines, orders))
+  const pending = $derived(pendingVms(orders, shownMachines, now, dismissedOrders()))
   const openConsoleTarget = $derived(consoleTarget())
-  const consoleMachine = $derived(machines.find((machine) => machine.id === openConsoleTarget?.machine))
+  const consoleMachine = $derived(shownMachines.find((machine) => machine.id === openConsoleTarget?.machine))
   const consoleVm = $derived(consoleMachine?.workloads.find((workload) => workload.id === openConsoleTarget?.workload) ?? null)
   const consoleNote = $derived(consoleMachine && consoleVm ? stopNote(consoleMachine.id, consoleVm, commands) : null)
-  const progress = $derived(progressView(mergeOrders(commands, sessionOrders()), machines, watchedOrder()))
+  const progress = $derived(progressView(orders, shownMachines, watchedOrder()))
   const making = $derived(pending.some((entry) => entry.stage !== 'failed') || progress?.progress.status === 'working')
+  const deleteWorking = $derived(hasDeleteInProgress(machines, orders))
+  const fastPolling = $derived(making || deleteWorking)
 
   $effect(() => {
-    if (!making) return
-    const timer = setInterval(() => !document.hidden && refresh(), MAKING_POLL_MS)
+    if (!fastPolling) return
+    const timer = setInterval(() => !document.hidden && refresh(), WORKING_POLL_MS)
     return () => clearInterval(timer)
   })
 
@@ -113,6 +118,7 @@
     if (phase !== 'ready') return
     try {
       ;[machines, commands, bundles, brain, remoteInfos] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus(), remoteMachines()])
+      reconcileDeleteOrders(commands)
       banner = ''
       loaded = true
     } catch (error) {
@@ -213,11 +219,21 @@
     }
   }
 
-  /** Deletes the VM the dialog is about. A refusal is thrown: the dialog shows it and stays. */
+  /** Accepts a delete order, not a completed deletion. The order drives the busy state and its later result. */
   async function confirmDelete() {
     if (!deleting) return
-    await workloadAction(deleting.machine.id, deleting.workload.id, 'delete')
-    if (vmId) location.hash = machineHref(deleting.machine.id)
+    const target = deleting
+    try {
+      const answer = await workloadAction(target.machine.id, target.workload.id, 'delete')
+      const order = parseCommand(answer)
+      if (order) trackOrder(order)
+    } catch (error) {
+      await refresh()
+      const reason = deleteFailure(commands, target.machine.id, target.workload.id)
+      if (reason && error instanceof ApiError && (error.code === 'machine_refused' || error.code === 'machine_unreachable')) throw new ApiError(error.status, error.code, reason)
+      throw error
+    }
+    if (vmId) location.hash = machineHref(target.machine.id)
     await refresh()
   }
 
@@ -266,13 +282,13 @@
         <div class="phead"><h1>Loading…</h1></div>
       {:else}
       {#if page === 'machines' && detailId && vmId}
-        <VmDetail machine={machines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} {commands} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <VmDetail machine={shownMachines.find((machine) => machine.id === detailId)} workloadId={vmId} pinned={bundles?.pinned} {banner} {commands} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines' && detailId}
-        <MachineDetail {route} machine={machines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onCheck={(machine) => (rechecking = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
+        <MachineDetail {route} machine={shownMachines.find((machine) => machine.id === detailId)} remote={remoteInfos.find((info) => info.machine === detailId) ?? null} {commands} {pending} {now} pinned={bundles?.pinned} {newestHelper} chatsBuilt={bundles?.bundles.length ?? 0} onRuvio={setRuvio} onChanged={refresh} onCreate={startCreate} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onCheck={(machine) => (rechecking = machine)} onInstall={install} onOpenChat={openChat} onAct={act} onDelete={(machine, workload) => (deleting = { machine, workload })} />
       {:else if page === 'machines'}
-        <Machines {machines} remotes={remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} onChanged={refresh} onCheck={(machine) => (rechecking = machine)} />
+        <Machines machines={shownMachines} remotes={remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} onChanged={refresh} onCheck={(machine) => (rechecking = machine)} />
       {:else if page === 'vms'}
-        <VmsList {machines} {route} {banner} {pending} handlers={vmHandlers} />
+        <VmsList machines={shownMachines} {route} {banner} {pending} {commands} handlers={vmHandlers} />
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'sandboxes'}

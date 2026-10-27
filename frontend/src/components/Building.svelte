@@ -28,7 +28,7 @@
   }
   const firstOf = (segment: Segment, number: number) => tenantOf(segment).apt === number + letter(segment.column);
   const STATUS_TEXT: Record<string, string> = { run: 'running', prog: 'starting', warn: 'needs attention' };
-  const statusText = (tenant: Tenant) => STATUS_TEXT[tenant.cls] || tenant.status;
+  const statusText = (tenant: Tenant) => tenant.status === 'deleting' ? 'deleting' : STATUS_TEXT[tenant.cls] || tenant.status;
   const describe = (tenant: Tenant) => `Apartment ${tenant.apt}: ${tenant.name} — ${gb(tenant.memMiB)} memory (${formatPct(tenant.share)} of this machine), ${tenant.cpu} vCPU, ${tenant.status}`
    ;
   const idle = 'VMs on this machine cannot use this part yet. Nothing in the platform runs here.';

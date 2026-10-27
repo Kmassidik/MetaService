@@ -10,7 +10,9 @@
   import VmSoftware from '../components/vm/VmSoftware.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
   import { hasGpu } from '../lib/gpuChoice.ts'
+  import { deleteFailure } from '../lib/deleteOrders.ts'
   import { machineHref } from '../lib/routes.ts'
+  import { vmStateText } from '../lib/vmList.ts'
   import { consoleTitle, terminalAccess } from '../lib/terminalAccess.ts'
   import { openConsole } from '../lib/terminalStore.svelte.ts'
   import { stopNote } from '../lib/stoppedReason.ts'
@@ -40,6 +42,8 @@
   const terminalOff = $derived(access !== null && !access.allowed ? access : null)
   const action = $derived(workload ? headerAction(workload.state) : null)
   const note = $derived(machine && workload ? stopNote(machine.id, workload, commands) : null)
+  const deleting = $derived(workload?.state === 'deleting')
+  const deleteError = $derived(machine && workload && !deleting ? deleteFailure(commands, machine.id, workload.id) : null)
 
   function copy(text: string) {
     void navigator.clipboard?.writeText(text)
@@ -54,7 +58,7 @@
 {:else}
   <div class="phead">
     <div>
-      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {server.cls}">{server.status}</span>{#if hasGpu(workload)}<GpuBadge />{/if}</div>
+      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if hasGpu(workload)}<GpuBadge />{/if}</div>
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › <a href={machineHref(machine.id)}>{machine.name}</a> › {workload.id}</div>
     </div>
     <div class="sp">
@@ -80,7 +84,7 @@
     {:else if tab === 'access'}
       <VmAccess {machine} {workload}onCopy={copy} onOpenChat={() => onOpenChat(machine, workload)} />
     {:else}
-      <VmDanger onDelete={() => onDelete(machine, workload)} />
+      <VmDanger {deleting} error={deleteError} onDelete={() => onDelete(machine, workload)} />
     {/if}
   </div>
 {/if}

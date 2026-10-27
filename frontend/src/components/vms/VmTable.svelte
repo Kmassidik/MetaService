@@ -10,10 +10,10 @@
   import { formatGb, formatMb } from '../../lib/format.ts'
   import { machineHref, vmHref } from '../../lib/routes.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
-  import { findVm, vmTone, type VmRow } from '../../lib/vmList.ts'
-  import type { Machine } from '../../lib/types.ts'
+  import { findVm, vmStateText, vmTone, type VmRow } from '../../lib/vmList.ts'
+  import type { Command, Machine } from '../../lib/types.ts'
 
-  let { rows, machines, handlers }: { rows: VmRow[]; machines: Machine[]; handlers: VmActionHandlers } = $props()
+  let { rows, machines, commands, handlers }: { rows: VmRow[]; machines: Machine[]; commands: Command[]; handlers: VmActionHandlers } = $props()
 </script>
 
 <div class="tablewrap">
@@ -31,7 +31,7 @@
           <td class="mono" data-label="Kind">{row.kind}{#if row.gpu}<GpuBadge />{/if}</td>
           <td data-label="State">
             <div class="state">
-              <StatePill state={vmTone(row.state)} label={row.state} />
+              <StatePill state={vmTone(row.state)} label={vmStateText(row.state)} />
               {#if row.gpuLimitGb !== null}<GpuLimitChip gb={row.gpuLimitGb} />{/if}
               {#if row.app}<AppChip chip={row.app} />{/if}
               {#if row.note}<WhyStopped note={row.note} compact />{/if}
@@ -41,7 +41,7 @@
           <td class="mono nums" data-label="vCPU">{row.cpu}</td>
           <td class="mono nums" data-label="RAM">{formatMb(row.ramMb)}</td>
           <td class="mono nums" data-label="Disk">{formatGb(row.diskGb)}</td>
-          <td class="act" data-label="Actions">{#if vm}<VmActions machine={vm.machine} workload={vm.workload} {handlers} />{/if}</td>
+          <td class="act" data-label="Actions">{#if vm}<VmActions machine={vm.machine} workload={vm.workload} {commands} {handlers} />{/if}</td>
         </tr>
       {/each}
     </tbody>

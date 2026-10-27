@@ -11,7 +11,7 @@ use crate::ssh_install::{self, SshdFailure};
 use crate::ssh_keys::{Applied, SshRequest};
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// What a turned-off chat leaves behind, named in the command result.
@@ -25,6 +25,7 @@ pub trait BundleInstalling: Send + Sync {
     fn installed_version(&self) -> Option<String>;
 }
 
+#[derive(Debug)]
 pub enum Failure {
     Refused(Refusal),
     /// The request asks for something this machine does not offer, in plain words. It is answered like a bad field (400 invalid_input).
@@ -57,7 +58,8 @@ pub struct Health {
 #[derive(Default)]
 struct Flight {
     inflight: HashMap<String, Workload>,
-    deleting: HashSet<String>,
+    /// Workload id to the command that owns its delete. Retries join that command instead of starting another backup.
+    deleting: HashMap<String, String>,
 }
 
 pub struct Service {
@@ -75,7 +77,7 @@ pub struct Service {
     sandboxes: Arc<Sandboxes>,
 }
 
-/// The cause of a failed action goes to the Agent's own log and never to the Root, because it can name paths and program output.
+/// The complete cause goes to the Agent's own log. Command results carry a bounded, one-line version instead.
 fn log_failure(action: &str, target: &str, error: &dyn std::fmt::Debug) {
     eprintln!("{action} of {target} failed: {error:?}");
 }
@@ -157,7 +159,7 @@ impl Service {
         for (id, planned) in &flight.inflight {
             by_id.entry(id.clone()).or_insert_with(|| planned.clone());
         }
-        for id in &flight.deleting {
+        for id in flight.deleting.keys() {
             if let Some(found) = by_id.get_mut(id) {
                 found.state = State::Deleting;
             }
@@ -269,34 +271,81 @@ impl Service {
         Ok(command)
     }
 
-    /// Backs up the disk first, then deletes. The backup name is part of the result.
+    /// Backs up the disk first, then deletes. A repeat for this workload joins the delete already running.
     pub async fn delete(self: &Arc<Self>, command_id: &str, id: &str) -> Result<Command, Failure> {
         if let Some(existing) = self.ledger.find(command_id) {
             return Ok(existing);
         }
+        if let Some(existing) = self.deleting_command(id) {
+            return Ok(existing);
+        }
         self.require(id).await?;
-        self.flight.lock().unwrap().deleting.insert(id.to_string());
+        let was_running = self.workloads().await?.iter().any(|workload| workload.id == id && workload.state == State::Running);
         let started = Command { command_id: command_id.into(), kind: CommandType::Delete, state: CommandState::Running, workload_id: Some(id.into()), result: None };
-        self.ledger.record(started.clone());
+        {
+            let mut flight = self.flight.lock().unwrap();
+            if let Some(owner) = flight.deleting.get(id) {
+                return Ok(self.ledger.find(owner).expect("an in-flight delete has a command"));
+            }
+            flight.deleting.insert(id.to_string(), command_id.to_string());
+            self.ledger.record(started.clone());
+        }
+        self.changed();
         let this = self.clone();
         let target = id.to_string();
         let echo = started.clone();
-        tokio::spawn(async move { this.finish_delete(echo, target).await });
+        tokio::spawn(async move { this.finish_delete(echo, target, was_running).await });
         Ok(started)
     }
 
-    async fn finish_delete(self: Arc<Self>, mut command: Command, id: String) {
+    fn deleting_command(&self, id: &str) -> Option<Command> {
+        let owner = self.flight.lock().unwrap().deleting.get(id).cloned();
+        owner.and_then(|command_id| self.ledger.find(&command_id))
+    }
+
+    fn clear_delete(&self, id: &str, command_id: &str) {
+        let mut flight = self.flight.lock().unwrap();
+        if flight.deleting.get(id).map(String::as_str) != Some(command_id) {
+            return;
+        }
+        flight.deleting.remove(id);
+    }
+
+    async fn finish_delete(self: Arc<Self>, mut command: Command, id: String, was_running: bool) {
         let engine = self.engine.clone();
         let target = id.clone();
-        let outcome = blocking(move || engine.backup(&target).and_then(|backup| engine.delete(&target).map(|_| backup))).await;
+        let stopped = if was_running {
+            let engine = engine.clone();
+            let target = target.clone();
+            blocking(move || engine.set_running(&target, false)).await
+        } else {
+            Ok(())
+        };
+        let outcome = match stopped {
+            Ok(()) => {
+                let engine = engine.clone();
+                let target = target.clone();
+                blocking(move || engine.backup(&target).and_then(|backup| engine.delete(&target).map(|_| backup))).await
+            }
+            Err(error) => Err(error),
+        };
         match outcome {
             Ok(backup) => finish(&mut command, true, [("backup_id", backup.as_str())]),
             Err(error) => {
                 log_failure("delete", &id, &error);
-                finish(&mut command, false, [("error", "the machine could not delete the workload")]);
+                let mut reason = delete_failure(&error);
+                if was_running {
+                    let engine = engine.clone();
+                    let target = target.clone();
+                    if let Err(restart_error) = blocking(move || engine.set_running(&target, true)).await {
+                        reason = format!("{reason} (could not restart: {})", delete_failure(&restart_error));
+                    }
+                }
+                let reason = bounded_delete_failure(&reason);
+                finish(&mut command, false, [("error", reason.as_str())]);
             }
         }
-        self.flight.lock().unwrap().deleting.remove(&id);
+        self.clear_delete(&id, &command.command_id);
         self.ledger.record(command);
         self.changed();
     }
@@ -374,6 +423,24 @@ impl Service {
     }
 }
 
+fn delete_failure(error: &EngineError) -> String {
+    match error {
+        EngineError::NotFound => "the machine no longer has this workload".into(),
+        EngineError::Failed(reason) => bounded_delete_failure(reason),
+    }
+}
+
+fn bounded_delete_failure(reason: &str) -> String {
+    const MAX_BYTES: usize = 300;
+    let mut one_line = reason.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut end = MAX_BYTES.min(one_line.len());
+    while !one_line.is_char_boundary(end) {
+        end -= 1;
+    }
+    one_line.truncate(end);
+    if one_line.is_empty() { "the machine reported an unspecified delete failure".into() } else { one_line }
+}
+
 fn finish<const N: usize>(command: &mut Command, ok: bool, result: [(&str, &str); N]) {
     command.state = if ok { CommandState::Succeeded } else { CommandState::Failed };
     command.result = Some(result.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
@@ -416,9 +483,20 @@ mod tests {
     }
 
     fn service(installer: Arc<Counting>) -> Arc<Service> {
+        service_with_engine(installer, Arc::new(SimulatedEngine::new(default_capabilities())))
+    }
+
+    fn service_with_engine(installer: Arc<Counting>, engine: Arc<SimulatedEngine>) -> Arc<Service> {
         let specs = Specs { os: "linux".into(), arch: "x86_64".into(), cpu_cores: 4, cpu_model: None, ram_total_mb: 16384, disk_total_gb: 500, gpu: Vec::new(), hardware: None };
-        let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
         Arc::new(Service::new(engine, SpaceBudget::new(16384, 500), specs, "0.9.9", Arc::new(crate::ledger::Ledger::new(100, None)), installer, || None))
+    }
+
+    fn workload(engine: &SimulatedEngine, id: &str) {
+        let request = CreateRequest {
+            command_id: "create".into(), name: id.into(), kind: Kind::Vm, cpu: 1, ram_mb: 512, disk_gb: 1, gpu_mode: GpuMode::None, image: None,
+            gpu_memory_gb: None, cpu_sockets: None, cpu_type: None, cpu_flags: Vec::new(), cpu_limit_percent: None,
+        };
+        engine.create(id, &request).unwrap();
     }
 
     async fn finished(service: &Arc<Service>, id: &str) -> Command {
@@ -451,6 +529,86 @@ mod tests {
         let known = Arc::try_unwrap(service(Arc::new(Counting::default()))).ok().unwrap().with_build(Some(build.clone()));
         let json = serde_json::to_value(known.facts().await.ok().unwrap()).unwrap();
         assert_eq!(json["agent_build"], build);
+    }
+
+    #[tokio::test]
+    async fn delete_announces_deleting_coalesces_retries_and_returns_the_engine_failure() {
+        let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
+        workload(&engine, "w-delete");
+        engine.delay_backup();
+        engine.fail_backup("incus export exited with 1: container is not stopped\nretry after stopping it");
+        let service = service_with_engine(Arc::new(Counting::default()), engine.clone());
+        let changes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = changes.clone();
+        service.set_on_change(Arc::new(move || { counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst); }));
+
+        let started = service.delete("d-1", "w-delete").await.unwrap();
+        assert_eq!(started.state, CommandState::Running);
+        assert_eq!(changes.load(std::sync::atomic::Ordering::SeqCst), 1, "acceptance triggers an immediate heartbeat");
+        let listed = service.workloads().await.unwrap();
+        assert_eq!(listed.iter().find(|w| w.id == "w-delete").unwrap().state, State::Deleting);
+
+        assert_eq!(service.delete("d-1", "w-delete").await.unwrap(), started);
+        assert_eq!(service.delete("d-2", "w-delete").await.unwrap(), started, "a new command id joins the in-flight delete");
+        assert!(service.command("d-2").is_none());
+        assert_eq!(changes.load(std::sync::atomic::Ordering::SeqCst), 1, "a coalesced retry is not another state change");
+        engine.release_backup();
+
+        let done = finished(&service, "d-1").await;
+        assert_eq!(done.state, CommandState::Failed);
+        assert_eq!(done.result.unwrap()["error"], "incus export exited with 1: container is not stopped retry after stopping it");
+        assert_eq!(engine.backup_calls(), 1);
+        assert_eq!(engine.lifecycle_operations(), vec!["stop:w-delete", "backup:w-delete", "start:w-delete"]);
+        let listed = service.workloads().await.unwrap();
+        assert_eq!(listed.iter().find(|w| w.id == "w-delete").unwrap().state, State::Running);
+    }
+
+    #[tokio::test]
+    async fn a_delete_step_failure_is_returned_and_leaves_the_workload_visible() {
+        let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
+        workload(&engine, "w-delete");
+        engine.fail_delete("incus delete exited with 1: device is busy");
+        let service = service_with_engine(Arc::new(Counting::default()), engine.clone());
+        service.delete("d-delete", "w-delete").await.unwrap();
+        let done = finished(&service, "d-delete").await;
+        assert_eq!(done.state, CommandState::Failed);
+        assert_eq!(done.result.unwrap()["error"], "incus delete exited with 1: device is busy");
+        assert_eq!(engine.backup_calls(), 1, "the backup still happens before delete");
+        assert_eq!(engine.lifecycle_operations(), vec!["stop:w-delete", "backup:w-delete", "delete:w-delete", "start:w-delete"]);
+        assert_eq!(service.workloads().await.unwrap()[0].state, State::Running);
+    }
+
+    #[tokio::test]
+    async fn a_restart_failure_is_reported_with_the_delete_failure() {
+        let engine = Arc::new(SimulatedEngine::new(default_capabilities()));
+        workload(&engine, "w-delete");
+        engine.fail_backup("export failed");
+        engine.fail_restart("start failed");
+        let service = service_with_engine(Arc::new(Counting::default()), engine.clone());
+        service.delete("d-restart", "w-delete").await.unwrap();
+        let done = finished(&service, "d-restart").await;
+        assert_eq!(done.result.unwrap()["error"], "export failed (could not restart: start failed)");
+        assert_eq!(service.workloads().await.unwrap()[0].state, State::Stopped);
+    }
+
+    #[test]
+    fn only_the_owning_command_clears_a_delete_marker() {
+        let service = service(Arc::new(Counting::default()));
+        service.flight.lock().unwrap().deleting.insert("w-delete".into(), "d-owner".into());
+        service.clear_delete("w-delete", "d-other");
+        assert_eq!(service.flight.lock().unwrap().deleting.get("w-delete").map(String::as_str), Some("d-owner"));
+        service.clear_delete("w-delete", "d-owner");
+        assert!(!service.flight.lock().unwrap().deleting.contains_key("w-delete"));
+    }
+
+    #[test]
+    fn delete_failure_text_is_one_bounded_utf8_line() {
+        let reason = format!("  export failed\n{}", "é".repeat(200));
+        let text = delete_failure(&EngineError::Failed(reason));
+        assert!(text.starts_with("export failed "));
+        assert_eq!(text.len(), 300);
+        assert!(!text.contains('\n'));
+        assert_eq!(delete_failure(&EngineError::NotFound), "the machine no longer has this workload");
     }
 
     #[tokio::test]

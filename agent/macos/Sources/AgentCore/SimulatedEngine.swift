@@ -5,6 +5,13 @@ public actor SimulatedEngine: Engine {
     public nonisolated let capabilities: Capabilities
     private var store: [String: Workload] = [:]
     private var createFailure: EngineError?
+    private var backupError: EngineError?
+    private var backupDelayNanoseconds: UInt64 = 0
+    private var deleteError: EngineError?
+    private var restartError: EngineError?
+    private var deleteDelayNanoseconds: UInt64 = 0
+    /// Lifecycle calls in order, so tests can verify stop, backup, restart, and delete.
+    public private(set) var lifecycleOperations: [String] = []
     /// What was pushed and run, in order, so tests can look.
     public private(set) var pushed: [[String]] = []
     public private(set) var executed: [[String]] = []
@@ -36,6 +43,16 @@ public actor SimulatedEngine: Engine {
     /// Makes every later create fail with this error, as a machine whose VMs do not start would.
     public func failCreates(_ error: EngineError?) { createFailure = error }
 
+    public func failBackups(_ error: EngineError?) { backupError = error }
+
+    public func failDeletes(_ error: EngineError?) { deleteError = error }
+
+    public func failRestarts(_ error: EngineError?) { restartError = error }
+
+    public func delayBackups(nanoseconds: UInt64) { backupDelayNanoseconds = nanoseconds }
+
+    public func delayDeletes(nanoseconds: UInt64) { deleteDelayNanoseconds = nanoseconds }
+
     public func create(id: String, request: CreateWorkloadRequest) async throws -> Workload {
         if let createFailure { throw createFailure }
         let made = Workload(id: id, name: request.name, kind: request.kind, state: .running, cpu: request.cpu, ramMb: request.ramMb, diskGb: request.diskGb, gpuMode: request.gpuMode)
@@ -44,16 +61,25 @@ public actor SimulatedEngine: Engine {
     }
 
     public func setRunning(id: String, running: Bool) async throws {
+        lifecycleOperations.append("\(running ? "start" : "stop"):\(id)")
+        if running, let restartError { throw restartError }
         try change(id) { $0.state = running ? .running : .stopped }
     }
 
     public func backup(id: String) async throws -> String {
+        lifecycleOperations.append("backup:\(id)")
         try change(id) { _ in }
+        if backupDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: backupDelayNanoseconds) }
+        if let backupError { throw backupError }
         return "backup-\(id)"
     }
 
     public func delete(id: String) async throws {
-        guard store.removeValue(forKey: id) != nil else { throw EngineError.notFound }
+        lifecycleOperations.append("delete:\(id)")
+        guard store[id] != nil else { throw EngineError.notFound }
+        if deleteDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: deleteDelayNanoseconds) }
+        if let deleteError { throw deleteError }
+        store[id] = nil
     }
 
     public func setBundleVersion(id: String, version: String?) async throws {

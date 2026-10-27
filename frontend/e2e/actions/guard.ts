@@ -19,6 +19,7 @@ const SUCCESS_LINE_MAX_MS = 3500
 const SILENT_ROOT_WAIT_MS = 31_500
 const SHORT_WAIT_MS = 8000
 const REFUSAL = 'No room on that machine'
+const DELETE_FAILURE = 'Backup failed: the backup disk is full'
 const TIMEOUT_TEXT = 'The server did not answer in time. It may still be working: check the list, then try again.'
 const VM_REQUEST = /\/api\/machines\/[^/]+\/workloads\/[^/]+\/(start|stop|delete)$/
 const PHONE = { width: 400, height: 844 }
@@ -193,6 +194,7 @@ export async function deleteStaysOpenWhileWorking(b: Browse, standin: StandIn, w
   await wait(SETTLE_MS)
   check('Delete confirm: five rapid clicks send exactly 1 request', watch.count() === 1 && standin.calls.join() === 'delete vm1', `page ${watch.count()}, root ${standin.calls.join()}`)
   check('the dialog closes by itself when the request ends', !(await dialogIsOpen(b)))
+  check('a completed delete removes the VM instead of claiming success at acceptance', await b.run(() => document.querySelector('a[href*="vm=vm1"]') === null && document.querySelector('dialog[open]') === null))
 }
 
 export async function deleteRefusalKeepsTheDialog(b: Browse, standin: StandIn): Promise<void> {
@@ -207,6 +209,32 @@ export async function deleteRefusalKeepsTheDialog(b: Browse, standin: StandIn): 
   await b.page.keyboard.press('Escape')
   await wait(200)
   check('once the request has ended Escape closes the dialog again', !(await dialogIsOpen(b)))
+}
+
+export async function deleteOrderShowsProgressAndFailure(b: Browse, standin: StandIn): Promise<void> {
+  await fresh(b, standin, VMS_TAB)
+  await openDeleteDialog(b)
+  const accepted = { id: 'delete-held', type: 'delete', machine: 'studio', workload_id: 'vm1', state: 'queued', created_at: new Date().toISOString(), params: {} }
+  standin.script.order = accepted
+  await burst(b, 'Delete VM', 1)
+  await b.until(() => document.querySelector('dialog[open]') === null, { timeout: SHORT_WAIT_MS })
+  await waitForButton(b, 'Deleting…')
+  const busy = await buttonView(b, 'Deleting…')
+  check('after the 202 the row Delete stays busy and disabled while its order is queued', busy.found && busy.disabled && busy.ariaBusy === 'true', JSON.stringify(busy))
+  check('the dialog closes at acceptance and the VM state says Deleting with the progress tone', !(await dialogIsOpen(b)) && (await b.run(() => [...document.querySelectorAll('.tag.prog')].some((tag) => tag.textContent?.trim() === 'Deleting…'))))
+  check('the 202 never claims the VM was Deleted', !(await b.text()).includes('Deleted'))
+  await b.shot('actions-delete-queued.png')
+
+  const running = { ...accepted, state: 'running' }
+  standin.script.order = running
+  await wait(3500)
+  check('the Delete button remains disabled while the order runs', (await buttonView(b, 'Deleting…')).disabled)
+  standin.script.order = { ...running, state: 'failed', finished_at: new Date().toISOString(), result: { error: DELETE_FAILURE } }
+  standin.putVm('studio', { id: 'vm1', name: 'vm1', kind: 'vm', state: 'running', cpu: 2, ram_mb: 2048, disk_gb: 20, gpu_mode: 'none', address: '10.0.0.1', bundle_version: null })
+  await b.until((wanted) => document.body.innerText.includes(wanted), { timeout: SHORT_WAIT_MS }, DELETE_FAILURE)
+  const freed = await buttonView(b, 'Delete')
+  check('a failed delete restores the button and shows the helper\'s actual reason within the fast polling window', freed.found && !freed.disabled && freed.ariaBusy === 'false' && (await b.text()).includes(DELETE_FAILURE), JSON.stringify(freed))
+  await b.shot('actions-delete-order-failed.png')
 }
 
 export async function onAPhone(b: Browse, standin: StandIn): Promise<void> {

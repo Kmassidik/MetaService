@@ -45,7 +45,7 @@ export interface StandIn {
   apps: AppBook
   /** The raw text of every body POSTed to create a VM, in order. */
   createBodies: string[]
-  /** When `order` is set, a create answers with it (and makes no VM), and the order list holds it: the test plays the parent's order by hand and moves the VMs with `putVm`. */
+  /** When `order` is set, a create or delete answers with it and the order list holds it: the test plays the parent's order by hand and moves VMs with `putVm`. */
   script: { order: Json | null }
   /** Sets or replaces one VM of a machine, as the machine's next heartbeat would. */
   putVm: (machine: string, entry: Json) => void
@@ -193,17 +193,18 @@ export async function startStandIn(): Promise<StandIn> {
   }
 
   /** Counts the call, then answers it the way the behaviour says (silent, refused, or accepted after the delay, running `accept` first). */
-  async function answer(label: string, type: string, response: ServerResponse, accept: () => boolean = () => true): Promise<void> {
+  async function answer(label: string, type: string, response: ServerResponse, accept: () => boolean = () => true, accepted?: Json): Promise<void> {
     calls.push(label)
     if (behaviour.hang) return
     await wait(behaviour.delayMs)
     if (behaviour.refuseWith !== null) return send(response, 409, { error: { code: 'refused', message: behaviour.refuseWith } })
     if (!accept()) return send(response, 409, { error: { code: 'nothing_to_roll_back_to', message: 'no earlier version was pinned' } })
-    send(response, 202, order(type, `order-${calls.length}`))
+    send(response, 202, accepted ?? order(type, `order-${calls.length}`))
   }
 
   const vmCall = (match: RegExpExecArray, response: ServerResponse): Promise<void> => {
     const [, machineId = '', workloadId = '', action = ''] = match
+    if (action === 'delete' && script.order) return answer(`${action} ${workloadId}`, action, response, () => true, { command: script.order })
     return answer(`${action} ${workloadId}`, action, response, () => (apply(machineId, workloadId, action), true))
   }
 

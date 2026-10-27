@@ -19,6 +19,12 @@ export function trackOrder(order: Command): void {
   made = [order, ...made.filter((entry) => entry.id !== order.id)].slice(0, REMEMBERED_ORDERS)
 }
 
+/** Once a successful list answer omits a delete, its accepted local copy must not keep the VM busy forever. */
+export function reconcileDeleteOrders(listed: Command[]): void {
+  const current = new Set(listed.map((order) => order.id))
+  made = made.filter((order) => order.type !== 'delete' || current.has(order.id))
+}
+
 /** The order whose progress window is open, or null when none is. */
 export const watchedOrder = (): string | null => watched
 

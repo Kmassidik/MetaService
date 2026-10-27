@@ -45,19 +45,30 @@ const ORDER_STAGES: Record<string, PendingStage> = { queued: 'waiting', running:
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** The order inside the parent's answer to a create (`{ command: {...} }`), or null when the answer is not readable. */
+/** The order inside the parent's accepted command answer (`{ command: {...} }`), or null when the answer is not readable. */
 export function parseCommand(answer: unknown): Command | null {
   const order = isRecord(answer) ? answer.command : null
   if (!isRecord(order)) return null
   const { id, machine, type, state, created_at: createdAt, params } = order
   if (typeof id !== 'string' || typeof machine !== 'string' || typeof type !== 'string' || typeof state !== 'string') return null
-  return { id, machine, type, state, created_at: typeof createdAt === 'string' ? createdAt : '', params: isRecord(params) ? params : {}, result: parseResult(order.result), finished_at: typeof order.finished_at === 'string' ? order.finished_at : null }
+  return {
+    id,
+    machine,
+    type,
+    state,
+    workload_id: typeof order.workload_id === 'string' ? order.workload_id : null,
+    created_at: typeof createdAt === 'string' ? createdAt : '',
+    params: isRecord(params) ? params : {},
+    result: parseResult(order.result),
+    finished_at: typeof order.finished_at === 'string' ? order.finished_at : null,
+  }
 }
 
 function parseResult(value: unknown): CommandResult | null {
   if (!isRecord(value)) return null
   const result: CommandResult = {}
   if (typeof value.error === 'string') result.error = value.error
+  if (typeof value.backup_id === 'string') result.backup_id = value.backup_id
   if (typeof value.workload_id === 'string') result.workload_id = value.workload_id
   return result
 }

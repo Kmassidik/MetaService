@@ -120,5 +120,7 @@ test('a long reason from the machine keeps its lines, gets no full stop on a log
 test('the parent\'s answer to a create is read into an order, and anything else is refused', () => {
   const answer = { command: { id: 'c9', type: 'create', machine: 'm', state: 'queued', created_at: '2026-01-01T00:00:00Z', params: { name: 'x' } } }
   expect(parseCommand(answer)).toMatchObject({ id: 'c9', machine: 'm', state: 'queued', params: { name: 'x' } })
+  const deleteAnswer = { command: { ...answer.command, type: 'delete', workload_id: 'w9', result: { error: 'backup failed', backup_id: 'b9' } } }
+  expect(parseCommand(deleteAnswer)).toMatchObject({ type: 'delete', workload_id: 'w9', result: { error: 'backup failed', backup_id: 'b9' } })
   for (const bad of [null, 'x', {}, { command: null }, { command: { id: 'c9' } }, { command: { id: 3, machine: 'm', type: 'create', state: 'queued' } }]) expect(parseCommand(bad), JSON.stringify(bad)).toBeNull()
 })

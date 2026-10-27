@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
 import { machine, workload } from './testing.ts'
-import { filterRows, findVm, vmFilterFromRoute, vmRows, vmsHeader, vmTone } from './vmList.ts'
+import { filterRows, findVm, vmFilterFromRoute, vmRows, vmsHeader, vmStateText, vmTone } from './vmList.ts'
 
 const fleet = [
   machine({ id: 'zeta', name: 'zeta', workloads: [workload({ id: 'w-2', name: 'beta' }), workload({ id: 'w-1', name: 'alpha', kind: 'container', state: 'stopped' })] }),
@@ -55,7 +55,9 @@ test('the header counts VMs and the machines they are on', () => {
 })
 
 test('a VM state gets the colour the rest of the panel gives it', () => {
-  expect(['running', 'creating', 'starting', 'provisioning', 'stopped', 'weird'].map(vmTone)).toEqual(['online', 'busy', 'busy', 'busy', '', ''])
+  expect(['running', 'creating', 'starting', 'provisioning', 'deleting', 'stopped', 'weird'].map(vmTone)).toEqual(['online', 'busy', 'busy', 'busy', 'busy', '', ''])
+  expect(vmStateText('deleting')).toBe('Deleting…')
+  expect(vmStateText('running')).toBe('running')
 })
 
 test('a row finds its machine and VM again, and nothing when they are gone', () => {

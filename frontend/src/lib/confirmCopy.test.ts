@@ -7,6 +7,7 @@ describe('confirm dialog words', () => {
     expect(copy.what).toBe('build-box on studio will be stopped and deleted.')
     expect(copy.consequence).toContain('backup')
     expect(copy.confirmLabel).toBe('Delete VM')
+    expect(copy.doneLabel).toBe('Delete started')
   })
 
   test('Remove machine names the machine and says its VMs keep running', () => {

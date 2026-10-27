@@ -25,6 +25,21 @@ final class CommandStoreTests: XCTestCase {
         XCTAssertNil(try commands.get("rc-2"))
     }
 
+    func testAnUnfinishedDeleteIsReusedUntilItFinishes() throws {
+        let commands = CommandStore(database)
+        try commands.create(id: "d-1", machine: "mini", workloadId: "w-1", type: "delete", params: [:], actor: "k", now: now)
+        try commands.create(id: "d-2", machine: "mini", workloadId: "w-2", type: "delete", params: [:], actor: "k", now: now)
+        try commands.create(id: "s-1", machine: "mini", workloadId: "w-1", type: "stop", params: [:], actor: "k", now: now)
+        XCTAssertEqual(try commands.unfinishedDelete(machine: "mini", workloadId: "w-1")?.id, "d-1")
+        XCTAssertNil(try commands.unfinishedDelete(machine: "other", workloadId: "w-1"))
+        try commands.update(id: "d-1", state: "running", result: nil, now: now)
+        XCTAssertEqual(try commands.unfinishedDelete(machine: "mini", workloadId: "w-1")?.id, "d-1")
+        try commands.update(id: "d-1", state: "succeeded", result: nil, now: now)
+        XCTAssertNil(try commands.unfinishedDelete(machine: "mini", workloadId: "w-1"), "a finished delete can be retried")
+        try commands.create(id: "d-3", machine: "mini", workloadId: "w-1", type: "delete", params: [:], actor: "k", now: now.addingTimeInterval(1))
+        XCTAssertEqual(try commands.unfinishedDelete(machine: "mini", workloadId: "w-1")?.id, "d-3")
+    }
+
     func testOnlyAnUnfinishedCreateOrDeleteMakesTheMachineBusy() throws {
         let commands = CommandStore(database)
         XCTAssertFalse(try commands.hasUnfinishedOrder(machine: "mini"))

@@ -111,7 +111,7 @@
   </div>
   <div class="tabbody" role="tabpanel" id={panelId('vms')} aria-labelledby={tabId('vms')} hidden={tab !== 'vms'}>
     {#if tab === 'vms'}
-      <DeploymentsView {machine} {pinned} making={making.length} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
+      <DeploymentsView {machine} {commands} {pinned} making={making.length} onCreate={() => onCreate(machine)} {onAct} {onDelete} {onOpenChat} {onInstall} />
     {/if}
   </div>
   <div class="tabbody" role="tabpanel" id={panelId('storage')} aria-labelledby={tabId('storage')} hidden={tab !== 'storage'}>

@@ -20,6 +20,7 @@ final class WorkloadService: @unchecked Sendable {
     private let images: ImagesService
     private let gpuLimit: GpuLimitService
     private let creating = NSLock()
+    private let deleting = NSLock()
     /// The create command's parameter that carries the app asked for, so the wish survives until the helper names the new VM.
     private static let appParam = "app"
 
@@ -103,8 +104,16 @@ final class WorkloadService: @unchecked Sendable {
     }
 
     enum Action: String { case start, stop, delete }
+    private enum DeleteReservation { case existing(CommandRow), created(String) }
 
     func act(actor: String, machine: String, workload: String, action: Action) async throws -> CommandRow {
+        if action == .delete {
+            switch try reserveDelete(actor: actor, machine: machine, workload: workload) {
+            case .existing(let command): return command
+            case .created(let id):
+                return try await send(id, machine: machine, method: "DELETE", path: "/v1/workloads/\(workload)", body: nil, commandId: id)
+            }
+        }
         let known: MachineSummary
         do {
             known = try machines.get(id: machine, now: clock.now)
@@ -115,8 +124,19 @@ final class WorkloadService: @unchecked Sendable {
         let id = Self.newCommandId()
         try commands.create(id: id, machine: machine, workloadId: workload, type: action.rawValue, params: [:], actor: actor, now: clock.now)
         try audit.record(actor: actor, action: "workload.\(action.rawValue)", target: machine, detail: ["workload": workload, "command": id], at: clock.now)
-        let path = action == .delete ? "/v1/workloads/\(workload)" : "/v1/workloads/\(workload)/\(action.rawValue)"
-        return try await send(id, machine: machine, method: action == .delete ? "DELETE" : "POST", path: path, body: nil, commandId: id)
+        return try await send(id, machine: machine, method: "POST", path: "/v1/workloads/\(workload)/\(action.rawValue)", body: nil, commandId: id)
+    }
+
+    /// A retry joins the accepted delete instead of creating another row or calling the helper again.
+    private func reserveDelete(actor: String, machine: String, workload: String) throws -> DeleteReservation {
+        deleting.lock()
+        defer { deleting.unlock() }
+        if let existing = try commands.unfinishedDelete(machine: machine, workloadId: workload) { return .existing(existing) }
+        _ = try knownTarget(machine: machine, workload: workload)
+        let id = Self.newCommandId()
+        try commands.create(id: id, machine: machine, workloadId: workload, type: "delete", params: [:], actor: actor, now: clock.now)
+        try audit.record(actor: actor, action: "workload.delete", target: machine, detail: ["workload": workload, "command": id], at: clock.now)
+        return .created(id)
     }
 
     /// Installs (or upgrades, or rolls back) the pinned chat bundle on a machine or one of its workloads.

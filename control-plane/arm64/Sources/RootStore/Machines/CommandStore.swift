@@ -62,6 +62,15 @@ public struct CommandStore {
             """, [.int(min(max(limit, 1), Self.maxPage))]).map(row)
     }
 
+    /// The unfinished delete for this VM, if one has already been accepted.
+    public func unfinishedDelete(machine: String, workloadId: String) throws -> CommandRow? {
+        try database.query("""
+            SELECT id, machine_id, workload_id, type, params_json, state, result_json, actor, created_at, finished_at FROM commands
+            WHERE machine_id = ? AND workload_id = ? AND type = 'delete' AND state IN ('queued', 'running')
+            ORDER BY created_at DESC, id DESC LIMIT 1
+            """, [.text(machine), .text(workloadId)]).first.map(row)
+    }
+
     /// Commands that were still going when the Root last stopped.
     public func unfinished() throws -> [CommandRow] {
         try database.query("""

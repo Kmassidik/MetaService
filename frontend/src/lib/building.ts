@@ -61,7 +61,7 @@ export interface Segment {
 const FLOOR_WIDTHS = [WINDOWS_PER_FLOOR, 6, 9, 10, 7, 12, 5, 4];
 const LARGEST_WINDOW_MIB = 65536;
 const WINDOW_SIZES_MIB = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, LARGEST_WINDOW_MIB];
-const HOME = new Set(['running', 'unhealthy', 'flapping', 'provisioning', 'starting', 'restarting']);
+const HOME = new Set(['running', 'unhealthy', 'flapping', 'provisioning', 'starting', 'restarting', 'deleting']);
 const DEFAULT_RESERVE_MIB = 8192; // what MetaService keeps for the system when nothing else is set
 
 /** MiB drawn by one window: the smallest size that keeps the building at ≤ maxWindows. */

@@ -20,7 +20,7 @@ export function deleteVmCopy(machine: Pick<Machine, 'name'>, workload: Pick<Work
     consequence: 'The machine makes a backup of it first and keeps that backup; if the backup fails, nothing is deleted.',
     confirmLabel: 'Delete VM',
     busyLabel: 'Deleting…',
-    doneLabel: 'Deleted',
+    doneLabel: 'Delete started',
   }
 }
 

@@ -29,7 +29,7 @@ export interface VmRow {
   app: AppChip | null
 }
 
-const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning'])
+const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning', 'deleting'])
 const COLLATION: Intl.CollatorOptions = { sensitivity: 'base' }
 
 const compareText = (left: string, right: string) => left.localeCompare(right, 'en', COLLATION)
@@ -79,6 +79,9 @@ export function vmsHeader(rows: VmRow[]): string {
   const machines = new Set(rows.map((row) => row.machineId)).size
   return `${plural(rows.length, 'VM', 'VMs')} on ${plural(machines, 'machine', 'machines')}`
 }
+
+/** The state words, with an in-progress delete distinguished from a VM that has already gone. */
+export const vmStateText = (state: string): string => (state === 'deleting' ? 'Deleting…' : state)
 
 /** The state pill's colour for a VM state: green when running, amber while it changes, plain otherwise. */
 export function vmTone(state: string): MachineState | '' {

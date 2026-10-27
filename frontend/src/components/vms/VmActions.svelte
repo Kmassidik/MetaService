@@ -7,14 +7,16 @@
   import { lineOf } from '../../lib/action.ts'
   import { ActionState } from '../../lib/action.svelte.ts'
   import { consoleTitle, terminalAccess } from '../../lib/terminalAccess.ts'
+  import { deleteFailure } from '../../lib/deleteOrders.ts'
   import { openConsole } from '../../lib/terminalStore.svelte.ts'
   import { vmActionFacts, vmActions, type VmActionHandlers, type VmActionId } from '../../lib/vmActions.ts'
   import { VM_ICONS } from './vmIcons.ts'
-  import type { Machine, Workload } from '../../lib/types.ts'
+  import type { Command, Machine, Workload } from '../../lib/types.ts'
 
   interface Props {
     machine: Machine
     workload: Workload
+    commands: Command[]
     handlers: VmActionHandlers
   }
 
@@ -35,7 +37,7 @@
     busy?: boolean
   }
 
-  let { machine, workload, handlers }: Props = $props()
+  let { machine, workload, commands, handlers }: Props = $props()
   let keysOpen = $state(false)
   const runs: Record<GuardedId, ActionState> = { start: new ActionState(), stop: new ActionState(), 'install-chat': new ActionState() }
   /** The press that spoke last, and the words of its success line: the button may change meaning while it runs (Start becomes Stop), but the line must say what was asked. */
@@ -45,6 +47,8 @@
   const layout = $derived(vmActions(vmActionFacts(workload)))
   const access = $derived(terminalAccess(machine, workload))
   const installed = $derived(Boolean(workload.bundle_version))
+  const deleting = $derived(workload.state === 'deleting')
+  const deleteError = $derived(deleting ? null : deleteFailure(commands, machine.id, workload.id))
 
   /** A button that runs one request at a time. */
   function guarded(id: GuardedId, label: string, text: string, icon: string, words: Words, work: () => Promise<unknown>): Button {
@@ -70,7 +74,7 @@
     stop: guarded('stop', 'Stop', 'Stop', VM_ICONS.stop, { busy: 'Stopping…', done: 'Stopped' }, () => handlers.onAct(machine, workload, 'stop')),
     'open-chat': { label: 'Open chat', text: 'Chat', icon: VM_ICONS.chat, onclick: () => handlers.onOpenChat(machine, workload) },
     'install-chat': guarded('install-chat', installed ? 'Reinstall chat' : 'Install chat', installed ? 'Reinstall' : 'Install', VM_ICONS.install, { busy: 'Installing…', done: 'Installed' }, () => handlers.onInstall(machine, workload)),
-    delete: { label: 'Delete', text: 'Delete', icon: VM_ICONS.trash, onclick: () => handlers.onDelete(machine, workload) },
+    delete: { label: deleting ? 'Deleting…' : 'Delete', text: deleting ? 'Deleting…' : 'Delete', icon: VM_ICONS.trash, disabled: deleting, busy: deleting, onclick: () => handlers.onDelete(machine, workload) },
   })
 </script>
 
@@ -84,6 +88,7 @@
     <span class="group apart">{#each layout.danger as id (id)}{@render icon(id)}{/each}</span>
   </div>
   <ActionLine {line} failed={current?.status === 'failed'} />
+  <ActionLine line={deleteError ?? ''} failed={deleteError !== null} />
   {#if keysOpen}<SshKeysDialog {machine} {workload} open={keysOpen} onClose={() => (keysOpen = false)} />{/if}
 </div>
 

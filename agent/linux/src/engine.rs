@@ -65,6 +65,18 @@ pub struct SimulatedEngine {
     pub apps: SimulatedApps,
     /// What a console runs on the host instead of a real workload's shell (tests change it).
     attach: Mutex<AttachCommand>,
+    #[cfg(test)]
+    backup_failure: Mutex<Option<String>>,
+    #[cfg(test)]
+    delete_failure: Mutex<Option<String>>,
+    #[cfg(test)]
+    backup_delay: Mutex<Option<std::sync::Arc<(Mutex<bool>, std::sync::Condvar)>>>,
+    #[cfg(test)]
+    backup_calls: Mutex<usize>,
+    #[cfg(test)]
+    restart_failure: Mutex<Option<String>>,
+    #[cfg(test)]
+    lifecycle_operations: Mutex<Vec<String>>,
 }
 
 /// What a simulated install of the SSH server does when the server is missing.
@@ -80,7 +92,15 @@ const SIMULATED_SHELL: &str = "/bin/sh";
 
 impl SimulatedEngine {
     pub fn new(capabilities: Capabilities) -> Self {
-        SimulatedEngine { capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0), apps: SimulatedApps::new(), attach: Mutex::new(AttachCommand { program: SIMULATED_SHELL.into(), arguments: vec![] }) }
+        SimulatedEngine {
+            capabilities, store: Mutex::new(HashMap::new()), ssh_keys: Mutex::new(HashMap::new()), sshd: Mutex::new(Sshd::Missing), install: Mutex::new(SimulatedInstall::Works), installs: Mutex::new(0), apps: SimulatedApps::new(), attach: Mutex::new(AttachCommand { program: SIMULATED_SHELL.into(), arguments: vec![] }),
+            #[cfg(test)] backup_failure: Mutex::new(None),
+            #[cfg(test)] delete_failure: Mutex::new(None),
+            #[cfg(test)] backup_delay: Mutex::new(None),
+            #[cfg(test)] backup_calls: Mutex::new(0),
+            #[cfg(test)] restart_failure: Mutex::new(None),
+            #[cfg(test)] lifecycle_operations: Mutex::new(Vec::new()),
+        }
     }
 
     /// What every later apply reports about sshd, as the workload's image would decide it.
@@ -109,6 +129,51 @@ impl SimulatedEngine {
 
     pub fn written_ssh_keys(&self, id: &str) -> Option<Vec<u8>> {
         self.ssh_keys.lock().unwrap().get(id).cloned()
+    }
+
+    #[cfg(test)]
+    pub fn fail_backup(&self, reason: &str) {
+        *self.backup_failure.lock().unwrap() = Some(reason.into());
+    }
+
+    #[cfg(test)]
+    pub fn fail_delete(&self, reason: &str) {
+        *self.delete_failure.lock().unwrap() = Some(reason.into());
+    }
+
+    #[cfg(test)]
+    pub fn delay_backup(&self) {
+        *self.backup_delay.lock().unwrap() = Some(std::sync::Arc::new((Mutex::new(false), std::sync::Condvar::new())));
+    }
+
+    #[cfg(test)]
+    pub fn release_backup(&self) {
+        let delay = self.backup_delay.lock().unwrap().clone();
+        if let Some(delay) = delay {
+            let (released, wake) = &*delay;
+            *released.lock().unwrap() = true;
+            wake.notify_all();
+        }
+    }
+
+    #[cfg(test)]
+    pub fn backup_calls(&self) -> usize {
+        *self.backup_calls.lock().unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn fail_restart(&self, reason: &str) {
+        *self.restart_failure.lock().unwrap() = Some(reason.into());
+    }
+
+    #[cfg(test)]
+    pub fn lifecycle_operations(&self) -> Vec<String> {
+        self.lifecycle_operations.lock().unwrap().clone()
+    }
+
+    #[cfg(test)]
+    fn record_lifecycle(&self, operation: String) {
+        self.lifecycle_operations.lock().unwrap().push(operation);
     }
 
     fn change(&self, id: &str, edit: impl FnOnce(&mut Workload)) -> Result<(), EngineError> {
@@ -141,15 +206,47 @@ impl Engine for SimulatedEngine {
     }
 
     fn set_running(&self, id: &str, running: bool) -> Result<(), EngineError> {
+        #[cfg(test)]
+        {
+            self.record_lifecycle(format!("{}:{id}", if running { "start" } else { "stop" }));
+            if running {
+                if let Some(reason) = self.restart_failure.lock().unwrap().clone() {
+                    return Err(EngineError::Failed(reason));
+                }
+            }
+        }
         self.change(id, |w| w.state = if running { State::Running } else { State::Stopped })
     }
 
     fn backup(&self, id: &str) -> Result<String, EngineError> {
+        #[cfg(test)]
+        {
+            self.record_lifecycle(format!("backup:{id}"));
+            *self.backup_calls.lock().unwrap() += 1;
+            let delay = self.backup_delay.lock().unwrap().clone();
+            if let Some(delay) = delay {
+                let (released, wake) = &*delay;
+                let mut released = released.lock().unwrap();
+                while !*released {
+                    released = wake.wait(released).unwrap();
+                }
+            }
+            let failure = self.backup_failure.lock().unwrap().clone();
+            if let Some(reason) = failure {
+                return Err(EngineError::Failed(reason));
+            }
+        }
         self.change(id, |_| {})?;
         Ok(format!("backup-{id}"))
     }
 
     fn delete(&self, id: &str) -> Result<(), EngineError> {
+        #[cfg(test)]
+        self.record_lifecycle(format!("delete:{id}"));
+        #[cfg(test)]
+        if let Some(reason) = self.delete_failure.lock().unwrap().clone() {
+            return Err(EngineError::Failed(reason));
+        }
         self.store.lock().unwrap().remove(id).map(|_| ()).ok_or(EngineError::NotFound)
     }
 

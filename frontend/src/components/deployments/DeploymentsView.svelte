@@ -22,12 +22,14 @@
   import { readGpuMemoryGb } from '../../lib/gpuBooking.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
+  import { vmStateText } from '../../lib/vmList.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
   import type { BuildingServer } from '../../lib/building.ts'
-  import type { Machine, Workload } from '../../lib/types.ts'
+  import type { Command, Machine, Workload } from '../../lib/types.ts'
 
   interface Props {
     machine: Machine
+    commands: Command[]
     pinned: string | null | undefined
     /** How many VMs of this machine are being made right now: the empty message must not show while one is. */
     making: number
@@ -38,7 +40,7 @@
     onOpenChat: (machine: Machine, workload: Workload | null) => void
   }
 
-  let { machine, pinned, making, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
+  let { machine, commands, pinned, making, onCreate, onAct, onDelete, onInstall, onOpenChat }: Props = $props()
   const handlers: VmActionHandlers = $derived({ onAct, onInstall, onOpenChat, onDelete })
   const MAKING_TEXT = 'The first VM is being made. It will be listed here when the machine reports it.'
   const NONE_TEXT = 'No VMs on this machine yet.'
@@ -91,13 +93,13 @@
       {@const limit = readGpuMemoryGb(workload.gpu_memory_gb)}
       <div class="card">
         <div class="ch">
-          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
+          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
           {#if note}<WhyStopped {note} compact />{/if}
           {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
         </div>
-        <div class="acts"><VmActions {machine} {workload} {handlers} /></div>
+        <div class="acts"><VmActions {machine} {workload} {commands} {handlers} /></div>
       </div>
     {/each}
   </div>
@@ -114,7 +116,7 @@
           <tr>
             <td class="c-name" data-label="Name"><a href={vmHref(machine.id, server.id)}>{server.display}</a><small class="vm-id mono">{server.id}</small></td>
             <td data-label="Status">
-              <span class="tag {server.cls}">{server.status}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}
+              <span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}
               {#if note}<WhyStopped {note} compact />{/if}
               {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
             </td>
@@ -122,7 +124,7 @@
             <td class="mono" data-label="Type">{workload.kind}</td>
             <td class="mono nums" data-label="Size">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
             <td class="mono muted" data-label="Address"><span class="addr">{workload.address ?? '—'}{#if workload.address}<CopyAddress address={workload.address} subject={workload.name} />{/if}</span></td>
-            <td data-label="Actions"><VmActions {machine} {workload} {handlers} /></td>
+            <td data-label="Actions"><VmActions {machine} {workload} {commands} {handlers} /></td>
           </tr>
         {/each}
       </tbody>

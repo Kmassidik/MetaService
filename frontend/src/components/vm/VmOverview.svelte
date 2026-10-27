@@ -4,6 +4,7 @@
   import WhyStopped from './WhyStopped.svelte'
   import { isPlainMode, PLAIN_MODE_TEXT, type StopNote } from '../../lib/stoppedReason.ts'
   import { vmFacts } from '../../lib/vm.ts'
+  import { vmStateText } from '../../lib/vmList.ts'
   import type { BuildingServer } from '../../lib/building.ts'
   import type { Machine, Workload } from '../../lib/types.ts'
 
@@ -23,7 +24,7 @@
 
 <dl class="kv">
   {#each facts as fact (fact.label)}
-    <div><dt>{fact.label}</dt><dd>{#if fact.value === null}<span class="tag {server.cls}">{server.status}</span>{:else}<span class="mono">{fact.value}</span>{/if}</dd></div>
+    <div><dt>{fact.label}</dt><dd>{#if fact.value === null}<span class="tag {server.cls}">{vmStateText(server.status)}</span>{:else}<span class="mono">{fact.value}</span>{/if}</dd></div>
   {/each}
 </dl>
 {#if note}<div class="extra"><WhyStopped {note} /></div>{/if}

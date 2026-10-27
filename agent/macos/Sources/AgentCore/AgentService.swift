@@ -46,7 +46,8 @@ public actor AgentService {
     private let agentBuild: String?
     private let ledger: CommandLedger
     private var inflight: [String: Workload] = [:]
-    private var deleting: Set<String> = []
+    private var deleting: [String: Command] = [:]
+    private static let maxDeleteErrorBytes = 300
     private let installer: BundleInstalling?
     /// The open consoles; stopping or deleting a workload ends its console.
     public nonisolated let consoles: ConsoleRegistry
@@ -92,7 +93,7 @@ public actor AgentService {
     public func workloads() async throws -> [Workload] {
         var byId = Dictionary(uniqueKeysWithValues: try await engine.list().map { ($0.id, $0) })
         for (id, planned) in inflight where byId[id] == nil { byId[id] = planned }
-        for id in deleting { byId[id]?.state = .deleting }
+        for (id, _) in deleting { byId[id]?.state = .deleting }
         return byId.values.sorted { $0.name < $1.name }
     }
 
@@ -175,32 +176,69 @@ public actor AgentService {
         return command
     }
 
-    /// Backs up the disk first, then deletes. The backup name is part of the result.
+    /// Stops a running workload, backs up its disk, then deletes it. A failure restores the original running state when possible.
     public func delete(commandId: String, id: String) async throws -> Command {
         if let existing = ledger.find(commandId) { return existing }
-        guard try await workloads().contains(where: { $0.id == id }) else { throw AgentError.notFound }
-        deleting.insert(id)
-        consoles.end(id, .vmDeleted)
+        if let active = deleting[id] { return active }
+        guard let workload = try await workloads().first(where: { $0.id == id }) else { throw AgentError.notFound }
+        if let active = deleting[id] { return active }
         let command = Command(commandId: commandId, type: .delete, state: .running, workloadId: id)
+        deleting[id] = command
+        consoles.end(id, .vmDeleted)
         ledger.record(command)
-        Task { await self.finishDelete(command, id: id) }
+        onChange?()
+        Task { await self.finishDelete(command, id: id, wasRunning: workload.state == .running) }
         return command
     }
 
-    private func finishDelete(_ started: Command, id: String) async {
+    private func finishDelete(_ started: Command, id: String, wasRunning: Bool) async {
         var done = started
         do {
+            if wasRunning { try await engine.setRunning(id: id, running: false) }
             let backup = try await engine.backup(id: id)
             try await engine.delete(id: id)
             done.state = .succeeded
             done.result = ["backup_id": backup]
         } catch {
             done.state = .failed
-            done.result = ["error": "the machine could not delete the workload"]
+            var reason = Self.deleteError(error)
+            if wasRunning {
+                do {
+                    try await engine.setRunning(id: id, running: true)
+                } catch {
+                    reason += " (could not restart: \(Self.deleteError(error)))"
+                }
+            }
+            done.result = ["error": Self.boundedDeleteError(reason)]
         }
-        deleting.remove(id)
+        if deleting[id]?.commandId == started.commandId { deleting[id] = nil }
         ledger.record(done)
         onChange?()
+    }
+
+    private static func deleteError(_ error: Error) -> String {
+        let reason: String
+        switch error {
+        case EngineError.notFound: reason = "the machine no longer has this workload"
+        case EngineError.notRunning: reason = "the machine says this workload is not running"
+        case EngineError.failed(let message), EngineError.notReady(let message): reason = message
+        default: reason = String(describing: error)
+        }
+        return boundedDeleteError(reason)
+    }
+
+    private static func boundedDeleteError(_ reason: String) -> String {
+        let line = reason.split(whereSeparator: { $0.isNewline }).joined(separator: " ")
+        guard line.utf8.count > maxDeleteErrorBytes else { return line }
+        var bounded = ""
+        var byteCount = 0
+        bounded.reserveCapacity(maxDeleteErrorBytes)
+        for character in line {
+            guard byteCount + character.utf8.count <= maxDeleteErrorBytes else { break }
+            bounded.append(character)
+            byteCount += character.utf8.count
+        }
+        return bounded
     }
 
     /// Installs the bundle in the background. A repeat of the same command id changes nothing.

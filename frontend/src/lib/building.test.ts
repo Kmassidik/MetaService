@@ -65,6 +65,13 @@ test('segments merge adjacent windows of the same apartment on each floor', () =
   ]);
 });
 
+test('a deleting VM still holds its memory and is not drawn as stopped', () => {
+  const model = buildingModel([server('going', 'deleting', 2, { cls: 'prog' })], host64);
+  expect(model.tenants[0]?.home).toBe(true);
+  expect(model.tenants[0]?.windows).toBe(2);
+  expect(model.totals.away).toBe(0);
+});
+
 test('totals report rented, reserved and vacant memory plus promised cores', () => {
   const model = buildingModel([
     server('budi', 'running', 2),
