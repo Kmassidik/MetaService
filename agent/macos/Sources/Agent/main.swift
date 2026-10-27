@@ -111,6 +111,15 @@ func runAgent(_ config: AgentConfig) async throws {
     try await app.runService()
 }
 
+if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--export-rootfs" {
+    do {
+        try AppleDiskExporter.export(rootfs: CommandLine.arguments[2], archive: CommandLine.arguments[3])
+        exit(0)
+    } catch {
+        fail("\(error)")
+    }
+}
+
 do {
     let config = try AgentConfig.parse(Array(CommandLine.arguments.dropFirst()))
     switch config.command {

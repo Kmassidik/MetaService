@@ -3,11 +3,12 @@ import PackageDescription
 
 let package = Package(
     name: "metaservice-agent-macos",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [.executable(name: "metaservice-agent", targets: ["Agent"])],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
         .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", exact: "2.7.0"),
+        .package(url: "https://github.com/Kmassidik/containerization.git", revision: "f5ba25dad63db3c7fdb7cd760b18ecd2b7eb7298"),
         .package(path: "../../shared/metaservice-shared"),
     ],
     targets: [
@@ -18,7 +19,7 @@ let package = Package(
         .executableTarget(
             name: "Agent",
             dependencies: ["AgentCore", .product(name: "MSCore", package: "metaservice-shared"), .product(name: "Hummingbird", package: "hummingbird"),
-                          .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket")],
+                          .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"), .product(name: "ContainerizationEXT4", package: "containerization")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore", .product(name: "MSCore", package: "metaservice-shared")], swiftSettings: [.swiftLanguageMode(.v5)]),

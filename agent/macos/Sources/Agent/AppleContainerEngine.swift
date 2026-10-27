@@ -149,7 +149,13 @@ actor AppleContainerEngine: Engine {
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "")
         let file = "\(id)-\(stamp).tar"
         let path = backupDirectory + "/" + file
-        _ = try await cli.run(AppleContainer.export(id, to: path), timeout: Self.slow)
+        let stopped = try await find(id)?.state == "stopped"
+        if stopped, FileManager.default.fileExists(atPath: AppleDiskExporter.rootfsPath(id: id)) {
+            try await AppleDiskExporter.export(id: id, to: path, timeout: Self.slow)
+        } else {
+            FileHandle.standardError.write(Data("metaservice-agent: using Apple's export for \(id) because its rootfs is not available as a stopped default-path image\n".utf8))
+            _ = try await cli.run(AppleContainer.export(id, to: path), timeout: Self.slow)
+        }
         let size = ((try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? NSNumber)?.intValue ?? 0
         guard size > 0 else { throw EngineError.failed("the backup file is empty, so nothing was deleted") }
         return file
