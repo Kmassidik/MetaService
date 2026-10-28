@@ -125,6 +125,26 @@ def check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_repo
         expect(operator.request("GET", "/api/remote/machines").body["machines"] == [], "the record must be forgotten")
 
 
+def check_a_machine_can_be_removed_and_added_again_with_a_new_key():
+    with remote() as (root, operator, server):
+        authorize_parent(operator, server)
+        first = wait_for_job(operator, start_install(operator, add_body(server, box_folder())).body["id"])
+        expect(first["state"] == "done", f"first install: {first.get('error')}")
+        wait_for_tunnel(operator, "connected")
+        first_key = pathlib.Path(server.authorized).read_text()
+        removed = operator.write("POST", "/api/remote/machines/test-box/remove", {"use_key": True})
+        expect(removed.status == 204, f"remove: {removed.status} {removed.raw[:160]!r}")
+
+        second = wait_for_job(operator, start_install(operator, add_body(server, box_folder())).body["id"])
+        expect(second["state"] == "done", f"second install: {second.get('error')} {[(s['id'], s['state'], s.get('detail')) for s in second['steps']]}")
+        wait_for_tunnel(operator, "connected")
+        second_key = pathlib.Path(server.authorized).read_text()
+        expect(second_key != first_key, "the new install must use its new key pair")
+        expect(len([line for line in second_key.splitlines() if line.endswith(" metaservice-test-box")]) == 1, f"only one new machine key remains: {second_key}")
+        expect(" metaservice-parent\n" in second_key, "the parent's own key must remain")
+        wait_command(operator, create_vm(operator, "after-readd"), "succeeded")
+
+
 def check_a_step_that_fails_takes_everything_that_was_added_away_again():
     fake = pathlib.Path(tempfile.mkdtemp(prefix="ms-fake-agent-")) / "metaservice-agent"
     fake.write_text('#!/bin/sh\ncase "$1" in\n  enroll) exit 0 ;;\n  *) echo "pretend crash"; exit 1 ;;\nesac\n')
@@ -289,6 +309,7 @@ def check_without_the_key_there_is_no_tunnel_and_the_machine_only_reports_in():
 
 
 CHECKS = [check_what_will_change_is_shown_without_a_login_or_any_change, check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_reports_in,
+          check_a_machine_can_be_removed_and_added_again_with_a_new_key,
           check_a_step_that_fails_takes_everything_that_was_added_away_again, check_an_existing_folder_is_never_touched_and_a_wrong_fingerprint_changes_nothing,
           check_one_install_at_a_time_and_a_name_cannot_be_used_twice, check_an_install_needs_a_login_and_refuses_bad_requests,
           check_commands_go_through_the_tunnel_which_comes_back_by_itself_and_is_never_gone_around, check_tunnels_are_opened_again_when_the_parent_starts_again,

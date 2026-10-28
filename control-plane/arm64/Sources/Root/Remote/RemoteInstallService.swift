@@ -278,7 +278,7 @@ final class RemoteInstallService: @unchecked Sendable {
         guard let result = try? await parts.ssh.run(script, on: context.target, with: context.credentials, timeout: Self.stepSeconds), result.status == 0 else {
             return " Taking back what was added did not work: remove the folder \(options.box) on that computer by hand."
         }
-        try? parts.ssh.machineKeyRemove(name)
+        try? await parts.ssh.machineKeyRemove(name)
         return " Everything that was added has been taken away again."
     }
 

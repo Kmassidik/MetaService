@@ -47,6 +47,15 @@ final class SshAgentHost: @unchecked Sendable {
         lock.withLock { _ = loaded.insert(name) }
     }
 
+    /// Removes one machine's old identity so a later install cannot offer it with the new public key.
+    func remove(publicKey: String, name: String) async throws {
+        let socket = try ensureRunning()
+        guard lock.withLock({ loaded.contains(name) }) else { return }
+        let result = try await SshProcess.run(Self.addProgram, ["-d", "-"], input: Data(publicKey.utf8), environment: ["SSH_AUTH_SOCK": socket], timeout: 10)
+        guard result.status == 0 else { throw SshProcessFailure.missing }
+        lock.withLock { _ = loaded.remove(name) }
+    }
+
     func stop() {
         lock.withLock {
             process?.terminate()

@@ -12,7 +12,7 @@ extension RemoteInstallService {
         guard let record = try parts.remoteMachines.get(machine) else { throw RemoteFailure.notRemote }
         parts.tunnels.forget(machine)
         if let login = request.login { try await takeAway(record, login) }
-        try forget(record)
+        try await forget(record)
         try? parts.audit.record(actor: actor, action: request.forgetOnly ? "remote.forget" : "remote.remove", target: machine, detail: ["host": record.host, "box": record.box], at: parts.clock.now)
     }
 
@@ -34,12 +34,12 @@ extension RemoteInstallService {
         return RemoteFailure.fromSsh(result.errors, status: result.status)
     }
 
-    private func forget(_ record: RemoteMachine) throws {
+    private func forget(_ record: RemoteMachine) async throws {
         try? parts.machines.remove(id: record.machine)
         try parts.chatAccess.remove(target: record.machine)
         try parts.settings.remove(machine: record.machine)
         try parts.ssh.pins.forget(spec: HostKeys.spec(host: record.host, port: record.sshPort))
-        try parts.ssh.machineKeyRemove(record.machine)
+        try await parts.ssh.machineKeyRemove(record.machine)
         try parts.remoteMachines.remove(record.machine)
     }
 }

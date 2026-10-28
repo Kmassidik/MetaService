@@ -111,8 +111,12 @@ final class RemoteSsh: @unchecked Sendable {
         try key(named: "machine:" + machine, comment: PlanScripts.keyMarker(machine))
     }
 
-    /// A machine was removed or its install rolled back: its key goes too.
-    func machineKeyRemove(_ machine: String) throws { try parts.keys.remove("machine:" + machine) }
+    /// A machine was removed or its install rolled back: its key goes too, including the agent's cached identity.
+    func machineKeyRemove(_ machine: String) async throws {
+        let name = "machine:" + machine
+        if let key = try parts.keys.get(name) { try await agent.remove(publicKey: key.publicKey, name: name) }
+        try parts.keys.remove(name)
+    }
 
     private func key(named name: String, comment: String) throws -> RemoteKey {
         if let existing = try parts.keys.get(name) { return existing }
