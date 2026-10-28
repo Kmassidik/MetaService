@@ -26,6 +26,7 @@ final class RemoteInstallService: @unchecked Sendable {
         let settings: MachineSettingsStore
         let chatAccess: ChatAccessStore
         let tunnels: TunnelSupervisor
+        let client: AgentClient
     }
 
     /// Everything a running install knows once the computer was checked again.
@@ -49,6 +50,8 @@ final class RemoteInstallService: @unchecked Sendable {
     private static let stepSeconds: TimeInterval = 60
     private static let sendSeconds: TimeInterval = 300
     private static let onlineSeconds = 60
+    private static let storageSeconds = 900
+    private static let storagePollNanoseconds: UInt64 = 2_000_000_000
     private static let defaultSteps: [(String, String)] = [("check", "Check the computer again"), ("folder", "Make the box folder"), ("agent", "Copy the MetaService program"),
                                                            ("enroll", "Enroll it with the parent"), ("start", "Start the program")]
 
@@ -89,7 +92,7 @@ final class RemoteInstallService: @unchecked Sendable {
         if request.choices.installKey { steps.append(InstallStep(id: "key", label: "Allow the parent's tunnel")) }
         steps.append(InstallStep(id: "manifest", label: "Write the record"))
         if request.choices.installKey { steps.append(InstallStep(id: "tunnel", label: "Open the tunnel to it")) }
-        steps.append(InstallStep(id: "online", label: "Wait for the machine to report in"))
+        steps.append(InstallStep(id: "online", label: "Wait for the machine and its first disk map"))
         try lock.withLock {
             guard active == nil else { throw RemoteFailure.installRunning }
             active = id
@@ -259,10 +262,25 @@ final class RemoteInstallService: @unchecked Sendable {
 
     private func waitUntilOnline(_ name: String) async throws -> String {
         for _ in 0..<Self.onlineSeconds {
-            if let machine = try? parts.machines.get(id: name, now: parts.clock.now), machine.state != "offline" { return "The machine reported in." }
+            if let machine = try? parts.machines.get(id: name, now: parts.clock.now), machine.state != "offline" { return try await waitUntilStorage(name) }
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
         throw InstallFailure("MetaService was installed, but the machine did not report in within \(Self.onlineSeconds) seconds. Look at logs/agent.log in its box, or remove the machine and try again.")
+    }
+
+    private func waitUntilStorage(_ name: String) async throws -> String {
+        for _ in 0..<(Self.storageSeconds / 2) {
+            let storage = await readStorage(name)
+            if let error = storage?.error { throw InstallFailure("The machine's first disk map failed: \(error)") }
+            if let finishedAt = storage?.map?.finishedAt { return "The machine reported in and its first disk map finished at \(finishedAt)." }
+            try? await Task.sleep(nanoseconds: Self.storagePollNanoseconds)
+        }
+        throw InstallFailure("The machine reported in, but its first disk map did not finish within \(Self.storageSeconds / 60) minutes. Check Storage on the machine, or remove it and try again.")
+    }
+
+    private func readStorage(_ name: String) async -> Storage? {
+        guard let reply = try? await parts.client.call(machine: name, method: "GET", path: "/v1/storage", timeout: StorageService.helperTimeoutSeconds, maxBytes: Storage.maxAnswerBytes), reply.status == 200 else { return nil }
+        return try? Storage.parse(reply.data)
     }
 
     // MARK: failure

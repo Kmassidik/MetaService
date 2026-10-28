@@ -85,7 +85,8 @@ struct Services {
         machineDetails = MachineDetails(machines: machines, remoteMachines: remoteMachines, bundles: bundles, commands: commands, updates: helperUpdates, clock: clock)
         tunnels = TunnelSupervisor(ssh: remoteSsh, remoteMachines: remoteMachines, ports: tunnelPorts, clock: clock)
         remoteInstalls = RemoteInstallService(parts: .init(config: config, clock: clock, ssh: remoteSsh, machines: machines, enrollments: enrollments, audit: audit, remoteMachines: remoteMachines,
-                                                           settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels))
+                                                           settings: machineSettings, chatAccess: chatAccess, tunnels: tunnels,
+                                                           client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts)))
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
         sshKeys = SshKeyService(machines: machines, remoteMachines: remoteMachines, keys: sshKeyStore, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)

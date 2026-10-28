@@ -37,7 +37,7 @@ def add_body(server, box, **more):
     return {**verify_body(server), "name": "test-box", "box": str(box), "ssh_dir": server.dir, "agent_port": _agent_port(), **more}
 
 
-def wait_for_job(operator, job_id, seconds=120):
+def wait_for_job(operator, job_id, seconds=960):
     deadline = time.time() + seconds
     while time.time() < deadline:
         job = operator.request("GET", f"/api/remote/installs/{job_id}").body
@@ -97,6 +97,10 @@ def check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_repo
         job = wait_for_job(operator, start_install(operator, body).body["id"])
         expect(job["state"] == "done", f"install: {job['state']} {job.get('error')} {[(s['id'], s['state'], s['detail']) for s in job['steps']]}")
         expect([step["id"] for step in job["steps"]] == STEPS and all(step["state"] == "done" for step in job["steps"]), f"steps: {job['steps']}")
+        storage = operator.request("GET", "/api/machines/test-box/storage").body
+        expect(storage["state"] == "online" and storage["storage"]["map"] is not None, f"first map is not complete: {storage}")
+        finished_at = storage["storage"]["map"]["finished_at"]
+        expect(finished_at in job["steps"][-1]["detail"], f"the last install step did not wait for the completed map: {job['steps'][-1]}")
         expect(set(tree(box.parent)) - set(outside) == {"metaservice-box", "metaservice-box/bin", "metaservice-box/bin/metaservice-agent", "metaservice-box/logs", "metaservice-box/logs/agent.log",
                                                         "metaservice-box/manifest.json", "metaservice-box/start.sh", "metaservice-box/state", "metaservice-box/stop.sh"}
                | {name for name in tree(box.parent) if name.startswith("metaservice-box/state/")}, f"what the install added: {sorted(set(tree(box.parent)) - set(outside))}")
