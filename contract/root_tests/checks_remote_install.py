@@ -129,6 +129,22 @@ def check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_repo
         expect(operator.request("GET", "/api/remote/machines").body["machines"] == [], "the record must be forgotten")
 
 
+def check_repeating_the_same_registration_resumes_readiness_without_reinstalling():
+    with remote() as (root, operator, server):
+        authorize_parent(operator, server)
+        body = add_body(server, box_folder())
+        first = wait_for_job(operator, start_install(operator, body).body["id"])
+        expect(first["state"] == "done", f"first install: {first.get('error')}")
+        box = pathlib.Path(body["box"])
+        first_pid = (box / "state" / "agent.pid").read_text()
+
+        repeated = wait_for_job(operator, start_install(operator, body).body["id"])
+        expect(repeated["state"] == "done", f"repeated registration: {repeated.get('error')}")
+        expect([step["id"] for step in repeated["steps"]] == ["online"], f"retry must resume readiness, not reinstall: {repeated['steps']}")
+        expect((box / "state" / "agent.pid").read_text() == first_pid, "the retry replaced the running helper")
+        expect(repeated["steps"][0]["detail"] == first["steps"][-1]["detail"], "the completed map is reused")
+
+
 def check_a_machine_can_be_removed_and_added_again_with_a_new_key():
     with remote() as (root, operator, server):
         authorize_parent(operator, server)
@@ -313,6 +329,7 @@ def check_without_the_key_there_is_no_tunnel_and_the_machine_only_reports_in():
 
 
 CHECKS = [check_what_will_change_is_shown_without_a_login_or_any_change, check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_reports_in,
+          check_repeating_the_same_registration_resumes_readiness_without_reinstalling,
           check_a_machine_can_be_removed_and_added_again_with_a_new_key,
           check_a_step_that_fails_takes_everything_that_was_added_away_again, check_an_existing_folder_is_never_touched_and_a_wrong_fingerprint_changes_nothing,
           check_one_install_at_a_time_and_a_name_cannot_be_used_twice, check_an_install_needs_a_login_and_refuses_bad_requests,

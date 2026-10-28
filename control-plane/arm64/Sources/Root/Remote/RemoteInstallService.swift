@@ -86,6 +86,7 @@ final class RemoteInstallService: @unchecked Sendable {
 
     func start(_ request: RemoteAddRequest, actor: String) throws -> String {
         let name = request.choices.name
+        if let resumed = try resumeExisting(request, actor: actor) { return resumed }
         guard (try? parts.machines.get(id: name, now: parts.clock.now)) == nil, (try? parts.remoteMachines.get(name)) == nil else { throw RemoteFailure.machineExists }
         let id = "ri-" + Tokens.random(bytes: 6).lowercased().filter { $0.isLetter || $0.isNumber }.prefix(10)
         var steps = Self.defaultSteps.map { InstallStep(id: $0.0, label: $0.1) }
@@ -101,6 +102,30 @@ final class RemoteInstallService: @unchecked Sendable {
         try? parts.audit.record(actor: actor, action: "remote.install", target: "\(request.login.target.user)@\(request.login.target.host):\(request.login.target.port)", detail: ["machine": name], at: parts.clock.now)
         Task.detached { [self] in await run(id, request, actor: actor) }
         return id
+    }
+
+    private func resumeExisting(_ request: RemoteAddRequest, actor: String) throws -> String? {
+        let name = request.choices.name
+        guard let existing = try parts.remoteMachines.get(name), existing.host == request.login.target.host, existing.sshUser == request.login.target.user,
+              existing.box == request.choices.box, (try? parts.machines.get(id: name, now: parts.clock.now)) != nil else { return nil }
+        let id = "ri-" + Tokens.random(bytes: 6).lowercased().filter { $0.isLetter || $0.isNumber }.prefix(10)
+        try lock.withLock {
+            guard active == nil else { throw RemoteFailure.installRunning }
+            active = id
+            jobs[id] = InstallJob(id: id, name: name, state: .running, steps: [InstallStep(id: "online", label: "Wait for the machine and its first disk map")], error: nil, warning: nil)
+        }
+        try? parts.audit.record(actor: actor, action: "remote.install_resume", target: "\(request.login.target.user)@\(request.login.target.host):\(request.login.target.port)", detail: ["machine": name], at: parts.clock.now)
+        Task.detached { [self] in await resume(id, name: name) }
+        return id
+    }
+
+    private func resume(_ id: String, name: String) async {
+        do {
+            try await step(id, "online") { try await waitUntilOnline(name) }
+            finish(id, .done, error: nil)
+        } catch {
+            finish(id, .failed, error: Self.explain(error))
+        }
     }
 
     private func run(_ id: String, _ request: RemoteAddRequest, actor: String) async {
@@ -262,10 +287,20 @@ final class RemoteInstallService: @unchecked Sendable {
 
     private func waitUntilOnline(_ name: String) async throws -> String {
         for _ in 0..<Self.onlineSeconds {
-            if let machine = try? parts.machines.get(id: name, now: parts.clock.now), machine.state != "offline" { return try await waitUntilStorage(name) }
+            if let machine = try? parts.machines.get(id: name, now: parts.clock.now), machine.state != "offline" { return try await startAndWaitForStorage(name) }
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
         throw InstallFailure("MetaService was installed, but the machine did not report in within \(Self.onlineSeconds) seconds. Look at logs/agent.log in its box, or remove the machine and try again.")
+    }
+
+    private func startAndWaitForStorage(_ name: String) async throws -> String {
+        if await readStorage(name)?.map == nil { try await startStorageScan(name) }
+        return try await waitUntilStorage(name)
+    }
+
+    private func startStorageScan(_ name: String) async throws {
+        let reply = try await parts.client.call(machine: name, method: "POST", path: "/v1/storage/scan", timeout: StorageService.helperTimeoutSeconds, maxBytes: Storage.maxAnswerBytes)
+        guard reply.status == 202 else { throw InstallFailure("The machine's first disk map could not be started (helper status \(reply.status)).") }
     }
 
     private func waitUntilStorage(_ name: String) async throws -> String {
