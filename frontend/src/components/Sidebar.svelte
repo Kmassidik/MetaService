@@ -28,8 +28,6 @@
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
     { id: 'vms', label: 'VMs', href: '#/vms', icon: 'M4 4h16v6H4z M4 14h16v6H4z M8 7h1 M8 17h1' },
     { id: 'sandboxes', label: 'Sandboxes', href: '#/sandboxes', icon: 'M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10' },
-    { id: 'keys', label: 'API keys', href: '#/keys', icon: 'M15 7a4 4 0 1 1-4 4l-6 6v3h3l6-6a4 4 0 0 0 1-7z' },
-    { id: 'sandboxUsage', label: 'Sandbox usage', href: '#/sandboxes/usage', icon: 'M4 4h16v16H4z M4 9h16 M9 9v11' },
   ]
   const groups: [string, NavPage[]][] = [['Operator', operator], ['Infrastructure', infrastructure]]
 </script>

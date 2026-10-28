@@ -13,9 +13,7 @@
   import VmDetail from './pages/VmDetail.svelte'
   import VmsList from './pages/VmsList.svelte'
     import TokenLedger from './pages/TokenLedger.svelte'
-  import Sandboxes from './pages/Sandboxes.svelte'
-  import SandboxKeys from './pages/SandboxKeys.svelte'
-  import SandboxUsage from './pages/SandboxUsage.svelte'
+  import SandboxesShell from './pages/SandboxesShell.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
@@ -292,11 +290,7 @@
       {:else if page === 'usage'}
         <TokenLedger {brain} />
       {:else if page === 'sandboxes'}
-        <Sandboxes />
-      {:else if page === 'keys'}
-        <SandboxKeys />
-      {:else if page === 'sandboxUsage'}
-        <SandboxUsage />
+        <SandboxesShell {route} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}
