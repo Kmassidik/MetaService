@@ -66,14 +66,14 @@ public struct SpaceBudget: Equatable {
         return max(0, min(diskAllowanceGb ?? diskTotalGb, diskTotalGb) - reserveDiskGb - marginDiskGb - used)
     }
 
-    /// Both checks. `osAvailableDiskGb` is what the file system says is really free; it can only make the answer stricter.
+    /// Both checks. A positive `osAvailableDiskGb` can only make the answer stricter; zero or a negative reading is unknown, not proof of a full disk.
     public func check(_ request: CreateWorkloadRequest, workloads: [Workload], capabilities: Capabilities, osAvailableDiskGb: Int?) throws {
         try checkCapability(request, capabilities)
         let ram = freeRamMb(workloads: workloads)
         guard request.ramMb <= ram else { throw Refusal(code: .notEnoughRoom, message: "not enough RAM", resource: .ramMb, needed: request.ramMb, free: ram) }
         let disk = freeDiskGb(workloads: workloads)
         guard request.diskGb <= disk else { throw Refusal(code: .notEnoughRoom, message: "not enough disk", resource: .diskGb, needed: request.diskGb, free: disk) }
-        guard let real = osAvailableDiskGb, request.diskGb + marginDiskGb > real else { return }
+        guard let real = osAvailableDiskGb, real > 0, request.diskGb + marginDiskGb > real else { return }
         throw Refusal(code: .notEnoughRoom, message: "the disk is fuller than the budget says", resource: .diskGb, needed: request.diskGb, free: max(0, real - marginDiskGb))
     }
 

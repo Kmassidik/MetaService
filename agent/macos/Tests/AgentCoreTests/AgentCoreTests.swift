@@ -95,6 +95,14 @@ final class AgentCoreTests: XCTestCase {
         }
     }
 
+    func testZeroOrNegativeOSDiskReadingsAreUnknownNotFull() throws {
+        let budget = SpaceBudget(ramTotalMb: 32768, diskTotalGb: 245, reserveRamMb: 0, reserveDiskGb: 0, marginDiskGb: 20)
+        let request = try create { $0["disk_gb"] = 20 }
+        XCTAssertNoThrow(try budget.check(request, workloads: [], capabilities: caps, osAvailableDiskGb: 0))
+        XCTAssertNoThrow(try budget.check(request, workloads: [], capabilities: caps, osAvailableDiskGb: -1))
+        XCTAssertThrowsError(try budget.check(request, workloads: [], capabilities: caps, osAvailableDiskGb: 10))
+    }
+
     func testCapabilitiesAreChecked() throws {
         let budget = SpaceBudget(ramTotalMb: 65536, diskTotalGb: 2000)
         let cases: [(String, [String: Any], Capabilities)] = [
