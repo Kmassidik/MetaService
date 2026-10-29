@@ -79,6 +79,30 @@ export interface WorkloadApp {
   message: string | null
 }
 
+export type ExternalRuntime = 'docker' | 'incus' | 'apple'
+export type ExternalServiceState = 'running' | 'stopped' | 'unknown'
+export type ExternalServiceAction = 'start' | 'stop' | 'restart'
+
+/** A container or VM that already exists outside MetaService's managed workloads. */
+export interface ExternalService {
+  id: string
+  name: string
+  runtime: ExternalRuntime
+  kind: WorkloadKind
+  state: ExternalServiceState
+  image: string | null
+}
+
+export interface ExternalWarning {
+  runtime: ExternalRuntime
+  message: string
+}
+
+export interface ExternalServicesReply {
+  services: ExternalService[]
+  warnings: ExternalWarning[]
+}
+
 export interface Workload {
   id: string
   name: string

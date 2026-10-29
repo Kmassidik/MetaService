@@ -245,6 +245,7 @@ pub enum CommandType {
     Create,
     Start,
     Stop,
+    Restart,
     Delete,
     BundleInstall,
     BundleUninstall,

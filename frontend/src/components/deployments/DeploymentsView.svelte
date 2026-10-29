@@ -8,6 +8,8 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
+  import AppsBlock from './AppsBlock.svelte'
+  import ExternalServices from './ExternalServices.svelte'
   import Owl from '../Owl.svelte'
   import CopyAddress from '../vms/CopyAddress.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
@@ -70,6 +72,8 @@
   {#if workload}<TerminalButton {machine} {workload} />{/if}
 {/snippet}
 
+<section class="managed-block" aria-labelledby="managed-vms-title">
+  <h2 id="managed-vms-title">Managed VMs</h2>
 <div class="bar-row">
   <span class="runs">{running}/{servers.length} running</span>
   <div class="segmented" role="group" aria-label="View">
@@ -131,8 +135,13 @@
     </table>
   </div>
 {/if}
+</section>
+
+<AppsBlock {machine} />
+<ExternalServices machineId={machine.id} />
 
 <style>
+  .managed-block > h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
   .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }

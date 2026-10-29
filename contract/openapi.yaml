@@ -192,6 +192,42 @@ paths:
         '400': { $ref: '#/components/responses/Invalid' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/external-services:
+    get:
+      summary: >
+        List Docker, Incus and Apple virtual machines and containers that MetaService does not manage. Optional, added without a version change;
+        an old helper answers 404. Discovery only lists and inspects: it never starts a daemon, adopts a service or changes any state. A missing runtime is omitted;
+        a runtime that cannot be read adds a bounded warning. Every id is an opaque, URL-safe path value resolved again before a mutation.
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/ExternalServiceList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/external-services/{id}/start:
+    post:
+      summary: Start an external service found by a fresh discovery. Managed workloads are never accepted here.
+      parameters: [ { $ref: '#/components/parameters/ExternalServiceId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/external-services/{id}/stop:
+    post:
+      summary: Stop an external service found by a fresh discovery. There is deliberately no delete route.
+      parameters: [ { $ref: '#/components/parameters/ExternalServiceId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/external-services/{id}/restart:
+    post:
+      summary: Restart an external service found by a fresh discovery.
+      parameters: [ { $ref: '#/components/parameters/ExternalServiceId' }, { $ref: '#/components/parameters/CommandIdHeader' } ]
+      responses:
+        '202': { description: accepted, content: { application/json: { schema: { $ref: '#/components/schemas/CommandAccepted' } } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /v1/commands/{id}:
     get:
       summary: Status and result of a long command
@@ -599,6 +635,40 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: wrong Host or Origin, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: no such machine (code not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/external-services:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
+    get:
+      summary: >
+        A live, strict proxy of the helper's external-service discovery. Nothing is cached or adopted. An old helper's 404 stays 404;
+        an offline or unreachable helper, or a non-200 or malformed answer, is a 502 `machine_unreachable`.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/ExternalServiceList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { description: machine unreachable or unreadable answer, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/machines/{machine}/external-services/{id}/{action}:
+    servers: [ { url: 'https://panel.example', description: the Root operator listener (an operator write) } ]
+    post:
+      summary: >
+        Start, stop or restart an external service (`action` is exactly one of those words). The Root resolves the opaque id against a fresh discovery
+        before it records a command, then sends that command id to the helper. Poll the returned row with GET /api/commands/{command_id}; unfinished rows resume after a Root restart.
+        External ids never enter the managed workload store or placement budgets. Unknown targets are 404; there is no delete action.
+      security: []
+      parameters:
+        - { name: machine, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+        - { $ref: '#/components/parameters/ExternalServiceId' }
+        - { name: action, in: path, required: true, schema: { type: string, enum: [start, stop, restart] } }
+      responses:
+        '202': { description: accepted; command is a Root CommandRow, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: wrong Host, Origin or CSRF token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { description: too many actions, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: machine unreachable or refused the command, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/terminal/{ticket}:
     servers: [ { url: 'https://panel.example', description: the Root operator listener } ]
     get:
@@ -639,6 +709,12 @@ components:
       in: path
       required: true
       schema: { $ref: '#/components/schemas/Id' }
+    ExternalServiceId:
+      name: id
+      in: path
+      required: true
+      description: Opaque id from discovery (`docker:<full id>`, `incus:<native name>` or `apple:<native UUID>`), URL-encoded as one path segment.
+      schema: { $ref: '#/components/schemas/ExternalServiceId' }
     CommandId:
       name: id
       in: path
@@ -1517,6 +1593,40 @@ components:
         message: { type: string, maxLength: 20000, description: 'The reason in plain words. Text, never markup; the Root cleans it and keeps at most 300 bytes.' }
         used_gb: { type: number, minimum: 0, maximum: 1000000 }
         limit_gb: { type: number, minimum: 0, maximum: 1000000 }
+    ExternalServiceId:
+      type: string
+      pattern: '^(docker|incus|apple):[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+    ExternalService:
+      type: object
+      required: [id, name, runtime, kind, state]
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/ExternalServiceId' }
+        name: { type: string, minLength: 1, maxLength: 128 }
+        runtime: { type: string, enum: [docker, incus, apple] }
+        kind: { type: string, enum: [vm, container] }
+        state: { type: string, enum: [running, stopped, unknown] }
+        image: { type: string, minLength: 1, maxLength: 256, description: Optional image name when the runtime reports one. }
+    ExternalWarning:
+      type: object
+      required: [runtime, message]
+      additionalProperties: false
+      properties:
+        runtime: { type: string, enum: [docker, incus, apple] }
+        message: { type: string, minLength: 1, maxLength: 300 }
+    ExternalServiceList:
+      type: object
+      required: [services, warnings]
+      additionalProperties: false
+      properties:
+        services:
+          type: array
+          maxItems: 256
+          items: { $ref: '#/components/schemas/ExternalService' }
+        warnings:
+          type: array
+          maxItems: 12
+          items: { $ref: '#/components/schemas/ExternalWarning' }
     WorkloadList:
       type: object
       required: [workloads]
@@ -1642,7 +1752,7 @@ components:
       additionalProperties: false
       properties:
         command_id: { $ref: '#/components/schemas/Id' }
-        type: { type: string, enum: [create, start, stop, delete, bundle_install, bundle_uninstall] }
+        type: { type: string, enum: [create, start, stop, restart, delete, bundle_install, bundle_uninstall] }
         state: { type: string, enum: [queued, running, succeeded, failed] }
         workload_id: { $ref: '#/components/schemas/Id' }
         result:

@@ -22,6 +22,8 @@ const IMAGES_CALL = /^\/api\/machines\/([^/]+)\/images$/
 const FIRST_CREATED_NUMBER = 5
 const CREATE_PATH ='/api/workloads'
 const VM_CALL =/^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/(start|stop|delete)$/
+const EXTERNAL_CALL = /^\/api\/machines\/([^/]+)\/external-services(?:\/([^/]+)\/(start|stop|restart))?$/
+const COMMAND_CALL = /^\/api\/commands\/([^/]+)$/
 
 export interface Behaviour {
   /** How long every VM call takes to answer. */
@@ -30,6 +32,19 @@ export interface Behaviour {
   refuseWith: string | null
   /** When true, VM calls are never answered. */
   hang: boolean
+}
+
+export interface ExternalBook {
+  /** False behaves like a parent proxying an old helper: discovery is 404. */
+  available: boolean
+  delayMs: number
+  /** How long the accepted command stays running before discovery changes. */
+  commandDelayMs: number
+  refuseWith: string | null
+  services: Json[]
+  warnings: Json[]
+  discoveries: number
+  actions: string[]
 }
 
 export interface StandIn {
@@ -43,6 +58,8 @@ export interface StandIn {
   sshKeys: SshKeyBook
   /** The apps installed inside VMs and the image catalog that offers them. */
   apps: AppBook
+  /** Existing services and the discovery/action calls of the external-services routes. */
+  external: ExternalBook
   /** The raw text of every body POSTed to create a VM, in order. */
   createBodies: string[]
   /** When `order` is set, a create or delete answers with it and the order list holds it: the test plays the parent's order by hand and moves VMs with `putVm`. */
@@ -72,6 +89,14 @@ const fleet = (): Json[] => [
   machine('studio', [vm('vm1', 'running'), vm('vm2', 'stopped'), vm('vm3', 'stopped')], { installed: '0.3.0', pinned: '0.4.0', state: 'outdated' }),
   machine('mini', [vm('vm4', 'running', '0.3.0')], { installed: null, pinned: '0.4.0', state: 'off' }),
 ]
+
+const externalFleet = (): Json[] => [
+  { id: 'docker:abc123', name: 'postgres', runtime: 'docker', kind: 'container', state: 'running', image: 'postgres:18' },
+  { id: 'incus:build', name: 'build-cache', runtime: 'incus', kind: 'container', state: 'stopped', image: 'ubuntu:24.04' },
+  { id: 'apple:8D6C7F2E', name: 'mac-guest', runtime: 'apple', kind: 'vm', state: 'unknown' },
+]
+
+const externalWarnings = (): Json[] => [{ runtime: 'incus', message: 'One instance could not be inspected.' }]
 
 const order = (type: string, id: string): Json => ({ command: { id, type, machine: 'studio', workload_id: null, state: 'running', created_at: new Date().toISOString(), params: {} } })
 
@@ -111,6 +136,8 @@ export async function startStandIn(): Promise<StandIn> {
   const bundles = createBundleBook()
   const sshKeys = createSshKeyBook()
   const apps = createAppBook()
+  const external: ExternalBook = { available: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] }
+  const externalCommands = new Map<string, Json>()
   const createBodies: string[] = []
   const script: { order: Json | null } = { order: null }
 
@@ -231,6 +258,35 @@ export async function startStandIn(): Promise<StandIn> {
     return answer(`pin ${version}`, 'pin', response, () => bundles.pin(version))
   }
 
+  /** Discovery is always read-only. Only an explicit action POST changes one of the existing external services. */
+  async function externalCall(request: IncomingMessage, response: ServerResponse, match: RegExpExecArray): Promise<void> {
+    const [, machineId = '', encodedId, action] = match
+    if (!machines.some((entry) => entry.id === machineId)) return send(response, 404, { error: { code: 'not_found', message: 'no such machine' } })
+    if (request.method === 'GET' && encodedId === undefined) {
+      external.discoveries += 1
+      if (!external.available) return send(response, 404, { error: { code: 'not_found', message: 'old helper' } })
+      return send(response, 200, { services: external.services, warnings: external.warnings })
+    }
+    if (request.method !== 'POST' || encodedId === undefined || action === undefined) return send(response, 405, { error: { code: 'method_not_allowed', message: 'method not allowed' } })
+    const id = decodeURIComponent(encodedId)
+    external.actions.push(`${action} ${id}`)
+    await wait(external.delayMs)
+    if (external.refuseWith !== null) return send(response, 409, { error: { code: 'refused', message: external.refuseWith } })
+    const target = external.services.find((entry) => entry.id === id)
+    if (!target) return send(response, 404, { error: { code: 'not_found', message: 'no such external service' } })
+    const commandId = `external-${external.actions.length}`
+    const accepted = order(action, commandId)
+    const command = accepted.command as Json
+    externalCommands.set(commandId, command)
+    const finalState = action === 'stop' ? 'stopped' : 'running'
+    void wait(external.commandDelayMs).then(() => {
+      target.state = finalState
+      command.state = 'succeeded'
+      command.result = { state: finalState }
+    })
+    return send(response, 202, accepted)
+  }
+
   async function api(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
     if (path === '/api/session') return send(response, 200, { username: 'kurnia', csrf_token: CSRF })
     if (path === '/api/auth/status') return send(response, 200, { configured: true, signedIn: true, min_password_length: 8 })
@@ -246,6 +302,8 @@ export async function startStandIn(): Promise<StandIn> {
     if (settingsRoute) return settingsCall(request, response, settingsRoute)
     const call = VM_CALL.exec(path)
     if (call && posted) return vmCall(call, response)
+    const externalRoute = EXTERNAL_CALL.exec(path)
+    if (externalRoute) return externalCall(request, response, externalRoute)
     const bundle = BUNDLE_CALL.exec(path)
     if (bundle && posted) return bundleCall(request, response, bundle)
     if (path === '/api/bundles/pin' && posted) return pinCall(request, response)
@@ -254,6 +312,8 @@ export async function startStandIn(): Promise<StandIn> {
     const detail = MACHINE_PAGE.exec(path)
     const shown = machines.find((entry) => entry.id === detail?.[1])
     if (shown) return send(response, 200, shown)
+    const command = externalCommands.get(COMMAND_CALL.exec(path)?.[1] ?? '')
+    if (command) return send(response, 200, { command })
     if (path === '/api/commands') return send(response, 200, { commands: script.order ? [script.order] : [] })
     if (path === '/api/bundles') return send(response, 200, bundles.overview())
     if (path === '/api/brain') return send(response, 200, { configured: true, usage: [] })
@@ -277,6 +337,7 @@ export async function startStandIn(): Promise<StandIn> {
     settingsPatches,
     sshKeys,
     apps,
+    external,
     createBodies,
     script,
     putVm(machineId, entry) {
@@ -288,6 +349,8 @@ export async function startStandIn(): Promise<StandIn> {
       script.order = null
       machines = fleet()
       apps.reset()
+      Object.assign(external, { available: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] })
+      externalCommands.clear()
       createBodies.length = 0
       bundles.reset()
       sshKeys.reset()

@@ -29,6 +29,11 @@ GPU_INSIDE = {
 NOT_GIVEN = {"gpu_visible": False, "how": "none", "detail": "", "note": "No GPU was given to this one."}
 # What the machine has prepared: the stock image is always there.
 BLANK_IMAGE = {"id": "blank", "ready": True, "built_at": None}
+DEFAULT_EXTERNAL_SERVICES = [
+    {"id": "docker:" + "a" * 64, "name": "registry", "runtime": "docker", "kind": "container", "state": "running", "image": "registry:2"},
+    {"id": "incus:builder", "name": "builder", "runtime": "incus", "kind": "vm", "state": "stopped"},
+    {"id": "apple:123e4567-e89b-12d3-a456-426614174000", "name": "linux-dev", "runtime": "apple", "kind": "vm", "state": "stopped"},
+]
 # The CPU models a VM can be given, as in Proxmox's Processors window: host first, the machine's own CPU, which every VM got before.
 HOST_CPU_MODEL = "host"
 CPU_MODELS = (HOST_CPU_MODEL, "EPYC", "EPYC-Rome", "EPYC-Milan", "EPYC-Genoa", "Skylake-Server", "Icelake-Server")
@@ -85,6 +90,9 @@ class MachineSpec:
     serves_images: bool = True
     # A helper of this build installs apps (OpenClaw, Hermes) into a running VM and says so in GET /v1/images. False plays an older helper: no app entries, no route.
     serves_apps: bool = True
+    # A helper of this build discovers and controls unowned services. False plays an old helper (404 on these routes).
+    serves_external_services: bool = True
+    external_services: list = field(default_factory=lambda: copy.deepcopy(DEFAULT_EXTERNAL_SERVICES))
     # What the helper says about the SSH server in a VM after it wrote the keys: running, installed (not running) or missing (the helper had to add it, or could not).
     sshd: str = "running"
     # A helper of this build runs sandboxes (its simulated engine) and says so in its facts: `capabilities.sandbox` and `Facts.sandbox`. False plays a helper
@@ -122,6 +130,11 @@ class FakeEngine:
         self.agent_build = agent_build
         self.bundle_version = DEFAULT_BUNDLE_VERSION
         self._workloads = {}
+        self._external_services = copy.deepcopy(self.spec.external_services)
+        # Lifecycle calls only; discovery must never append here or mutate either collection.
+        self.external_actions = []
+        self.external_defer = False
+        self._pending_external = {}
         self._commands = {}
         self.create_failure = None
         # Per VM, the complete list of authorized_keys lines the parent last sent, as received.
@@ -198,6 +211,11 @@ class FakeEngine:
     def workloads(self):
         with self._lock:
             return [dict(w) for w in self._workloads.values()]
+
+    def external_services(self):
+        """A read-only snapshot. These records never join managed workloads or their resource accounting."""
+        with self._lock:
+            return {"services": copy.deepcopy(self._external_services), "warnings": []}
 
     def images(self):
         """The images this machine has prepared. Only catalog ids are named."""
@@ -357,6 +375,34 @@ class FakeEngine:
             workload["state"] = state
             workload.pop("stopped_reason", None)
             return self._finish(command_id, command_type, workload_id, {"state": state})
+
+    def set_external_state(self, command_id, service_id, command_type):
+        with self._lock:
+            existing = self._commands.get(command_id)
+            if existing is not None:
+                return dict(existing)
+            service = next((item for item in self._external_services if item["id"] == service_id), None)
+            if service is None:
+                raise NotFound(service_id)
+            self.external_actions.append({"command_id": command_id, "id": service_id, "action": command_type})
+            if self.external_defer:
+                self._pending_external[command_id] = (service_id, command_type)
+                record = {"command_id": command_id, "type": command_type, "state": "running"}
+                self._commands[command_id] = record
+                return dict(record)
+            return self._apply_external(command_id, service_id, command_type)
+
+    def complete_external(self, command_id):
+        """Test hook: finish a command previously held running, as a real background lifecycle would."""
+        with self._lock:
+            service_id, command_type = self._pending_external.pop(command_id)
+            return self._apply_external(command_id, service_id, command_type)
+
+    def _apply_external(self, command_id, service_id, command_type):
+        service = next(item for item in self._external_services if item["id"] == service_id)
+        state = "stopped" if command_type == "stop" else "running"
+        service["state"] = state
+        return self._finish(command_id, command_type, None, {"state": state})
 
     def delete(self, command_id, workload_id):
         with self._lock:

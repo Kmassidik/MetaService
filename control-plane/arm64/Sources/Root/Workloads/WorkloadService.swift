@@ -183,7 +183,7 @@ final class WorkloadService: @unchecked Sendable {
 
     /// After a restart, keep following whatever was still running.
     func resume() {
-        for command in (try? commands.unfinished()) ?? [] { follow(command.id, machine: command.machine) }
+        for command in (try? commands.unfinished()) ?? [] where !ExternalServicesService.owns(command) { follow(command.id, machine: command.machine) }
     }
 
     // MARK: sending and following

@@ -1,4 +1,5 @@
 //! The Agent half of contract/openapi.yaml, on axum.
+use crate::external_services::ExternalAction;
 use crate::models::{CONTRACT_VERSION, Refusal};
 use crate::sandbox::{self, Sandboxes};
 use crate::service::{Failure, Service};
@@ -82,6 +83,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
+        .route("/v1/external-services", get(external_services))
+        .route("/v1/external-services/:id/:action", post(external_service_change))
         .route("/v1/commands/:id", get(command))
         .route("/v1/sandboxes", get(sandbox::list).post(sandbox::create))
         .route("/v1/sandboxes/:id", get(sandbox::get).delete(sandbox::delete))
@@ -251,6 +254,18 @@ async fn images() -> Response {
 
 async fn list(State(app): State<Arc<App>>) -> Response {
     app.service.workloads().await.map(|w| ok(json!({"workloads": w}))).unwrap_or_else(failure)
+}
+
+async fn external_services(State(app): State<Arc<App>>) -> Response {
+    ok(app.service.external_services().await)
+}
+
+async fn external_service_change(State(app): State<Arc<App>>, Path((id, action)): Path<(String, String)>, headers: HeaderMap) -> Response {
+    let Some(action) = ExternalAction::parse(&action) else { return failure(Failure::NotFound) };
+    match command_id(&headers) {
+        Ok(command) => app.service.change_external(&command, &id, action).await.map(|command| accepted(&command)).unwrap_or_else(failure),
+        Err(reply) => reply,
+    }
 }
 
 async fn create(State(app): State<Arc<App>>, request: Request) -> Response {

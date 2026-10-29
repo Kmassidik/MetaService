@@ -2,7 +2,7 @@
 
 import type { BuildingHost, BuildingServer } from './building.ts'
 import { hasGpu } from './gpuChoice.ts'
-import type { Machine } from './types.ts'
+import type { Machine, Workload } from './types.ts'
 
 const PROGRESS = new Set(['creating', 'starting', 'provisioning', 'deleting'])
 
@@ -18,6 +18,11 @@ export function vmServers(machine: Machine): BuildingServer[] {
     disk_gb: workload.disk_gb,
     gpu: hasGpu(workload),
   }))
+}
+
+/** Apps stay a view of their managed VMs; no app or external service becomes another managed VM row. */
+export function appWorkloads(machine: Machine): Workload[] {
+  return machine.workloads.filter((workload) => workload.app != null)
 }
 
 /** The machine as the host of its VMs: how much memory, cores and disk it has and how much of the disk its VMs take. */

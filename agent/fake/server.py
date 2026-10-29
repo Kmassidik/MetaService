@@ -4,7 +4,7 @@ import itertools
 import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from agent.fake.apps import MODES as APP_INSTALL_MODES
 from agent.fake.apps import AppInstallFailed
@@ -22,6 +22,7 @@ MAX_BODY_BYTES = 64 * 1024
 MAX_DRAIN_BYTES = 1024 * 1024
 MAX_INSTALL_DELAY_SECONDS = 10
 ID_PATTERN = r"[a-z0-9][a-z0-9-]{0,62}"
+EXTERNAL_ID_PATTERN = r"(?:docker|incus|apple)(?::|%3[Aa])[A-Za-z0-9][A-Za-z0-9._:-]{0,127}"
 # A sandbox id is exactly 20 lowercase letters or digits (contract/openapi.yaml).
 SANDBOX_ID_PATTERN = r"[a-z0-9]{20}"
 JSON_TYPE = "application/json"
@@ -177,6 +178,27 @@ class AgentHandler(BaseHTTPRequestHandler):
 
     def list_workloads(self):
         self._send(200, {"workloads": self.engine.workloads()})
+
+    def list_external_services(self):
+        self._require_external_services()
+        self._send(200, self.engine.external_services())
+
+    def start_external_service(self, id):
+        self._external_action(id, "start")
+
+    def stop_external_service(self, id):
+        self._external_action(id, "stop")
+
+    def restart_external_service(self, id):
+        self._external_action(id, "restart")
+
+    def _external_action(self, id, action):
+        self._require_external_services()
+        self._send(202, _accepted(self.engine.set_external_state(self._command_id(), unquote(id), action)))
+
+    def _require_external_services(self):
+        if not self.engine.spec.serves_external_services:
+            raise ApiError(404, "not_found", "no such path")
 
     def create_workload(self):
         body = self._body("WorkloadCreate")
@@ -468,6 +490,10 @@ ROUTES = [
     ("GET", r"/v1/images", AgentHandler.list_images),
     ("GET", r"/v1/workloads", AgentHandler.list_workloads),
     ("POST", r"/v1/workloads", AgentHandler.create_workload),
+    ("GET", r"/v1/external-services", AgentHandler.list_external_services),
+    ("POST", rf"/v1/external-services/(?P<id>{EXTERNAL_ID_PATTERN})/start", AgentHandler.start_external_service),
+    ("POST", rf"/v1/external-services/(?P<id>{EXTERNAL_ID_PATTERN})/stop", AgentHandler.stop_external_service),
+    ("POST", rf"/v1/external-services/(?P<id>{EXTERNAL_ID_PATTERN})/restart", AgentHandler.restart_external_service),
     ("GET", rf"/v1/workloads/(?P<id>{ID_PATTERN})/terminal", AgentHandler.terminal),
     ("POST", rf"/v1/workloads/(?P<id>{ID_PATTERN})/gpu-check", AgentHandler.gpu_check),
     ("PUT", rf"/v1/workloads/(?P<id>{ID_PATTERN})/ssh-keys", AgentHandler.put_ssh_keys),

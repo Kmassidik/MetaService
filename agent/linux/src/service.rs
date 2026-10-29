@@ -3,6 +3,7 @@ use crate::budget::SpaceBudget;
 use crate::live_space::{Current, LiveSpace, Reading};
 use crate::cpu;
 use crate::engine::Engine;
+use crate::external_services::{self, ExternalAction, ExternalServices};
 use crate::gpu;
 use crate::gpu_check::{self, GpuCheck};
 use crate::models::*;
@@ -69,6 +70,7 @@ pub struct Service {
     version: String,
     build: Option<String>,
     ledger: Arc<crate::ledger::Ledger>,
+    external: Arc<ExternalServices>,
     installer: Arc<dyn BundleInstalling>,
     create_lock: tokio::sync::Mutex<()>,
     flight: Mutex<Flight>,
@@ -90,7 +92,7 @@ impl Service {
     pub fn new(engine: Arc<dyn Engine>, budget: SpaceBudget, specs: Specs, version: &str, ledger: Arc<crate::ledger::Ledger>, installer: Arc<dyn BundleInstalling>, read_machine: impl Fn() -> Option<Reading> + Send + Sync + 'static) -> Self {
         let space = Arc::new(LiveSpace::new(budget, read_machine));
         Service {
-            engine, space, specs, version: version.into(), build: None, ledger, installer, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()),
+            engine, space, specs, version: version.into(), build: None, ledger, external: Arc::new(ExternalServices::empty()), installer, create_lock: tokio::sync::Mutex::new(()), flight: Mutex::new(Flight::default()),
             on_change: Mutex::new(None), sandboxes: Sandboxes::disabled(),
         }
     }
@@ -103,6 +105,11 @@ impl Service {
 
     pub fn sandboxes(&self) -> Arc<Sandboxes> {
         self.sandboxes.clone()
+    }
+
+    pub fn with_external_services(mut self, external: ExternalServices) -> Self {
+        self.external = Arc::new(external);
+        self
     }
 
     /// Says which build of the program this is (see build.rs); it goes into the facts.
@@ -204,6 +211,38 @@ impl Service {
 
     pub fn command(&self, id: &str) -> Option<Command> {
         self.ledger.find(id)
+    }
+
+    pub async fn external_services(&self) -> external_services::Discovery {
+        let external = self.external.clone();
+        blocking(move || external.discover()).await
+    }
+
+    /// Changes an unmanaged container or VM after resolving its opaque id against a fresh discovery.
+    pub async fn change_external(&self, command_id: &str, id: &str, action: ExternalAction) -> Result<Command, Failure> {
+        if let Some(existing) = self.ledger.find(command_id) {
+            return Ok(existing);
+        }
+        let external = self.external.clone();
+        let target_id = id.to_string();
+        let target = blocking(move || external.resolve(&target_id)).await?;
+        let mut command = Command { command_id: command_id.into(), kind: action.command_type(), state: CommandState::Running, workload_id: None, result: None };
+        self.ledger.record(command.clone());
+        let external = self.external.clone();
+        let outcome = blocking(move || external.execute(&target, action)).await;
+        match outcome {
+            Ok(()) => finish(&mut command, true, [("state", action.final_state())]),
+            Err(error) => {
+                log_failure("external service action", id, &error);
+                let reason = match error {
+                    EngineError::NotFound => "the external service no longer exists".into(),
+                    EngineError::Failed(reason) => external_services::bounded_message(&reason, "the runtime could not change the external service"),
+                };
+                finish(&mut command, false, [("error", reason.as_str())]);
+            }
+        }
+        self.ledger.record(command.clone());
+        Ok(command)
     }
 
     // ---- commands

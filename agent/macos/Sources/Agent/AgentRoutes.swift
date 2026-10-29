@@ -67,7 +67,7 @@ struct AgentRoutes {
 
     // MARK: helpers
 
-    private static func accepted(_ command: Command) throws -> Response {
+    static func accepted(_ command: Command) throws -> Response {
         try Json.response(Accepted(commandId: command.commandId, state: command.state), status: .accepted)
     }
 
@@ -77,7 +77,7 @@ struct AgentRoutes {
     }
 
     /// The caller's command id (so a retry is safe), or a fresh one.
-    private static func commandId(_ request: Request) throws -> String {
+    static func commandId(_ request: Request) throws -> String {
         guard let sent = request.headers[HTTPField.Name("X-Command-Id")!] else { return "cmd-" + Tokens.random(bytes: 8).lowercased().filter { $0.isLetter || $0.isNumber }.prefix(12) }
         guard Ids.isValid(sent) else { throw InputError("X-Command-Id is not a valid id") }
         return sent

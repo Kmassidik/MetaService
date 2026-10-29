@@ -18,6 +18,7 @@ do {
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
     services.tunnels.resume()
     services.workloads.resume()
+    services.externalServices.resume()
     services.bundleService.start()
     services.history.start()
     let operatorApp = buildOperatorApplication(services: services)

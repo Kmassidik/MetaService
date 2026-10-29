@@ -3,10 +3,10 @@ import argparse
 import pathlib
 import sys
 
-from contract.tests import checks_apps, checks_basic, checks_bundle, checks_cpu_options, checks_gpu_memory, checks_ssh_keys, checks_storage, checks_workloads
+from contract.tests import checks_apps, checks_basic, checks_bundle, checks_cpu_options, checks_external_services, checks_gpu_memory, checks_ssh_keys, checks_storage, checks_workloads
 from contract.tests.support import CheckFailed, Client, Context
 
-ALL_CHECKS = checks_basic.CHECKS + checks_workloads.CHECKS + checks_bundle.CHECKS + checks_ssh_keys.CHECKS + checks_apps.CHECKS + checks_gpu_memory.CHECKS + checks_cpu_options.CHECKS + checks_storage.CHECKS
+ALL_CHECKS = checks_basic.CHECKS + checks_workloads.CHECKS + checks_external_services.CHECKS + checks_bundle.CHECKS + checks_ssh_keys.CHECKS + checks_apps.CHECKS + checks_gpu_memory.CHECKS + checks_cpu_options.CHECKS + checks_storage.CHECKS
 
 
 def run_checks(base_url, token, out=sys.stdout, bundle=None):

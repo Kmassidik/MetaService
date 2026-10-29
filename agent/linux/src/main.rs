@@ -11,6 +11,7 @@ mod cpu_model;
 mod cpu_service_tests;
 mod engine;
 mod enroll;
+mod external_services;
 mod facts;
 mod files;
 mod gpu;
@@ -184,7 +185,8 @@ fn run(config: Config) -> Result<(), String> {
     let installer = bundle::BundleInstaller::new(config.clone(), engine.clone(), root.clone(), machine_token.clone(), supervisor.clone());
     installer.resume();
     let ledger = Arc::new(ledger::Ledger::new(2000, Some(config.state_dir.join("commands.json"))));
-    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()).with_sandboxes(sandboxes));
+    let external = external_services::ExternalServices::system(find_incus(&config).ok());
+    let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()).with_sandboxes(sandboxes).with_external_services(external));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     if let (Some(root), Some(token)) = (root, machine_token) {
         let heartbeat = heartbeat::Heartbeat::new(root, token, config.port, config.heartbeat_seconds);

@@ -11,9 +11,10 @@ import { parseSshKeyList } from './sshKeys.ts'
 import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseStorageReply } from './storageParse.ts'
+import { parseExternalServices } from './externalServices.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -157,6 +158,24 @@ export function workloadAction(machine: string, workload: string, action: Worklo
   const body = action === 'delete' ? { confirm: true } : undefined
   return call<unknown>('POST', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/${action}`, body)
 }
+
+const externalServicesPath = (machine: string) => `/api/machines/${encodeURIComponent(machine)}/external-services`
+
+/** Existing Docker, Incus and Apple services only; discovery never adopts them into the managed workload list. */
+export async function listExternalServices(machine: string): Promise<ExternalServicesReply> {
+  try {
+    return parseExternalServices(await call<unknown>('GET', externalServicesPath(machine)))
+  } catch (error) {
+    if (error instanceof UnreadableAnswer) throw new ApiError(502, 'bad_reply', 'The Root gave an answer the panel cannot read.')
+    throw error
+  }
+}
+
+export const externalServiceAction = (machine: string, id: string, action: ExternalServiceAction) =>
+  call<{ command: Command }>('POST', `${externalServicesPath(machine)}/${encodeURIComponent(id)}/${action}`)
+
+export const getCommand = async (id: string): Promise<Command> =>
+  (await call<{ command: Command }>('GET', `/api/commands/${encodeURIComponent(id)}`)).command
 
 const sshKeysPath = (machine: string, workload: string) => `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/ssh-keys`
 

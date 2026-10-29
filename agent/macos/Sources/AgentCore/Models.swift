@@ -189,7 +189,7 @@ public struct Workload: Encodable, Equatable {
     }
 }
 
-public enum CommandType: String, Codable { case create, start, stop, delete, bundleInstall = "bundle_install", bundleUninstall = "bundle_uninstall" }
+public enum CommandType: String, Codable { case create, start, stop, restart, delete, bundleInstall = "bundle_install", bundleUninstall = "bundle_uninstall" }
 public enum CommandState: String, Codable { case queued, running, succeeded, failed }
 
 public struct Command: Codable, Equatable {

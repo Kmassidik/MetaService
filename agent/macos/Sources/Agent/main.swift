@@ -19,14 +19,14 @@ func readToken(_ path: String) throws -> String {
     return raw.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-func makeEngine(_ config: AgentConfig) throws -> Engine {
+func makeEngine(_ config: AgentConfig, records: RecordStore? = nil) throws -> Engine {
     guard config.engineName == "apple" else { return SimulatedEngine() }
     guard let path = ProcessContainerCLI.locate(config.containerPath) else {
         return UnavailableEngine(name: AppleContainerEngine.engineName, problem: HostProblem(code: "container_tool_missing", message: "Apple's container tool is not installed on this Mac, so it can't create VMs yet.",
                                                       fix: "Install it from github.com/apple/container, then stop and start MetaService again (./install.sh)."))
     }
     try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-    return AppleContainerEngine(cli: ProcessContainerCLI(path: path), records: RecordStore(path: config.stateDirectory + "/workloads.json"),
+    return AppleContainerEngine(cli: ProcessContainerCLI(path: path), records: records ?? RecordStore(path: config.stateDirectory + "/workloads.json"),
                                 backupDirectory: config.backupDirectory ?? config.stateDirectory + "/backups", defaultImage: config.defaultImage,
                                 readySeconds: config.readySeconds, settleSeconds: config.settleSeconds)
 }
@@ -71,7 +71,8 @@ func runAgent(_ config: AgentConfig) async throws {
     let budget = SpaceBudget(ramTotalMb: probe.specs.ramTotalMb, diskTotalGb: probe.specs.diskTotalGb, ramAllowanceMb: config.ramAllowanceMb, diskAllowanceGb: config.diskAllowanceGb,
                              reserveRamMb: config.reserveRamMb, reserveDiskGb: config.reserveDiskGb)
     let ledger = makeLedger(config)
-    let engine = try makeEngine(config)
+    let records = RecordStore(path: config.stateDirectory + "/workloads.json")
+    let engine = try makeEngine(config, records: records)
     // A Mac that has just booted has no container service yet; start it now, in the background, so the machine is ready
     // before the first VM is asked for rather than reporting a fault nobody needs to fix.
     if let container = engine as? AppleContainerEngine { Task.detached { await container.prepareSystem() } }
@@ -88,6 +89,9 @@ func runAgent(_ config: AgentConfig) async throws {
     router.add(middleware: ErrorMiddleware())
     router.add(middleware: TokenMiddleware(token: commandToken, badLimit: config.badTokenLimit))
     AgentRoutes(service: service).register(on: router)
+    let externalServices = ExternalServices(docker: DockerCLI.locate().map { DockerCLI(path: $0) },
+                                            apple: ProcessContainerCLI.locate(config.containerPath).map { ProcessContainerCLI(path: $0) }, records: records, ledger: ledger)
+    ExternalServicesRoutes(service: externalServices).register(on: router)
     StatsRoutes(sampler: StatsSampler(source: DarwinStatsSource())).register(on: router)
     let storageCounters = StorageCounters()
     let storageScanner = DarwinStorageScanner(root: "/", counters: storageCounters)
