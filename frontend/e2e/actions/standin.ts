@@ -38,6 +38,8 @@ export interface Behaviour {
 export interface ExternalBook {
   /** False behaves like a parent proxying an old helper: discovery is 404. */
   available: boolean
+  /** Whether the machine's reading includes a GPU. */
+  gpu: boolean
   delayMs: number
   /** How long the accepted command stays running before discovery changes. */
   commandDelayMs: number
@@ -100,14 +102,17 @@ const externalFleet = (): Json[] => [
 
 const externalWarnings = (): Json[] => [{ runtime: 'incus', message: 'One instance could not be inspected.' }]
 
-const realMemory = (): Json => {
+/** A 32 GB card with 29.5 GB held by one program the machine does not manage. */
+const realGpu = (gib: number): Json => ({ name: 'NVIDIA GeForce RTX 5090', utilization_percent: 3, memory_used_bytes: 29.5 * gib, memory_total_bytes: 32 * gib, temperature_celsius: 41, processes: [{ name: 'sglang', memory_bytes: 29 * gib }] })
+
+const realMemory = (gpu: boolean): Json => {
   const gib = 1024 ** 3
   const now = new Date().toISOString()
   return { state: 'online', last_seen: now, fetched_at: now, stats: {
     taken_at: now, measuring: false, uptime_seconds: 100,
     cpu: { core_count: 8, total_percent: 10, cores_percent: null, load: { one: 1, five: 1, fifteen: 1 } },
     memory: { total_bytes: 100 * gib, used_bytes: 20 * gib, cached_bytes: 10 * gib, free_bytes: 70 * gib, swap_total_bytes: 0, swap_used_bytes: 0 },
-    disks: [], network: { received_total_bytes: 0, sent_total_bytes: 0, received_bytes_per_second: 0, sent_bytes_per_second: 0 }, gpus: [], processes: [],
+    disks: [], network: { received_total_bytes: 0, sent_total_bytes: 0, received_bytes_per_second: 0, sent_bytes_per_second: 0 }, gpus: gpu ? [realGpu(gib)] : [], processes: [],
   } }
 }
 
@@ -149,7 +154,7 @@ export async function startStandIn(): Promise<StandIn> {
   const bundles = createBundleBook()
   const sshKeys = createSshKeyBook()
   const apps = createAppBook()
-  const external: ExternalBook = { available: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] }
+  const external: ExternalBook = { available: false, gpu: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] }
   const externalCommands = new Map<string, Json>()
   const createBodies: string[] = []
   const script: { order: Json | null } = { order: null }
@@ -322,7 +327,7 @@ export async function startStandIn(): Promise<StandIn> {
     if (path === '/api/bundles/pin' && posted) return pinCall(request, response)
     if (path === '/api/bundles/rollback' && posted) return answer('rollback', 'rollback', response, bundles.rollback)
     if (path === '/api/machines') return send(response, 200, { machines: listed() })
-    if (STATS_CALL.test(path)) return send(response, 200, realMemory())
+    if (STATS_CALL.test(path)) return send(response, 200, realMemory(external.gpu))
     const detail = MACHINE_PAGE.exec(path)
     const shown = machines.find((entry) => entry.id === detail?.[1])
     if (shown) return send(response, 200, shown)
@@ -367,7 +372,7 @@ export async function startStandIn(): Promise<StandIn> {
       script.order = null
       machines = fleet()
       apps.reset()
-      Object.assign(external, { available: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] })
+      Object.assign(external, { available: false, gpu: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] })
       externalCommands.clear()
       createBodies.length = 0
       bundles.reset()

@@ -3,9 +3,25 @@
   import AppChip from './vm/AppChip.svelte'
   import { appChip } from '../lib/appInstall.ts'
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
+  import { GPU_FLOOR_FALLBACK } from '../lib/gpuMemory.ts';
+  import type { ExternalBlock } from '../lib/externalBlocks.ts';
 
+  interface Props {
+    servers?: BuildingServer[]
+    host?: BuildingHost | null
+    vmLink: (vmId: string) => string
+    none?: string
+    actions?: Snippet<[string]>
+    /** Services that were on the machine before MetaService (Docker, Incus, Apple): one block each, drawn under the CPU row. */
+    externals?: ExternalBlock[]
+    onExternal?: (id: string) => void
+    /** What the GPU row says; the machine's real GPU use when it is known. */
+    gpuText?: string
+    /** The charts of the side card: real memory, and the GPU's memory on a machine with a card. */
+    charts?: Snippet
+  }
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, external, machineMemory }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet; machineMemory?: Snippet } = $props();
+  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, externals = [], onExternal, gpuText = GPU_FLOOR_FALLBACK, charts }: Props = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -48,7 +64,7 @@
       </div>
       <div class="bv-floor bv-dark" title={idle}>
         <span class="bv-fl">GPU</span>
-        <div class="bv-darkbody"><span class="bv-panes" aria-hidden="true">{#each range(model.perFloor) as _}<i></i>{/each}</span><em>GPU · not used by VMs yet</em></div>
+        <div class="bv-darkbody"><span class="bv-panes" aria-hidden="true">{#each range(model.perFloor) as _}<i></i>{/each}</span><em>{gpuText}</em></div>
       </div>
       {#if host.apple}
         <div class="bv-floor bv-dark" title={idle}>
@@ -67,6 +83,19 @@
           {/if}
         </div>
       </div>
+      {#if externals.length > 0}
+        <div class="bv-floor bv-extfloor" title="Already on this machine before MetaService. Click a block for details.">
+          <span class="bv-fl">EXT</span>
+          <div class="bv-extwins">
+            {#each externals as block (block.id)}
+              <button type="button" class="bv-seg bv-ext bv-ext-{block.tone}" data-service-id={block.id} title={block.title} aria-label={block.title} onclick={() => onExternal?.(block.id)}>
+                <span class="bv-panes" aria-hidden="true"><i></i><i></i></span>
+                <span class="bv-label"><b>{block.name}</b><small>{block.tag}</small></span>
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
       {#each floorsTopDown as floor (floor.number)}
         <div class="bv-floor">
           <span class="bv-fl">{floor.number}</span>
@@ -95,7 +124,6 @@
           </div>
         </div>
       {/each}
-      {#if external}<div class="bv-external">{@render external()}</div>{/if}
       <div class="bv-ground" aria-hidden="true"></div>
       <div class="bv-floor bv-basement" title="Every VM keeps its disk here, even while stopped. Disks are sparse, so real use grows as they fill.">
         <span class="bv-fl">B</span>
@@ -114,17 +142,17 @@
       <span><i class="k-reserve"></i>Kept for the system</span>
       <span><i class="k-vacant"></i>Free</span>
       <span><i class="k-dark"></i>Not used</span>
+      {#if externals.length > 0}<span><i class="k-ext"></i>Already here (external)</span>{/if}
       {#if totals.overMiB}<span><i class="k-over"></i>Over capacity</span>{/if}
     </div>
   </div>
 
   <aside class="bv-side">
-    {#if machineMemory}{@render machineMemory()}{/if}
+    {#if charts}{@render charts()}{/if}
     {#if servers.length === 0}
       <div class="bv-occ bv-empty-compute">
         <span>Managed compute</span>
         <b>No MetaService workloads</b>
-        <small>Real host memory is shown above.</small>
       </div>
     {:else}
       <div class="bv-occ">
@@ -176,7 +204,6 @@
   .bv{display:grid;grid-template-columns:minmax(0,7fr) minmax(280px,3fr);gap:24px;padding:8px 0 24px;align-items:start}
   .bv-col{min-width:0}
   .bv-building{border:1px solid var(--line-strong);background:var(--surface)}
-  .bv-external{border-top:1px solid var(--line-strong);background:var(--surface-2);padding:12px}
   .bv-roof{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 14px;background:var(--inverse-bg);color:var(--inverse-text);font-family:var(--mono);font-size:11px;flex-wrap:wrap}
   .bv-roof b{font-size:13px;letter-spacing:.08em;text-transform:uppercase}
   .bv-roof span{color:var(--inverse-text-mid)}
@@ -193,6 +220,13 @@
   .bv-apt.warn{border:2px dashed var(--warn-line)}
   .bv-reserve{background:var(--reserve-bg);border-color:var(--reserve-line)}
   .bv-vacant{background:repeating-linear-gradient(135deg,var(--surface) 0 6px,var(--surface-2) 6px 8px);border-color:var(--line)}
+  .bv-extwins{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;padding:5px;min-width:0}
+  .bv-ext{display:block;min-height:44px;padding:0;text-align:left;font:inherit;color:var(--text);cursor:pointer;border-style:dashed}
+  .bv-ext-run{background:var(--chart-orange);color:var(--inverse-text)}
+  .bv-ext-run .bv-label small{color:var(--inverse-text-mid)}
+  .bv-ext-stop{background:var(--surface-2);color:var(--m60)}
+  .bv-ext-unknown{background:var(--warn-bg);border-color:var(--warn-line)}
+  .bv-ext:hover,.bv-ext:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;z-index:2}
   .bv-over,.bv-apt.bv-over,.bv-apt.prog.bv-over,.bv-apt.warn.bv-over{background:repeating-linear-gradient(135deg,var(--danger-bg) 0 6px,var(--danger-hatch) 6px 8px);border-color:var(--danger)}
   .bv-label{position:relative;display:flex;flex-direction:column;gap:1px;padding:5px 7px;font-family:var(--mono);line-height:1.25;max-width:100%}
   .bv-label b{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -225,11 +259,12 @@
   .k-reserve{background:var(--reserve-bg)}
   .k-vacant{background:repeating-linear-gradient(135deg,var(--surface) 0 3px,var(--line) 3px 4px)}
   .k-dark{background:var(--inverse-bg)}
+  .k-ext{background:var(--chart-orange);border-style:dashed}
   .k-over{background:var(--danger-hatch);border-color:var(--danger)!important}
   .bv-side{border:1px solid var(--line);padding:18px;position:sticky;top:12px}
   .bv-occ span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--m50)}
   .bv-occ b{display:block;font-family:var(--mono);font-size:44px;line-height:1.1;margin-top:4px}
-  .bv-empty-compute b{font-size:16px;line-height:1.4;margin-top:10px}
+  .bv-empty-compute b{font-size:13px;font-weight:400;line-height:1.4;margin-top:4px;color:var(--m60)}
   .bv-occ small{display:block;font-size:12px;color:var(--m60)}
   .bv-stack{display:flex;height:12px;margin:14px 0 10px;border:1px solid var(--line-strong)}
   .bv-stack i{display:block;height:100%}

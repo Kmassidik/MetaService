@@ -1,5 +1,5 @@
-// The machine VMs tab's three blocks in a real browser: managed VMs, Apps and existing external services.
-// The stand-in proves read-only discovery, old-helper behavior, one POST per rapid action burst, refresh, busy state and real failures.
+// The machine Compute tab in a real browser: managed VMs and existing external services drawn as blocks of one Building, with the machine and GPU memory beside it.
+// The stand-in proves read-only discovery, old-helper behavior, the dialog a block opens, one POST per rapid action burst, refresh, busy state and real failures.
 // Needs: a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/. No Root, no helper.
 // Run: bun e2e/external-services.e2e.ts
 import puppeteer from 'puppeteer-core'
@@ -14,11 +14,13 @@ const VMS_TAB = '#/machines/details?id=studio&tab=vms'
 const SHORT_WAIT_MS = 8000
 const RAPID_CLICKS = 5
 const EXTERNAL_SECTION = 'section[aria-labelledby="external-services-title"]'
+const BLOCK = '.bv-building .bv-extfloor .bv-ext'
 const standin = await startStandIn()
 const browser = await puppeteer.launch({ executablePath: chromePath, headless: true, args: ['--no-first-run'] })
 
+/** What the dialog of one service holds; the same ids mark its block in the Building, so the dialog's own part is named. */
 function rowSelector(id: string): string {
-  return `[data-service-id="${id}"]`
+  return `dialog[open] [data-service-id="${id}"]`
 }
 
 try {
@@ -31,36 +33,51 @@ try {
   const b = browse(page)
 
   standin.external.available = true
+  standin.external.gpu = true
   standin.apps.begin('vm1', 'openclaw')
   standin.apps.finish('vm1')
   standin.apps.failure = 'Hermes install failed in the stand-in'
   standin.apps.begin('vm2', 'hermes')
   standin.apps.finish('vm2')
   await page.goto(`${standin.base}/${VMS_TAB}`, { waitUntil: 'networkidle0' })
-  await page.waitForSelector(`${EXTERNAL_SECTION} .external-node`)
+  await page.waitForSelector(BLOCK)
   await wait(500)
 
   check('Compute unifies managed and external nodes without a separate Apps block', await b.run(() =>
     document.querySelector('section[aria-labelledby="managed-vms-title"]') !== null &&
     document.querySelector('section[aria-labelledby="apps-title"]') === null &&
-    document.querySelector('section[aria-labelledby="external-services-title"]') !== null &&
-    document.querySelectorAll('.external-node').length === 3
+    document.querySelector('section[aria-labelledby="external-services-title"]') === null &&
+    document.querySelectorAll('.bv-ext').length === 3
   ))
   check('Apps are badges on their managed Building nodes', await b.run(() => {
     const text = document.querySelector('.bv-tenants')?.textContent ?? ''
     return text.includes('OpenClaw') && text.includes('Hermes') && text.includes('vm1') && text.includes('vm2')
   }))
-  check('external rows show name, runtime, kind, state, image and warnings', await b.run(() => {
-    const table = document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent ?? ''
-    const warning = document.querySelector('[aria-label="External service warnings"]')?.textContent ?? ''
-    return ['postgres', 'docker', 'container', 'running', 'postgres:18', 'build-cache', 'incus', 'stopped', 'mac-guest', 'apple', 'vm', 'unknown'].every((text) => table.includes(text)) && warning.includes('One instance could not be inspected.')
+  check('blocks are one per service with name and runtime, running first', await b.run(() => {
+    const blocks = [...document.querySelectorAll('.bv-extfloor .bv-ext')].map((block) => block.textContent ?? '')
+    return blocks.length === 3 && blocks[0]?.includes('postgres') === true && blocks[0]?.includes('docker') === true && blocks[1]?.includes('mac-guest') === true && blocks[2]?.includes('build-cache') === true
   }))
-  check('external nodes are inside the Building with separate counts', await b.run(() =>
-    document.querySelectorAll('.bv-building .bv-external .external-node').length === 3 &&
-    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('3 managed · 3 external · 1 external running') === true &&
-    document.body.textContent?.includes('Managed compute') === true &&
-    document.querySelector('table[aria-label="External services"]') === null
-  ))
+  check('stopped, running and unreadable blocks look different', await b.run(() => {
+    const tone = (name: string) => [...document.querySelectorAll('.bv-ext')].find((block) => block.textContent?.includes(name))?.className ?? ''
+    return tone('postgres').includes('bv-ext-run') && tone('build-cache').includes('bv-ext-stop') && tone('mac-guest').includes('bv-ext-unknown')
+  }))
+  check('external blocks sit inside the Building, above the floors, with no card and no table', await b.run(() => {
+    const floors = [...document.querySelectorAll('.bv-building .bv-floor')]
+    const ext = document.querySelector('.bv-extfloor')
+    return ext !== null && floors.indexOf(ext) === 2 && document.querySelector('.bv-external') === null &&
+      document.querySelector('.runs')?.textContent?.includes('1/3 running · 3 external') === true &&
+      document.body.textContent?.includes('Managed compute') === true &&
+      document.querySelector('table[aria-label="External services"]') === null &&
+      (document.querySelector('[aria-label="External service warnings"]')?.textContent ?? '').includes('One instance could not be inspected.')
+  }))
+  check('the GPU row says what the card really holds', await b.run(() => document.querySelector('.bv-dark em')?.textContent === 'RTX 5090 · 29.5 GB of 32 GB in use · 2.5 GB free'))
+  check('the side card has two charts, machine memory and GPU memory, and names the program', await b.run(() => {
+    const side = document.querySelector('.bv-side')
+    const gpu = side?.querySelector('.gpu-memory')
+    return side?.querySelector('.real-memory') !== null && gpu !== null && gpu?.textContent?.includes('92% used') === true &&
+      gpu?.textContent?.includes('29.5 GB of 32 GB') === true && gpu?.textContent?.includes('sglang') === true &&
+      gpu?.querySelectorAll('.memory-bar i').length === 3
+  }))
   check('real machine memory uses measured used, cache and free colors', await b.run(() =>
     document.querySelector('.bv-side .real-memory .memory-bar') !== null &&
     document.querySelector('.managed-block > .real-memory') === null &&
@@ -73,7 +90,16 @@ try {
   check('discovery sends zero writes and one read', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   await b.shot('machine-workload-blocks.png', true)
 
+  /** Closes any open dialog, then clicks the service's block, which opens its dialog. */
+  async function openBlock(id: string): Promise<void> {
+    await page.keyboard.press('Escape')
+    await wait(150)
+    await page.click(`${BLOCK}[data-service-id="${id}"]`)
+    await page.waitForSelector(rowSelector(id))
+  }
+
   async function burst(id: string, label: string): Promise<void> {
+    await openBlock(id)
     const at = await b.run((selector, wanted) => {
       const button = [...(document.querySelector(selector)?.querySelectorAll('button') ?? [])].find((entry) => entry.textContent?.trim() === wanted)
       if (!button) return null
@@ -87,6 +113,13 @@ try {
 
   standin.external.delayMs = 700
   standin.external.commandDelayMs = 1000
+  await openBlock('docker:abc123')
+  check('a block opens a dialog with the image, runtime, id and the three actions', await b.run((selector) => {
+    const text = document.querySelector(selector)?.textContent ?? ''
+    const buttons = [...(document.querySelector(selector)?.querySelectorAll('button') ?? [])].map((button) => button.textContent?.trim())
+    return ['postgres:18', 'docker', 'container', 'running', 'docker:abc123'].every((word) => text.includes(word)) && ['Start', 'Stop', 'Restart'].every((label) => buttons.includes(label))
+  }, rowSelector('docker:abc123')))
+  await b.shot('machine-external-dialog.png')
   await burst('incus:build', 'Start')
   await wait(200)
   check('Start is visibly busy and disables repeated presses', await b.run((selector) => {
@@ -112,16 +145,23 @@ try {
   await burst('apple:8D6C7F2E', 'Restart')
   await b.until((selector) => document.querySelector(selector)?.textContent?.includes('running'), { timeout: SHORT_WAIT_MS }, rowSelector('apple:8D6C7F2E'))
   check('five Restart presses send one action and refresh the new state', standin.external.actions.length === 3 && standin.external.actions[2] === 'restart apple:8D6C7F2E' && standin.external.discoveries === 3, standin.external.actions.join(' | '))
-  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('.bv-tenants > li').length === 3 && document.querySelectorAll('.external-node').length === 3 && document.querySelector('section[aria-labelledby="apps-title"]') === null))
+  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('.bv-tenants > li').length === 3 && document.querySelectorAll('.bv-ext').length === 3 && document.querySelector('section[aria-labelledby="apps-title"]') === null))
 
   standin.clearVms('studio')
   await page.reload({ waitUntil: 'networkidle0' })
-  await page.waitForSelector(`${EXTERNAL_SECTION} .external-node`)
+  await page.waitForSelector(BLOCK)
   check('empty managed compute shows a useful state instead of 0 percent', await b.run(() =>
     document.querySelector('.bv-empty-compute')?.textContent?.includes('No MetaService workloads') === true &&
     document.querySelector('.bv-empty-compute')?.textContent?.includes('0%') === false &&
+    document.querySelector('.runs')?.textContent?.includes('0/0 running · 3 external') === true
+  ))
+  await b.click('Table')
+  await page.waitForSelector('.external-node')
+  check('the Table view lists the same three services as a card under it', await b.run(() =>
+    document.querySelectorAll('.external-node').length === 3 &&
     document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('0 managed · 3 external') === true
   ))
+  await b.click('Building')
 
   standin.reset()
   writes.clear()
@@ -130,7 +170,7 @@ try {
   await page.waitForSelector('section[aria-labelledby="managed-vms-title"]')
   await wait(500)
   check('an old helper keeps managed VMs and Apps but hides External services', await b.run((selector) =>
-    document.querySelector(selector) === null && document.querySelector('.bv-tenants') !== null && document.body.textContent?.includes('vm1') === true
+    document.querySelector(selector) === null && document.querySelector('.bv-ext') === null && document.querySelector('.gpu-memory') === null && document.querySelector('.bv-tenants') !== null && document.body.textContent?.includes('vm1') === true
   , EXTERNAL_SECTION))
   check('legacy discovery is also read-only and sends no action', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   check('no script errors', errors.length === 0, errors.join(' | '))

@@ -8,7 +8,9 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
+  import ExternalDialog from './ExternalDialog.svelte'
   import ExternalServices from './ExternalServices.svelte'
+  import GpuMemory from './GpuMemory.svelte'
   import MachineMemory from './MachineMemory.svelte'
   import Owl from '../Owl.svelte'
   import CopyAddress from '../vms/CopyAddress.svelte'
@@ -20,8 +22,13 @@
   import WhyStopped from '../vm/WhyStopped.svelte'
   import { appChip } from '../../lib/appInstall.ts'
   import { isPlainMode, PLAIN_MODE_TEXT, readStoppedReason, reasonNote } from '../../lib/stoppedReason.ts'
+  import { externalBlocks } from '../../lib/externalBlocks.ts'
+  import { ExternalServicesStore } from '../../lib/externalServicesStore.svelte.ts'
   import { bundleFlag, formatGb, formatMb } from '../../lib/format.ts'
   import { readGpuMemoryGb } from '../../lib/gpuBooking.ts'
+  import { readGpuLive } from '../../lib/gpuLive.ts'
+  import { gpuFloorText, gpuMemoryParts } from '../../lib/gpuMemory.ts'
+  import { MachineStatsStore } from '../../lib/machineStatsStore.svelte.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
   import { vmStateText } from '../../lib/vmList.ts'
@@ -48,6 +55,16 @@
   const NONE_TEXT = 'No VMs on this machine yet.'
   const VIEWS: [ViewId, string][] = [['building', 'Building'], ['table', 'Table'], ['cards', 'Cards']]
   let view = $state(lastView)
+  const external = new ExternalServicesStore()
+  const reading = new MachineStatsStore()
+  /** The service whose dialog is open, by id: the dialog shows the newest read of it. */
+  let openExternal = $state<string | null>(null)
+  const openService = $derived(external.services.find((service) => service.id === openExternal) ?? null)
+  const blocks = $derived(externalBlocks(external.services))
+  const gpuParts = $derived(gpuMemoryParts(readGpuLive(machine, reading.stats?.gpus ?? [], reading.stats !== null), reading.stats?.gpus[0]?.processes))
+
+  $effect(() => external.watch(machine.id))
+  $effect(() => reading.watch(machine.id))
   const servers = $derived(vmServers(machine))
   const host = $derived(hostFor(machine))
   const running = $derived(servers.filter((server) => server.status === 'running').length)
@@ -75,7 +92,7 @@
 <section class="managed-block" aria-labelledby="managed-vms-title">
   <h2 id="managed-vms-title">Compute</h2>
 <div class="bar-row">
-  <span class="runs">{running}/{servers.length} running</span>
+  <span class="runs">{running}/{servers.length} running{#if external.services.length > 0}{' · '}{external.services.length} external{/if}</span>
   <div class="segmented" role="group" aria-label="View">
     {#each VIEWS as [id, label] (id)}<button type="button" class:on={view === id} aria-pressed={view === id} onclick={() => setView(id)}>{label}</button>{/each}
   </div>
@@ -83,9 +100,19 @@
 </div>
 
 {#if view === 'building'}
-  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)}>
-    {#snippet machineMemory()}<MachineMemory machineId={machine.id} />{/snippet}
-    {#snippet external()}<ExternalServices machineId={machine.id} managedCount={servers.length} />{/snippet}
+  {#if external.failure}<p class="err" role="alert">{external.failure}</p>{/if}
+  {#if external.reply && external.reply.warnings.length > 0}
+    <ul class="warnings" aria-label="External service warnings">
+      {#each external.reply.warnings as warning}<li><b>{warning.runtime}</b>: {warning.message}</li>{/each}
+    </ul>
+  {/if}
+  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} externals={blocks} onExternal={(id) => (openExternal = id)} gpuText={gpuFloorText(gpuParts)}>
+    {#snippet charts()}
+      <div class="charts">
+        <MachineMemory stats={reading.stats} failure={reading.failure} />
+        {#if gpuParts}<GpuMemory parts={gpuParts} />{/if}
+      </div>
+    {/snippet}
   </Building>
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
@@ -140,7 +167,9 @@
 {/if}
 </section>
 
-{#if view !== 'building'}<ExternalServices machineId={machine.id} managedCount={servers.length} />{/if}
+{#if view !== 'building'}<ExternalServices store={external} managedCount={servers.length} />{/if}
+
+<ExternalDialog service={openService} onClose={() => (openExternal = null)} onRun={external.run} />
 
 <style>
   .managed-block > h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -149,5 +178,7 @@
   .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }
   .vm-id { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--m50); }
   .addr { display: inline-flex; align-items: center; gap: 8px; }
+  .warnings { margin: 0 0 12px; padding: 10px 14px 10px 32px; border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn); font-size: 12px; }
+  .charts { display: grid; gap: 16px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
   .runs { margin-right: auto; font-family: var(--mono); font-size: 12px; color: var(--m50); }
 </style>

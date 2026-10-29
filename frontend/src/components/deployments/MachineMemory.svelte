@@ -1,37 +1,9 @@
 <script lang="ts">
   // Real host memory from the helper. This includes managed VMs, external services and the OS; it is not a placement budget.
-  import { getMachineStats } from '../../lib/api.ts'
   import { formatBytes, formatPercent, percentOf } from '../../lib/stats.ts'
   import type { MachineStats } from '../../lib/types.ts'
 
-  const REFRESH_MS = 15_000
-  let { machineId }: { machineId: string } = $props()
-  let stats = $state<MachineStats | null>(null)
-  let failure = $state('')
-
-  $effect(() => {
-    const id = machineId
-    let active = true
-    stats = null
-    failure = ''
-    async function load(): Promise<void> {
-      try {
-        const reply = await getMachineStats(id, false)
-        if (!active) return
-        stats = reply.stats
-        failure = reply.stats ? '' : 'No real memory reading is available.'
-      } catch (error) {
-        if (!active) return
-        failure = error instanceof Error ? error.message : 'The real memory reading failed.'
-      }
-    }
-    void load()
-    const timer = setInterval(() => void load(), REFRESH_MS)
-    return () => {
-      active = false
-      clearInterval(timer)
-    }
-  })
+  let { stats, failure = '' }: { stats: MachineStats | null; failure?: string } = $props()
 
   const total = $derived(stats?.memory.total_bytes ?? 0)
   const used = $derived(stats?.memory.used_bytes ?? 0)
@@ -64,7 +36,7 @@
 </section>
 
 <style>
-  .real-memory { margin-bottom: 16px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
+  .real-memory { padding: 0; }
   .memory-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .memory-head h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
   .memory-head span { font-size: 12px; }

@@ -1,11 +1,9 @@
 <script lang="ts">
-  // Existing services discovered on the machine. They are never adopted, deleted, or added to the managed VM model.
+  // The list view of the services that were on the machine before MetaService (table and cards views; the Building draws them as blocks).
+  // They are never adopted, deleted, or added to the managed VM model.
   import ActionButton from '../ActionButton.svelte'
-  import { ApiError, externalServiceAction, getCommand, listExternalServices } from '../../lib/api.ts'
-  import type { Command, ExternalService, ExternalServiceAction, ExternalServicesReply } from '../../lib/types.ts'
-
-  const COMMAND_POLL_MS = 250
-  const COMMAND_TIMEOUT_MS = 120_000
+  import type { ExternalServicesStore } from '../../lib/externalServicesStore.svelte.ts'
+  import type { ExternalServiceAction } from '../../lib/types.ts'
 
   const ACTIONS: readonly { id: ExternalServiceAction; label: string; busy: string; done: string }[] = [
     { id: 'start', label: 'Start', busy: 'Starting…', done: 'Started' },
@@ -13,77 +11,18 @@
     { id: 'restart', label: 'Restart', busy: 'Restarting…', done: 'Restarted' },
   ]
 
-  let { machineId, managedCount }: { machineId: string; managedCount: number } = $props()
-  let reply = $state<ExternalServicesReply | null>(null)
-  let loading = $state(true)
-  let legacy = $state(false)
-  let failure = $state('')
-  let asked = 0
-  const running = $derived(reply?.services.filter((service) => service.state === 'running').length ?? 0)
-
-  /** Only the newest read may update this machine's block. A 404 means an old helper and hides just this block. */
-  async function load(id: string, initial = false): Promise<void> {
-    const turn = ++asked
-    if (initial) loading = true
-    try {
-      const next = await listExternalServices(id)
-      if (turn !== asked) return
-      reply = next
-      legacy = false
-      failure = ''
-    } catch (error) {
-      if (turn !== asked) return
-      if (error instanceof ApiError && error.status === 404) {
-        reply = null
-        legacy = true
-        failure = ''
-        return
-      }
-      failure = error instanceof Error ? error.message : 'Something went wrong.'
-      if (!initial) throw error
-    } finally {
-      if (turn === asked) loading = false
-    }
-  }
-
-  $effect(() => {
-    const id = machineId
-    reply = null
-    legacy = false
-    failure = ''
-    void load(id, true)
-    return () => { asked += 1 }
-  })
-
-  async function waitForCommand(accepted: Command): Promise<void> {
-    let current = accepted
-    const deadline = Date.now() + COMMAND_TIMEOUT_MS
-    while (current.state !== 'succeeded' && current.state !== 'failed') {
-      if (Date.now() >= deadline) throw new ApiError(0, 'timeout', 'The machine is still working. Check the service again shortly.')
-      await new Promise<void>((resolve) => setTimeout(resolve, COMMAND_POLL_MS))
-      current = await getCommand(accepted.id)
-    }
-    if (current.state === 'failed') throw new ApiError(0, 'command_failed', current.result?.error ?? 'The machine could not change the service.')
-  }
-
-  /** One POST, then the existing command's completion, then fresh read-only discovery. */
-  async function run(service: ExternalService, action: ExternalServiceAction): Promise<void> {
-    const id = machineId
-    const accepted = await externalServiceAction(id, service.id, action)
-    await waitForCommand(accepted.command)
-    if (id !== machineId) return
-    await load(id)
-  }
+  let { store, managedCount }: { store: ExternalServicesStore; managedCount: number } = $props()
+  const reply = $derived(store.reply)
 </script>
 
-{#if !legacy}
+{#if !store.legacy}
   <section class="workload-block" aria-labelledby="external-services-title">
     <div class="block-head">
       <h2 id="external-services-title">Compute workloads</h2>
-      <span class="muted">{reply ? `${managedCount} managed · ${reply.services.length} external · ${running} external running` : 'Managed VMs and existing Docker, Incus and Apple services'}</span>
+      <span class="muted">{reply ? `${managedCount} managed · ${reply.services.length} external · ${store.running} external running` : 'Managed VMs and existing Docker, Incus and Apple services'}</span>
     </div>
-    {#if loading && !reply}<p class="note muted" role="status">Discovering external services…</p>{/if}
-    {#if failure}<p class="err" role="alert">{failure}</p>{/if}
+    {#if store.loading && !reply}<p class="note muted" role="status">Discovering external services…</p>{/if}
+    {#if store.failure}<p class="err" role="alert">{store.failure}</p>{/if}
     {#if reply}
       {#if reply.warnings.length > 0}
         <ul class="warnings" aria-label="External service warnings">
@@ -105,7 +44,7 @@
               <small class="node-image mono muted" title={service.image ?? ''}>{service.image ?? '—'}</small>
               <div class="acts">
                 {#each ACTIONS as action (action.id)}
-                  <ActionButton label={action.label} busyLabel={action.busy} doneLabel={action.done} small variant="line" onrun={() => run(service, action.id)} />
+                  <ActionButton label={action.label} busyLabel={action.busy} doneLabel={action.done} small variant="line" onrun={() => store.run(service, action.id)} />
                 {/each}
               </div>
             </article>
