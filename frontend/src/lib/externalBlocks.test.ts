@@ -17,6 +17,12 @@ describe('externalBlocks', () => {
     expect(block?.tag).toBe('docker')
   })
 
+  test('Docker blocks carry the Docker logo, the other runtimes none', () => {
+    const [docker, incus] = externalBlocks([service('d:1', 'a', 'running'), { ...service('i:1', 'b', 'running'), runtime: 'incus' }])
+    expect(docker?.logo).toBe('docker')
+    expect(incus?.logo).toBeNull()
+  })
+
   test('no services is no blocks', () => {
     expect(externalBlocks([])).toEqual([])
   })

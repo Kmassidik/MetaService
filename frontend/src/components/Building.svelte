@@ -3,6 +3,7 @@
   import AppChip from './vm/AppChip.svelte'
   import { appChip } from '../lib/appInstall.ts'
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
+  import { LOGOS } from '../lib/logos.ts';
   import { GPU_FLOOR_FALLBACK } from '../lib/gpuMemory.ts';
   import type { ExternalBlock } from '../lib/externalBlocks.ts';
 
@@ -91,6 +92,7 @@
               <button type="button" class="bv-seg bv-ext bv-ext-{block.tone}" data-service-id={block.id} title={block.title} aria-label={block.title} onclick={() => onExternal?.(block.id)}>
                 <span class="bv-panes" aria-hidden="true"><i></i><i></i></span>
                 <span class="bv-label"><b>{block.name}</b><small>{block.tag}</small></span>
+                {#if block.logo}<img class="bv-logo" src={LOGOS[block.logo]} alt="" />{/if}
               </button>
             {/each}
           </div>
@@ -226,6 +228,8 @@
   .bv-ext-run .bv-label small{color:var(--inverse-text-mid)}
   .bv-ext-stop{background:var(--surface-2);color:var(--m60)}
   .bv-ext-unknown{background:var(--warn-bg);border-color:var(--warn-line)}
+  .bv-logo{position:absolute;top:5px;right:5px;width:20px;height:20px;padding:2px;background:#fff;border:1px solid var(--line-strong)}
+  .bv-ext-stop .bv-logo{opacity:.6}
   .bv-ext:hover,.bv-ext:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;z-index:2}
   .bv-over,.bv-apt.bv-over,.bv-apt.prog.bv-over,.bv-apt.warn.bv-over{background:repeating-linear-gradient(135deg,var(--danger-bg) 0 6px,var(--danger-hatch) 6px 8px);border-color:var(--danger)}
   .bv-label{position:relative;display:flex;flex-direction:column;gap:1px;padding:5px 7px;font-family:var(--mono);line-height:1.25;max-width:100%}

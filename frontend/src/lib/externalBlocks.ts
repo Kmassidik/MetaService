@@ -1,5 +1,6 @@
 // What the Building draws for the services that were on the machine before MetaService: one block each, running ones first. Pure, no DOM.
-import type { ExternalService, ExternalServiceState } from './types.ts'
+import type { LogoName } from './logos.ts'
+import type { ExternalRuntime, ExternalService, ExternalServiceState } from './types.ts'
 
 export type BlockTone = 'run' | 'stop' | 'unknown'
 
@@ -9,10 +10,14 @@ export interface ExternalBlock {
   tone: BlockTone
   /** The runtime in one word: "docker", "incus", "apple". */
   tag: string
+  /** The runtime's logo, for the runtimes that have one bundled. */
+  logo: LogoName | null
   /** The hover and screen-reader text: the whole sentence about the block. */
   title: string
 }
 
+/** Only Docker has a logo bundled; the others show their name. */
+const RUNTIME_LOGOS: Partial<Record<ExternalRuntime, LogoName>> = { docker: 'docker' }
 const TONES: Record<ExternalServiceState, BlockTone> = { running: 'run', stopped: 'stop', unknown: 'unknown' }
 const TONE_ORDER: Record<BlockTone, number> = { run: 0, unknown: 1, stop: 2 }
 
@@ -22,6 +27,7 @@ function blockOf(service: ExternalService): ExternalBlock {
     name: service.name,
     tone: TONES[service.state],
     tag: service.runtime,
+    logo: RUNTIME_LOGOS[service.runtime] ?? null,
     title: `${service.name}: external ${service.runtime} ${service.kind}, ${service.state}. Click for details.`,
   }
 }
