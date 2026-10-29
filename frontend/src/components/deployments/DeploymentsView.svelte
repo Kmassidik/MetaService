@@ -8,7 +8,6 @@
 <script lang="ts">
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
-  import AppsBlock from './AppsBlock.svelte'
   import ExternalServices from './ExternalServices.svelte'
   import MachineMemory from './MachineMemory.svelte'
   import Owl from '../Owl.svelte'
@@ -76,7 +75,7 @@
 <MachineMemory machineId={machine.id} />
 
 <section class="managed-block" aria-labelledby="managed-vms-title">
-  <h2 id="managed-vms-title">Managed VMs</h2>
+  <h2 id="managed-vms-title">Compute</h2>
 <div class="bar-row">
   <span class="runs">{running}/{servers.length} running</span>
   <div class="segmented" role="group" aria-label="View">
@@ -87,7 +86,7 @@
 
 {#if view === 'building'}
   <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)}>
-    {#snippet external()}<ExternalServices machineId={machine.id} />{/snippet}
+    {#snippet external()}<ExternalServices machineId={machine.id} managedCount={servers.length} />{/snippet}
   </Building>
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
@@ -142,8 +141,7 @@
 {/if}
 </section>
 
-<AppsBlock {machine} />
-{#if view !== 'building'}<ExternalServices machineId={machine.id} />{/if}
+{#if view !== 'building'}<ExternalServices machineId={machine.id} managedCount={servers.length} />{/if}
 
 <style>
   .managed-block > h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }

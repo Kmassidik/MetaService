@@ -44,7 +44,7 @@
 <section class="real-memory" aria-labelledby="real-memory-title">
   <div class="memory-head">
     <h2 id="real-memory-title">Machine memory</h2>
-    <span class="muted">Real host reading · includes VMs, external services and the OS</span>
+    <span class="muted">Real machine reading · includes VMs, external services and the OS</span>
   </div>
   {#if stats}
     <div class="memory-total"><b>{formatPercent(percentOf(used, total))} used</b><span>{formatBytes(used)} of {formatBytes(total)}</span></div>

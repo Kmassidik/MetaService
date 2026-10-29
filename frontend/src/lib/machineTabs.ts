@@ -9,14 +9,14 @@ export interface TabInfo {
 export const DEFAULT_TAB: MachineTab = 'live'
 
 const ORDER: readonly MachineTab[] = ['live', 'vms', 'storage', 'environment', 'activity']
-const LABELS: Record<MachineTab, string> = { live: 'Live', vms: 'VMs', storage: 'Storage', environment: 'Environment', activity: 'Activity' }
+const LABELS: Record<MachineTab, string> = { live: 'Live', vms: 'Compute', storage: 'Storage', environment: 'Environment', activity: 'Activity' }
 
 /** Names that older links and older versions of the page used. */
-const OLD_NAMES: Record<string, MachineTab> = { overview: 'environment', deployments: 'vms' }
+const OLD_NAMES: Record<string, MachineTab> = { overview: 'environment', deployments: 'vms', compute: 'vms' }
 
-/** The tabs in order. VMs carries how many VMs the machine has, counting the ones being made. */
-export function machineTabs(vmCount: number): TabInfo[] {
-  return ORDER.map((id) => ({ id, label: id === 'vms' ? `${LABELS.vms} (${vmCount})` : LABELS[id] }))
+/** The tabs in order. The vms id stays in old URLs; its visible name is Compute. */
+export function machineTabs(): TabInfo[] {
+  return ORDER.map((id) => ({ id, label: LABELS[id] }))
 }
 
 const isTab = (name: string): name is MachineTab => ORDER.some((id) => id === name)

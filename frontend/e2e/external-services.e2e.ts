@@ -40,16 +40,15 @@ try {
   await page.waitForSelector(`${EXTERNAL_SECTION} .external-node`)
   await wait(500)
 
-  check('managed VMs, Apps and External services are three separate blocks', await b.run(() =>
+  check('Compute unifies managed and external nodes without a separate Apps block', await b.run(() =>
     document.querySelector('section[aria-labelledby="managed-vms-title"]') !== null &&
-    document.querySelector('section[aria-labelledby="apps-title"]') !== null &&
+    document.querySelector('section[aria-labelledby="apps-title"]') === null &&
     document.querySelector('section[aria-labelledby="external-services-title"]') !== null &&
-    document.querySelectorAll('table[aria-label="Apps"] tbody tr').length === 2 &&
     document.querySelectorAll('.external-node').length === 3
   ))
-  check('Apps come from existing managed workload.app records', await b.run(() => {
-    const text = document.querySelector('table[aria-label="Apps"]')?.textContent ?? ''
-    return text.includes('OpenClaw') && text.includes('Hermes') && text.includes('vm1') && text.includes('vm2') && text.includes('Hermes install failed in the stand-in')
+  check('Apps are badges on their managed Building nodes', await b.run(() => {
+    const text = document.querySelector('.bv-tenants')?.textContent ?? ''
+    return text.includes('OpenClaw') && text.includes('Hermes') && text.includes('vm1') && text.includes('vm2')
   }))
   check('external rows show name, runtime, kind, state, image and warnings', await b.run(() => {
     const table = document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent ?? ''
@@ -58,8 +57,8 @@ try {
   }))
   check('external nodes are inside the Building with separate counts', await b.run(() =>
     document.querySelectorAll('.bv-building .bv-external .external-node').length === 3 &&
-    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('3 external · 1 running') === true &&
-    document.body.textContent?.includes('Managed VM memory') === true &&
+    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('3 managed · 3 external · 1 external running') === true &&
+    document.body.textContent?.includes('Managed compute') === true &&
     document.querySelector('table[aria-label="External services"]') === null
   ))
   check('real machine memory uses measured used, cache and free colors', await b.run(() =>
@@ -67,7 +66,7 @@ try {
     document.querySelector('.real-memory .memory-total')?.textContent?.includes('20 GB of 100 GB') === true &&
     document.querySelector('.real-memory')?.textContent?.includes('includes VMs, external services and the OS') === true &&
     document.querySelectorAll('.real-memory .memory-bar .used, .real-memory .memory-bar .cached, .real-memory .memory-bar .free').length === 3 &&
-    document.querySelector('.bv-occ')?.textContent?.includes('Managed VM memory') === true
+    document.querySelector('.bv-occ')?.textContent?.includes('Managed compute') === true
   ))
   check('discovery sends zero writes and one read', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   await b.shot('machine-workload-blocks.png', true)
@@ -111,7 +110,16 @@ try {
   await burst('apple:8D6C7F2E', 'Restart')
   await b.until((selector) => document.querySelector(selector)?.textContent?.includes('running'), { timeout: SHORT_WAIT_MS }, rowSelector('apple:8D6C7F2E'))
   check('five Restart presses send one action and refresh the new state', standin.external.actions.length === 3 && standin.external.actions[2] === 'restart apple:8D6C7F2E' && standin.external.discoveries === 3, standin.external.actions.join(' | '))
-  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('table[aria-label="Apps"] tbody tr').length === 2 && document.querySelectorAll('.external-node').length === 3))
+  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('.bv-tenants > li').length === 3 && document.querySelectorAll('.external-node').length === 3 && document.querySelector('section[aria-labelledby="apps-title"]') === null))
+
+  standin.clearVms('studio')
+  await page.reload({ waitUntil: 'networkidle0' })
+  await page.waitForSelector(`${EXTERNAL_SECTION} .external-node`)
+  check('empty managed compute shows a useful state instead of 0 percent', await b.run(() =>
+    document.querySelector('.bv-empty-compute')?.textContent?.includes('No MetaService workloads') === true &&
+    document.querySelector('.bv-empty-compute')?.textContent?.includes('0%') === false &&
+    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('0 managed · 3 external') === true
+  ))
 
   standin.reset()
   writes.clear()
@@ -120,7 +128,7 @@ try {
   await page.waitForSelector('section[aria-labelledby="managed-vms-title"]')
   await wait(500)
   check('an old helper keeps managed VMs and Apps but hides External services', await b.run((selector) =>
-    document.querySelector(selector) === null && document.querySelector('section[aria-labelledby="apps-title"]') !== null && document.body.textContent?.includes('vm1') === true
+    document.querySelector(selector) === null && document.querySelector('.bv-tenants') !== null && document.body.textContent?.includes('vm1') === true
   , EXTERNAL_SECTION))
   check('legacy discovery is also read-only and sends no action', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   check('no script errors', errors.length === 0, errors.join(' | '))

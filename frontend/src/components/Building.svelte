@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import AppChip from './vm/AppChip.svelte'
+  import { appChip } from '../lib/appInstall.ts'
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.', actions, external }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet } = $props();
+  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, external }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -117,36 +119,46 @@
   </div>
 
   <aside class="bv-side">
-    <div class="bv-occ">
-      <span>Managed VM memory</span>
-      <b>{formatPct(model.totalMiB ? totals.rentedMiB / model.totalMiB : 0)}</b>
-      <small>of memory used by {totals.home} running VM{totals.home === 1 ? '' : 's'}</small>
-    </div>
-    <div class="bv-stack" role="img" aria-label="Used {split[0]}%, system {split[1]}%, free {split[2]}%">
-      <i class="k-home" style:width="{split[0]}%"></i><i class="k-reserve" style:width="{split[1]}%"></i><i class="k-vacant" style:width="{split[2]}%"></i>
-    </div>
-    <dl class="bv-split">
-      <div><dt><i class="k-home"></i>Used by managed VMs</dt><dd>{gb(totals.rentedMiB)} · {share(totals.rentedMiB, 0)}</dd></div>
-      <div><dt><i class="k-reserve"></i>Kept for the system</dt><dd>{gb(totals.reserveMiB)} · {share(totals.reserveMiB, 1)}</dd></div>
-      <div><dt><i class="k-vacant"></i>Free</dt><dd>{gb(totals.vacantMiB)} · {share(totals.vacantMiB, 2)}</dd></div>
-    </dl>
+    {#if servers.length === 0}
+      <div class="bv-occ bv-empty-compute">
+        <span>Managed compute</span>
+        <b>No MetaService workloads</b>
+        <small>Real host memory is shown above.</small>
+      </div>
+    {:else}
+      <div class="bv-occ">
+        <span>Managed compute</span>
+        <b>{formatPct(model.totalMiB ? totals.rentedMiB / model.totalMiB : 0)}</b>
+        <small>of memory used by {totals.home} running VM{totals.home === 1 ? '' : 's'}</small>
+      </div>
+      <div class="bv-stack" role="img" aria-label="Used {split[0]}%, system {split[1]}%, free {split[2]}%">
+        <i class="k-home" style:width="{split[0]}%"></i><i class="k-reserve" style:width="{split[1]}%"></i><i class="k-vacant" style:width="{split[2]}%"></i>
+      </div>
+      <dl class="bv-split">
+        <div><dt><i class="k-home"></i>Used by managed compute</dt><dd>{gb(totals.rentedMiB)} · {share(totals.rentedMiB, 0)}</dd></div>
+        <div><dt><i class="k-reserve"></i>Kept for the system</dt><dd>{gb(totals.reserveMiB)} · {share(totals.reserveMiB, 1)}</dd></div>
+        <div><dt><i class="k-vacant"></i>Available for new compute</dt><dd>{gb(totals.vacantMiB)} · {share(totals.vacantMiB, 2)}</dd></div>
+      </dl>
+    {/if}
     {#if totals.overMiB}<p class="bv-alert" role="alert">Over capacity by {gb(totals.overMiB)}: VMs running plus the system reserve exceed this machine’s memory.</p>{/if}
     <dl class="bv-facts">
       <div><dt>CPU cores</dt><dd>{totals.cpuTotal ? `${totals.cpuPromised} / ${totals.cpuTotal} promised` : `${totals.cpuPromised} vCPU promised`}</dd></div>
       <div><dt>Storage</dt><dd>{totals.diskAllocGB} / {totals.diskTotalGB} GB</dd></div>
-      <div><dt>Managed VMs</dt><dd>{totals.home} running · {totals.away} stopped</dd></div>
+      {#if servers.length > 0}<div><dt>Managed compute</dt><dd>{totals.home} running · {totals.away} stopped</dd></div>{/if}
     </dl>
-    <h3>Managed VMs</h3>
+    <h3>Managed compute</h3>
     {#if residents.length === 0}
       <p class="bv-none">{none}</p>
     {:else}
       <ul class="bv-tenants">
         {#each residents as tenant (tenant.id)}
+          {@const chip = appChip(tenant.app)}
           <li class:away={!tenant.home}>
             <span class="bv-badge {tenant.cls}">{tenant.apt || '—'}</span>
             <div>
               <a class="bv-name" href={vmLink(tenant.id)}><b>{tenant.name}</b></a>
               <span class="tag {tenant.cls}">{tenant.home ? statusText(tenant) : 'stopped'}</span>
+              {#if chip}<AppChip {chip} />{/if}
               <small>{gb(tenant.memMiB)} · {formatPct(tenant.share)} of memory · {tenant.cpu} vCPU · {tenant.diskGB} GB disk</small>
               <small class="bv-live">{tenant.home ? tenant.status : 'keeps its disk · uses no memory while stopped'}</small>
               {#if actions}<span class="bv-act">{@render actions(tenant.id)}</span>{/if}
@@ -216,6 +228,7 @@
   .bv-side{border:1px solid var(--line);padding:18px;position:sticky;top:12px}
   .bv-occ span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--m50)}
   .bv-occ b{display:block;font-family:var(--mono);font-size:44px;line-height:1.1;margin-top:4px}
+  .bv-empty-compute b{font-size:16px;line-height:1.4;margin-top:10px}
   .bv-occ small{display:block;font-size:12px;color:var(--m60)}
   .bv-stack{display:flex;height:12px;margin:14px 0 10px;border:1px solid var(--line-strong)}
   .bv-stack i{display:block;height:100%}

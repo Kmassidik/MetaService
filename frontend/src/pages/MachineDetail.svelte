@@ -53,7 +53,7 @@
   const tab = $derived(picked ?? machineTabFromRoute(route))
   const activity = $derived(commands.filter((command: Command) => command.machine === machine?.id))
   const making = $derived(machine ? pendingFor(pending, machine.id) : [])
-  const tabs = $derived(machineTabs(machine ? machine.workloads.length + making.length : 0))
+  const tabs = $derived(machineTabs())
   const readyForVms = $derived(machine?.state !== 'offline' && !machine?.problems?.length)
   /** The page's own Check again: one press opens the check dialog, and nothing more starts until it is open. */
   const checking = new ActionState()

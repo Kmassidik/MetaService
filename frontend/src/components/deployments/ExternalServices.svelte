@@ -13,7 +13,7 @@
     { id: 'restart', label: 'Restart', busy: 'Restarting…', done: 'Restarted' },
   ]
 
-  let { machineId }: { machineId: string } = $props()
+  let { machineId, managedCount }: { machineId: string; managedCount: number } = $props()
   let reply = $state<ExternalServicesReply | null>(null)
   let loading = $state(true)
   let legacy = $state(false)
@@ -79,8 +79,8 @@
 {#if !legacy}
   <section class="workload-block" aria-labelledby="external-services-title">
     <div class="block-head">
-      <h2 id="external-services-title">External services</h2>
-      <span class="muted">{reply ? `${reply.services.length} external · ${running} running` : 'Existing Docker, Incus and Apple services'}</span>
+      <h2 id="external-services-title">Compute workloads</h2>
+      <span class="muted">{reply ? `${managedCount} managed · ${reply.services.length} external · ${running} external running` : 'Managed VMs and existing Docker, Incus and Apple services'}</span>
     </div>
     {#if loading && !reply}<p class="note muted" role="status">Discovering external services…</p>{/if}
     {#if failure}<p class="err" role="alert">{failure}</p>{/if}
@@ -101,7 +101,7 @@
                 <div class="node-name"><b>{service.name}</b><small class="service-id mono">{service.id}</small></div>
                 <span class="tag" class:run={service.state === 'running'}>{service.state}</span>
               </div>
-              <small class="node-meta mono">{service.runtime} · {service.kind}</small>
+              <small class="node-meta mono">External · {service.runtime} · {service.kind}</small>
               <small class="node-image mono muted" title={service.image ?? ''}>{service.image ?? '—'}</small>
               <div class="acts">
                 {#each ACTIONS as action (action.id)}
@@ -126,10 +126,10 @@
   .warnings { margin: 12px 0 0; padding: 10px 14px 10px 32px; border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn); font-size: 12px; }
   .external-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
   .external-node { min-width: 0; padding: 10px; border: 1px solid var(--line-strong); background: var(--surface); }
-  .external-node.run { box-shadow: inset 4px 0 var(--accent); }
+  .external-node.run { box-shadow: inset 4px 0 var(--chart-orange); }
   .node-top { display: flex; align-items: flex-start; gap: 8px; }
   .node-window { display: grid; grid-template-columns: repeat(2, 1fr); flex: 0 0 24px; height: 24px; border: 1px solid var(--line-strong); }
-  .node-window i { border: 1px solid var(--pane-line); background: var(--accent); }
+  .node-window i { border: 1px solid var(--pane-line); background: var(--chart-orange); }
   .node-name { min-width: 0; flex: 1; }
   .node-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .service-id { display: block; margin-top: 2px; font-size: 9px; font-weight: 400; color: var(--m50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

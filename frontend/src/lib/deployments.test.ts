@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { appWorkloads, hostFor, vmServers } from './deployments.ts'
+import { hostFor, vmServers } from './deployments.ts'
 import { machine as aMachine, workload } from './testing.ts'
 
 const machine = aMachine({
@@ -14,10 +14,8 @@ test('VMs become servers the building, cards and table share', () => {
   expect(vmServers(aMachine())).toEqual([])
 })
 
-test('Apps are only the managed workloads that report an app', () => {
-  expect(appWorkloads(machine).map((entry) => [entry.id, entry.app?.name])).toEqual([['w1', 'openclaw']])
-  expect(vmServers(machine)).toHaveLength(4)
-  expect(appWorkloads(aMachine())).toEqual([])
+test('Apps stay badges on their managed nodes, never separate services', () => {
+  expect(vmServers(machine).map((entry) => entry.app?.name)).toEqual(['openclaw', undefined, undefined, undefined])
 })
 
 test('the machine is the host: its memory, cores, disk and what its VMs take of the disk', () => {

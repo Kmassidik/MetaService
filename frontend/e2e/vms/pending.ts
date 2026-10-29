@@ -112,8 +112,8 @@ async function onTheOtherPages(b: Browse, stand: Stand): Promise<void> {
 
 async function listedByTheMachine(b: Browse, world: World, token: string): Promise<void> {
   await sendHeartbeat(world, token, heartbeat([{ id: NEW_ID, name: GOOD_VM, kind: 'vm', state: 'running', cpu: 1, ram_mb: 1024, disk_gb: 10, gpu_mode: 'none', address: null, bundle_version: null }]))
-  await b.until((selector) => document.querySelector(selector) === null && document.body.innerText.includes('VMs (1)'), { timeout: LIST_WAIT_MS }, card(GOOD_VM))
-  check('once the machine lists the VM the pending card is replaced by the real VM', !(await hasCard(b, GOOD_VM)) && /VMs\s*\(1\)/.test(await b.text()))
+  await b.until((selector) => document.querySelector(selector) === null && document.body.innerText.includes('Managed compute'), { timeout: LIST_WAIT_MS }, card(GOOD_VM))
+  check('once the machine lists the VM the pending card is replaced by the real VM', !(await hasCard(b, GOOD_VM)) && /Managed compute/.test(await b.text()))
   await b.shot('pending-machine-listed.png')
 }
 

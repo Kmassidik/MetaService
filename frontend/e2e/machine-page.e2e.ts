@@ -12,18 +12,18 @@ import { chromePath, panelDist } from './support/paths.ts'
 
 const SIZES = { desktop: { width: 1280, height: 900 }, laptop: { width: 1280, height: 800 }, phone: { width: 400, height: 844 } }
 const PICTURE_SIZES = { desktop: SIZES.desktop, phone: SIZES.phone }
-const TAB_NAMES = ['Live', 'VMs', 'Storage', 'Environment', 'Activity']
+const TAB_NAMES = ['Live', 'Compute', 'Storage', 'Environment', 'Activity']
 const SCHEMES = ['light', 'dark'] as const
 const NOT_REPORTED = 'not reported'
 
-const TAB_ORDER = 'Live|VMs|Storage|Environment|Activity'
+const TAB_ORDER = 'Live|Compute|Storage|Environment|Activity'
 const tabLabels = (b: Browse) => b.run(() => [...document.querySelectorAll('[role=tab]')].map((tab) => tab.textContent?.trim().replace(/\s*\(\d+\)$/, '')).join('|'))
 const selectedTab = (b: Browse) => b.run(() => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim().replace(/\s*\(\d+\)$/, ''))
 
 async function tabBar(page: Page, b: Browse, base: string) {
   await page.setViewport(SIZES.laptop)
   await openMachine(b, base, 'mac-studio')
-  check('the tabs are Live, VMs, Storage, Environment, Activity, in that order', (await tabLabels(b)) === TAB_ORDER)
+  check('the tabs are Live, Compute, Storage, Environment, Activity, in that order', (await tabLabels(b)) === TAB_ORDER)
   check('Live is the tab that opens first', (await selectedTab(b)) === 'Live')
   check('the tab bar is visible without scrolling at 1280x800', await b.run(() => (document.querySelector('[role=tablist]')?.getBoundingClientRect().bottom ?? Infinity) <= window.innerHeight))
   check('every tab points at a panel that exists and is labelled by it', await b.run(() => [...document.querySelectorAll('[role=tab]')].every((tab) => {
@@ -36,7 +36,7 @@ async function tabBar(page: Page, b: Browse, base: string) {
 async function keyboardAndLinks(b: Browse) {
   await b.page.focus('[role=tab][aria-selected=true]')
   await b.page.keyboard.press('ArrowRight')
-  check('the right arrow moves to the next tab and focuses it', (await selectedTab(b)) === 'VMs' && (await b.run(() => document.activeElement?.getAttribute('role') === 'tab' && document.activeElement.textContent?.trim().startsWith('VMs'))))
+  check('the right arrow moves to the next tab and focuses it', (await selectedTab(b)) === 'Compute' && (await b.run(() => document.activeElement?.getAttribute('role') === 'tab' && document.activeElement.textContent?.trim().startsWith('Compute'))))
   await b.page.keyboard.press('End')
   check('End goes to the last tab', (await selectedTab(b)) === 'Activity')
   await b.page.keyboard.press('ArrowRight')
@@ -45,8 +45,8 @@ async function keyboardAndLinks(b: Browse) {
   await b.until(() => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim() === 'Environment', { timeout: SHORT_WAIT_MS })
   check('an old link to the Overview tab lands on Environment', (await selectedTab(b)) === 'Environment')
   await b.go('#/machines/details?id=mac-studio&tab=deployments')
-  await b.until(() => !!document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim().startsWith('VMs'), { timeout: SHORT_WAIT_MS })
-  check('an old link to the Deployments tab lands on VMs', (await selectedTab(b)) === 'VMs')
+  await b.until(() => !!document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim().startsWith('Compute'), { timeout: SHORT_WAIT_MS })
+  check('an old link to the Deployments tab lands on Compute', (await selectedTab(b)) === 'Compute')
   await b.go('#/machines/details?id=mac-studio')
   await b.until(() => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim() === 'Live', { timeout: SHORT_WAIT_MS })
   check('a link with no tab opens Live', (await selectedTab(b)) === 'Live')

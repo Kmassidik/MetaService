@@ -67,6 +67,7 @@ export interface StandIn {
   script: { order: Json | null }
   /** Sets or replaces one VM of a machine, as the machine's next heartbeat would. */
   putVm: (machine: string, entry: Json) => void
+  clearVms: (machine: string) => void
   reset: () => void
   close: () => void
 }
@@ -357,6 +358,10 @@ export async function startStandIn(): Promise<StandIn> {
       const owner = machines.find((candidate) => candidate.id === machineId)
       const kept = (Array.isArray(owner?.workloads) ? owner.workloads : []).filter((existing: Json) => existing.id !== entry.id)
       if (owner) owner.workloads = [...kept, entry]
+    },
+    clearVms(machineId) {
+      const owner = machines.find((candidate) => candidate.id === machineId)
+      if (owner) owner.workloads = []
     },
     reset() {
       script.order = null

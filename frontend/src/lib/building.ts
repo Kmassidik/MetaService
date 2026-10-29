@@ -2,6 +2,8 @@
 // fills the lobby, every VM that is home (running or moving in) rents windows for its RAM,
 // and whatever is left is for rent. Suspended VMs are away: they keep their disk in the
 // basement but hold no memory. Pure functions only, so `npm test` covers the layout.
+import type { WorkloadApp } from './types.ts'
+
 export const WINDOWS_PER_FLOOR = 8;
 
 /** A VM as the building sees it. */
@@ -16,6 +18,7 @@ export interface BuildingServer {
   disk_gb?: number
   /** True when it was given the machine's GPU. */
   gpu?: boolean
+  app?: WorkloadApp | null | undefined
 }
 
 /** The machine as the host of its VMs. */
@@ -44,6 +47,7 @@ export interface Tenant {
   apt: string | null
   windows: number
   over: boolean
+  app?: WorkloadApp | null | undefined
 }
 
 type Cell = { kind: 'reserve' | 'vacant' } | { kind: 'tenant'; tenant: number }
@@ -110,7 +114,7 @@ export function buildingModel(servers: BuildingServer[] | null = [], host: Build
     return {
       id: server.id, name: server.display || server.id, status: server.status, cls: server.cls || '',
       home: HOME.has(server.status), memMiB, cpu: server.cpu || 0, diskGB: server.disk_gb || 0,
-      share: totalMiB ? memMiB / totalMiB : 0, apt: null, windows: 0, over: false,
+      share: totalMiB ? memMiB / totalMiB : 0, apt: null, windows: 0, over: false, app: server.app,
     };
   });
 
