@@ -62,6 +62,8 @@ try {
     document.querySelector('table[aria-label="External services"]') === null
   ))
   check('real machine memory uses measured used, cache and free colors', await b.run(() =>
+    document.querySelector('.bv-side .real-memory .memory-bar') !== null &&
+    document.querySelector('.managed-block > .real-memory') === null &&
     document.querySelector('.real-memory .memory-total')?.textContent?.includes('20% used') === true &&
     document.querySelector('.real-memory .memory-total')?.textContent?.includes('20 GB of 100 GB') === true &&
     document.querySelector('.real-memory')?.textContent?.includes('includes VMs, external services and the OS') === true &&

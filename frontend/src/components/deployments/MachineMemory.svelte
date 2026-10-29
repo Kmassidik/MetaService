@@ -64,7 +64,7 @@
 </section>
 
 <style>
-  .real-memory { margin-bottom: 20px; padding: 16px 18px; border: 1px solid var(--line); background: var(--surface); }
+  .real-memory { margin-bottom: 16px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
   .memory-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .memory-head h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
   .memory-head span { font-size: 12px; }

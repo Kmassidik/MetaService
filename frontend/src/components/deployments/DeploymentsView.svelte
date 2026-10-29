@@ -72,8 +72,6 @@
   {#if workload}<TerminalButton {machine} {workload} />{/if}
 {/snippet}
 
-<MachineMemory machineId={machine.id} />
-
 <section class="managed-block" aria-labelledby="managed-vms-title">
   <h2 id="managed-vms-title">Compute</h2>
 <div class="bar-row">
@@ -86,6 +84,7 @@
 
 {#if view === 'building'}
   <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)}>
+    {#snippet machineMemory()}<MachineMemory machineId={machine.id} />{/snippet}
     {#snippet external()}<ExternalServices machineId={machine.id} managedCount={servers.length} />{/snippet}
   </Building>
 {:else if servers.length === 0 && making > 0}

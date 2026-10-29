@@ -5,7 +5,7 @@
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, external }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet } = $props();
+  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, external, machineMemory }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet; machineMemory?: Snippet } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -119,6 +119,7 @@
   </div>
 
   <aside class="bv-side">
+    {#if machineMemory}{@render machineMemory()}{/if}
     {#if servers.length === 0}
       <div class="bv-occ bv-empty-compute">
         <span>Managed compute</span>
