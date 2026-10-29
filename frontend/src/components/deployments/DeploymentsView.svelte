@@ -83,7 +83,9 @@
 </div>
 
 {#if view === 'building'}
-  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} />
+  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)}>
+    {#snippet external()}<ExternalServices machineId={machine.id} />{/snippet}
+  </Building>
 {:else if servers.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
 {:else if servers.length === 0}
@@ -138,7 +140,7 @@
 </section>
 
 <AppsBlock {machine} />
-<ExternalServices machineId={machine.id} />
+{#if view !== 'building'}<ExternalServices machineId={machine.id} />{/if}
 
 <style>
   .managed-block > h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }

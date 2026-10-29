@@ -3,7 +3,7 @@
   import { buildingModel, formatPct, splitPercents, type BuildingHost, type BuildingServer, type Segment, type Tenant } from '../lib/building.ts';
 
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.', actions }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]> } = $props();
+  let { servers = [], host = null, vmLink, none = 'No VMs on this machine yet.', actions, external }: { servers?: BuildingServer[]; host?: BuildingHost | null; vmLink: (vmId: string) => string; none?: string; actions?: Snippet<[string]>; external?: Snippet } = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -93,6 +93,7 @@
           </div>
         </div>
       {/each}
+      {#if external}<div class="bv-external">{@render external()}</div>{/if}
       <div class="bv-ground" aria-hidden="true"></div>
       <div class="bv-floor bv-basement" title="Every VM keeps its disk here, even while stopped. Disks are sparse, so real use grows as they fill.">
         <span class="bv-fl">B</span>
@@ -117,7 +118,7 @@
 
   <aside class="bv-side">
     <div class="bv-occ">
-      <span>Memory in use</span>
+      <span>Managed VM memory</span>
       <b>{formatPct(model.totalMiB ? totals.rentedMiB / model.totalMiB : 0)}</b>
       <small>of memory used by {totals.home} running VM{totals.home === 1 ? '' : 's'}</small>
     </div>
@@ -125,7 +126,7 @@
       <i class="k-home" style:width="{split[0]}%"></i><i class="k-reserve" style:width="{split[1]}%"></i><i class="k-vacant" style:width="{split[2]}%"></i>
     </div>
     <dl class="bv-split">
-      <div><dt><i class="k-home"></i>Used by VMs</dt><dd>{gb(totals.rentedMiB)} · {share(totals.rentedMiB, 0)}</dd></div>
+      <div><dt><i class="k-home"></i>Used by managed VMs</dt><dd>{gb(totals.rentedMiB)} · {share(totals.rentedMiB, 0)}</dd></div>
       <div><dt><i class="k-reserve"></i>Kept for the system</dt><dd>{gb(totals.reserveMiB)} · {share(totals.reserveMiB, 1)}</dd></div>
       <div><dt><i class="k-vacant"></i>Free</dt><dd>{gb(totals.vacantMiB)} · {share(totals.vacantMiB, 2)}</dd></div>
     </dl>
@@ -133,9 +134,9 @@
     <dl class="bv-facts">
       <div><dt>CPU cores</dt><dd>{totals.cpuTotal ? `${totals.cpuPromised} / ${totals.cpuTotal} promised` : `${totals.cpuPromised} vCPU promised`}</dd></div>
       <div><dt>Storage</dt><dd>{totals.diskAllocGB} / {totals.diskTotalGB} GB</dd></div>
-      <div><dt>VMs</dt><dd>{totals.home} running · {totals.away} stopped</dd></div>
+      <div><dt>Managed VMs</dt><dd>{totals.home} running · {totals.away} stopped</dd></div>
     </dl>
-    <h3>VMs</h3>
+    <h3>Managed VMs</h3>
     {#if residents.length === 0}
       <p class="bv-none">{none}</p>
     {:else}
@@ -162,6 +163,7 @@
   .bv{display:grid;grid-template-columns:minmax(0,7fr) minmax(280px,3fr);gap:24px;padding:8px 0 24px;align-items:start}
   .bv-col{min-width:0}
   .bv-building{border:1px solid var(--line-strong);background:var(--surface)}
+  .bv-external{border-top:1px solid var(--line-strong);background:var(--surface-2);padding:12px}
   .bv-roof{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 14px;background:var(--inverse-bg);color:var(--inverse-text);font-family:var(--mono);font-size:11px;flex-wrap:wrap}
   .bv-roof b{font-size:13px;letter-spacing:.08em;text-transform:uppercase}
   .bv-roof span{color:var(--inverse-text-mid)}

@@ -18,7 +18,7 @@ const standin = await startStandIn()
 const browser = await puppeteer.launch({ executablePath: chromePath, headless: true, args: ['--no-first-run'] })
 
 function rowSelector(id: string): string {
-  return `tr[data-service-id="${id}"]`
+  return `[data-service-id="${id}"]`
 }
 
 try {
@@ -37,7 +37,7 @@ try {
   standin.apps.begin('vm2', 'hermes')
   standin.apps.finish('vm2')
   await page.goto(`${standin.base}/${VMS_TAB}`, { waitUntil: 'networkidle0' })
-  await page.waitForSelector(`${EXTERNAL_SECTION} table tbody tr`)
+  await page.waitForSelector(`${EXTERNAL_SECTION} .external-node`)
   await wait(500)
 
   check('managed VMs, Apps and External services are three separate blocks', await b.run(() =>
@@ -45,17 +45,23 @@ try {
     document.querySelector('section[aria-labelledby="apps-title"]') !== null &&
     document.querySelector('section[aria-labelledby="external-services-title"]') !== null &&
     document.querySelectorAll('table[aria-label="Apps"] tbody tr').length === 2 &&
-    document.querySelectorAll('table[aria-label="External services"] tbody tr').length === 3
+    document.querySelectorAll('.external-node').length === 3
   ))
   check('Apps come from existing managed workload.app records', await b.run(() => {
     const text = document.querySelector('table[aria-label="Apps"]')?.textContent ?? ''
     return text.includes('OpenClaw') && text.includes('Hermes') && text.includes('vm1') && text.includes('vm2') && text.includes('Hermes install failed in the stand-in')
   }))
   check('external rows show name, runtime, kind, state, image and warnings', await b.run(() => {
-    const table = document.querySelector('table[aria-label="External services"]')?.textContent ?? ''
+    const table = document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent ?? ''
     const warning = document.querySelector('[aria-label="External service warnings"]')?.textContent ?? ''
     return ['postgres', 'docker', 'container', 'running', 'postgres:18', 'build-cache', 'incus', 'stopped', 'mac-guest', 'apple', 'vm', 'unknown'].every((text) => table.includes(text)) && warning.includes('One instance could not be inspected.')
   }))
+  check('external nodes are inside the Building with separate counts', await b.run(() =>
+    document.querySelectorAll('.bv-building .bv-external .external-node').length === 3 &&
+    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('3 external · 1 running') === true &&
+    document.body.textContent?.includes('Managed VM memory') === true &&
+    document.querySelector('table[aria-label="External services"]') === null
+  ))
   check('discovery sends zero writes and one read', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   await b.shot('machine-workload-blocks.png', true)
 
@@ -98,7 +104,7 @@ try {
   await burst('apple:8D6C7F2E', 'Restart')
   await b.until((selector) => document.querySelector(selector)?.textContent?.includes('running'), { timeout: SHORT_WAIT_MS }, rowSelector('apple:8D6C7F2E'))
   check('five Restart presses send one action and refresh the new state', standin.external.actions.length === 3 && standin.external.actions[2] === 'restart apple:8D6C7F2E' && standin.external.discoveries === 3, standin.external.actions.join(' | '))
-  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('table[aria-label="Apps"] tbody tr').length === 2 && document.querySelectorAll('table[aria-label="External services"] tbody tr').length === 3))
+  check('external actions never create managed VMs or extra Apps', await b.run(() => document.querySelectorAll('table[aria-label="Apps"] tbody tr').length === 2 && document.querySelectorAll('.external-node').length === 3))
 
   standin.reset()
   writes.clear()
