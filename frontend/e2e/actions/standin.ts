@@ -24,6 +24,7 @@ const CREATE_PATH ='/api/workloads'
 const VM_CALL =/^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/(start|stop|delete)$/
 const EXTERNAL_CALL = /^\/api\/machines\/([^/]+)\/external-services(?:\/([^/]+)\/(start|stop|restart))?$/
 const COMMAND_CALL = /^\/api\/commands\/([^/]+)$/
+const STATS_CALL = /^\/api\/machines\/([^/]+)\/stats$/
 
 export interface Behaviour {
   /** How long every VM call takes to answer. */
@@ -97,6 +98,17 @@ const externalFleet = (): Json[] => [
 ]
 
 const externalWarnings = (): Json[] => [{ runtime: 'incus', message: 'One instance could not be inspected.' }]
+
+const realMemory = (): Json => {
+  const gib = 1024 ** 3
+  const now = new Date().toISOString()
+  return { state: 'online', last_seen: now, fetched_at: now, stats: {
+    taken_at: now, measuring: false, uptime_seconds: 100,
+    cpu: { core_count: 8, total_percent: 10, cores_percent: null, load: { one: 1, five: 1, fifteen: 1 } },
+    memory: { total_bytes: 100 * gib, used_bytes: 20 * gib, cached_bytes: 10 * gib, free_bytes: 70 * gib, swap_total_bytes: 0, swap_used_bytes: 0 },
+    disks: [], network: { received_total_bytes: 0, sent_total_bytes: 0, received_bytes_per_second: 0, sent_bytes_per_second: 0 }, gpus: [], processes: [],
+  } }
+}
 
 const order = (type: string, id: string): Json => ({ command: { id, type, machine: 'studio', workload_id: null, state: 'running', created_at: new Date().toISOString(), params: {} } })
 
@@ -309,6 +321,7 @@ export async function startStandIn(): Promise<StandIn> {
     if (path === '/api/bundles/pin' && posted) return pinCall(request, response)
     if (path === '/api/bundles/rollback' && posted) return answer('rollback', 'rollback', response, bundles.rollback)
     if (path === '/api/machines') return send(response, 200, { machines: listed() })
+    if (STATS_CALL.test(path)) return send(response, 200, realMemory())
     const detail = MACHINE_PAGE.exec(path)
     const shown = machines.find((entry) => entry.id === detail?.[1])
     if (shown) return send(response, 200, shown)

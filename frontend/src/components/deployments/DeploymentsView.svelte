@@ -10,6 +10,7 @@
   import Building from '../Building.svelte'
   import AppsBlock from './AppsBlock.svelte'
   import ExternalServices from './ExternalServices.svelte'
+  import MachineMemory from './MachineMemory.svelte'
   import Owl from '../Owl.svelte'
   import CopyAddress from '../vms/CopyAddress.svelte'
   import TerminalButton from '../vms/TerminalButton.svelte'
@@ -71,6 +72,8 @@
   {@const workload = machine.workloads.find((entry) => entry.id === vmId)}
   {#if workload}<TerminalButton {machine} {workload} />{/if}
 {/snippet}
+
+<MachineMemory machineId={machine.id} />
 
 <section class="managed-block" aria-labelledby="managed-vms-title">
   <h2 id="managed-vms-title">Managed VMs</h2>

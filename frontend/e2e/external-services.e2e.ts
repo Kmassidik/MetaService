@@ -62,6 +62,13 @@ try {
     document.body.textContent?.includes('Managed VM memory') === true &&
     document.querySelector('table[aria-label="External services"]') === null
   ))
+  check('real machine memory uses measured used, cache and free colors', await b.run(() =>
+    document.querySelector('.real-memory .memory-total')?.textContent?.includes('20% used') === true &&
+    document.querySelector('.real-memory .memory-total')?.textContent?.includes('20 GB of 100 GB') === true &&
+    document.querySelector('.real-memory')?.textContent?.includes('includes VMs, external services and the OS') === true &&
+    document.querySelectorAll('.real-memory .memory-bar .used, .real-memory .memory-bar .cached, .real-memory .memory-bar .free').length === 3 &&
+    document.querySelector('.bv-occ')?.textContent?.includes('Managed VM memory') === true
+  ))
   check('discovery sends zero writes and one read', writes.count() === 0 && standin.external.discoveries === 1 && standin.external.actions.length === 0, `writes=${writes.count()} reads=${standin.external.discoveries}`)
   await b.shot('machine-workload-blocks.png', true)
 
