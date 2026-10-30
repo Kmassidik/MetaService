@@ -145,7 +145,7 @@ check "the far PC's private key is mode 600" "$(inside 'f=$(find ~/.metaservice-
 check "the hub lists the peer with a recent handshake" "$(admin "http://127.0.0.1:$ADMIN_PORT/admin/peers" | grep -q "$MACHINE" && echo yes || echo no)"
 inside 'sh ~/.metaservice-join/leave.sh' >"$W/leave.log" 2>&1
 sleep 3
-check "leave.sh stopped the helper and removed the interface and its folder" "$(inside '! pgrep -f metaservice-agent >/dev/null && ! ip link show wg-meta >/dev/null 2>&1 && [ ! -d ~/.metaservice-join/bin ] && [ ! -f ~/.metaservice-join/state/agent.token ] && echo yes || echo no' 2>/dev/null)"
+check "leave.sh stopped the helper and removed the interface and its folder" "$(inside '! pgrep -x metaservice-agent >/dev/null && ! ip link show metaservice >/dev/null 2>&1 && [ ! -d ~/.metaservice-join/bin ] && [ ! -f ~/.metaservice-join/state/agent.token ] && echo yes || echo no' 2>/dev/null)"
 DEL=$(admin -o /dev/null -w '%{http_code}' -X DELETE "http://127.0.0.1:$ADMIN_PORT/admin/peers/$MACHINE")
 check "removing the peer on the hub works (the address is freed)" "$([ "$DEL" = 200 ] || [ "$DEL" = 204 ] && echo yes || echo no)"
 check "the hub's WireGuard interface has no peer left" "$([ "$(sudo -n env PATH="$PATH" wg show all peers 2>/dev/null | grep -c .)" = 0 ] && echo yes || echo no)"
