@@ -25,10 +25,9 @@ pub enum RootCommand {
     Show,
 }
 
-/// `utun` plus digits, or a valid WireGuard config name.
+/// `utun` plus digits (the real macOS interface).
 pub fn is_iface_name(name: &str) -> bool {
-    let utun_digits = name.strip_prefix("utun").is_some_and(|d| !d.is_empty() && d.len() <= 6 && d.bytes().all(|b| b.is_ascii_digit()));
-    utun_digits || is_wg_name(name)
+    name.strip_prefix("utun").is_some_and(|d| !d.is_empty() && d.len() <= 6 && d.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// wg-quick's own rule for interface names (at most 15 characters), minus a leading dash.
@@ -64,10 +63,11 @@ fn conf_arg(text: &str, wg_name: &str) -> Result<PathBuf, String> {
     Err(format!("config must be an absolute path ending in {wg_name}.conf"))
 }
 
-fn iface_arg(args: &[String]) -> Result<Option<String>, String> {
+/// A real utunN, or the configured logical name (Linux).
+fn iface_arg(args: &[String], wg_name: &str) -> Result<Option<String>, String> {
     match args {
         [] => Ok(None),
-        [name] if is_iface_name(name) => Ok(Some(name.clone())),
+        [name] if is_iface_name(name) || name == wg_name => Ok(Some(name.clone())),
         [_] => Err("bad interface name".into()),
         _ => Err("expected at most 1 argument".into()),
     }
@@ -96,7 +96,7 @@ fn parse_command(args: &[String], wg_name: &str) -> Result<RootCommand, String> 
             Ok(RootCommand::AddPeer { public_key: key_arg(key)?, address: address_arg(addr)? })
         }
         "remove-peer" => Ok(RootCommand::RemovePeer { public_key: key_arg(&exact::<1>(rest)?[0])? }),
-        "pf-load" => Ok(RootCommand::PfLoad { iface: iface_arg(rest)? }),
+        "pf-load" => Ok(RootCommand::PfLoad { iface: iface_arg(rest, wg_name)? }),
         "pf-unload" => exact::<0>(rest).map(|_| RootCommand::PfUnload),
         "show" => exact::<0>(rest).map(|_| RootCommand::Show),
         other => Err(format!("unknown subcommand: {other}")),
@@ -215,7 +215,6 @@ mod tests {
     fn interface_names() {
         assert!(is_iface_name("utun0"));
         assert!(is_iface_name("utun123"));
-        assert!(is_iface_name("wg-meta"));
         assert!(!is_iface_name("utun"));
         assert!(!is_iface_name("utunx"));
         assert!(!is_iface_name("utun1234567"));
