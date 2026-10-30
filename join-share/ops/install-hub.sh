@@ -103,5 +103,11 @@ EOF
 sudo -n launchctl bootout "system/$LABEL" >/dev/null 2>&1 || true
 sudo -n install -m 644 -o root -g wheel "$TMP" "$PLIST"
 rm -f "$TMP"
-sudo -n launchctl bootstrap system "$PLIST"
+# bootout returns before launchd has freed the label, and a bootstrap in that moment fails with an I/O error: wait, then retry a few times.
+tries=0
+until sudo -n launchctl bootstrap system "$PLIST" 2>/dev/null; do
+  tries=$((tries + 1))
+  [ "$tries" -lt 10 ] || { say "launchd would not load $LABEL after $tries tries"; exit 1; }
+  sleep 2
+done
 say "started $LABEL; log: $STATE/hub.log"
