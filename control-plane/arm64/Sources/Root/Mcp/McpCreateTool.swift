@@ -90,9 +90,9 @@ extension McpService {
         defer { reserving.unlock() }
         try checkQuota(stored.wish, token: token)
         let order = try draft(stored, token: token)
-        let machine = try stored.machine.map { try machine($0, for: token).id } ?? workloads.chooseMachine(for: order, among: try unsharedMachineIds())
-        let row = try ownership.reserve(NewMcpWorkload(tokenId: token.id, machineId: machine, requestId: request.id, idempotencyKey: request.idempotencyKey, wish: stored.wish, createdAt: clock.now))
-        return (order.placed(on: machine), row)
+        let chosen = try stored.machine.map { try machine($0, for: token).id } ?? workloads.chooseMachine(for: order, among: try unsharedMachineIds())
+        let row = try ownership.reserve(NewMcpWorkload(tokenId: token.id, machineId: chosen, requestId: request.id, idempotencyKey: request.idempotencyKey, wish: stored.wish, createdAt: clock.now))
+        return (order.placed(on: chosen), row)
     }
 
     /// A GPU memory limit is shared with containers, so such a create is a container; everything else is a VM.

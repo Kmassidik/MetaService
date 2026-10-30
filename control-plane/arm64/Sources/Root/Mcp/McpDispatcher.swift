@@ -1,5 +1,6 @@
 import Foundation
 import RootCore
+import RootStore
 
 /// What a client asked, answered the way MCP wants: `initialize`, `ping`, `tools/list` and `tools/call`. Anything else is -32601.
 extension McpService {
