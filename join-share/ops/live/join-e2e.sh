@@ -51,6 +51,8 @@ done
 ROOT_HELPER="$BIN/join-share-root"
 
 rm -rf "$W" && mkdir -p "$W/parent/state" "$W/hub-state" && chmod 700 "$W"
+# The Mini's address on the container network exists only while a container runs, so the far PC is started first.
+container start jstest-a >/dev/null 2>&1; sleep 3
 HOST_IP=$(container network list 2>/dev/null | awk '$1=="default"{print $2}' | sed 's#\.[0-9]*/.*#.1#')
 [ -n "$HOST_IP" ] || { echo "no container network"; exit 2; }
 
@@ -88,7 +90,6 @@ check "a made-up link gets 404 and a unified answer" "$([ "$(curl -s -o /dev/nul
 check "an unsupported pair is refused with 400 (Windows)" "$([ "$(curl -s -o /dev/null -w '%{http_code}' "http://$HOST_IP:$PUBLIC_PORT/j/$LINK?os=windows&cpu=x86_64")" = 400 ] && echo yes || echo no)"
 
 # 4. The far PC: a clean container; the real script, in the background, its output in a file.
-container start jstest-a >/dev/null 2>&1; sleep 2
 inside 'sh ~/.metaservice-join/leave.sh >/dev/null 2>&1; rm -rf ~/.metaservice-join ~/metaservice-box /tmp/join.log; true' >/dev/null 2>&1
 container exec -d jstest-a sh -c "JOIN_SHARE_YES=1 $COMMAND > /tmp/join.log 2>&1"
 
