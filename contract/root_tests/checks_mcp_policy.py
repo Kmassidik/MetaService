@@ -193,9 +193,13 @@ def check_mcp_a_shared_machine_is_hidden_without_the_shared_scope_and_needs_appr
         expect(listed["pc-in-berlin"]["shared"] is True and listed["home"]["shared"] is False, listed)
         asked = sharing.tool("create_vm", {"size": "small", "machine": "pc-in-berlin"}).ok()
         expect(asked["status"] == "needs_approval" and "shared machine" in asked["reason"], asked)
-        operator.write("POST", f"/api/mcp/approvals/{asked['request_id']}/approve")
-        done = wait_until(lambda: (lambda r: r if r["status"] == "done" else None)(sharing.tool("get_request", {"request_id": asked["request_id"]}).ok()), what="the shared create")
-        expect(done["vm"]["machine"] == "pc-in-berlin", done)
+        pending = approvals(operator)["pending"][0]
+        expect("on machine pc-in-berlin" in pending["description"] and pending["reason"] == "it runs on a shared machine", pending)
+        # The pretend helper listens on loopback, not at the Share a PC address, so once approved the order cannot reach it: the request must say so plainly and free the slot.
+        ended = operator.write("POST", f"/api/mcp/approvals/{asked['request_id']}/approve").body["approval"]
+        expect(ended["state"] == "failed" and "could not be reached" in ended["message"], ended)
+        expect(sharing.tool("get_request", {"request_id": asked["request_id"]}).ok()["status"] == "failed", "get_request says failed")
+        expect(sharing.tool("list_vms").ok()["vms"] == [], "a failed approved create holds no slot")
 
 
 def check_mcp_a_gpu_limit_needs_the_scope_a_person_and_fits_the_card():
