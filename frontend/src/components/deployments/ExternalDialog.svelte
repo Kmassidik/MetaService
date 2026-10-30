@@ -2,7 +2,7 @@
   // One service that was on the machine before MetaService: what it is, and Start / Stop / Restart. It is never adopted, deleted, or added to the managed VM model.
   import ActionButton from '../ActionButton.svelte'
   import Dialog from '../Dialog.svelte'
-  import { LOGOS } from '../../lib/logos.ts'
+  import RuntimeLogo from './RuntimeLogo.svelte'
   import { externalBlocks } from '../../lib/externalBlocks.ts'
   import type { ExternalService, ExternalServiceAction } from '../../lib/types.ts'
 
@@ -25,7 +25,7 @@
 <Dialog open={service !== null} title={service?.name ?? ''} {onClose} closeButton backdropClose>
   {#if service}
     <div class="ext" data-service-id={service.id}>
-      <p class="state">{#if logo}<img class="logo" src={LOGOS[logo]} alt="" />{/if}<span class="tag" class:run={service.state === 'running'}>{service.state}</span><span class="muted">External · {service.runtime} · {service.kind}</span></p>
+      <p class="state"><RuntimeLogo {logo} size={22} /><span class="tag" class:run={service.state === 'running'}>{service.state}</span><span class="muted">External · {service.runtime} · {service.kind}</span></p>
       <dl>
         <div><dt>Image</dt><dd class="mono">{service.image ?? '—'}</dd></div>
         <div><dt>ID</dt><dd class="mono">{service.id}</dd></div>
@@ -42,7 +42,6 @@
 
 <style>
   .ext { display: grid; gap: 12px; min-width: 0; }
-  .logo { width: 22px; height: 22px; }
   .state { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 12px; }
   dl { display: grid; gap: 8px; margin: 0; }
   dl div { display: grid; gap: 2px; }

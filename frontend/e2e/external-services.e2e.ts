@@ -98,6 +98,11 @@ try {
     await page.waitForSelector(rowSelector(id))
   }
 
+  await b.click('Cards')
+  await page.waitForSelector('.external-card')
+  await b.shot('machine-vm-cards.png')
+  await b.click('Building')
+
   async function burst(id: string, label: string): Promise<void> {
     await openBlock(id)
     const at = await b.run((selector, wanted) => {
@@ -156,11 +161,25 @@ try {
     document.querySelector('.runs')?.textContent?.includes('0/0 running · 3 external') === true
   ))
   await b.click('Table')
-  await page.waitForSelector('.external-node')
-  check('the Table view lists the same three services as a card under it', await b.run(() =>
-    document.querySelectorAll('.external-node').length === 3 &&
-    document.querySelector('section[aria-labelledby="external-services-title"]')?.textContent?.includes('0 managed · 3 external') === true
-  ))
+  await page.waitForSelector('.external-row')
+  check('the Table view lists the three services as rows, the Docker one with its logo, with no VM empty message', await b.run(() => {
+    const rows = [...document.querySelectorAll('.external-row')]
+    const docker = rows.find((row) => row.textContent?.includes('postgres'))
+    return rows.length === 3 && docker?.querySelector('img.runtime-logo') !== null && rows.filter((row) => row.querySelector('img.runtime-logo') !== null).length === 1 &&
+      document.querySelector('.empty') === null && document.querySelector('.external-node') === null
+  }))
+  await b.shot('machine-external-table.png')
+  await b.click('Cards')
+  await page.waitForSelector('.external-card')
+  check('the Cards view shows the three services as cards, the Docker one with its logo', await b.run(() => {
+    const cards = [...document.querySelectorAll('.external-card')]
+    return cards.length === 3 && cards.filter((card) => card.querySelector('img.runtime-logo') !== null).length === 1 && cards.some((card) => card.textContent?.includes('postgres:18'))
+  }))
+  await b.shot('machine-external-cards.png')
+  await page.click('.external-card[data-service-id="docker:abc123"] button')
+  await page.waitForSelector('dialog[open] [data-service-id="docker:abc123"]')
+  check('Details on a card opens the same dialog, with the logo', await b.run(() => document.querySelector('dialog[open] img.runtime-logo') !== null))
+  await page.keyboard.press('Escape')
   await b.click('Building')
 
   standin.reset()

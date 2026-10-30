@@ -8,6 +8,12 @@ export interface ExternalBlock {
   id: string
   name: string
   tone: BlockTone
+  /** What the machine said: running, stopped or unknown. */
+  state: ExternalServiceState
+  /** "container" or "vm". */
+  kind: ExternalService['kind']
+  /** The image it was made from, when the machine says. */
+  image: string | null
   /** The runtime in one word: "docker", "incus", "apple". */
   tag: string
   /** The runtime's logo, for the runtimes that have one bundled. */
@@ -26,6 +32,9 @@ function blockOf(service: ExternalService): ExternalBlock {
     id: service.id,
     name: service.name,
     tone: TONES[service.state],
+    state: service.state,
+    kind: service.kind,
+    image: service.image,
     tag: service.runtime,
     logo: RUNTIME_LOGOS[service.runtime] ?? null,
     title: `${service.name}: external ${service.runtime} ${service.kind}, ${service.state}. Click for details.`,

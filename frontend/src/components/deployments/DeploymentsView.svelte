@@ -9,7 +9,8 @@
   // The deployments of one machine, laid out like the MAAS Infrastructure page: capacity bars, then the VMs as a building, a table or cards.
   import Building from '../Building.svelte'
   import ExternalDialog from './ExternalDialog.svelte'
-  import ExternalServices from './ExternalServices.svelte'
+  import ExternalCards from './ExternalCards.svelte'
+  import ExternalTableRows from './ExternalTableRows.svelte'
   import GpuMemory from './GpuMemory.svelte'
   import MachineMemory from './MachineMemory.svelte'
   import Owl from '../Owl.svelte'
@@ -99,13 +100,14 @@
   <button class="btn green sm" type="button" onclick={onCreate}>＋ New VM</button>
 </div>
 
+{#if external.failure}<p class="err" role="alert">{external.failure}</p>{/if}
+{#if external.reply && external.reply.warnings.length > 0}
+  <ul class="warnings" aria-label="External service warnings">
+    {#each external.reply.warnings as warning}<li><b>{warning.runtime}</b>: {warning.message}</li>{/each}
+  </ul>
+{/if}
+
 {#if view === 'building'}
-  {#if external.failure}<p class="err" role="alert">{external.failure}</p>{/if}
-  {#if external.reply && external.reply.warnings.length > 0}
-    <ul class="warnings" aria-label="External service warnings">
-      {#each external.reply.warnings as warning}<li><b>{warning.runtime}</b>: {warning.message}</li>{/each}
-    </ul>
-  {/if}
   <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} externals={blocks} onExternal={(id) => (openExternal = id)} gpuText={gpuFloorText(gpuParts)}>
     {#snippet charts()}
       <div class="charts">
@@ -114,9 +116,9 @@
       </div>
     {/snippet}
   </Building>
-{:else if servers.length === 0 && making > 0}
+{:else if servers.length === 0 && blocks.length === 0 && making > 0}
   <p class="muted waiting" role="status">{MAKING_TEXT}</p>
-{:else if servers.length === 0}
+{:else if servers.length === 0 && blocks.length === 0}
   <div class="empty" role="status"><Owl name="emptyVms" />No VMs on this machine yet.<button class="btn" type="button" onclick={onCreate}>＋ Create a VM</button></div>
 {:else if view === 'cards'}
   <div class="grid">
@@ -136,6 +138,7 @@
         <div class="acts"><VmActions {machine} {workload} {commands} {handlers} /></div>
       </div>
     {/each}
+    <ExternalCards {blocks} onOpen={(id) => (openExternal = id)} />
   </div>
 {:else}
   <div class="tablewrap">
@@ -161,13 +164,12 @@
             <td data-label="Actions"><VmActions {machine} {workload} {commands} {handlers} /></td>
           </tr>
         {/each}
+        <ExternalTableRows {blocks} onOpen={(id) => (openExternal = id)} />
       </tbody>
     </table>
   </div>
 {/if}
 </section>
-
-{#if view !== 'building'}<ExternalServices store={external} managedCount={servers.length} />{/if}
 
 <ExternalDialog service={openService} onClose={() => (openExternal = null)} onRun={external.run} />
 
