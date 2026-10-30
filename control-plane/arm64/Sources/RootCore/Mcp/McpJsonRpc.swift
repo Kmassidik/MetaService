@@ -42,7 +42,7 @@ public enum McpRpcMessage: Equatable {
 
 public enum McpJsonRpc {
     public static func parse(_ body: Data) -> McpRpcMessage {
-        guard let parsed = try? JSONSerialization.jsonObject(with: body) else {
+        guard let parsed = try? JSONSerialization.jsonObject(with: body, options: [.fragmentsAllowed]) else {
             return .invalid(id: .none, code: McpRpcCode.parseError, message: "the body is not valid JSON")
         }
         if parsed is [Any] {
