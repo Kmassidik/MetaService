@@ -62,6 +62,6 @@ The admin key is made on first start in `<state>/admin.key` (mode 600). The hub'
 - `pf-load` takes no rules file: the root helper regenerates the rules itself from the validated config copy, so a user-writable file cannot make root load arbitrary rules. The hub passes the real `utunN` it got from `up`.
 - `up` copies the config into the root-only `/var/run/join-share/` after validating it (only PrivateKey/Address/ListenPort and PublicKey/AllowedIPs are allowed; no PostUp etc.), and `add-peer` checks the address against the network in that copy. pf marker files live there too.
 - The admin page files `/app.js` and `/style.css` are served without the key (the page asks for it).
-- Approval stores the (possibly lowered) share in the hub database only; the contract has no other place for it.
+- Approval stores the (possibly lowered) share in the hub database, and the approved status returns it as `machine.share` (always present).
 - The enrollment token is kept in the hub database until the first approved status read, then cleared.
 - Machine names are limited to letters, digits, `.`, `-`, `_` (max 40).

@@ -38,10 +38,17 @@ pub struct Pending {
     pub state: String,
     pub name: Option<String>,
     pub address: Option<String>,
+    /// The share fixed at approval (possibly lowered); None before.
+    pub share: Option<Share>,
 }
 
 const COLS: &str = "id, link_id, secret_hash, code_hash, tries_left, wg_public_key, os, cpu, hostname, \
-                    ask_cores, ask_ram_mb, ask_disk_gb, created_at, expires_at, state, name, address";
+                    ask_cores, ask_ram_mb, ask_disk_gb, created_at, expires_at, state, name, address, \
+                    share_cores, share_ram_mb, share_disk_gb";
+
+fn approved_share(cores: Option<u32>, ram_mb: Option<u32>, disk_gb: Option<u32>) -> Option<Share> {
+    Some(Share { cores: cores?, ram_mb: ram_mb?, disk_gb: disk_gb? })
+}
 
 fn from_row(r: &Row) -> rusqlite::Result<Pending> {
     Ok(Pending {
@@ -60,6 +67,7 @@ fn from_row(r: &Row) -> rusqlite::Result<Pending> {
         state: r.get(14)?,
         name: r.get(15)?,
         address: r.get(16)?,
+        share: approved_share(r.get(17)?, r.get(18)?, r.get(19)?),
     })
 }
 
@@ -150,7 +158,7 @@ mod tests {
             id: id.into(), link_id: "l1".into(), secret_hash: "s".into(), code_hash: "c".into(), tries_left: 5,
             wg_public_key: "k".into(), os: "mac".into(), cpu: "arm64".into(), hostname: "h".into(),
             ask: Share { cores: 4, ram_mb: 8192, disk_gb: 50 }, created_at: 10, expires_at: 910,
-            state: STATE_PENDING.into(), name: None, address: None,
+            state: STATE_PENDING.into(), name: None, address: None, share: None,
         }
     }
 
@@ -183,7 +191,9 @@ mod tests {
         store.finish_approval("p1", &peer, &Share { cores: 2, ram_mb: 1024, disk_gb: 10 }, "tok").unwrap();
         assert_eq!(store.take_token("p1").unwrap().as_deref(), Some("tok"));
         assert_eq!(store.take_token("p1").unwrap(), None);
-        assert_eq!(store.get_pending("p1").unwrap().unwrap().address.as_deref(), Some("10.77.0.2"));
+        let stored = store.get_pending("p1").unwrap().unwrap();
+        assert_eq!(stored.address.as_deref(), Some("10.77.0.2"));
+        assert_eq!(stored.share, Some(Share { cores: 2, ram_mb: 1024, disk_gb: 10 }));
     }
 
     #[test]

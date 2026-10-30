@@ -188,6 +188,8 @@ async fn whole_flow_from_link_to_removal() {
     let machine = &approved["machine"];
     assert_eq!(machine["name"], "my-mac");
     assert_eq!(machine["parent_url"], "http://10.77.0.1:9102");
+    // The lowered share (asked 4/8192/50, approved 2/4096/20) is what the status reports.
+    assert_eq!(machine["share"], json!({"cores": 2, "ram_mb": 4096, "disk_gb": 20}));
     assert_eq!((machine["helper_bind"].clone(), machine["helper_port"].clone()), (json!("10.77.0.2"), json!(9101)));
     assert_eq!(approved["download"]["sha256"], sha256_hex(HELPER_BYTES).as_str());
     assert_eq!(approved["download"]["url"], format!("https://join.example.com{dl}").as_str());
@@ -201,6 +203,7 @@ async fn whole_flow_from_link_to_removal() {
     let again = parse(&text);
     assert_eq!(again["state"], "approved");
     assert!(again["machine"].get("enrollment_token").is_none());
+    assert_eq!(again["machine"]["share"], machine["share"]);
 
     // Download: right pair only.
     let (status, body) = h.public(Method::GET, &dl, None).await;

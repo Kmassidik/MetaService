@@ -90,6 +90,7 @@ pub fn register(state: &AppState, link_id: &str, body: RegisterBody) -> Result<V
         state: STATE_PENDING.into(),
         name: None,
         address: None,
+        share: None,
     })?;
     Ok(json!({ "pending": id, "secret": secret, "code": code, "expires_in": LIFETIME_SECS }))
 }
@@ -122,6 +123,7 @@ fn approved_body(state: &AppState, pending: &Pending, secret: &str) -> Result<Va
     let bytes = std::fs::read(&helper).map_err(|e| ApiError::internal(format!("helper build unreadable: {e}")))?;
     let address = pending.address.clone().ok_or_else(|| ApiError::internal("approved without address"))?;
     let name = pending.name.clone().ok_or_else(|| ApiError::internal("approved without name"))?;
+    let share = pending.share.ok_or_else(|| ApiError::internal("approved without share"))?;
     // Read the token last: a failure above must not use up the single read.
     let token = state.store.take_token(&pending.id)?;
     let mut machine = json!({
@@ -129,6 +131,7 @@ fn approved_body(state: &AppState, pending: &Pending, secret: &str) -> Result<Va
         "parent_url": config.parent_url,
         "helper_bind": address,
         "helper_port": HELPER_PORT,
+        "share": { "cores": share.cores, "ram_mb": share.ram_mb, "disk_gb": share.disk_gb },
     });
     if let Some(token) = token {
         machine["enrollment_token"] = json!(token);
