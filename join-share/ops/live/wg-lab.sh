@@ -66,7 +66,8 @@ AllowedIPs = $SPOKE_B/32
 EOF
 
 sudo -n env PATH="$PATH" wg-quick up "$LAB/$IFACE_NAME.conf" >"$LAB/up.log" 2>&1 || { cat "$LAB/up.log"; exit 2; }
-HUB_IF=$(cat /var/run/wireguard/$IFACE_NAME.name 2>/dev/null)
+# /var/run/wireguard is root-only, so the real interface name comes from wg-quick's own output.
+HUB_IF=$(sed -n 's/.*Interface for .* is \(utun[0-9]*\).*/\1/p' "$LAB/up.log")
 [ -n "$HUB_IF" ] || { echo "no interface name"; exit 2; }
 echo "hub interface $HUB_IF, the Mini on the container network is $HUB_HOST"
 
