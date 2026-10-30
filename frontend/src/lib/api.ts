@@ -16,6 +16,9 @@ import { parseJoinCommand, parsePeers, parsePending, parseSupported, type JoinCo
 import { describeShareError, isHubRefusal } from './shareErrors.ts'
 import type { ApproveBody } from './shareDraft.ts'
 import type { ShareCpu, ShareOs } from './share.ts'
+import { parseInfo, parseMadeToken, parseTokens, type McpInfo, type McpToken } from './mcp.ts'
+import { parseActivity, parseApprovals, type ActivityRow, type Approvals } from './mcpRequests.ts'
+import type { TokenBody } from './mcpDraft.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
@@ -305,3 +308,26 @@ export const shareMakeCommand = async (os: ShareOs, cpu: ShareCpu): Promise<Join
 export const shareApprove = (id: string, body: ApproveBody) => shareCall('POST', `pending/${encodeURIComponent(id)}/approve`, body)
 export const shareRefuse = (id: string) => shareCall('POST', `pending/${encodeURIComponent(id)}/refuse`, {})
 export const shareRemovePeer = (name: string) => shareCall('DELETE', `peers/${encodeURIComponent(name)}`)
+
+// AI access (MCP): tokens, approvals and recent calls. A parent that is too old answers 404 to every one of these.
+/** An answer in another shape is an error, not an empty list. */
+async function mcpAnswer<T>(method: Method, path: string, parse: (raw: unknown) => T, body?: unknown): Promise<T> {
+  try {
+    return parse(await call<unknown>(method, path, body))
+  } catch (error) {
+    if (error instanceof UnreadableAnswer) throw new ApiError(502, 'bad_reply', 'The Root gave an answer the panel cannot read.')
+    throw error
+  }
+}
+
+const approvalPath = (id: string, verdict: 'approve' | 'deny') => `/api/mcp/approvals/${encodeURIComponent(id)}/${verdict}`
+
+export const mcpInfo = (): Promise<McpInfo> => mcpAnswer('GET', '/api/mcp/info', parseInfo)
+export const mcpTokens = (): Promise<McpToken[]> => mcpAnswer('GET', '/api/mcp/tokens', parseTokens)
+/** The token text comes back in this answer only. */
+export const mcpCreateToken = (body: TokenBody): Promise<string> => mcpAnswer('POST', '/api/mcp/tokens', parseMadeToken, body)
+export const mcpRevokeToken = (id: string) => call<unknown>('DELETE', `/api/mcp/tokens/${encodeURIComponent(id)}`)
+export const mcpApprovals = (): Promise<Approvals> => mcpAnswer('GET', '/api/mcp/approvals', parseApprovals)
+export const mcpApprove = (id: string) => call<unknown>('POST', approvalPath(id, 'approve'), {})
+export const mcpDeny = (id: string) => call<unknown>('POST', approvalPath(id, 'deny'), {})
+export const mcpActivity = (limit: number): Promise<ActivityRow[]> => mcpAnswer('GET', `/api/mcp/activity?limit=${limit}`, parseActivity)
