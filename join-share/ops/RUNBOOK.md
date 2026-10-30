@@ -6,7 +6,7 @@ Everything automatic is already tested on the Mini by `ops/live/wg-lab.sh` (netw
 
 Forward **UDP 51830** from the public address to the Mac Mini (`192.168.0.40`), the same way ports 22, 1001, 1002 and 1003 are forwarded today. Nothing else is opened. WireGuard does not answer a packet that has no valid key, so the port does not show itself to scanners.
 
-## 2. One time, the join address (Kurnia)
+## 2. One time, the join address (done 2026-10-31 with `ops/cloudflare-hostname.sh`: `join.ruvio.site` on the `metaservice` tunnel)
 
 The far PC downloads the join script over **https**. Add a hostname to the existing `metaservice` Cloudflare tunnel (Zero Trust, Networks, Tunnels, `metaservice`, Public hostname): for example `join.ruvio.site` pointing at `http://localhost:9110`. No Access policy (only the one-time link protects it). If you prefer another name, give it as `JOIN_SHARE_PUBLIC_URL` in step 3.
 
@@ -21,7 +21,9 @@ It builds, installs the narrow root helper and its sudoers line, writes `join-sh
 
 ## 4. Open the admin page (Kurnia)
 
-Double-click **`Join-a-PC-admin.command`** on the Desktop (a copy of `ops/open-admin.command`). It opens the SSH forward to the Mini, reads the admin key there and opens the page with the key in the address after `#`, so nothing is typed and the key is never sent to a server. Keep its window open while you use the page; closing it closes the forward. The admin page listens on the Mini's loopback only and is not part of the panel.
+Open the panel (`https://meta.ruvio.site`) and click **Share a PC** in the sidebar (Infrastructure, under Machines). The panel's own login is the gate; the parent talks to the hub and adds the hub's admin key itself, so the key never reaches the browser (`PANEL.md`). The parent reads `JOIN_SHARE_ADMIN_URL` and `JOIN_SHARE_ADMIN_KEY_FILE` from `control-plane/arm64/.env` (set on the Mini on 2026-10-31).
+
+Fallback when the panel is down: double-click **`Join-a-PC-admin.command`** on the Desktop (a copy of `ops/open-admin.command`). It opens the SSH forward to the Mini and opens the hub's own page with the key in the address after `#`.
 
 ## 5. Join the laptops (Kurnia)
 
