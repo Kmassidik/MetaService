@@ -157,5 +157,5 @@ def wait_until(condition, seconds=15, what="the condition"):
         value = condition()
         if value:
             return value
-        time.sleep(0.2)
+        time.sleep(0.5)
     raise AssertionError(f"timed out waiting for {what}")
