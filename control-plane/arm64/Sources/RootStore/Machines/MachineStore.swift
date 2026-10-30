@@ -17,7 +17,13 @@ public struct MachineStore: @unchecked Sendable {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(_ database: Database) { self.database = database }
+    /// `origins`: where the creator records are read for the short `created_by` on every workload. Without it the field is null.
+    private let origins: VmOriginStore?
+
+    public init(_ database: Database, origins: VmOriginStore? = nil) {
+        self.database = database
+        self.origins = origins
+    }
 
     // MARK: enrolling and authenticating
 
@@ -158,17 +164,19 @@ public struct MachineStore: @unchecked Sendable {
     private func workloadSummaries(machineId: String, now: Date) throws -> [WorkloadSummary] {
         let apps = try AppStateStore(database).records(machine: machineId)
         let bookings = try GpuBookingStore(database).bookings(machine: machineId)
+        let creators = origins.map { (try? $0.createdBy(machine: machineId)) ?? [:] }
         let seconds = Int(now.timeIntervalSince1970)
         return try database.query("""
             SELECT id, name, kind, state, cpu, ram_mb, disk_gb, gpu_mode, address, bundle_version, stopped_reason_json, init_mode, gpu_memory_gb
             FROM workloads WHERE machine_id = ? ORDER BY name
-            """, [.text(machineId)]).map {
-            WorkloadSummary(id: $0.string("id"), name: $0.string("name"), kind: $0.string("kind"), state: $0.string("state"),
-                            cpu: $0.int("cpu"), ramMb: $0.int("ram_mb"), diskGb: $0.int("disk_gb"), gpuMode: $0.string("gpu_mode"),
-                            address: $0.optionalString("address"), bundleVersion: $0.optionalString("bundle_version"),
-                            stoppedReason: $0.optionalString("stopped_reason_json").flatMap { try? decoder.decode(StoppedReasonReport.self, from: Data($0.utf8)) },
-                            initMode: $0.optionalString("init_mode"), app: apps[$0.string("id")].map { WorkloadAppSummary($0.atTime(seconds)) },
-                            gpuMemoryGb: bookings[$0.string("id")] ?? $0.optionalInt("gpu_memory_gb"))
+            """, [.text(machineId)]).map { row in
+            WorkloadSummary(id: row.string("id"), name: row.string("name"), kind: row.string("kind"), state: row.string("state"),
+                            cpu: row.int("cpu"), ramMb: row.int("ram_mb"), diskGb: row.int("disk_gb"), gpuMode: row.string("gpu_mode"),
+                            address: row.optionalString("address"), bundleVersion: row.optionalString("bundle_version"),
+                            stoppedReason: row.optionalString("stopped_reason_json").flatMap { try? decoder.decode(StoppedReasonReport.self, from: Data($0.utf8)) },
+                            initMode: row.optionalString("init_mode"), app: apps[row.string("id")].map { WorkloadAppSummary($0.atTime(seconds)) },
+                            gpuMemoryGb: bookings[row.string("id")] ?? row.optionalInt("gpu_memory_gb"),
+                            createdBy: creators.map { $0[row.string("id")] ?? .unknown })
         }
     }
 

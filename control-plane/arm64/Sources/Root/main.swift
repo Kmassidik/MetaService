@@ -17,6 +17,8 @@ do {
     }
     let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
     services.tunnels.resume()
+    // Once, ever: the VMs listed before creator records existed are recorded as made by the admin. Later VMs without a record stay "unknown origin".
+    try services.origins.backfillOnce(now: services.clock.now)
     services.workloads.resume()
     services.externalServices.resume()
     services.bundleService.start()

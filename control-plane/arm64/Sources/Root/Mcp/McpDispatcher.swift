@@ -8,19 +8,22 @@ extension McpService {
     static let fallbackVersion = "2025-03-26"
 
     /// The JSON reply for one request. A tool that fails is still a result (`isError`); only a request that cannot be read is a JSON-RPC error.
-    func dispatch(_ call: McpRpcCall, token: McpTokenRecord, headerVersion: String?) async -> Data {
+    func dispatch(_ call: McpRpcCall, caller: McpCaller, headerVersion: String?) async -> Data {
         switch call.method {
-        case "initialize": return initialize(call)
+        case "initialize": return initialize(call, caller: caller)
         case "ping": return McpJsonRpc.result(id: call.id, [:])
         case "tools/list": return McpJsonRpc.result(id: call.id, ["tools": Self.toolList])
-        case "tools/call": return await toolsCall(call, token: token, version: headerVersion.map { McpProtocol.negotiate(requested: $0) } ?? Self.fallbackVersion)
+        case "tools/call": return await toolsCall(call, caller: caller, version: headerVersion.map { McpProtocol.negotiate(requested: $0) } ?? Self.fallbackVersion)
         default: return McpJsonRpc.error(id: call.id, code: McpRpcCode.methodNotFound, message: "unknown method \"\(call.method.prefix(64))\"")
         }
     }
 
-    private func initialize(_ call: McpRpcCall) -> Data {
-        let requested = (try? JSONSerialization.jsonObject(with: call.params) as? [String: Any])?["protocolVersion"] as? String
-        let result: [String: Any] = ["protocolVersion": McpProtocol.negotiate(requested: requested), "capabilities": ["tools": [String: Any]()],
+    /// Answers the hello, and keeps what the client calls itself on its token, for the creator record of the VMs it makes.
+    private func initialize(_ call: McpRpcCall, caller: McpCaller) -> Data {
+        let params = (try? JSONSerialization.jsonObject(with: call.params)) as? [String: Any]
+        let client = params?["clientInfo"] as? [String: Any]
+        try? tokens.setClient(id: caller.token.id, name: VmOriginInput.cleanClientText(client?["name"] as? String), version: VmOriginInput.cleanClientText(client?["version"] as? String))
+        let result: [String: Any] = ["protocolVersion": McpProtocol.negotiate(requested: params?["protocolVersion"] as? String), "capabilities": ["tools": [String: Any]()],
                                      "serverInfo": ["name": McpProtocol.serverName, "version": "1.0.0"]]
         return McpJsonRpc.result(id: call.id, result)
     }
@@ -29,7 +32,7 @@ extension McpService {
         McpTool.allCases.map { ["name": $0.rawValue, "description": $0.description, "inputSchema": McpToolSchemas.input(of: $0)] }
     }
 
-    private func toolsCall(_ call: McpRpcCall, token: McpTokenRecord, version: String) async -> Data {
+    private func toolsCall(_ call: McpRpcCall, caller: McpCaller, version: String) async -> Data {
         let params = (try? JSONSerialization.jsonObject(with: call.params)) as? [String: Any] ?? [:]
         guard let name = params["name"] as? String, let tool = McpTool(rawValue: name) else {
             return McpJsonRpc.error(id: call.id, code: McpRpcCode.invalidParams, message: "name must be one of: \(McpTool.names.joined(separator: ", "))")
@@ -37,7 +40,7 @@ extension McpService {
         guard let arguments = Self.argumentsData(params["arguments"]) else {
             return McpJsonRpc.error(id: call.id, code: McpRpcCode.invalidParams, message: "arguments must be an object")
         }
-        return McpJsonRpc.result(id: call.id, await callTool(tool, arguments: arguments, token: token, version: version))
+        return McpJsonRpc.result(id: call.id, await callTool(tool, arguments: arguments, caller: caller, version: version))
     }
 
     private static func argumentsData(_ value: Any?) -> Data? {

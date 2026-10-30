@@ -31,12 +31,6 @@ public enum McpSize: String, CaseIterable, Equatable {
         [small, medium, large].compactMap { size in size.preset.map { (size, $0) } }
     }
 
-    /// True when any number is above the medium preset's: that is where a person has to approve.
-    public static func exceedsMedium(_ size: Dimensions) -> Bool {
-        guard let medium = McpSize.medium.preset else { return false }
-        return size.vcpu > medium.vcpu || size.ramMb > medium.ramMb || size.diskGb > medium.diskGb
-    }
-
     public static let customVcpu = 1...64
     public static let customRamMb = 512...1_048_576
     public static let customDiskGb = 1...100_000

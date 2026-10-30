@@ -34,6 +34,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     // The MCP endpoint for AI clients (bearer token, no cookie, no CSRF) and its operator side for the panel. Both before the UI catch-all.
     McpRoutes(services: services, guards: guards).register(on: router.group())
     McpOperatorRoutes(services: services, guards: guards).register(on: router.group())
+    OriginRoutes(services: services, guards: guards).register(on: router.group())
     // The panel's sandbox pages: API keys, the live list, kill and pause, and the usage table. Operator guards, as every
     // panel route above.
     SandboxPanelRoutes(services: services, guards: guards).register(on: router.group())

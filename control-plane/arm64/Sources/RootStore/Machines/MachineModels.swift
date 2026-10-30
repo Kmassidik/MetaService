@@ -21,9 +21,11 @@ public struct WorkloadSummary: Encodable, Equatable {
     public var app: WorkloadAppSummary? = nil
     /// The GPU memory this container may use, in GB; null when it shares the whole card.
     public var gpuMemoryGb: Int? = nil
+    /// Who created the VM, short: set by the machine store when it knows the creator records. Null only where they are not kept (tests).
+    public var createdBy: VmCreatedBy? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode, app, gpuMemoryGb
+        case id, name, kind, state, cpu, ramMb, diskGb, gpuMode, address, bundleVersion, stoppedReason, initMode, app, gpuMemoryGb, createdBy
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -42,6 +44,7 @@ public struct WorkloadSummary: Encodable, Equatable {
         try box.encode(initMode, forKey: .initMode)
         try box.encode(app, forKey: .app)
         try box.encode(gpuMemoryGb, forKey: .gpuMemoryGb)
+        try box.encode(createdBy, forKey: .createdBy)
     }
 }
 

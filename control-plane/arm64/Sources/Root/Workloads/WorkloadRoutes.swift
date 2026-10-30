@@ -25,7 +25,7 @@ struct WorkloadRoutes {
         try guards.limit("workload-create", per: context, max: Self.createsPerMinute, seconds: 60)
         let wish = try CreateWorkloadOperatorRequest(body: try await guards.body(request))
         try requireSelectable(wish.bundle)
-        return try Json.response(Reply(command: try await services.workloads.create(actor: caller.name, request: wish)), status: .accepted)
+        return try Json.response(Reply(command: try await services.workloads.create(actor: caller.name, request: wish, origin: .panel(operatorName: caller.name, sourceIp: context.remoteIP))), status: .accepted)
     }
 
     /// An app is checked against the machine it will land on, by the service; only images are checked here.

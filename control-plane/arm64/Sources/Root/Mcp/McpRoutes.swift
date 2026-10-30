@@ -33,24 +33,24 @@ struct McpRoutes {
         try guards.requireHost(request)
         guard McpProtocol.originAllowed(request.headers[.origin], publicURL: services.config.publicBaseURL) else { throw ApiFailure.forbidden("request origin not allowed") }
         guard !services.throttle.isFull(Guards.badTokenKey(context), limit: Guards.badTokenLimit) else { throw ApiFailure.tooMany }
-        guard let token = try mcp.authenticate(bearer: Guards.bearer(request)) else { return unauthorized(context) }
-        guard services.throttle.allow("mcp:\(token.id)", limit: McpProtocol.requestsPerMinute, seconds: 60) else { throw ApiFailure.tooMany }
+        guard let caller = try mcp.authenticate(bearer: Guards.bearer(request), sourceIp: context.remoteIP) else { return unauthorized(context) }
+        guard services.throttle.allow("mcp:\(caller.token.id)", limit: McpProtocol.requestsPerMinute, seconds: 60) else { throw ApiFailure.tooMany }
         let body = try await guards.body(request)
         switch McpJsonRpc.parse(body) {
         case .invalid(let id, let code, let message): return json(McpJsonRpc.error(id: id, code: code, message: message))
         case .notification: return Response(status: .accepted)
         case .request(let call):
-            return json(await mcp.dispatch(call, token: token, headerVersion: request.headers[Self.versionHeader]))
+            return json(await mcp.dispatch(call, caller: caller, headerVersion: request.headers[Self.versionHeader]))
         }
     }
 
-    /// Missing, unknown, revoked and expired look the same from outside. A bad token counts toward the address's lockout.
+    /// Missing, unknown, revoked and expired tokens, and a disabled person's, look the same from outside. A bad token counts toward the address's lockout.
     private func unauthorized(_ context: RootContext) -> Response {
         _ = services.throttle.allow(Guards.badTokenKey(context), limit: Guards.badTokenLimit, seconds: Guards.badTokenWindow)
         var headers = HTTPFields()
         headers[.wwwAuthenticate] = Self.realm
         headers[.contentType] = "application/json"
-        let body = #"{"error":{"code":"unauthorized","message":"missing, unknown, revoked or expired token"}}"#
+        let body = #"{"error":{"code":"unauthorized","message":"missing, unknown, revoked or expired token, or the person is disabled"}}"#
         return Response(status: .unauthorized, headers: headers, body: .init(byteBuffer: ByteBuffer(string: body)))
     }
 

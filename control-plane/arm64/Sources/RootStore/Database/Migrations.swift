@@ -226,6 +226,53 @@ public enum Migrations {
             CREATE INDEX mcp_requests_by_state ON mcp_requests (state, created_at);
             CREATE UNIQUE INDEX mcp_requests_by_key ON mcp_requests (token_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
             """) }),
+        // MCP revision 2 (mcp/SPEC.md section 10): tokens belong to a person, there are no approvals, and every VM the parent creates keeps a sealed creator record.
+        // A person is made from each token that exists (named like the newest token of that name, with its scopes and quotas), so the migration is right on a database that
+        // already has tokens. Quotas and ownership move to the person. vm_origin is append only: the only later change a row accepts is deleted_at and deleted_by, once.
+        // The records of VMs that already exist are written at Root start, not here, because the seal needs the parent's secret key.
+        (30, { try $0.exec("""
+            CREATE TABLE mcp_people (
+              id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, scopes_json TEXT NOT NULL, quotas_json TEXT NOT NULL, created_at INTEGER NOT NULL, disabled_at INTEGER
+            );
+            INSERT INTO mcp_people (id, name, scopes_json, quotas_json, created_at)
+              SELECT 'mp-' || t.id, t.name, t.scopes_json, t.quotas_json, t.created_at FROM api_tokens t
+              WHERE t.rowid = (SELECT MAX(o.rowid) FROM api_tokens o WHERE o.name = t.name);
+            ALTER TABLE api_tokens ADD COLUMN person_id TEXT NOT NULL DEFAULT '';
+            UPDATE api_tokens SET person_id = (SELECT 'mp-' || t.id FROM api_tokens t
+              WHERE t.name = api_tokens.name AND t.rowid = (SELECT MAX(o.rowid) FROM api_tokens o WHERE o.name = t.name));
+            ALTER TABLE api_tokens ADD COLUMN client_name TEXT;
+            ALTER TABLE api_tokens ADD COLUMN client_version TEXT;
+            ALTER TABLE api_tokens DROP COLUMN quotas_json;
+            ALTER TABLE api_tokens DROP COLUMN auto_approve;
+            CREATE INDEX api_tokens_by_person ON api_tokens (person_id);
+            ALTER TABLE token_workloads ADD COLUMN person_id TEXT NOT NULL DEFAULT '';
+            UPDATE token_workloads SET person_id = (SELECT person_id FROM api_tokens WHERE api_tokens.id = token_workloads.token_id);
+            DROP INDEX token_workloads_by_token;
+            CREATE INDEX token_workloads_by_person ON token_workloads (person_id, deleted_at);
+            ALTER TABLE mcp_requests ADD COLUMN person_id TEXT NOT NULL DEFAULT '';
+            UPDATE mcp_requests SET person_id = (SELECT person_id FROM api_tokens WHERE api_tokens.id = mcp_requests.token_id);
+            UPDATE mcp_requests SET state = 'failed', result_json = '{"message":"Approvals were removed, so this request was never run."}'
+              WHERE state IN ('pending_approval', 'approved', 'denied', 'expired');
+            DROP INDEX mcp_requests_by_key;
+            CREATE UNIQUE INDEX mcp_requests_by_person_key ON mcp_requests (person_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+            ALTER TABLE mcp_requests DROP COLUMN decided_by;
+            ALTER TABLE mcp_requests DROP COLUMN decided_at;
+            ALTER TABLE mcp_requests DROP COLUMN expires_at;
+            CREATE TABLE vm_origin (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, machine_id TEXT NOT NULL, workload_id TEXT NOT NULL, kind TEXT NOT NULL, actor TEXT NOT NULL,
+              person_id TEXT, person_name TEXT, token_id TEXT, token_prefix TEXT, client_name TEXT, client_version TEXT, source_ip TEXT, request_id TEXT,
+              created_at INTEGER, backfilled INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER, deleted_by TEXT, seal TEXT NOT NULL
+            );
+            CREATE INDEX vm_origin_by_vm ON vm_origin (machine_id, workload_id);
+            CREATE TRIGGER vm_origin_no_delete BEFORE DELETE ON vm_origin BEGIN SELECT RAISE(ABORT, 'vm_origin is append only'); END;
+            CREATE TRIGGER vm_origin_only_deletion BEFORE UPDATE ON vm_origin
+              WHEN OLD.deleted_at IS NOT NULL OR NEW.id IS NOT OLD.id OR NEW.machine_id IS NOT OLD.machine_id OR NEW.workload_id IS NOT OLD.workload_id
+                OR NEW.kind IS NOT OLD.kind OR NEW.actor IS NOT OLD.actor OR NEW.person_id IS NOT OLD.person_id OR NEW.person_name IS NOT OLD.person_name
+                OR NEW.token_id IS NOT OLD.token_id OR NEW.token_prefix IS NOT OLD.token_prefix OR NEW.client_name IS NOT OLD.client_name
+                OR NEW.client_version IS NOT OLD.client_version OR NEW.source_ip IS NOT OLD.source_ip OR NEW.request_id IS NOT OLD.request_id
+                OR NEW.created_at IS NOT OLD.created_at OR NEW.backfilled IS NOT OLD.backfilled OR NEW.seal IS NOT OLD.seal
+              BEGIN SELECT RAISE(ABORT, 'vm_origin is append only'); END;
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
