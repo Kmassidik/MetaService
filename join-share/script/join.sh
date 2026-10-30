@@ -166,10 +166,12 @@ check_machine() {
 check_platform_items() {
   if [ "$MY_OS" = mac ]; then
     LABEL="wireguard-go"; report have wireguard-go || MISSING_WG=yes
+    LABEL="Apple container (for virtual machines; the helper reports it if it is not ready)"
+    [ "$ENGINE" != apple ] || report have container || true
     return 0
   fi
   check_linux_wireguard
-  LABEL="Incus (optional, for virtual machines)"; report have incus || true
+  LABEL="Incus"; [ "$ENGINE" != incus ] || report have incus || NEED_INCUS=yes
   LABEL="start-at-boot for your user (linger)"; report linger_is_on || NEED_LINGER=yes
 }
 
@@ -188,7 +190,7 @@ check_linux_wireguard() {
 plan_packages() {
   BLOCK_PACKAGES=""
   USER_PACKAGES=""
-  [ "$MISSING_WG" = yes ] || [ "$NEED_GO" = yes ] || return 0
+  [ "$MISSING_WG" = yes ] || [ "$NEED_GO" = yes ] || [ "$NEED_INCUS" = yes ] || return 0
   if [ "$MY_OS" = mac ]; then
     have brew || fail "Homebrew (brew) is needed to install WireGuard on a Mac. Install it, then run this again."
     USER_PACKAGES="brew install wireguard-tools wireguard-go"
@@ -197,14 +199,45 @@ plan_packages() {
   packages=""
   [ "$MISSING_WG" != yes ] || packages=" wireguard-tools"
   [ "$NEED_GO" != yes ] || packages="$packages wireguard-go"
+  [ "$NEED_INCUS" != yes ] || packages="$packages incus"
   if have dnf; then installer="dnf install -y"
   elif have apt-get; then installer="apt-get install -y"
   else fail "WireGuard packages are missing and neither dnf nor apt-get was found. Install them, then run this again."; fi
   [ "$NEED_GO" != yes ] || [ "$installer" != "dnf install -y" ] || fail "this kernel has no WireGuard module, and dnf has no userspace WireGuard (wireguard-go) to fall back on. Use a kernel with WireGuard, then run this again."
+  [ "$NEED_INCUS" != yes ] || package_known "$installer" incus || fail "the package manager has no package named incus. Install Incus yourself, then run this again (or set JOIN_ENGINE=simulated to join without virtual machines)."
   BLOCK_PACKAGES="$installer$packages"
 }
 
+package_known() {
+  case "$1" in
+    dnf*) dnf info "$2" >/dev/null 2>&1 ;;
+    *) apt-cache show "$2" >/dev/null 2>&1 ;;
+  esac
+}
+
+append_block() {
+  [ -n "$2" ] || { printf '%s' "$1"; return 0; }
+  [ -n "$1" ] || { printf '%s' "$2"; return 0; }
+  printf '%s\n%s' "$1" "$2"
+}
+
+in_incus_group() { id -nG | tr ' ' '\n' | grep -qx incus-admin; }
+incus_is_configured() { have incus && [ -n "$(incus storage list --format csv 2>/dev/null)" ]; }
+
+# Incus in the root block: started at boot, set up once (never again if it already has a storage pool), and the user may use it.
+plan_incus_steps() {
+  BLOCK_INCUS=""
+  ADD_GROUP=no
+  [ "$ENGINE" = incus ] || return 0
+  is_root || in_incus_group || ADD_GROUP=yes
+  [ "$NEED_INCUS" != yes ] || ! system_systemd_usable || BLOCK_INCUS="systemctl enable --now incus"
+  incus_is_configured || BLOCK_INCUS=$(append_block "$BLOCK_INCUS" '[ -n "$(incus storage list --format csv 2>/dev/null)" ] || incus admin init --minimal')
+  [ "$ADD_GROUP" != yes ] || BLOCK_INCUS=$(append_block "$BLOCK_INCUS" "usermod -aG incus-admin $(shq "$(id -un)")")
+}
+
 plan_linux_block() {
+  plan_incus_steps
+  BLOCK_PACKAGES=$(append_block "$BLOCK_PACKAGES" "$BLOCK_INCUS")
   BOOT_COMMANDS="wg-quick down $(shq "$WG_CONF") 2>/dev/null || true
 wg-quick up $(shq "$WG_CONF")"
   WG_BOOT=none
@@ -214,8 +247,7 @@ wg-quick up $(shq "$WG_CONF")"
 systemctl restart $(shq "wg-quick@$JOIN_IFACE")"
   fi
   user_systemd_usable || NEED_LINGER=no
-  [ "$NEED_LINGER" = yes ] && BLOCK_PACKAGES="${BLOCK_PACKAGES:+$BLOCK_PACKAGES
-}loginctl enable-linger $(shq "$(id -un)")"
+  [ "$NEED_LINGER" != yes ] || BLOCK_PACKAGES=$(append_block "$BLOCK_PACKAGES" "loginctl enable-linger $(shq "$(id -un)")")
   BLOCK_UP="mkdir -p $(shq "$JOIN_WG_DIR")
 install -m 600 $(shq "$WG_TMP") $(shq "$WG_CONF")
 rm -f $(shq "$WG_TMP")
@@ -410,12 +442,19 @@ helper_words() {
     "$STATE" "$ENGINE" "$HELPER_PORT" "$HELPER_BIND" "$HEARTBEAT_SECONDS" "$SHARE_RAM_MB" "$SHARE_DISK_GB"
 }
 
+# Just added to the incus-admin group, the running session does not have it yet: sg starts the helper with the group, so no new login is needed.
+wrap_in_group() { [ "$ENGINE" = incus ] && ! is_root && ! in_incus_group; }
+helper_exec() {
+  wrap_in_group || { printf '%s %s' "$BIN" "$(helper_words)"; return 0; }
+  printf "%s incus-admin -c '%s %s'" "$(command -v sg)" "$BIN" "$(helper_words)"
+}
+
 start_linux_service() {
   user_systemd_usable || { start_background; return; }
   mkdir -p "$JOIN_UNIT_DIR"
   UNIT_FILE="$JOIN_UNIT_DIR/$SERVICE_LABEL.service"
-  printf '[Unit]\nDescription=MetaService helper (joined machine)\nAfter=network-online.target\n\n[Service]\nExecStart=%s %s\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n' \
-    "$BIN" "$(helper_words)" > "$UNIT_FILE"
+  printf '[Unit]\nDescription=MetaService helper (joined machine)\nAfter=network-online.target\n\n[Service]\nExecStart=%s\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n' \
+    "$(helper_exec)" > "$UNIT_FILE"
   systemctl --user daemon-reload
   systemctl --user enable "$SERVICE_LABEL.service"
   systemctl --user restart "$SERVICE_LABEL.service"
@@ -426,7 +465,7 @@ start_background() {
   UNIT_FILE=""
   mkdir -p "$JOIN_HOME/logs"
   if [ -f "$STATE/agent.pid" ]; then kill "$(cat "$STATE/agent.pid")" 2>/dev/null || true; fi
-  nohup "$BIN" $(helper_words) >> "$JOIN_HOME/logs/agent.log" 2>&1 < /dev/null &
+  nohup sh -c "exec $(helper_exec)" >> "$JOIN_HOME/logs/agent.log" 2>&1 < /dev/null &
   printf '%s\n' "$!" > "$STATE/agent.pid"
   say "Warning: systemd is not available for your user, so the helper runs in the background and will NOT restart at boot."
 }
@@ -484,6 +523,7 @@ main() {
   detect_share
   NEED_LINGER=no
   NEED_GO=no
+  NEED_INCUS=no
   check_machine
   plan_packages
   plan_root_blocks

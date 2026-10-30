@@ -48,22 +48,45 @@ exec "$@"'
   stub systemctl 'echo "systemctl $*" >> "$CALLS"
 [ "$1 $2" = "--user show-environment" ] && [ -f "$NO_BUS" ] && exit 1
 exit 0'
-  stub id 'if [ "$1" = -u ] && [ -f "$AS_ROOT" ]; then echo 0; else exec /usr/bin/id "$@"; fi'
+  stub id 'if [ "$1" = -u ] && [ -f "$AS_ROOT" ]; then echo 0
+elif [ "$1" = -nG ]; then echo staff; [ -f "$INCUS_GROUP" ] && echo incus-admin
+else exec /usr/bin/id "$@"; fi'
   stub launchctl 'echo "launchctl $*" >> "$CALLS"'
   stub modinfo '[ -f "$NO_KERNEL" ] && exit 1; exit 0'
   stub loginctl 'echo "loginctl $*" >> "$CALLS"
 case "$1" in show-user) [ -f "$LINGER" ] && echo Linger=yes || echo Linger=no ;; enable-linger) : > "$LINGER" ;; esac'
   stub brew 'echo "brew $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"; cp "$STUBS/.wireguard-go" "$STUBS/wireguard-go"'
-  stub dnf 'echo "dnf $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"'
-  stub apt-get 'echo "apt-get $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"; cp "$STUBS/.wireguard-go" "$STUBS/wireguard-go"'
-  [ "$OS_NAME" = Darwin ] && rm -f "$BIN/dnf" "$BIN/apt-get" || rm -f "$BIN/brew"
+  PACKAGE_STUB='echo "$MANAGER $*" >> "$CALLS"
+case "$1" in info|show) [ -f "$NO_INCUS_PKG" ] && exit 1; exit 0 ;; esac
+for word in "$@"; do
+  case "$word" in
+    wireguard-tools) cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick" ;;
+    wireguard-go) cp "$STUBS/.wireguard-go" "$STUBS/wireguard-go" ;;
+    incus) cp "$STUBS/.incus" "$STUBS/incus" ;;
+  esac
+done'
+  stub dnf "MANAGER=dnf
+$PACKAGE_STUB"
+  stub apt-get "MANAGER=apt-get
+$PACKAGE_STUB"
+  stub apt-cache "MANAGER=apt-cache
+$PACKAGE_STUB"
+  stub incus 'echo "incus $*" >> "$CALLS"
+case "$1 $2" in
+  "storage list") [ -f "$INCUS_CONF" ] && echo "default,dir,,1"; exit 0 ;;
+  "admin init") : > "$INCUS_CONF" ;;
+esac'
+  stub usermod 'echo "usermod $*" >> "$CALLS"'
+  stub sg 'echo "sg $*" >> "$CALLS"; shift 2; exec sh -c "$1"'
+  [ "$OS_NAME" = Darwin ] && rm -f "$BIN/dnf" "$BIN/apt-get" "$BIN/apt-cache" "$BIN/incus" "$BIN/sg" "$BIN/usermod" || rm -f "$BIN/brew"
+  [ "$OS_NAME" != Darwin ] || stub container 'exit 0'
   make_wg_tools
-  for tool in wg wg-quick wireguard-go; do [ -f "$BIN/$tool" ] && mv "$BIN/$tool" "$BIN/.$tool"; done
-  LINGER="$T/linger"; NO_BUS="$T/no-bus"; AS_ROOT="$T/as-root"; NO_KERNEL="$T/no-kernel"; : > "$T/tun"
+  for tool in wg wg-quick wireguard-go incus; do [ -f "$BIN/$tool" ] && mv "$BIN/$tool" "$BIN/.$tool"; done
+  LINGER="$T/linger"; NO_BUS="$T/no-bus"; AS_ROOT="$T/as-root"; NO_KERNEL="$T/no-kernel"; NO_INCUS_PKG="$T/no-incus-pkg"; INCUS_CONF="$T/incus-configured"; INCUS_GROUP="$T/incus-group"; : > "$T/tun"
   mkdir -p "$T/systemd"; WG_DIR="$T/etc-wireguard"; DAEMONS="$T/daemons"; mkdir -p "$DAEMONS"
 }
 
-install_tools_already() { for tool in wg wg-quick wireguard-go; do [ -f "$BIN/.$tool" ] && cp "$BIN/.$tool" "$BIN/$tool"; done; : > "$LINGER"; }
+install_tools_already() { for tool in wg wg-quick wireguard-go incus; do [ -f "$BIN/.$tool" ] && cp "$BIN/.$tool" "$BIN/$tool"; done; : > "$LINGER"; : > "$INCUS_CONF"; : > "$INCUS_GROUP"; }
 
 start_hub() {
   bun "$HERE/stub-hub.ts" "$SCRIPT" "$T/hub" > "$T/hub/port" &
@@ -76,7 +99,7 @@ start_hub() {
 # join <link> <os> <cpu> <answer>  : the way a person runs it. Output in $T/out, exit code in $CODE.
 join() {
   printf '%s\n' "$4" > "$T/tty"
-  HOME="$T/home" PATH="$BIN:$SYSTEM_PATH" CALLS="$CALLS" LINGER="$LINGER" NO_BUS="$NO_BUS" AS_ROOT="$AS_ROOT" NO_KERNEL="$NO_KERNEL" JOIN_TUN="$T/tun" AGENT_LOG="$AGENT_LOG" STUBS="$BIN" \
+  HOME="$T/home" PATH="$BIN:$SYSTEM_PATH" CALLS="$CALLS" LINGER="$LINGER" NO_BUS="$NO_BUS" AS_ROOT="$AS_ROOT" NO_KERNEL="$NO_KERNEL" NO_INCUS_PKG="$NO_INCUS_PKG" INCUS_CONF="$INCUS_CONF" INCUS_GROUP="$INCUS_GROUP" JOIN_TUN="$T/tun" AGENT_LOG="$AGENT_LOG" STUBS="$BIN" \
   JOIN_TTY="${TTY_FILE:-$T/tty}" JOIN_SYSTEMD_DIR="$T/systemd" JOIN_WG_DIR="$WG_DIR" JOIN_DAEMON_DIR="$DAEMONS" JOIN_POLL_SECONDS=0 JOIN_POLL_MAX=5 \
   JOIN_SHARE_CORES=2 JOIN_SHARE_RAM_MB=4096 JOIN_SHARE_DISK_GB=20 \
   sh -c "curl -fsSL '$HUB/j/$1?os=$2&cpu=$3' | ${TEST_SH:-sh}" > "$T/out" 2>&1
@@ -102,6 +125,7 @@ join approve-mac mac arm64 y
 J="$T/home/.metaservice-join"
 ok "exit 0" [ "$CODE" = 0 ]
 ok "check list says missing" has "$T/out" '\[missing\] *wg'
+ok "Apple container row is a note, not a stop" has "$T/out" 'Apple container'
 ok "the plan with the root commands was printed first" has "$T/out" 'wg-quick up'
 ok "brew installed once, as the user (not through sudo)" sh -c "[ \$(grep -c '^brew install' '$CALLS') = 1 ] && ! grep -q 'sudo.*brew install' '$CALLS'"
 ok "one sudo block ran the interface" count_is "$CALLS" '^sudo sh -c' 1
@@ -166,7 +190,7 @@ echo "== user answers n: nothing changes"
 new_world Linux x86_64; start_hub
 join approve-no linux x86_64 n
 ok "exit 0, says nothing was changed" sh -c "[ $CODE = 0 ] && grep -q 'Nothing was changed' '$T/out'"
-ok "no state folder, no sudo, no install, no register" sh -c "test ! -e '$T/home/.metaservice-join' && ! grep -q '^sudo\|^dnf' '$CALLS' && ! grep -q register '$T/hub/hub.log'"
+ok "no state folder, no sudo, no install, no register" sh -c "test ! -e '$T/home/.metaservice-join' && ! grep -q '^sudo\|^dnf install' '$CALLS' && ! grep -q register '$T/hub/hub.log'"
 finish_world
 
 echo "== os or cpu does not match"
@@ -226,6 +250,42 @@ echo "== lowered share from the approval reaches the helper"
 new_world Linux x86_64; install_tools_already; start_hub
 join lowered-1 linux x86_64 y
 ok "machine.share replaces the asked numbers (2048 MB, 10 GB, not 4096 and 20)" has "$T/home/.config/systemd/user/io.metaservice.join.service" '--ram-allowance-mb 2048 --disk-allowance-gb 10'
+finish_world
+
+echo "== linux: Incus is needed"
+new_world Linux x86_64; install_tools_already; rm -f "$BIN/incus" "$INCUS_CONF" "$INCUS_GROUP"; start_hub
+join approve-incus linux x86_64 y
+J="$T/home/.metaservice-join"
+ok "check list says [missing] Incus" has "$T/out" '\[missing\] *Incus$'
+ok "incus installed once, by dnf, in the first sudo block, before it is set up" sh -c "[ $CODE = 0 ] && [ \$(grep -c '^dnf install -y incus' '$CALLS') = 1 ] && [ \$(grep -c '^sudo sh -c' '$CALLS') = 2 ] && [ \$(grep -n '^dnf install -y incus' '$CALLS' | cut -d: -f1) -lt \$(grep -n '^incus admin init' '$CALLS' | cut -d: -f1) ]"
+ok "incus is started, set up once, and the user joins incus-admin" sh -c "[ \$(grep -c '^incus admin init --minimal' '$CALLS') = 1 ] && grep -q '^usermod -aG incus-admin' '$CALLS'"
+ok "the plan printed the incus steps before the question" sh -c "grep -n 'incus admin init --minimal\|Continue?' '$T/out' | head -1 | grep -q 'incus admin init'"
+ok "the helper starts through sg so the new group works without a login" has "$T/home/.config/systemd/user/io.metaservice.join.service" "ExecStart=.*sg incus-admin -c '.*metaservice-agent run .*--engine incus"
+finish_world
+
+echo "== linux: Incus present and configured, nothing is installed or set up"
+new_world Linux x86_64; install_tools_already; start_hub
+join approve-incus2 linux x86_64 y
+ok "check list says [found] Incus" has "$T/out" '\[found\] *Incus$'
+ok "no install, no init, no group change, one sudo block, no sg" sh -c "[ $CODE = 0 ] && ! grep -q '^dnf\|^apt\|^incus admin\|^usermod\|^sg' '$CALLS' && [ \$(grep -c '^sudo sh -c' '$CALLS') = 1 ] && ! grep -q 'sg incus-admin' '$T/home/.config/systemd/user/io.metaservice.join.service'"
+finish_world
+
+echo "== linux: Incus present but never set up"
+new_world Linux x86_64; install_tools_already; rm -f "$INCUS_CONF"; start_hub
+join approve-incus3 linux x86_64 y
+ok "no install; init once, only because nothing is configured" sh -c "[ $CODE = 0 ] && ! grep -q '^dnf' '$CALLS' && [ \$(grep -c '^incus admin init --minimal' '$CALLS') = 1 ]"
+finish_world
+
+echo "== linux: the package manager has no incus package"
+new_world Linux x86_64; install_tools_already; rm -f "$BIN/incus" "$INCUS_CONF"; : > "$NO_INCUS_PKG"; start_hub
+join approve-incus4 linux x86_64 y
+ok "stops before anything runs, naming the package" sh -c "[ $CODE != 0 ] && grep -q 'no package named incus' '$T/out' && ! grep -q '^sudo\|^dnf install' '$CALLS' && ! grep -q register '$T/hub/hub.log' && test ! -e '$T/home/.metaservice-join'"
+finish_world
+
+echo "== JOIN_ENGINE=simulated skips Incus entirely"
+new_world Linux x86_64; install_tools_already; rm -f "$BIN/incus" "$INCUS_CONF" "$INCUS_GROUP"; start_hub
+JOIN_ENGINE=simulated; export JOIN_ENGINE; join approve-sim linux x86_64 y; unset JOIN_ENGINE
+ok "no Incus line, no Incus step, helper runs with --engine simulated" sh -c "[ $CODE = 0 ] && ! grep -qi incus '$T/out' && ! grep -q '^dnf\|^incus\|^usermod' '$CALLS' && grep -q -- '--engine simulated' '$T/home/.config/systemd/user/io.metaservice.join.service' && ! grep -q 'sg ' '$T/home/.config/systemd/user/io.metaservice.join.service'"
 finish_world
 
 echo "== linux without the kernel module: userspace WireGuard"
