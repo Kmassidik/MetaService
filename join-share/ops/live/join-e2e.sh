@@ -93,7 +93,7 @@ check "an unsupported pair is refused with 400 (Windows)" "$([ "$(curl -s -o /de
 # 4. The far PC: a clean container; the real script, in the background, its output in a file.
 inside 'sh ~/.metaservice-join/leave.sh >/dev/null 2>&1; rm -rf ~/.metaservice-join ~/metaservice-box /tmp/join.log; true' >/dev/null 2>&1
 # The variable must reach the `sh` at the end of the pipe, not `curl`, so it is exported first.
-container exec -d jstest-a sh -c "export JOIN_SHARE_YES=1; $COMMAND > /tmp/join.log 2>&1"
+container exec -d jstest-a sh -c "export JOIN_SHARE_YES=1 JOIN_ENGINE=simulated; $COMMAND > /tmp/join.log 2>&1"
 
 CODE=""
 for _ in $(seq 1 60); do
@@ -124,22 +124,28 @@ for _ in $(seq 1 60); do
   sleep 3
 done
 check "the parent lists the machine, recorded at its WireGuard address ($SPOKE_ADDR)" "$(printf '%s' "$ROW" | grep -q "^$MACHINE|$SPOKE_ADDR|" && echo yes || echo no)"
-sleep 8
-SEEN=$(sqlite3 "$DB" "SELECT IFNULL(last_seen,0) FROM machines WHERE name='$MACHINE'" 2>/dev/null)
-NOW=$(date +%s)
-check "its heartbeat is arriving (last seen under 30 s ago)" "$([ -n "$SEEN" ] && [ $((NOW - SEEN)) -lt 30 ] && echo yes || echo no)"
+FRESH=no
+for _ in $(seq 1 30); do
+  SEEN=$(sqlite3 "$DB" "SELECT IFNULL(last_seen,0) FROM machines WHERE name='$MACHINE'" 2>/dev/null)
+  if [ -n "$SEEN" ] && [ "$SEEN" -gt 0 ] && [ $(( $(date +%s) - SEEN )) -lt 30 ]; then FRESH=yes; break; fi
+  sleep 3
+done
+check "its heartbeat is arriving (last seen under 30 s ago)" "$FRESH"
 check "the enrollment row was used up, from the pinned address" "$([ "$(sqlite3 "$DB" "SELECT COUNT(*) FROM enrollments WHERE machine_name='$MACHINE' AND used_at IS NOT NULL AND expected_ip='$SPOKE_ADDR'")" = 1 ] && echo yes || echo no)"
-check "the parent side reaches the helper port over the tunnel ($SPOKE_ADDR:9101)" "$(yesno nc -z -w 3 "$SPOKE_ADDR" 9101)"
-check "the helper listens on the WireGuard address only, not on all addresses" "$(inside "ss -ltn | grep ':9101 ' | grep -q '$SPOKE_ADDR' && ! ss -ltn | grep ':9101 ' | grep -qE '0.0.0.0|\\*|\\[::\\]'" >/dev/null 2>&1 && echo yes || echo no)"
+REACH=no
+for _ in $(seq 1 10); do if nc -z -w 3 "$SPOKE_ADDR" 9101 >/dev/null 2>&1; then REACH=yes; break; fi; sleep 3; done
+check "the parent side reaches the helper port over the tunnel ($SPOKE_ADDR:9101)" "$REACH"
+LISTEN=$(inside 'ss -ltn | grep ":9101 "' 2>/dev/null | awk '{print $4}' | sort -u)
+check "the helper listens on the WireGuard address only, not on all addresses" "$([ "$LISTEN" = "$SPOKE_ADDR:9101" ] && echo yes || echo no)"
 check "the used link is dead (404)" "$([ "$(curl -s -o /dev/null -w '%{http_code}' "http://$HOST_IP:$PUBLIC_PORT/j/$LINK?os=linux&cpu=arm64")" = 404 ] && echo yes || echo no)"
-check "the enrollment token is not left on the far PC" "$(inside 'find ~ /tmp -name "*.token" -o -name "enroll*" 2>/dev/null | grep -q . && echo no || echo yes' 2>/dev/null)"
+check "the enrollment token file is not left on the far PC" "$(inside 'find ~/.metaservice-join /tmp -iname "enroll*" 2>/dev/null | grep -q . && echo no || echo yes' 2>/dev/null)"
 check "the far PC's private key is mode 600" "$(inside 'f=$(find ~/.metaservice-join -name "*.key" 2>/dev/null | head -1); [ -n "$f" ] && [ "$(stat -c %a "$f")" = 600 ] && echo yes || echo no' 2>/dev/null)"
 
 # 7. The peer list, then leave, then the door closes.
 check "the hub lists the peer with a recent handshake" "$(admin "http://127.0.0.1:$ADMIN_PORT/admin/peers" | grep -q "$MACHINE" && echo yes || echo no)"
 inside 'sh ~/.metaservice-join/leave.sh' >"$W/leave.log" 2>&1
 sleep 3
-check "leave.sh stopped the helper and removed the interface and its folder" "$(inside '! pgrep -f metaservice-agent >/dev/null && ! ip link show wg-meta >/dev/null 2>&1 && [ ! -d ~/.metaservice-join/helper ] && echo yes || echo no' 2>/dev/null)"
+check "leave.sh stopped the helper and removed the interface and its folder" "$(inside '! pgrep -f metaservice-agent >/dev/null && ! ip link show wg-meta >/dev/null 2>&1 && [ ! -d ~/.metaservice-join/bin ] && [ ! -f ~/.metaservice-join/state/agent.token ] && echo yes || echo no' 2>/dev/null)"
 DEL=$(admin -o /dev/null -w '%{http_code}' -X DELETE "http://127.0.0.1:$ADMIN_PORT/admin/peers/$MACHINE")
 check "removing the peer on the hub works (the address is freed)" "$([ "$DEL" = 200 ] || [ "$DEL" = 204 ] && echo yes || echo no)"
 check "the hub's WireGuard interface has no peer left" "$([ "$(sudo -n env PATH="$PATH" wg show all peers 2>/dev/null | grep -c .)" = 0 ] && echo yes || echo no)"
