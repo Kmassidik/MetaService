@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Add a PC far away</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">MetaService <span class="sub">join a PC far away</span></div>
+</header>
+
+<main>
+  <section id="gate" class="block" hidden>
+    <h1>Admin key</h1>
+    <p class="muted">Paste the key from the hub's <span class="mono">admin.key</span> file. It is kept in this page's memory only and is gone when you close or reload the tab.</p>
+    <form id="gate-form" class="row">
+      <label class="sr-only" for="key-input">Admin key</label>
+      <input id="key-input" class="mono" type="password" autocomplete="off" spellcheck="false" placeholder="admin key">
+      <button class="btn green" type="submit">Continue</button>
+    </form>
+    <p id="gate-error" class="note bad" role="alert" hidden></p>
+  </section>
+
+  <div id="app" hidden>
+    <section class="block" aria-labelledby="h-command">
+      <h1 id="h-command">Add a PC far away</h1>
+      <p class="muted">Choose the computer you want to add. You get one command to run on it. The command works once and stops working after 15 minutes.</p>
+
+      <h2>1. Which system?</h2>
+      <div id="os-buttons" class="choices" role="group" aria-label="System">Loading...</div>
+
+      <h2>2. Which CPU does it have?</h2>
+      <div id="cpu-buttons" class="choices" role="group" aria-label="CPU"></div>
+      <p id="cpu-note" class="note" aria-live="polite"></p>
+
+      <h2>3. The command</h2>
+      <div class="row"><button id="make" class="btn green" type="button" disabled>Make the command</button></div>
+      <p id="make-error" class="note bad" role="alert" hidden></p>
+      <div id="command-box" class="commandbox" hidden>
+        <pre id="command" class="mono" tabindex="0" aria-label="The command"></pre>
+        <div class="row">
+          <button id="copy" class="btn line sm" type="button">Copy</button>
+          <span id="command-note" class="muted" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="h-pending">
+      <h2 id="h-pending">Waiting for your approval</h2>
+      <p class="muted">The person on the far PC reads you a 6-digit code from their screen. Type it here to approve.</p>
+      <div id="pending"><p class="muted">Loading...</p></div>
+    </section>
+
+    <section class="block" aria-labelledby="h-peers">
+      <h2 id="h-peers">Joined machines</h2>
+      <div id="peers"><p class="muted">Loading...</p></div>
+    </section>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
