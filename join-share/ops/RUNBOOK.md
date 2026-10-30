@@ -10,7 +10,7 @@ Forward **UDP 51830** from the public address to the Mac Mini (`192.168.0.40`), 
 
 The far PC downloads the join script over **https**. Add a hostname to the existing `metaservice` Cloudflare tunnel (Zero Trust, Networks, Tunnels, `metaservice`, Public hostname): for example `join.ruvio.site` pointing at `http://localhost:9110`. No Access policy (only the one-time link protects it). If you prefer another name, give it as `JOIN_SHARE_PUBLIC_URL` in step 3.
 
-## 3. Install the hub on the Mini (Claude, after steps 1 and 2)
+## 3. Install the hub on the Mini (done 2026-10-31, from `~/MetaService`; run it again after a `git pull` that changes `join-share/`)
 
 ```
 ssh macmini 'cd ~/MetaService-join-share && git pull --ff-only \
@@ -21,12 +21,7 @@ It builds, installs the narrow root helper and its sudoers line, writes `join-sh
 
 ## 4. Open the admin page (Kurnia)
 
-The admin page listens on the Mini's loopback only. Open it through an SSH forward (one copy-and-paste line, the key is in the fragment so it is never sent to a server):
-
-```
-ssh -N -L 9111:127.0.0.1:9111 macmini
-open "http://127.0.0.1:9111/#key=$(ssh macmini 'cat ~/MetaService-join-share/join-share/state/admin.key')"
-```
+Double-click **`Join-a-PC-admin.command`** on the Desktop (a copy of `ops/open-admin.command`). It opens the SSH forward to the Mini, reads the admin key there and opens the page with the key in the address after `#`, so nothing is typed and the key is never sent to a server. Keep its window open while you use the page; closing it closes the forward. The admin page listens on the Mini's loopback only and is not part of the panel.
 
 ## 5. Join the laptops (Kurnia)
 

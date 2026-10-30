@@ -10,7 +10,7 @@ A PC anywhere joins the MetaService panel with one command, over WireGuard. Buil
 
 ## State (2026-10-30)
 
-Built and tested on the branch `join-share` (not merged into `main`; the only file outside this folder that changed is one line in `.gitignore`).
+Merged into `main` (2026-10-31); the only file outside this folder that changed is one line in `.gitignore`. The hub runs on the Mini as the boot job `io.metaservice.joinshare` from `~/MetaService/join-share` (it restarts by itself: checked with a forced restart and a kill -9). Settings are in `join-share/state/hub.env` (mode 600, not in git).
 
 | What | How to run it | Result |
 |---|---|---|
