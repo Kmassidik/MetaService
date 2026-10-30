@@ -14,7 +14,7 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const TOOL_DIRS: [&str; 4] = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/sbin"];
+const TOOL_DIRS: [&str; 6] = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/sbin", "/usr/sbin", "/bin"];
 /// wg-quick is a Homebrew bash script on macOS and needs /opt/homebrew/bin first.
 const CHILD_PATH: &str = "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const WG_QUICK_IFACE_MARK: &str = "Interface for ";
@@ -27,7 +27,7 @@ pub fn execute(request: RootRequest) -> Result<String, String> {
         RootCommand::Up { conf } => up(&conf, &wg_name),
         RootCommand::Down => run("wg-quick", &["down", &installed_conf(&wg_name).to_string_lossy()], None),
         RootCommand::AddPeer { public_key, address } => add_peer(&wg_name, &public_key, address),
-        RootCommand::RemovePeer { public_key } => run("wg", &["set", &wg_target(&wg_name), "peer", &public_key, "remove"], None),
+        RootCommand::RemovePeer { public_key } => remove_peer(&wg_name, &public_key),
         RootCommand::PfLoad { iface } => pf_load(&wg_name, &anchor, parent_port, iface),
         RootCommand::PfUnload => pf_unload(&wg_name, &anchor),
         RootCommand::Show => show(&wg_name),
@@ -129,7 +129,57 @@ fn add_peer(wg_name: &str, public_key: &str, address: Ipv4Addr) -> Result<String
     if !net.is_peer_address(address) {
         return Err(format!("{address} is not a peer address of {}", net.cidr()));
     }
-    run("wg", &["set", &wg_target(wg_name), "peer", public_key, "allowed-ips", &format!("{address}/32")], None)
+    let iface = wg_target(wg_name);
+    let added = run("wg", &["set", &iface, "peer", public_key, "allowed-ips", &format!("{address}/32")], None)?;
+    route_to_peer(&iface, address)?;
+    Ok(added)
+}
+
+fn remove_peer(wg_name: &str, public_key: &str) -> Result<String, String> {
+    let iface = wg_target(wg_name);
+    let address = peer_address(&iface, public_key);
+    let removed = run("wg", &["set", &iface, "peer", public_key, "remove"], None)?;
+    if let Some(address) = address {
+        drop_route_to_peer(address);
+    }
+    Ok(removed)
+}
+
+/// The peer's own address, read before the peer is removed (`wg show <iface> allowed-ips` lines are `<key>\t<address>/32`).
+fn peer_address(iface: &str, public_key: &str) -> Option<Ipv4Addr> {
+    let text = run("wg", &["show", iface, "allowed-ips"], None).ok()?;
+    address_of_peer(&text, public_key)
+}
+
+pub fn address_of_peer(allowed_ips: &str, public_key: &str) -> Option<Ipv4Addr> {
+    allowed_ips
+        .lines()
+        .filter_map(|line| line.split_once('\t'))
+        .find(|(key, _)| *key == public_key)
+        .and_then(|(_, ranges)| ranges.split_whitespace().next())
+        .and_then(|range| range.split('/').next())
+        .and_then(|address| address.parse().ok())
+}
+
+/// wg-quick routes only the peers that are in the config when the interface comes up. A peer added later with `wg set` needs its own
+/// host route, or the replies to it leave through the default route (found on the Mini: the SYN-ACK went out of the LAN card).
+fn route_to_peer(iface: &str, address: Ipv4Addr) -> Result<String, String> {
+    drop_route_to_peer(address);
+    let host = format!("{address}/32");
+    if cfg!(target_os = "macos") {
+        return run("route", &["-q", "-n", "add", "-inet", &host, "-interface", iface], None);
+    }
+    run("ip", &["-4", "route", "replace", &host, "dev", iface], None)
+}
+
+/// Best effort: a route that is not there is not a failure.
+fn drop_route_to_peer(address: Ipv4Addr) {
+    let host = format!("{address}/32");
+    let _ = if cfg!(target_os = "macos") {
+        run("route", &["-q", "-n", "delete", "-inet", &host], None)
+    } else {
+        run("ip", &["-4", "route", "del", &host], None)
+    };
 }
 
 fn marker(wg_name: &str) -> PathBuf {
@@ -182,6 +232,14 @@ mod tests {
         assert_eq!(interface_from_name_file(Some("utun4\n"), "wg-x"), "utun4");
         assert_eq!(interface_from_name_file(None, "wg-x"), "wg-x");
         assert_eq!(interface_from_name_file(Some("evil;rm\n"), "wg-x"), "wg-x");
+    }
+
+    #[test]
+    fn finds_a_peer_address_in_wg_show_output() {
+        let text = "keyAAA\t10.78.0.2/32\nkeyBBB\t10.78.0.3/32";
+        assert_eq!(address_of_peer(text, "keyBBB"), Some(Ipv4Addr::new(10, 78, 0, 3)));
+        assert_eq!(address_of_peer(text, "keyCCC"), None);
+        assert_eq!(address_of_peer("keyAAA\t(none)", "keyAAA"), None);
     }
 
     #[test]
