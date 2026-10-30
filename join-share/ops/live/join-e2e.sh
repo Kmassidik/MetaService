@@ -113,6 +113,8 @@ check "a wrong code is refused (403)" "$([ "$WRONG" = 403 ] && echo yes || echo 
 RIGHT=$(admin -o "$W/approve.json" -w '%{http_code}' -X POST -d "{\"code\":\"$CODE\",\"name\":\"$MACHINE\",\"share\":$ASK}" "http://127.0.0.1:$ADMIN_PORT/admin/pending/$PENDING/approve")
 check "the right code approves and gives the machine an address" "$([ "$RIGHT" = 200 ] && grep -q "$SPOKE_ADDR" "$W/approve.json" && echo yes || echo no)"
 
+if [ -n "${E2E_KEEP:-}" ]; then echo "E2E_KEEP is set: pausing 300 s after the approval so the tunnel can be inspected"; sleep 300; fi
+
 # 6. The far PC finishes by itself: tunnel, helper download, enrol, run.
 DB="$W/parent/state/root.sqlite3"
 ROW=""
