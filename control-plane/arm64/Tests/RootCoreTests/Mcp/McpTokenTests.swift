@@ -79,8 +79,4 @@ final class McpToolCatalogTests: XCTestCase {
             XCTAssertLessThan(tool.description.count, 260, tool.rawValue)
         }
     }
-
-    func testOnlyTheFourWritingToolsLeaveARequest() {
-        XCTAssertEqual(Set(McpTool.allCases.filter(\.changesThings).map(\.rawValue)), ["create_vm", "start_vm", "stop_vm", "delete_vm"])
-    }
 }

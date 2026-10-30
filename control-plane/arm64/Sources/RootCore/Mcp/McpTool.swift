@@ -34,13 +34,5 @@ public enum McpTool: String, CaseIterable, Equatable {
         }
     }
 
-    /// The tools that change something: each leaves a request behind that get_request can follow.
-    public var changesThings: Bool {
-        switch self {
-        case .createVm, .startVm, .stopVm, .deleteVm: return true
-        default: return false
-        }
-    }
-
     public static let names: [String] = allCases.map(\.rawValue)
 }

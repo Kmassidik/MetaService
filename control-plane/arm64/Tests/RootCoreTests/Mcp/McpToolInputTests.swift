@@ -62,31 +62,59 @@ final class McpToolInputTests: XCTestCase {
 final class McpTokenRequestTests: XCTestCase {
     private func make(_ json: String) throws -> McpTokenRequest { try McpTokenRequest(body: Data(json.utf8)) }
 
-    func testOnlyANameGivesTheDefaults() throws {
-        let request = try make(#"{"name":"claude code"}"#)
-        XCTAssertEqual(request.scopes, [.read, .create])
-        XCTAssertEqual(request.quotas, McpQuotas.defaults)
+    func testANameAndAPersonGiveTheDefaults() throws {
+        let request = try make(#"{"name":"laptop","person_id":"mp-ayu"}"#)
+        XCTAssertEqual(request.personId, "mp-ayu")
+        XCTAssertNil(request.scopes)
         XCTAssertEqual(request.expiresInDays, 90)
-        XCTAssertFalse(request.autoApprove)
     }
 
-    func testEverythingGivenIsRead() throws {
-        let request = try make(#"{"name":"ci","scopes":["read","destroy"],"quotas":{"max_vms":1},"expires_in_days":30,"auto_approve":true}"#)
+    func testScopesAndLifetimeAreRead() throws {
+        let request = try make(#"{"name":"ci","person_id":"mp-1","scopes":["read","destroy"],"expires_in_days":30}"#)
         XCTAssertEqual(request.scopes, [.read, .destroy])
-        XCTAssertEqual(request.quotas.maxVms, 1)
         XCTAssertEqual(request.expiresInDays, 30)
-        XCTAssertTrue(request.autoApprove)
+        XCTAssertEqual(try make(#"{"name":"a","person_id":"mp-1","expires_in_days":365}"#).expiresInDays, 365)
     }
 
     func testBadBodiesAreRefused() {
         let long = String(repeating: "a", count: 41)
-        let bad = ["{}", #"{"name":""}"#, #"{"name":"\#(long)"}"#, #"{"name":"<b>x</b>"}"#, #"{"name":"a","scopes":[]}"#, #"{"name":"a","scopes":["root"]}"#, #"{"name":"a","expires_in_days":0}"#,
-                   #"{"name":"a","expires_in_days":366}"#, #"{"name":"a","auto_approve":"yes"}"#, #"{"name":"a","quotas":{"max_vms":0}}"#, #"{"name":"a","token":"x"}"#, #"{"name":"-a"}"#]
+        let bad = [#"{"name":"a"}"#, #"{"person_id":"mp-1"}"#, #"{"name":"","person_id":"mp-1"}"#, #"{"name":"\#(long)","person_id":"mp-1"}"#, #"{"name":"<b>","person_id":"mp-1"}"#,
+                   #"{"name":"a","person_id":"Mp 1"}"#, #"{"name":"a","person_id":"mp-1","scopes":[]}"#, #"{"name":"a","person_id":"mp-1","scopes":["root"]}"#,
+                   #"{"name":"a","person_id":"mp-1","expires_in_days":0}"#, #"{"name":"a","person_id":"mp-1","expires_in_days":366}"#,
+                   #"{"name":"a","person_id":"mp-1","quotas":{"max_vms":1}}"#, #"{"name":"a","person_id":"mp-1","auto_approve":true}"#, #"{"name":"a","person_id":"mp-1","token":"msk_x"}"#]
         for text in bad { XCTAssertThrowsError(try make(text), text) }
     }
+}
 
-    func testAYearIsTheLongestLifetime() throws {
-        XCTAssertEqual(try make(#"{"name":"a","expires_in_days":365}"#).expiresInDays, 365)
+final class McpPersonRequestTests: XCTestCase {
+    func testAddingNeedsOnlyANameAndUsesTheDefaults() throws {
+        let person = try McpPersonRequest.creating(body: Data(#"{"name":"Ayu"}"#.utf8))
+        XCTAssertEqual(person.name, "Ayu")
+        XCTAssertEqual(person.scopes, [.read, .create])
+        XCTAssertEqual(person.quotas, McpQuotas.defaults)
+    }
+
+    func testAddingReadsScopesAndQuotas() throws {
+        let person = try McpPersonRequest.creating(body: Data(#"{"name":"Budi","scopes":["read","create","gpu"],"quotas":{"max_vms":5,"gpu_memory_gb":16}}"#.utf8))
+        XCTAssertEqual(person.scopes, [.read, .create, .gpu])
+        XCTAssertEqual(person.quotas?.maxVms, 5)
+        XCTAssertEqual(person.quotas?.gpuMemoryGb, 16)
+        XCTAssertEqual(person.quotas?.maxVcpu, 8)
+    }
+
+    func testAChangeNamesScopesOrQuotasAndNeverTheName() throws {
+        XCTAssertEqual(try McpPersonRequest.changing(body: Data(#"{"scopes":["read"]}"#.utf8)).scopes, [.read])
+        XCTAssertEqual(try McpPersonRequest.changing(body: Data(#"{"quotas":{"max_vms":2}}"#.utf8)).quotas?.maxVms, 2)
+        XCTAssertNil(try McpPersonRequest.changing(body: Data(#"{"scopes":["read"]}"#.utf8)).quotas)
+        for bad in ["{}", #"{"name":"New"}"#, #"{"scopes":[]}"#, #"{"quotas":{"max_vms":0}}"#, #"{"quotas":{"nope":1}}"#, "[]"] {
+            XCTAssertThrowsError(try McpPersonRequest.changing(body: Data(bad.utf8)), bad)
+        }
+    }
+
+    func testBadNamesAreRefusedWhenAdding() {
+        for bad in ["{}", #"{"name":""}"#, #"{"name":"<i>"}"#, #"{"name":"a","auto_approve":true}"#, #"{"name":"a","scopes":["root"]}"#] {
+            XCTAssertThrowsError(try McpPersonRequest.creating(body: Data(bad.utf8)), bad)
+        }
     }
 }
 
