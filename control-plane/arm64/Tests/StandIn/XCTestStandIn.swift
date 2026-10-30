@@ -1,6 +1,6 @@
 // A tiny stand-in for XCTest, for a machine that has only the command line tools (the Mac mini): XCTest itself is not installed there.
 // run.py compiles the real sources, the real test files and this file with swiftc, and calls every test method. Only what the tests use is here.
-import Foundation
+@_exported import Foundation
 
 public var standInFailures: [String] = []
 public var standInAssertions = 0
