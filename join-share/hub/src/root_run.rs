@@ -18,6 +18,8 @@ const TOOL_DIRS: [&str; 4] = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin",
 /// wg-quick is a Homebrew bash script on macOS and needs /opt/homebrew/bin first.
 const CHILD_PATH: &str = "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const WG_QUICK_IFACE_MARK: &str = "Interface for ";
+/// Where wg-quick on macOS records the real interface name of a config name.
+const WG_QUICK_NAME_DIR: &str = "/var/run/wireguard";
 
 pub fn execute(request: RootRequest) -> Result<String, String> {
     let RootRequest { command, wg_name, anchor, parent_port } = request;
@@ -25,7 +27,7 @@ pub fn execute(request: RootRequest) -> Result<String, String> {
         RootCommand::Up { conf } => up(&conf, &wg_name),
         RootCommand::Down => run("wg-quick", &["down", &installed_conf(&wg_name).to_string_lossy()], None),
         RootCommand::AddPeer { public_key, address } => add_peer(&wg_name, &public_key, address),
-        RootCommand::RemovePeer { public_key } => run("wg", &["set", &wg_name, "peer", &public_key, "remove"], None),
+        RootCommand::RemovePeer { public_key } => run("wg", &["set", &wg_target(&wg_name), "peer", &public_key, "remove"], None),
         RootCommand::PfLoad { iface } => pf_load(&wg_name, &anchor, parent_port, iface),
         RootCommand::PfUnload => pf_unload(&wg_name, &anchor),
         RootCommand::Show => show(&wg_name),
@@ -98,6 +100,20 @@ pub fn iface_from_wg_quick(output: &str, wg_name: &str) -> String {
         .unwrap_or_else(|| wg_name.to_string())
 }
 
+/// On macOS `wg` knows the interface only by its real name (utunN), while wg-quick keeps the config name in a root-only file that holds that real name.
+/// On Linux there is no such file and the config name is the interface name.
+fn wg_target(wg_name: &str) -> String {
+    let named = fs::read_to_string(Path::new(WG_QUICK_NAME_DIR).join(format!("{wg_name}.name"))).ok();
+    interface_from_name_file(named.as_deref(), wg_name)
+}
+
+pub fn interface_from_name_file(content: Option<&str>, wg_name: &str) -> String {
+    content
+        .map(str::trim)
+        .filter(|name| crate::root_args::is_iface_name(name))
+        .map_or_else(|| wg_name.to_string(), str::to_string)
+}
+
 /// The network comes from the validated copy, so a caller cannot choose it.
 fn installed_net(wg_name: &str) -> Result<Net, String> {
     let text = fs::read_to_string(installed_conf(wg_name)).map_err(|_| "hub interface was never brought up".to_string())?;
@@ -113,7 +129,7 @@ fn add_peer(wg_name: &str, public_key: &str, address: Ipv4Addr) -> Result<String
     if !net.is_peer_address(address) {
         return Err(format!("{address} is not a peer address of {}", net.cidr()));
     }
-    run("wg", &["set", wg_name, "peer", public_key, "allowed-ips", &format!("{address}/32")], None)
+    run("wg", &["set", &wg_target(wg_name), "peer", public_key, "allowed-ips", &format!("{address}/32")], None)
 }
 
 fn marker(wg_name: &str) -> PathBuf {
@@ -142,7 +158,7 @@ fn pf_unload(wg_name: &str, anchor: &str) -> Result<String, String> {
 
 /// `wg show latest-handshakes` lines become the JSON the hub parses.
 fn show(wg_name: &str) -> Result<String, String> {
-    let text = run("wg", &["show", wg_name, "latest-handshakes"], None)?;
+    let text = run("wg", &["show", &wg_target(wg_name), "latest-handshakes"], None)?;
     let peers: Vec<serde_json::Value> = text
         .lines()
         .filter_map(|line| line.split_once('\t'))
@@ -159,6 +175,13 @@ mod tests {
     fn reads_interface_from_wg_quick_output() {
         let out = "[#] wireguard-go utun\n[+] Interface for wg-metaservice is utun9\n[#] ifconfig";
         assert_eq!(iface_from_wg_quick(out, "wg-metaservice"), "utun9");
+    }
+
+    #[test]
+    fn reads_the_real_interface_from_wg_quick_name_file() {
+        assert_eq!(interface_from_name_file(Some("utun4\n"), "wg-x"), "utun4");
+        assert_eq!(interface_from_name_file(None, "wg-x"), "wg-x");
+        assert_eq!(interface_from_name_file(Some("evil;rm\n"), "wg-x"), "wg-x");
     }
 
     #[test]
