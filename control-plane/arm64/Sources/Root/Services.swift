@@ -50,6 +50,7 @@ struct Services {
     let sandboxPorts: SandboxPortStore
     let sandboxHelper: AgentSandboxHelper
     let sandboxPortForwarder: AgentSandboxPortForwarder
+    let joinShare: JoinShareHub
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -104,5 +105,6 @@ struct Services {
         sandboxPorts = SandboxPortStore(database)
         sandboxHelper = AgentSandboxHelper(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
         sandboxPortForwarder = AgentSandboxPortForwarder(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
+        joinShare = JoinShareHub(config: config)
     }
 }

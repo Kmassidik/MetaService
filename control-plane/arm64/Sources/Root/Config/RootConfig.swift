@@ -50,6 +50,9 @@ struct RootConfig {
     /// The sandbox domain: the API is `api.<domain>` and everything inside a sandbox is `<port>-<id>.<domain>` (see
     /// sandbox/README.md). Set once per deployment, because E2B's SDKs build every address from it; never in a route.
     var sandboxDomain = RootConfig.defaultSandboxDomain
+    /// The join-share hub's admin listener and the file holding its key (Share a PC page). Without the address the feature is off.
+    var joinShareAdminURL: String?
+    var joinShareAdminKeyFile: String?
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
@@ -164,6 +167,7 @@ enum ConfigLoader {
         try applyScan(env, to: &config)
         try applyBrain(env, to: &config)
         try applySandboxes(env, to: &config)
+        try applyJoinShare(env, to: &config)
         if let token = env["ROOT_SETUP_TOKEN"] {
             guard token.count >= SetupGate.minLength else { throw ConfigError(description: "ROOT_SETUP_TOKEN must be at least \(SetupGate.minLength) characters") }
             config.setupToken = token
@@ -181,6 +185,18 @@ enum ConfigLoader {
         guard !given.isEmpty else { return }
         guard given.count == 3 else { throw ConfigError(description: "AI_BASE_URL, AI_API_KEY and AI_DEFAULT_MODEL must all be set, or none of them") }
         guard BrainRules.isAcceptableBaseURL(config.aiBaseURL!) else { throw ConfigError(description: "AI_BASE_URL must be https (or http to a private address) with no credentials in it") }
+    }
+
+    /// The join-share hub. Off when the address is not set; set, it needs the key file too (a half-filled pair is refused so a typo is not mistaken for "off").
+    /// The key itself stays in its file, which is read at every call.
+    static func applyJoinShare(_ env: [String: String], to config: inout RootConfig) throws {
+        guard let url = env["JOIN_SHARE_ADMIN_URL"] else { return }
+        guard JoinShareRules.isAcceptableAdminURL(url) else {
+            throw ConfigError(description: "JOIN_SHARE_ADMIN_URL must be an https address (http only for 127.0.0.1 or localhost) with no login, path or query in it")
+        }
+        guard let keyFile = env["JOIN_SHARE_ADMIN_KEY_FILE"] else { throw ConfigError(description: "JOIN_SHARE_ADMIN_URL needs JOIN_SHARE_ADMIN_KEY_FILE as well") }
+        config.joinShareAdminURL = url.hasSuffix("/") ? String(url.dropLast()) : url
+        config.joinShareAdminKeyFile = absolutePath((keyFile as NSString).expandingTildeInPath)
     }
 
     /// The sandbox domain, as a host name: lowercase letters, digits, dots and dashes. It is never a URL (the SDK adds
