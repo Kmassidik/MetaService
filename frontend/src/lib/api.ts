@@ -12,6 +12,10 @@ import { statsPath } from './stats.ts'
 import { parseStatsReply } from './statsParse.ts'
 import { parseStorageReply } from './storageParse.ts'
 import { parseExternalServices } from './externalServices.ts'
+import { parseJoinCommand, parsePeers, parsePending, parseSupported, type JoinCommand, type JoinedMachine, type OsChoice, type PendingMachine } from './share.ts'
+import { describeShareError, isHubRefusal } from './shareErrors.ts'
+import type { ApproveBody } from './shareDraft.ts'
+import type { ShareCpu, ShareOs } from './share.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
@@ -28,6 +32,8 @@ export class ApiError extends Error {
   status: number
   code: string
   numbers?: RefusalNumbers
+  /** The unchecked JSON body of the refusal, for the routes whose refusals carry more than the Root's usual error object. */
+  body: unknown = null
 
   constructor(status: number, code: string, message: string) {
     super(message)
@@ -74,13 +80,16 @@ async function exchange(method: Method, path: string, body: unknown, signal: Abo
   if (response.status === 204) return null
   const data: unknown = await response.json().catch(() => null)
   // The Root makes a new CSRF token each time it starts, so a panel left open across a restart asks for the new one and tries once more.
-  if (response.status === 403 && method !== 'GET' && !retried && !path.startsWith('/api/auth/')) {
+  // A refusal the hub gave (a wrong code is also a 403) is final: asking again would use up another try.
+  if (response.status === 403 && method !== 'GET' && !retried && !path.startsWith('/api/auth/') && !isHubRefusal(path, data)) {
     await getSession()
     return exchange(method, path, body, signal, true)
   }
   if (!response.ok) {
     const detail = parseErrorDetail(data)
-    throw withNumbers(new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'Request failed.'), detail)
+    const refusal = withNumbers(new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'Request failed.'), detail)
+    refusal.body = data
+    throw refusal
   }
   return data
 }
@@ -277,3 +286,22 @@ export const revokeSandboxKey = (id: string) => callNoBody('DELETE', `/api/sandb
 export const listSandboxes = async () => (await call<{ sandboxes: SandboxLive[] }>('GET', '/api/sandboxes')).sandboxes
 export const sandboxAction = (id: string, action: 'kill' | 'pause') => callNoBody('POST', `/api/sandboxes/${encodeURIComponent(id)}/${action}`)
 export const sandboxUsage = (days: number) => call<SandboxUsageReply>('GET', `/api/sandboxes/usage?days=${days}`)
+
+// Share a PC: the parent passes the hub's answers through. A refusal comes back as an ApiError whose code is the hub's error word and whose message is plain words.
+async function shareCall(method: Method, path: string, body?: unknown): Promise<unknown> {
+  try {
+    return await call<unknown>(method, `/api/join-share/${path}`, body)
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error
+    const failure = describeShareError(error.status, error.body)
+    throw new ApiError(error.status, failure.code || error.code, failure.text)
+  }
+}
+
+export const shareSupported = async (): Promise<OsChoice[]> => parseSupported(await shareCall('GET', 'supported'))
+export const sharePending = async (): Promise<PendingMachine[]> => parsePending(await shareCall('GET', 'pending'))
+export const sharePeers = async (): Promise<JoinedMachine[]> => parsePeers(await shareCall('GET', 'peers'))
+export const shareMakeCommand = async (os: ShareOs, cpu: ShareCpu): Promise<JoinCommand> => parseJoinCommand(await shareCall('POST', 'links', { os, cpu }))
+export const shareApprove = (id: string, body: ApproveBody) => shareCall('POST', `pending/${encodeURIComponent(id)}/approve`, body)
+export const shareRefuse = (id: string) => shareCall('POST', `pending/${encodeURIComponent(id)}/refuse`, {})
+export const shareRemovePeer = (name: string) => shareCall('DELETE', `peers/${encodeURIComponent(name)}`)

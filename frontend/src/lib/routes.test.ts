@@ -76,3 +76,8 @@ test('the VMs addresses are built with the machine only when there is one', () =
   expect(createVmHref(null)).toBe('#/vms/create')
   expect(createVmHref('mac-mini')).toBe('#/vms/create?machine=mac-mini')
 })
+
+test('Share a PC has its own address, with or without a trailing slash', () => {
+  expect(['/share', '/share/', '/share?x=1'].map(pageFor)).toEqual(['share', 'share', 'share'])
+  expect(pageFor('/share/other')).toBe('notfound')
+})

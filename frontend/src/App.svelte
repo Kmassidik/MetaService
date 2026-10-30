@@ -14,6 +14,7 @@
   import VmsList from './pages/VmsList.svelte'
     import TokenLedger from './pages/TokenLedger.svelte'
   import SandboxesShell from './pages/SandboxesShell.svelte'
+  import Share from './pages/Share.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
@@ -291,6 +292,8 @@
         <TokenLedger {brain} />
       {:else if page === 'sandboxes'}
         <SandboxesShell {route} />
+      {:else if page === 'share'}
+        <Share />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}

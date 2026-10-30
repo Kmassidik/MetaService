@@ -30,6 +30,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     GpuCheckRoutes(services: services, guards: guards).register(on: router.group())
     ImagesRoutes(services: services, guards: guards).register(on: router.group())
     HelperUpdateRoutes(services: services, guards: guards).register(on: router.group())
+    JoinShareRoutes(services: services, guards: guards).register(on: router.group())
     // The panel's sandbox pages: API keys, the live list, kill and pause, and the usage table. Operator guards, as every
     // panel route above.
     SandboxPanelRoutes(services: services, guards: guards).register(on: router.group())
