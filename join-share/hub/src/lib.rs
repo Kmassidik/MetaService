@@ -1,0 +1,24 @@
+//! join-share hub: owns the WireGuard network and the join flow for far PCs.
+pub mod secretfile;
+pub mod approval;
+pub mod clock;
+pub mod config;
+pub mod constants;
+pub mod crypto;
+pub mod error;
+pub mod firewall;
+pub mod http_admin;
+pub mod http_public;
+pub mod join_flow;
+pub mod codes;
+pub mod parentdb;
+pub mod peers;
+pub mod ratelimit;
+pub mod root_args;
+pub mod root_run;
+pub mod script;
+pub mod startup;
+pub mod state;
+pub mod store;
+pub mod supported;
+pub mod testkit;
