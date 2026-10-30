@@ -19,16 +19,14 @@ public struct NewMcpWorkload {
     public let tokenId: String
     public let machineId: String
     public let requestId: String
-    public let commandId: String
     public let idempotencyKey: String?
     public let wish: McpWish
     public let createdAt: Date
 
-    public init(tokenId: String, machineId: String, requestId: String, commandId: String, idempotencyKey: String?, wish: McpWish, createdAt: Date) {
+    public init(tokenId: String, machineId: String, requestId: String, idempotencyKey: String?, wish: McpWish, createdAt: Date) {
         self.tokenId = tokenId
         self.machineId = machineId
         self.requestId = requestId
-        self.commandId = commandId
         self.idempotencyKey = idempotencyKey
         self.wish = wish
         self.createdAt = createdAt
@@ -42,11 +40,24 @@ public struct McpWorkloadStore {
 
     public init(_ database: Database) { self.database = database }
 
-    public func add(_ item: NewMcpWorkload) throws {
-        try database.execute("""
-            INSERT INTO token_workloads (token_id, machine_id, request_id, command_id, idempotency_key, vcpu, ram_mb, disk_gb, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [.text(item.tokenId), .text(item.machineId), .text(item.requestId), .text(item.commandId), item.idempotencyKey.map(SQLValue.text) ?? .null,
-                  .int(item.wish.vcpu), .int(item.wish.ramMb), .int(item.wish.diskGb), .int(McpTokenStore.seconds(item.createdAt))])
+    /// Reserves a slot for a VM about to be made: the row exists before the command does, so two creates at once cannot both take the last slot.
+    /// The command id is attached once the machine has accepted the order (`attach`), or the row is taken back (`remove`) when it did not.
+    public func reserve(_ item: NewMcpWorkload) throws -> Int {
+        try database.transaction {
+            try database.execute("""
+                INSERT INTO token_workloads (token_id, machine_id, request_id, idempotency_key, vcpu, ram_mb, disk_gb, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, [.text(item.tokenId), .text(item.machineId), .text(item.requestId), item.idempotencyKey.map(SQLValue.text) ?? .null,
+                      .int(item.wish.vcpu), .int(item.wish.ramMb), .int(item.wish.diskGb), .int(McpTokenStore.seconds(item.createdAt))])
+            return try database.query("SELECT last_insert_rowid() AS id").first?.int("id") ?? 0
+        }
+    }
+
+    public func attach(row: Int, command: String) throws {
+        try database.execute("UPDATE token_workloads SET command_id = ? WHERE id = ?", [.text(command), .int(row)])
+    }
+
+    public func remove(row: Int) throws {
+        try database.execute("DELETE FROM token_workloads WHERE id = ?", [.int(row)])
     }
 
     /// The token's VMs that are not marked deleted, oldest first. Includes the ones still being made.
@@ -63,6 +74,14 @@ public struct McpWorkloadStore {
             SELECT id, token_id, machine_id, workload_id, request_id, command_id, vcpu, ram_mb, disk_gb, created_at FROM token_workloads
             WHERE token_id = ? AND machine_id = ? AND workload_id = ? AND deleted_at IS NULL
             """, [.text(token), .text(machine), .text(workload)]).first.map(Self.row)
+    }
+
+    /// The live row a create request made, whatever the VM's id is yet.
+    public func row(request: String) throws -> McpWorkloadRow? {
+        try database.query("""
+            SELECT id, token_id, machine_id, workload_id, request_id, command_id, vcpu, ram_mb, disk_gb, created_at FROM token_workloads
+            WHERE request_id = ? AND deleted_at IS NULL
+            """, [.text(request)]).first.map(Self.row)
     }
 
     public func setWorkload(row: Int, workload: String) throws {

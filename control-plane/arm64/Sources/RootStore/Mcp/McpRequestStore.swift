@@ -104,6 +104,12 @@ public struct McpRequestStore {
                            [.text(token)]).compactMap(Self.row)
     }
 
+    /// Creates of one token that still hold the public key they were asked to give the VM.
+    public func withPublicKey(token: String) throws -> [McpRequestRow] {
+        try database.query("SELECT id, token_id, kind, params_json, state, command_id, result_json, idempotency_key, created_at, decided_by, decided_at, expires_at FROM mcp_requests WHERE token_id = ? AND kind = 'create' AND state IN ('running', 'done') AND params_json LIKE '%ssh_public_key%'",
+                           [.text(token)]).compactMap(Self.row)
+    }
+
     /// A person's yes or no. Works only on a request still waiting, so two operators pressing at once decide it once. True when this call decided it.
     @discardableResult
     public func decide(id: String, to state: McpRequestState, by operatorName: String, now: Date) throws -> Bool {
@@ -115,6 +121,11 @@ public struct McpRequestStore {
     @discardableResult
     public func move(id: String, from: McpRequestState, to: McpRequestState) throws -> Bool {
         try database.execute("UPDATE mcp_requests SET state = ? WHERE id = ? AND state = ?", [.text(to.rawValue), .text(id), .text(from.rawValue)]) > 0
+    }
+
+    /// Replaces the stored action, for instance after a public key was handed to the VM and no longer needs to be kept.
+    public func setParams(id: String, params: [String: Any]) throws {
+        try database.execute("UPDATE mcp_requests SET params_json = ? WHERE id = ?", [.text(Self.encode(params)), .text(id)])
     }
 
     public func setCommand(id: String, command: String) throws {

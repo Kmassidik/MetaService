@@ -51,6 +51,7 @@ struct Services {
     let sandboxHelper: AgentSandboxHelper
     let sandboxPortForwarder: AgentSandboxPortForwarder
     let joinShare: JoinShareHub
+    let mcp: McpService
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
@@ -106,5 +107,7 @@ struct Services {
         sandboxHelper = AgentSandboxHelper(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
         sandboxPortForwarder = AgentSandboxPortForwarder(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
         joinShare = JoinShareHub(config: config)
+        mcp = McpService(database: database, machines: machines, commands: commands, audit: audit, workloads: workloads, sshKeys: sshKeys, terminal: terminal, throttle: throttle,
+                         clock: clock, publicBaseURL: config.publicBaseURL)
     }
 }
