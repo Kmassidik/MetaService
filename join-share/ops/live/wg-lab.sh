@@ -1,7 +1,7 @@
 #!/bin/sh
 # The live network test of join-share, run on the Mac Mini only (needs `sudo -n`, the Homebrew WireGuard tools and Apple's `container`).
 # Two throw-away Linux containers (jstest-a, jstest-b) play two far PCs. The Mini plays the hub, on a lab interface and a lab port, so nothing
-# of the real hub or of MAAS is touched. It proves, with real WireGuard and the real pf rules:
+# of the real hub or of MAAS is touched. pf is only given one anchor under com.apple/; the main ruleset is not changed. It proves, with real WireGuard and the real pf rules:
 #   1. both spokes handshake with the hub and the hub reaches each spoke's helper port;
 #   2. a spoke reaches only TCP 10.77.0.1:9102 on the hub, and that port reaches the parent's loopback listener with the spoke's own address as the source;
 #   3. a spoke cannot reach the other spoke, and cannot reach any other port of the hub (the panel, ssh, MAAS).
@@ -18,7 +18,7 @@ WG_PORT=51839
 PARENT_PORT=9192   # a lab stand-in port: the real parent listens on 9102 on this Mini and must not be hit by the lab
 HELPER_PORT=9101
 OTHER_PORT=9777
-ANCHOR=com.metaservice.joinshare.lab
+ANCHOR=com.apple/joinshare-lab
 FAILED=0
 LISTEN_PIDS=""
 
@@ -30,7 +30,6 @@ blocked() { if [ "$1" = no ]; then echo yes; else echo no; fi; }
 
 cleanup() {
   sudo -n pfctl -a "$ANCHOR" -F all >/dev/null 2>&1
-  sudo -n pfctl -f /etc/pf.conf >/dev/null 2>&1
   if [ -n "${PF_WAS_OFF:-}" ]; then sudo -n pfctl -d >/dev/null 2>&1; fi
   sudo -n env PATH="$PATH" wg-quick down "$LAB/$IFACE_NAME.conf" >/dev/null 2>&1
   for name in jstest-a jstest-b; do container stop "$name" >/dev/null 2>&1; done
@@ -71,17 +70,15 @@ HUB_IF=$(sed -n 's/.*Interface for .* is \(utun[0-9]*\).*/\1/p' "$LAB/up.log")
 [ -n "$HUB_IF" ] || { echo "no interface name"; exit 2; }
 echo "hub interface $HUB_IF, the Mini on the container network is $HUB_HOST"
 
-# pf ignores an anchor that nothing refers to, so the active ruleset becomes /etc/pf.conf plus two lines: our rdr-anchor right after Apple's
-# rdr-anchor and our filter anchor right after Apple's anchor. /etc/pf.conf itself is never edited; cleanup reloads it.
+# pf: our rules live in an anchor named under com.apple/. Apple's main ruleset already scans "com.apple/*" (rdr-anchor and anchor), so nothing refers to
+# our anchor from the main ruleset and the main ruleset is never rewritten: Apple's container networking edits it (internet-sharing anchors) and a reload
+# of /etc/pf.conf would drop those.
 cat > "$LAB/anchor.rules" <<EOF
 rdr pass on $HUB_IF inet proto tcp from any to $HUB_ADDR port $PARENT_PORT -> 127.0.0.1 port $PARENT_PORT
 block in quick on $HUB_IF all
 pass out quick on $HUB_IF all
 EOF
-awk -v a="$ANCHOR" '{print} /^rdr-anchor "com.apple\/\*"/{print "rdr-anchor \"" a "\""} /^anchor "com.apple\/\*"/{print "anchor \"" a "\""}' /etc/pf.conf > "$LAB/pf.main"
-if sudo -n pfctl -s info 2>/dev/null | grep -q "Status: Disabled"; then PF_WAS_OFF=1; fi
-sudo -n pfctl -f "$LAB/pf.main" >"$LAB/pf.log" 2>&1 || { cat "$LAB/pf.log"; exit 2; }
-if [ -n "${PF_WAS_OFF:-}" ]; then sudo -n pfctl -e >>"$LAB/pf.log" 2>&1; fi
+if sudo -n pfctl -s info 2>/dev/null | grep -q "Status: Disabled"; then PF_WAS_OFF=1; sudo -n pfctl -e >"$LAB/pf.log" 2>&1; fi
 sudo -n pfctl -a "$ANCHOR" -f "$LAB/anchor.rules" >>"$LAB/pf.log" 2>&1 || { cat "$LAB/pf.log"; exit 2; }
 
 # The two spokes: Ubuntu containers with network admin (WireGuard here is wireguard-go: the container kernel has no WireGuard). They are made once,
