@@ -36,6 +36,7 @@ yesno() { if "$@" >/dev/null 2>&1; then echo yes; else echo no; fi; }
 inside() { container exec jstest-a sh -c "$1"; }
 
 cleanup() {
+  if [ -n "${E2E_KEEP:-}" ]; then echo "E2E_KEEP is set: nothing was torn down (hub, parent, tunnel and container keep running for inspection)"; return 0; fi
   if [ -n "$PIDS" ]; then kill $PIDS >/dev/null 2>&1; fi
   sudo -n "$ROOT_HELPER" pf-unload >/dev/null 2>&1
   sudo -n "$ROOT_HELPER" down >/dev/null 2>&1
