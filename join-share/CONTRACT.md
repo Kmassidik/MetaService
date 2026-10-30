@@ -25,6 +25,7 @@ A PC anywhere joins the MetaService panel with one command. This file is the sin
 | Parent's agent listener a far PC reports to | `http://10.77.0.1:9102` | `JOIN_SHARE_PARENT_URL` |
 | Helper port on a far PC | `9101`, bound to its WireGuard address only | |
 | Hub state folder | `join-share/state/` (git-ignored): `hub.sqlite3`, `wg-metaservice.conf`, `admin.key` (mode 600) | `JOIN_SHARE_STATE` |
+| Path of the root helper binary the hub starts with `sudo -n` | `/usr/local/libexec/join-share/join-share-root` | `JOIN_SHARE_ROOT_HELPER` |
 | Parent database (the one row insert, section 6) | path of the parent's `root.sqlite3` | `JOIN_SHARE_PARENT_DB` |
 | Helper builds (read-only, the parent's own, see `Root/Remote/AgentBuilds.swift`) | a folder with files `metaservice-agent-<system>` (`linux-x86_64`, `linux-arm64`), and the path of the Mac helper for `darwin-arm64` | `JOIN_SHARE_BUILDS_DIR`, `JOIN_SHARE_MAC_AGENT` |
 
