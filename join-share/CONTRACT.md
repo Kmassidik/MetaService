@@ -24,11 +24,11 @@ A PC anywhere joins the MetaService panel with one command. This file is the sin
 | Admin listener (page and admin API) | `127.0.0.1:9111` | `JOIN_SHARE_ADMIN_BIND` |
 | Parent's agent listener a far PC reports to | `http://10.77.0.1:9102` | `JOIN_SHARE_PARENT_URL` |
 | Helper port on a far PC | `9101`, bound to its WireGuard address only | |
-| Hub state folder | `join-share/state/` (git-ignored): `hub.sqlite3`, `wg-hub.conf`, `admin.key` (mode 600) | `JOIN_SHARE_STATE` |
+| Hub state folder | `join-share/state/` (git-ignored): `hub.sqlite3`, `wg-metaservice.conf`, `admin.key` (mode 600) | `JOIN_SHARE_STATE` |
 | Parent database (the one row insert, section 6) | path of the parent's `root.sqlite3` | `JOIN_SHARE_PARENT_DB` |
-| Folder with the helper builds | the parent's existing `agent-builds-dir` (`<dir>/<os>-<cpu>/metaservice-agent`) | `JOIN_SHARE_BUILDS_DIR` |
+| Helper builds (read-only, the parent's own, see `Root/Remote/AgentBuilds.swift`) | a folder with files `metaservice-agent-<system>` (`linux-x86_64`, `linux-arm64`), and the path of the Mac helper for `darwin-arm64` | `JOIN_SHARE_BUILDS_DIR`, `JOIN_SHARE_MAC_AGENT` |
 
-OS words: `mac`, `linux`, `windows`. CPU words: `arm64`, `x86_64`. A `(os, cpu)` pair is **supported** when `<builds>/<os>-<cpu>/metaservice-agent` exists and `os` is `mac` or `linux`; `windows` is always "coming soon".
+OS words in links and pages: `mac`, `linux`, `windows`. CPU words: `arm64`, `x86_64`. The pair maps to the parent's "system" name: (mac, arm64) is `darwin-arm64`, (mac, x86_64) is `darwin-x86_64`, (linux, x86_64) is `linux-x86_64`, (linux, arm64) is `linux-arm64`. A pair is **supported** when the file for its system exists and is executable (`darwin-arm64` is the file at `JOIN_SHARE_MAC_AGENT`, the others are `<JOIN_SHARE_BUILDS_DIR>/metaservice-agent-<system>`); `windows` is always "coming soon". The download route is `GET /dl/<system>/metaservice-agent` (for example `/dl/linux-x86_64/metaservice-agent`); the hub computes the sha256 itself.
 
 ## 3. The flow
 
@@ -57,8 +57,8 @@ All answers are JSON except the script. An unknown, expired or used link gets `4
 |---|---|
 | `GET /j/<link>?os=&cpu=` | The join script (`text/x-shellscript`), with the link, public URL, os and cpu filled in. Does not use the link up. `400` if the pair is not supported, with a plain reason in JSON. |
 | `POST /j/<link>/register` | Body `{"wg_public_key": "<44 chars base64>", "os": "...", "cpu": "...", "hostname": "...", "share": {"cores": n, "ram_mb": n, "disk_gb": n}}`. Uses the link up. Makes a pending machine. Reply `{"pending": "<id>", "secret": "<random>", "code": "123456", "expires_in": 900}`. |
-| `GET /j/<link>/status?pending=<id>&secret=<s>` | `{"state":"pending"}` or `{"state":"refused"}` or `{"state":"expired"}`, or when approved: `{"state":"approved","wireguard":{"address":"10.77.0.2/32","hub_public_key":"...","endpoint":"host:port","allowed_ips":"10.77.0.1/32","keepalive":25},"machine":{"name":"...","enrollment_token":"...","parent_url":"http://10.77.0.1:9102","helper_bind":"10.77.0.2","helper_port":9101},"download":{"url":"<public_url>/dl/<os>-<cpu>/metaservice-agent?pending=<id>&secret=<s>","sha256":"<hex>"}}`. The enrollment token is given **once**: a second approved read returns the state without `machine.enrollment_token`. |
-| `GET /dl/<os>-<cpu>/metaservice-agent?pending=&secret=` | The helper file, only for an approved pending machine of that `(os, cpu)`. |
+| `GET /j/<link>/status?pending=<id>&secret=<s>` | `{"state":"pending"}` or `{"state":"refused"}` or `{"state":"expired"}`, or when approved: `{"state":"approved","wireguard":{"address":"10.77.0.2/32","hub_public_key":"...","endpoint":"host:port","allowed_ips":"10.77.0.1/32","keepalive":25},"machine":{"name":"...","enrollment_token":"...","parent_url":"http://10.77.0.1:9102","helper_bind":"10.77.0.2","helper_port":9101},"download":{"url":"<public_url>/dl/<system>/metaservice-agent?pending=<id>&secret=<s>","sha256":"<hex>"}}`. The enrollment token is given **once**: a second approved read returns the state without `machine.enrollment_token`. |
+| `GET /dl/<system>/metaservice-agent?pending=&secret=` | The helper file, only for an approved pending machine of that system. |
 
 The 6-digit code is stored only as a hash, expires with the pending machine (15 minutes), and allows 5 wrong tries, then the pending machine is refused.
 
@@ -91,9 +91,9 @@ How the parent's listener `9102` becomes reachable at `10.77.0.1` without changi
 
 ## 7. The WireGuard side
 
-- Hub: `wg-quick` with a generated `wg-hub.conf` (rebuilt from the database at start). Peers are added live with `wg set` and recorded in the database; the database is the truth.
+- Hub: `wg-quick` with a generated `wg-metaservice.conf` (rebuilt from the database at start). Peers are added live with `wg set` and recorded in the database; the database is the truth.
 - Far PC: `wg-quick` with a config the script writes: `[Interface] PrivateKey, Address = <addr>/32` and `[Peer] PublicKey = hub, Endpoint, AllowedIPs = 10.77.0.1/32, PersistentKeepalive = 25`. Only the hub address is routed through it.
-- Hub firewall (`pf`, anchor `com.metaservice.joinshare`): from the WireGuard interface, **block everything** except TCP to `10.77.0.1:9102`; pass out to the peers so the parent reaches `<peer>:9101`. No peer-to-peer. IP forwarding stays off.
+- Hub firewall (`pf`, anchor `com.apple/joinshare`): from the WireGuard interface, **block everything** except TCP to `10.77.0.1:9102`; pass out to the peers so the parent reaches `<peer>:9101`. No peer-to-peer. IP forwarding stays off.
 
 ## 8. The join script (what `script/` must do)
 
@@ -121,6 +121,6 @@ One static page served by the hub's admin listener, plain HTML + one JS file + o
 
 The hub (`join-share serve`) runs as the normal user (`lora`) and never as root. Everything that needs root is a second binary of the same crate, `join-share-root`, which the hub starts with `sudo -n <path>/join-share-root <subcommand> …`. It does only these subcommands and refuses everything else, with every argument checked (public key: 44 base64 characters; address: inside `JOIN_SHARE_NET`; interface name: `utun` plus digits or `wg-meta`):
 
-`up` (bring the hub interface up from `wg-hub.conf`), `down`, `add-peer <public-key> <address>`, `remove-peer <public-key>`, `pf-load` (load the anchor from the rules file the hub wrote), `pf-unload`, `show` (the peer list with last handshakes, as JSON).
+`up` (bring the hub interface up from `wg-metaservice.conf`), `down`, `add-peer <public-key> <address>`, `remove-peer <public-key>`, `pf-load` (load the anchor from the rules file the hub wrote), `pf-unload`, `show` (the peer list with last handshakes, as JSON).
 
 A narrow `sudoers` line that allows only that binary is written by `ops/`. The hub talks to it through a trait (`WgControl`) so tests use a fake and the real one is exercised only by the ignored live tests on the Mini.
