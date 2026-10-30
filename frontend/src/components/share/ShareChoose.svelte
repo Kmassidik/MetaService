@@ -5,7 +5,8 @@
   import { shareMakeCommand } from '../../lib/api.ts'
   import { copyText } from '../../lib/clipboard.ts'
   import type { JoinCommand, OsChoice, ShareCpu, ShareOs } from '../../lib/share.ts'
-  import { choosable, cpuNote, CPU_NAMES, OS_NAMES, stateText } from '../../lib/shareText.ts'
+  import { LOGOS } from '../../lib/logos.ts'
+  import { choosable, cpuNote, CPU_NAMES, OS_LOGOS, OS_NAMES, stateText } from '../../lib/shareText.ts'
   import { timeLeft } from '../../lib/shareText.ts'
 
   let { supported, now }: { supported: OsChoice[]; now: number } = $props()
@@ -45,7 +46,7 @@
   <h2>1. Which computer is it?</h2>
   <div class="choices" role="group" aria-label="System">
     {#each supported as entry (entry.os)}
-      <button class="choice" type="button" aria-pressed={os === entry.os} onclick={() => pickOs(entry.os)}>{OS_NAMES[entry.os]}</button>
+      <button class="choice" type="button" aria-pressed={os === entry.os} onclick={() => pickOs(entry.os)}><img class="oslogo" src={LOGOS[OS_LOGOS[entry.os]]} alt="" width="22" height="22" />{OS_NAMES[entry.os]}</button>
     {/each}
   </div>
 
@@ -83,6 +84,8 @@
   h2:not(:first-child) { margin-top: 8px; }
   .choices { display: flex; gap: 10px; flex-wrap: wrap; max-width: 100%; }
   .choice { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 12px 16px; min-width: 150px; text-align: left; display: grid; gap: 6px; justify-items: start; align-content: start; font-family: var(--mono); font-size: 13px; font-weight: 700; }
+  .oslogo { flex: none; }
+  .choice:has(.oslogo) { display: flex; align-items: center; gap: 10px; }
   .choice:hover:not(:disabled) { border-color: var(--line-strong); }
   .choice[aria-pressed='true'] { border-color: var(--line-strong); box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--surface-2); }
   .choice:disabled { cursor: not-allowed; color: var(--m50); background: var(--surface-2); }

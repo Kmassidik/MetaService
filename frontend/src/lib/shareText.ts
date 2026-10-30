@@ -1,8 +1,11 @@
 // The words of the Share a PC page: names, the state of each build, times, and the remove question. Pure, so the wording is tested.
 import type { BuildState, CpuChoice, JoinedMachine, OsChoice, ShareCpu, ShareOs } from './share.ts'
 import type { ConfirmCopy } from './confirmCopy.ts'
+import type { LogoName } from './logos.ts'
 
 export const OS_NAMES: Record<ShareOs, string> = { mac: 'Mac', windows: 'Windows', linux: 'Linux' }
+/** The logo of each system (files in assets/logos). */
+export const OS_LOGOS: Record<ShareOs, LogoName> = { mac: 'apple', windows: 'windows', linux: 'linux' }
 export const CPU_NAMES: Record<ShareCpu, string> = { arm64: 'Apple silicon / ARM (arm64)', x86_64: 'Intel / AMD (x86_64)' }
 
 export interface StateText {

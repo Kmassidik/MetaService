@@ -68,7 +68,7 @@ try {
   const waiting = (await pageText()).toLowerCase()
   check('the waiting machines are listed with their time and tries', waiting.includes('far mac') && waiting.includes('5 tries left') && waiting.includes('min left'))
   check('the name defaults to the host name and the share to what was asked', await b.run(() => (document.querySelector('input[aria-label="Name for Far Mac"]') as HTMLInputElement).value === 'far-mac' && (document.querySelector('input[aria-label="Cores for Far Mac"]') as HTMLInputElement).value === '4'))
-  const hostile = await b.run(() => ({ shown: document.querySelectorAll('[data-testid="pending-host"]')[1]?.textContent ?? '', images: document.querySelectorAll('main img').length, pwned: (window as unknown as Record<string, unknown>).__pwned }))
+  const hostile = await b.run(() => ({ shown: document.querySelectorAll('[data-testid="pending-host"]')[1]?.textContent ?? '', images: document.querySelectorAll('main img:not(.oslogo)').length, pwned: (window as unknown as Record<string, unknown>).__pwned }))
   check('a hostile host name is shown as text and runs nothing', hostile.shown.startsWith('<img src=x') && hostile.images === 0 && hostile.pwned === undefined, JSON.stringify(hostile))
 
   await b.click('Approve')

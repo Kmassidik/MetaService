@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { OsChoice } from './share.ts'
-import { choosable, cpuNote, handshakeText, NO_SYSTEM_NOTE, removePeerCopy, saneName, stateText, timeLeft } from './shareText.ts'
+import { choosable, cpuNote, handshakeText, NO_SYSTEM_NOTE, OS_LOGOS, OS_NAMES, removePeerCopy, saneName, stateText, timeLeft } from './shareText.ts'
 
 const mac: OsChoice = { os: 'mac', cpus: [{ cpu: 'arm64', state: 'ready' }, { cpu: 'x86_64', state: 'untested' }] }
 const windows: OsChoice = { os: 'windows', cpus: [{ cpu: 'arm64', state: 'missing' }, { cpu: 'x86_64', state: 'soon' }] }
@@ -47,4 +47,10 @@ test('the remove question names the machine and what is lost', () => {
   const copy = removePeerCopy({ name: 'far-mac' })
   expect(copy.what).toContain('far-mac')
   expect(copy.confirmLabel).toBe('Remove machine')
+})
+
+test('every system of the page has a logo that is bundled', async () => {
+  const { LOGOS } = await import('./logos.ts')
+  for (const os of Object.keys(OS_NAMES) as (keyof typeof OS_NAMES)[]) expect(LOGOS[OS_LOGOS[os]]).toBeTruthy()
+  expect(OS_LOGOS).toEqual({ mac: 'apple', windows: 'windows', linux: 'linux' })
 })
