@@ -59,6 +59,19 @@ These need a person: `delete_vm`; `create_vm` with a GPU limit, with `size` `lar
 `GET /api/mcp/info` (the endpoint URL, the protocol versions, the tool names, the defaults), `GET /api/mcp/tokens`, `POST /api/mcp/tokens` (body: name, scopes, quotas, expires_in_days, auto_approve; the reply is the **only** time the token text is returned), `DELETE /api/mcp/tokens/{id}` (revoke; its running VMs stay and show as theirs), `GET /api/mcp/approvals` (pending and recent), `POST /api/mcp/approvals/{id}/approve`, `POST /api/mcp/approvals/{id}/deny`, `GET /api/mcp/activity?limit=` (audit rows whose actor starts with `mcp:`).
 **Audit:** every tool call writes one row: actor `mcp:<token name>`, action `mcp.<tool>`, target machine/VM, status; never params that could hold a key, never the token.
 
+### 7.1 Operator API: exact JSON (fixed by the parent build; all field names snake_case, times ISO 8601 UTC)
+
+`token` (a token as the panel sees it; never the text, never the hash):
+`{"id","name","prefix","scopes":["read","create"],"quotas":{"max_vms","max_vcpu","max_ram_mb","max_disk_gb","creates_per_day","gpu_memory_gb"},"auto_approve":false,"created_by","created_at","expires_at","last_used_at":null|time,"revoked_at":null|time,"status":"active"|"revoked"|"expired","vms_alive":0}`
+
+- `GET /api/mcp/info` -> `{"endpoint":"https://meta.ruvio.site/mcp","protocol_versions":[...],"scopes":["read","create","destroy","gpu","shared"],"tools":[{"name","scope","description"}],"defaults":{"scopes":["read","create"],"quotas":{...},"expires_in_days":90,"max_expires_in_days":365,"auto_approve":false}}`
+- `GET /api/mcp/tokens` -> `{"tokens":[token]}` (newest first, revoked ones included).
+- `POST /api/mcp/tokens` body `{"name","scopes"?,"quotas"?,"expires_in_days"?,"auto_approve"?}` (name 1 to 40 of letters, digits, space, `.`, `_`, `-`; a live token name is unique) -> **201** `{"token":"msk_...","info":token}`. `token` is the text, shown once.
+- `DELETE /api/mcp/tokens/{id}` -> 200 `{"info":token}` (revoking twice is the same answer); 404 for an unknown id.
+- `GET /api/mcp/approvals` -> `{"pending":[approval],"recent":[approval]}`; `approval` is `{"id","token_id","token_name","kind":"create"|"delete"|"start"|"stop","description":"plain sentence of the exact action and size","reason":"why a person must approve","state":"pending_approval"|"approved"|"denied"|"running"|"done"|"failed"|"expired","created_at","expires_at","decided_by":null|text,"decided_at":null|time,"message":null|text}` (`message` is the plain failure reason when `failed`).
+- `POST /api/mcp/approvals/{id}/approve` and `/deny` (no body) -> 200 `{"approval":approval}` (after approve the state is `running`, `done` or `failed`); 404 unknown id; 409 `not_pending` when it was already decided or has expired; 409 `token_not_usable` when the token was revoked or has expired since.
+- `GET /api/mcp/activity?limit=` (default 20, at most 200) -> `{"entries":[{"id","ts","actor","action","target","detail"}]}`, same shape as `/api/audit` (`detail` is a JSON text), newest first, only actors starting with `mcp:`.
+
 ## 8. Panel (Svelte)
 
 A section **AI access (MCP)** on the Settings page (no new sidebar row): *Connect* (the endpoint, the ready-to-copy `claude mcp add --transport http metaservice <url> --header "Authorization: Bearer <token>"` line and a JSON snippet for other clients, with a placeholder instead of a real token), *Tokens* (table with name, prefix, scopes, quotas, last used, expiry, Revoke; a Create token dialog that shows the new token once with a Copy button and a warning), *Waiting for approval* (each request with its plain description and Approve / Deny), *Recent activity* (the last 20 calls). Same look and components as the panel; loading, empty and error states with text; hostile text only as text.
