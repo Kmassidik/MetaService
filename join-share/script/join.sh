@@ -306,6 +306,8 @@ show_code() {
   say ""
   big_code "$CODE"
   say ""
+  say "In plain digits (to read aloud or copy): $CODE"
+  say ""
   say "Waiting for the approval (up to $(( JOIN_POLL_MAX * JOIN_POLL_SECONDS / 60 )) minutes). Press Ctrl-C to cancel; nothing is joined until it is approved."
 }
 
