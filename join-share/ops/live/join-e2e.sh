@@ -106,9 +106,10 @@ inside 'cat /tmp/join.log' 2>/dev/null | sed 's/[0-9]\{6\}/<code>/g' | tail -15
 # 5. The admin approves: a wrong code first, then the right one.
 PENDING=$(admin "http://127.0.0.1:$ADMIN_PORT/admin/pending" | json "[0]['id']")
 check "the pending machine is listed, and the list never contains the code" "$([ -n "$PENDING" ] && ! admin "http://127.0.0.1:$ADMIN_PORT/admin/pending" | grep -q "$CODE" && echo yes || echo no)"
-WRONG=$(admin -o /dev/null -w '%{http_code}' -X POST -d "{\"code\":\"000000\",\"name\":\"$MACHINE\"}" "http://127.0.0.1:$ADMIN_PORT/admin/pending/$PENDING/approve")
+ASK=$(admin "http://127.0.0.1:$ADMIN_PORT/admin/pending" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)[0]['share']))")
+WRONG=$(admin -o /dev/null -w '%{http_code}' -X POST -d "{\"code\":\"000000\",\"name\":\"$MACHINE\",\"share\":$ASK}" "http://127.0.0.1:$ADMIN_PORT/admin/pending/$PENDING/approve")
 check "a wrong code is refused (403)" "$([ "$WRONG" = 403 ] && echo yes || echo no)"
-RIGHT=$(admin -o "$W/approve.json" -w '%{http_code}' -X POST -d "{\"code\":\"$CODE\",\"name\":\"$MACHINE\"}" "http://127.0.0.1:$ADMIN_PORT/admin/pending/$PENDING/approve")
+RIGHT=$(admin -o "$W/approve.json" -w '%{http_code}' -X POST -d "{\"code\":\"$CODE\",\"name\":\"$MACHINE\",\"share\":$ASK}" "http://127.0.0.1:$ADMIN_PORT/admin/pending/$PENDING/approve")
 check "the right code approves and gives the machine an address" "$([ "$RIGHT" = 200 ] && grep -q "$SPOKE_ADDR" "$W/approve.json" && echo yes || echo no)"
 
 # 6. The far PC finishes by itself: tunnel, helper download, enrol, run.
