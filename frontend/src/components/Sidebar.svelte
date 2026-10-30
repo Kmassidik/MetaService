@@ -60,10 +60,6 @@
         {/each}
       </div>
     {/each}
-    <div>
-      <h3>External monitoring</h3>
-      <span class="nav-unavailable">Beszel not configured</span>
-    </div>
   </nav>
   <div class="usr">
     <div class="row"><span>{username}</span><span class="on">ONLINE</span></div>

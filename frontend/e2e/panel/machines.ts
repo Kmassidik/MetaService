@@ -9,7 +9,7 @@ import type { World } from './world.ts'
 const SHORT_WAIT_MS = 10000
 const REMOVE_WAIT_MS = 5000
 /** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row, open it holds the machine list and Find machines. VMs is one plain link to All VMs (its own checks are in vms.e2e.ts). */
-const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs', 'External monitoring', 'Beszel not configured']
+const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs']
 const DROPDOWN_ENDS = ['Machine list', 'Find machines']
 
 const inputField = (b: Browse, name: string) => b.page.type(`input[name=${name}]`, name === 'username' ? ADMIN.username : ADMIN.password)
@@ -43,7 +43,7 @@ export async function overviewAndSidebar(b: Browse): Promise<void> {
   await b.shot('overview.png')
   check('the Overview counts the machines and VMs', /MACHINES\s*2/i.test(overview) && /VMS\s*2/i.test(overview) && /NEED ATTENTION\s*1/i.test(overview), overview.slice(0, 200))
   check('the Overview says what needs attention, with the fix', /dgx-spark/.test(overview) && overview.includes('metaservice-agent setup --yes'))
-  const items = () => b.page.$$eval('aside.side h3, aside.side nav a, aside.side nav button, aside.side .nav-unavailable', (nodes) => nodes.map((node) => node.textContent?.trim() ?? ''))
+  const items = () => b.page.$$eval('aside.side h3, aside.side nav a, aside.side nav button', (nodes) => nodes.map((node) => node.textContent?.trim() ?? ''))
   const closed = await items()
   check('the sidebar has the MAAS groups and names, with Machines a closed dropdown and VMs a single link on the Overview', JSON.stringify(closed) === JSON.stringify(SIDEBAR_CLOSED), JSON.stringify(closed))
   check('VMs is a plain link to All VMs, not a dropdown', await b.run(() => document.querySelector('aside.side nav a[href="#/vms"]')?.textContent?.trim() === 'VMs' && document.querySelector('aside.side nav button[aria-controls="vms-menu"]') === null))
