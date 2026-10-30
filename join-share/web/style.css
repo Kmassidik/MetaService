@@ -1,0 +1,94 @@
+/* The look of the MetaService panel (frontend/src/palette.css and app.css): same tokens, square corners, hairlines, mono buttons.
+   Copied, not linked: the hub serves this page on its own. The panel's web fonts are not served here, so the same stacks fall back to system fonts.
+   The panel is light only, so this page is too. */
+:root {
+  --page-bg: #fff; --surface: #fff; --surface-2: #f5f5f4; --line: #e5e5e5; --line-strong: #231b15; --focus: #231b15;
+  --text: #231b15; --m40: #6b655f; --m50: #655f59; --m60: #58524c; --muted: var(--m50);
+  --inverse-bg: #231b15; --inverse-text: #fff;
+  --accent: #7db26b; --accent-mark: #568a45; --accent-text: #1c2a12;
+  --ok: #2a6026; --ok-bg: #e3f0dc; --warn: #8a5a00; --warn-bg: #fff1cc; --warn-line: #b77700; --off: #6b655f;
+  --danger: #b3261e; --danger-bg: #fbe9e6; --danger-line: #e3b2ab; --danger-d: #8f1d17;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; --mono: 'Space Mono', ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; border-radius: 0; }
+body { margin: 0; background: var(--page-bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent); color: var(--text); }
+button, input { font-family: inherit; }
+button { cursor: pointer; }
+.mono { font-family: var(--mono); }
+.muted { color: var(--m50); }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.top { border-bottom: 1px solid var(--line); padding: 14px 24px; }
+.brand { font-family: var(--mono); font-weight: 700; font-size: 13px; letter-spacing: .03em; }
+.brand .sub { font-weight: 400; color: var(--m50); margin-left: 8px; }
+main { max-width: 1040px; margin: 0 auto; padding: 24px; display: grid; gap: 24px; }
+.block { border: 1px solid var(--line); background: var(--surface); padding: 24px; min-width: 0; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--m40); font-weight: 700; margin: 22px 0 10px; }
+.block > h2:first-child { margin-top: 0; }
+p { margin: 0 0 10px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* buttons: as in the panel */
+.btn { border: 1px solid var(--line-strong); background: var(--inverse-bg); color: var(--inverse-text); padding: 10px 15px; font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: .03em; }
+.btn.green { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn.line { background: transparent; color: var(--text); border-color: var(--line); }
+.btn.sm { padding: 7px 11px; font-size: 11px; }
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger-line); }
+.btn.danger:hover { background: var(--danger); color: var(--inverse-text); border-color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn[aria-busy="true"] { opacity: .75; cursor: progress; }
+.btn:focus-visible, input:focus-visible, pre:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 2px; }
+
+input { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 9px 11px; font-size: 14px; min-width: 0; }
+input:focus { border-color: var(--line-strong); }
+#key-input { flex: 1 1 260px; }
+
+/* the choice buttons: a choice is a button with a state tag under its name */
+.choices { display: flex; gap: 10px; flex-wrap: wrap; }
+.choice { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 12px 16px; min-width: 150px; text-align: left; display: grid; gap: 6px; justify-items: start; font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.choice:hover:not(:disabled) { border-color: var(--line-strong); }
+.choice[aria-pressed="true"] { border-color: var(--line-strong); box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--surface-2); }
+.choice:disabled { cursor: not-allowed; color: var(--m50); background: var(--surface-2); }
+
+.tag { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: 3px 7px; border: 1px solid; white-space: nowrap; color: var(--off); border-color: var(--line); }
+.tag.run { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
+.tag.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+
+.note { font-size: 13px; color: var(--m60); margin: 10px 0 0; min-height: 1px; }
+.note.bad { color: var(--danger-d); background: var(--danger-bg); border: 1px solid var(--danger-line); padding: 8px 12px; }
+
+.commandbox { margin-top: 14px; display: grid; gap: 10px; }
+.commandbox pre { margin: 0; padding: 14px 16px; background: var(--inverse-bg); color: var(--inverse-text); font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* the tables: as in the panel */
+.tablewrap { overflow-x: auto; }
+.restable { width: 100%; border-collapse: collapse; }
+.restable th { text-align: left; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--m40); font-weight: 400; padding: 0 14px 12px; border-bottom: 1px solid var(--line); }
+.restable td { padding: 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.restable .c-name { font-weight: 700; overflow-wrap: anywhere; }
+.restable .small { font-family: var(--mono); font-size: 11px; color: var(--m50); }
+.restable .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.restable input.code { width: 120px; font-family: var(--mono); letter-spacing: .2em; font-size: 16px; }
+.restable input.name { width: 100%; max-width: 200px; font-family: var(--mono); font-size: 12px; padding: 6px 8px; margin-top: 6px; }
+.share { display: flex; gap: 6px; flex-wrap: wrap; }
+.share label { display: grid; gap: 2px; font-family: var(--mono); font-size: 10px; color: var(--m40); text-transform: uppercase; letter-spacing: .06em; }
+.share input { width: 76px; font-family: var(--mono); font-size: 12px; padding: 6px 8px; }
+.rowerror { margin: 8px 0 0; font-size: 13px; color: var(--danger-d); }
+
+@media (max-width: 720px) {
+  .top { padding: 12px 16px; }
+  main { padding: 16px; gap: 16px; }
+  .block { padding: 16px; }
+  .choice { flex: 1 1 140px; }
+  .restable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .restable, .restable tbody, .restable tr, .restable td { display: block; width: 100%; }
+  .restable tr { border: 1px solid var(--line); margin-bottom: 12px; }
+  .restable td { border-bottom: 1px solid var(--line); padding: 10px 12px; }
+  .restable td:last-child { border-bottom: 0; }
+  .restable td[data-label]::before { content: attr(data-label); display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--m40); margin-bottom: 4px; }
+  .restable input.code { width: 100%; }
+}
