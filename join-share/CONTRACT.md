@@ -116,3 +116,11 @@ One static page served by the hub's admin listener, plain HTML + one JS file + o
 ## 10. Code rules
 
 `AGENTS.md` at the repo root applies: no nested `if`, about 400 lines per file at most, one job per module, no swallowed errors, no hardcoded secrets (the endpoint, URLs and paths come from the settings above), a test for every feature. Rust crates: `axum` 0.7, `tokio`, `serde`, `serde_json`, `sha2`, `subtle`, `rand` (the versions the Linux helper uses in `agent/linux/Cargo.toml`) and `rusqlite` with `bundled`; nothing else without a reason written in `hub/README.md`.
+
+## 11. Who is root (hub side)
+
+The hub (`join-share serve`) runs as the normal user (`lora`) and never as root. Everything that needs root is a second binary of the same crate, `join-share-root`, which the hub starts with `sudo -n <path>/join-share-root <subcommand> …`. It does only these subcommands and refuses everything else, with every argument checked (public key: 44 base64 characters; address: inside `JOIN_SHARE_NET`; interface name: `utun` plus digits or `wg-meta`):
+
+`up` (bring the hub interface up from `wg-hub.conf`), `down`, `add-peer <public-key> <address>`, `remove-peer <public-key>`, `pf-load` (load the anchor from the rules file the hub wrote), `pf-unload`, `show` (the peer list with last handshakes, as JSON).
+
+A narrow `sudoers` line that allows only that binary is written by `ops/`. The hub talks to it through a trait (`WgControl`) so tests use a fake and the real one is exercised only by the ignored live tests on the Mini.
