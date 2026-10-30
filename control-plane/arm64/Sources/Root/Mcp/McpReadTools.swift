@@ -26,7 +26,7 @@ extension McpService {
 
     func listVms(machine only: String?, caller: McpCaller) throws -> [String: Any] {
         if let only { _ = try machine(only, for: caller) }
-        let mine = try ownership.alive(caller: caller.id).filter { only == nil || $0.machineId == only }
+        let mine = try ownership.alive(person: caller.person.id).filter { only == nil || $0.machineId == only }
         let listed = mine.map { row in liveVm(row).map { vmView($0.vm, on: $0.machine) } ?? (row.workloadId == nil ? creatingView(row) : nil) }.compactMap { $0 }
         let ownCount = mine.filter { $0.workloadId != nil }.count
         let everything = try visibleMachines(for: caller).filter { only == nil || $0.id == only }.reduce(0) { $0 + $1.workloads.count }
@@ -34,7 +34,7 @@ extension McpService {
     }
 
     func vmStatus(machine machineId: String, vm: String, caller: McpCaller) throws -> [String: Any] {
-        guard let row = try ownership.find(caller: caller.id, machine: machineId, workload: vm), let live = liveVm(row) else { throw McpRefusal.noVm }
+        guard let row = try ownership.find(person: caller.person.id, machine: machineId, workload: vm), let live = liveVm(row) else { throw McpRefusal.noVm }
         return vmDetail(live.vm, on: live.machine)
     }
 
@@ -56,7 +56,7 @@ extension McpService {
 
     private func doneVm(_ request: McpRequestRow, caller: McpCaller) -> Any {
         guard let machine = request.result?["machine"] as? String, let vm = request.result?["vm"] as? String else { return NSNull() }
-        let row = try? ownership.find(caller: caller.id, machine: machine, workload: vm)
+        let row = try? ownership.find(person: caller.person.id, machine: machine, workload: vm)
         guard let row, let live = liveVm(row) else { return ["machine": machine, "id": vm, "state": request.kind == .delete ? "deleted" : "unknown"] }
         return vmDetail(live.vm, on: live.machine)
     }

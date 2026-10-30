@@ -20,7 +20,7 @@ struct OriginRoutes {
         let found = try services.origins.get(machine: machine, workload: workload)
         var headers = HTTPFields()
         headers[.contentType] = "application/json"
-        let data = try JSONSerialization.data(withJSONObject: ["origin": found.map(Self.view) ?? NSNull()], options: [.sortedKeys])
+        let data = try JSONSerialization.data(withJSONObject: ["origin": McpService.null(found.map(Self.view))], options: [.sortedKeys])
         return Response(status: .ok, headers: headers, body: .init(byteBuffer: ByteBuffer(data: data)))
     }
 

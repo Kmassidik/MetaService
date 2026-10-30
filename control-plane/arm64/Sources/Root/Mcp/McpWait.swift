@@ -27,7 +27,7 @@ extension McpService {
         if request.kind == .create {
             row = try? ownership.row(request: request.id)
         } else {
-            row = try? ownership.find(caller: caller.id, machine: request.params["machine"] as? String ?? "", workload: request.params["vm"] as? String ?? "")
+            row = try? ownership.find(person: caller.person.id, machine: request.params["machine"] as? String ?? "", workload: request.params["vm"] as? String ?? "")
         }
         return row.flatMap(liveVm)?.vm
     }

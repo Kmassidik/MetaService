@@ -41,7 +41,7 @@ extension McpService {
 
     /// Looks at the quotas now, so the AI learns at once; `admitCreate` looks again at the moment the slot is taken.
     private func checkQuota(_ wish: McpWish, caller: McpCaller) throws {
-        let used = try ownership.usage(caller: caller.id, now: clock.now)
+        let used = try ownership.usage(person: caller.person.id, now: clock.now)
         if let refusal = McpQuotaCheck.refusal(caller.quotas, used: used, wish: wish) { throw McpRefusal.quota(refusal) }
     }
 
