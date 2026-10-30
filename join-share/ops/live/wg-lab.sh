@@ -145,4 +145,5 @@ check "spoke A cannot reach the hub's ssh port (22)" "$(blocked "$(tcp_from jste
 check "spoke A cannot reach the Mini's loopback panel port (9100) through the hub address" "$(blocked "$(tcp_from jstest-a "$HUB_ADDR" 9100)")"
 check "the lab port is open from the Mini itself (so the block above is the firewall, not a dead listener)" "$(yesno nc -z -w 3 127.0.0.1 "$OTHER_PORT")"
 
+echo "DONE failed=$FAILED"
 exit $FAILED

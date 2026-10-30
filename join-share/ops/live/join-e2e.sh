@@ -140,4 +140,5 @@ DEL=$(admin -o /dev/null -w '%{http_code}' -X DELETE "http://127.0.0.1:$ADMIN_PO
 check "removing the peer on the hub works (the address is freed)" "$([ "$DEL" = 200 ] || [ "$DEL" = 204 ] && echo yes || echo no)"
 check "the hub's WireGuard interface has no peer left" "$([ "$(sudo -n env PATH="$PATH" wg show all peers 2>/dev/null | grep -c .)" = 0 ] && echo yes || echo no)"
 
+echo "DONE failed=$FAILED"
 exit $FAILED
