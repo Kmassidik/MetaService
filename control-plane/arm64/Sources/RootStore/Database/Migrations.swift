@@ -200,6 +200,32 @@ public enum Migrations {
             """) }),
         // What a machine is made of (Facts.hardware, cleaned by the parent, as JSON), replaced with every heartbeat. Null for a helper that does not say.
         (28, { try $0.exec("ALTER TABLE machines ADD COLUMN hardware_json TEXT;") }),
+        // MCP: AI clients create and manage VMs through scoped API tokens (mcp/SPEC.md). A token keeps only the SHA-256 of its text and a prefix for display.
+        // token_workloads records which VMs a token made (a row exists from the create, before the VM has an id), and mcp_requests every create, start, stop and
+        // delete a token asked for, with the approval a person gave. The unique key on (token, idempotency key) makes a repeated key one request.
+        (29, { try $0.exec("""
+            CREATE TABLE api_tokens (
+              id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
+              scopes_json TEXT NOT NULL, quotas_json TEXT NOT NULL, auto_approve INTEGER NOT NULL DEFAULT 0,
+              created_by TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, last_used_at INTEGER, revoked_at INTEGER
+            );
+            CREATE TABLE token_workloads (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              token_id TEXT NOT NULL REFERENCES api_tokens(id), machine_id TEXT NOT NULL, workload_id TEXT,
+              request_id TEXT NOT NULL, command_id TEXT, idempotency_key TEXT,
+              vcpu INTEGER NOT NULL, ram_mb INTEGER NOT NULL, disk_gb INTEGER NOT NULL,
+              created_at INTEGER NOT NULL, deleted_at INTEGER
+            );
+            CREATE INDEX token_workloads_by_token ON token_workloads (token_id, deleted_at);
+            CREATE UNIQUE INDEX token_workloads_by_workload ON token_workloads (machine_id, workload_id) WHERE workload_id IS NOT NULL;
+            CREATE TABLE mcp_requests (
+              id TEXT PRIMARY KEY, token_id TEXT NOT NULL REFERENCES api_tokens(id), kind TEXT NOT NULL, params_json TEXT NOT NULL,
+              state TEXT NOT NULL, command_id TEXT, result_json TEXT, idempotency_key TEXT,
+              created_at INTEGER NOT NULL, decided_by TEXT, decided_at INTEGER, expires_at INTEGER NOT NULL
+            );
+            CREATE INDEX mcp_requests_by_state ON mcp_requests (state, created_at);
+            CREATE UNIQUE INDEX mcp_requests_by_key ON mcp_requests (token_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

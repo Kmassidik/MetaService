@@ -188,6 +188,11 @@ final class WorkloadService: @unchecked Sendable {
 
     // MARK: sending and following
 
+    /// The machine a create would land on, looking only at the machines in `allowed`. Throws what `Placement` throws, with the reason.
+    func chooseMachine(for request: CreateWorkloadOperatorRequest, among allowed: Set<String>) throws -> String {
+        try Placement.choose(try candidates(clock.now).filter { allowed.contains($0.id) }, Self.wish(of: request))
+    }
+
     private func candidates(_ now: Date) throws -> [PlacementMachine] {
         try machines.list(now: now).map { machine in
             let promised = (try? commands.promised(machine: machine.id)) ?? (ramMb: 0, diskGb: 0)
