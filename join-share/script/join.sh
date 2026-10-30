@@ -17,6 +17,7 @@ JOIN_DAEMON_DIR=${JOIN_DAEMON_DIR:-/Library/LaunchDaemons}
 JOIN_UNIT_DIR=${JOIN_UNIT_DIR:-$HOME/.config/systemd/user}
 JOIN_AGENT_DIR=${JOIN_AGENT_DIR:-$HOME/Library/LaunchAgents}
 JOIN_SYSTEMD_DIR=${JOIN_SYSTEMD_DIR:-/run/systemd/system}
+JOIN_TUN=${JOIN_TUN:-/dev/net/tun}
 JOIN_POLL_SECONDS=${JOIN_POLL_SECONDS:-3}
 JOIN_POLL_MAX=${JOIN_POLL_MAX:-300}
 JOIN_ENROLL_TRIES=${JOIN_ENROLL_TRIES:-5}
@@ -148,7 +149,7 @@ detect_share() {
 row() { printf '  %-9s %s\n' "[$1]" "$2"; }
 report() { if "$@"; then row found "$LABEL"; else row missing "$LABEL"; return 1; fi; }
 
-kernel_has_wireguard() { [ -d /sys/module/wireguard ] || modinfo wireguard >/dev/null 2>&1; }
+kernel_has_wireguard() { [ -d /sys/module/wireguard ] || modinfo wireguard >/dev/null 2>&1 || modprobe -n wireguard >/dev/null 2>&1; }
 linger_is_on() { ! have loginctl || loginctl show-user "$(id -un)" -p Linger 2>/dev/null | grep -q 'Linger=yes'; }
 has_helper() { [ -x "$BIN" ]; }
 
@@ -167,24 +168,40 @@ check_platform_items() {
     LABEL="wireguard-go"; report have wireguard-go || MISSING_WG=yes
     return 0
   fi
-  LABEL="WireGuard in the kernel"; report kernel_has_wireguard || fail "this kernel has no WireGuard module. Install a kernel that has it, then run this again."
+  check_linux_wireguard
   LABEL="Incus (optional, for virtual machines)"; report have incus || true
   LABEL="start-at-boot for your user (linger)"; report linger_is_on || NEED_LINGER=yes
+}
+
+# One line for WireGuard on Linux: the kernel module, else userspace (wg-quick falls back to wireguard-go on its own), else it must be installed.
+check_linux_wireguard() {
+  WG_MODE=kernel
+  kernel_has_wireguard && { row found "WireGuard (kernel)"; return 0; }
+  WG_MODE=userspace
+  [ -e "$JOIN_TUN" ] || fail "this kernel has no WireGuard module and $JOIN_TUN is missing, so userspace WireGuard cannot work either. In a container, start it with the tun device."
+  have wireguard-go && { row found "WireGuard (userspace, wireguard-go)"; return 0; }
+  row missing "WireGuard (no kernel module and no wireguard-go)"
+  NEED_GO=yes
 }
 
 # The package step: Homebrew runs as you on a Mac; on Linux it is the first root block.
 plan_packages() {
   BLOCK_PACKAGES=""
   USER_PACKAGES=""
-  [ "$MISSING_WG" = yes ] || return 0
+  [ "$MISSING_WG" = yes ] || [ "$NEED_GO" = yes ] || return 0
   if [ "$MY_OS" = mac ]; then
     have brew || fail "Homebrew (brew) is needed to install WireGuard on a Mac. Install it, then run this again."
     USER_PACKAGES="brew install wireguard-tools wireguard-go"
     return 0
   fi
-  if have dnf; then BLOCK_PACKAGES="dnf install -y wireguard-tools"
-  elif have apt-get; then BLOCK_PACKAGES="apt-get install -y wireguard-tools"
-  else fail "wireguard-tools is missing and neither dnf nor apt-get was found. Install it, then run this again."; fi
+  packages=""
+  [ "$MISSING_WG" != yes ] || packages=" wireguard-tools"
+  [ "$NEED_GO" != yes ] || packages="$packages wireguard-go"
+  if have dnf; then installer="dnf install -y"
+  elif have apt-get; then installer="apt-get install -y"
+  else fail "WireGuard packages are missing and neither dnf nor apt-get was found. Install them, then run this again."; fi
+  [ "$NEED_GO" != yes ] || [ "$installer" != "dnf install -y" ] || fail "this kernel has no WireGuard module, and dnf has no userspace WireGuard (wireguard-go) to fall back on. Use a kernel with WireGuard, then run this again."
+  BLOCK_PACKAGES="$installer$packages"
 }
 
 plan_linux_block() {
@@ -259,6 +276,7 @@ prepare_root() {
   remember_sudo
   [ -z "$BLOCK_PACKAGES" ] || run_root "$BLOCK_PACKAGES"
   have wg && have wg-quick || fail "WireGuard tools are still missing after the install."
+  [ "$NEED_GO" != yes ] || have wireguard-go || fail "wireguard-go is still missing after the install."
 }
 
 make_keys() {
@@ -309,8 +327,17 @@ wait_for_approval() {
   fail "no answer in time. Get a new command from the admin page."
 }
 
+field() { json_get "$STATUS" "$1"; }
+
+# The share after the admin lowered it comes with the approval (machine.share); the asked numbers stay when it is missing.
+apply_granted_share() {
+  granted=$(field ram_mb)
+  ! valid '[1-9][0-9]*' "$granted" || SHARE_RAM_MB=$granted
+  granted=$(field disk_gb)
+  ! valid '[1-9][0-9]*' "$granted" || SHARE_DISK_GB=$granted
+}
+
 read_approval() {
-  field() { json_get "$STATUS" "$1"; }
   WG_ADDRESS=$(field address); HUB_KEY=$(field hub_public_key); ENDPOINT=$(field endpoint); ALLOWED=$(field allowed_ips); KEEPALIVE=$(field keepalive)
   NAME=$(field name); TOKEN=$(field enrollment_token); PARENT_URL=$(field parent_url); HELPER_BIND=$(field helper_bind); HELPER_PORT=$(field helper_port)
   DOWNLOAD_URL=$(field url); DOWNLOAD_SHA=$(field sha256)
@@ -326,6 +353,7 @@ read_approval() {
   need "helper port" '[0-9]+' "$HELPER_PORT"
   need "download address" 'https?://[A-Za-z0-9.:/_?=&%-]+' "$DOWNLOAD_URL"
   need "checksum" '[0-9a-fA-F]{64}' "$DOWNLOAD_SHA"
+  apply_granted_share
   (umask 077; printf '%s' "$TOKEN" > "$STATE/enroll.token")
 }
 
@@ -453,6 +481,7 @@ main() {
   stop_if_joined
   detect_share
   NEED_LINGER=no
+  NEED_GO=no
   check_machine
   plan_packages
   plan_root_blocks

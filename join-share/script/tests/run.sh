@@ -30,7 +30,7 @@ case "$1" in
   pubkey) cat >/dev/null; echo "PUBLICKEYPUBLICKEYPUBLICKEYPUBLICKEYPUBL=" ;;
 esac'
   stub wg-quick 'echo "wg-quick $*" >> "$CALLS"'
-  [ "$OS_NAME" != Darwin ] || stub wireguard-go 'exit 0'
+  stub wireguard-go 'exit 0'
 }
 
 new_world() { # os cpu, optional: wg-present
@@ -50,15 +50,16 @@ exec "$@"'
 exit 0'
   stub id 'if [ "$1" = -u ] && [ -f "$AS_ROOT" ]; then echo 0; else exec /usr/bin/id "$@"; fi'
   stub launchctl 'echo "launchctl $*" >> "$CALLS"'
-  stub modinfo 'exit 0'
+  stub modinfo '[ -f "$NO_KERNEL" ] && exit 1; exit 0'
   stub loginctl 'echo "loginctl $*" >> "$CALLS"
 case "$1" in show-user) [ -f "$LINGER" ] && echo Linger=yes || echo Linger=no ;; enable-linger) : > "$LINGER" ;; esac'
   stub brew 'echo "brew $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"; cp "$STUBS/.wireguard-go" "$STUBS/wireguard-go"'
   stub dnf 'echo "dnf $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"'
-  [ "$OS_NAME" = Darwin ] && rm -f "$BIN/dnf" || rm -f "$BIN/brew"
+  stub apt-get 'echo "apt-get $*" >> "$CALLS"; cp "$STUBS/.wg" "$STUBS/wg"; cp "$STUBS/.wg-quick" "$STUBS/wg-quick"; cp "$STUBS/.wireguard-go" "$STUBS/wireguard-go"'
+  [ "$OS_NAME" = Darwin ] && rm -f "$BIN/dnf" "$BIN/apt-get" || rm -f "$BIN/brew"
   make_wg_tools
   for tool in wg wg-quick wireguard-go; do [ -f "$BIN/$tool" ] && mv "$BIN/$tool" "$BIN/.$tool"; done
-  LINGER="$T/linger"; NO_BUS="$T/no-bus"; AS_ROOT="$T/as-root"
+  LINGER="$T/linger"; NO_BUS="$T/no-bus"; AS_ROOT="$T/as-root"; NO_KERNEL="$T/no-kernel"; : > "$T/tun"
   mkdir -p "$T/systemd"; WG_DIR="$T/etc-wireguard"; DAEMONS="$T/daemons"; mkdir -p "$DAEMONS"
 }
 
@@ -75,7 +76,7 @@ start_hub() {
 # join <link> <os> <cpu> <answer>  : the way a person runs it. Output in $T/out, exit code in $CODE.
 join() {
   printf '%s\n' "$4" > "$T/tty"
-  HOME="$T/home" PATH="$BIN:$SYSTEM_PATH" CALLS="$CALLS" LINGER="$LINGER" NO_BUS="$NO_BUS" AS_ROOT="$AS_ROOT" AGENT_LOG="$AGENT_LOG" STUBS="$BIN" \
+  HOME="$T/home" PATH="$BIN:$SYSTEM_PATH" CALLS="$CALLS" LINGER="$LINGER" NO_BUS="$NO_BUS" AS_ROOT="$AS_ROOT" NO_KERNEL="$NO_KERNEL" JOIN_TUN="$T/tun" AGENT_LOG="$AGENT_LOG" STUBS="$BIN" \
   JOIN_TTY="${TTY_FILE:-$T/tty}" JOIN_SYSTEMD_DIR="$T/systemd" JOIN_WG_DIR="$WG_DIR" JOIN_DAEMON_DIR="$DAEMONS" JOIN_POLL_SECONDS=0 JOIN_POLL_MAX=5 \
   JOIN_SHARE_CORES=2 JOIN_SHARE_RAM_MB=4096 JOIN_SHARE_DISK_GB=20 \
   sh -c "curl -fsSL '$HUB/j/$1?os=$2&cpu=$3' | ${TEST_SH:-sh}" > "$T/out" 2>&1
@@ -219,6 +220,33 @@ new_world Linux x86_64; install_tools_already; start_hub
 TTY_FILE=/nonexistent; join approve-notty linux x86_64 ""; unset TTY_FILE
 ok "plain message" sh -c "[ $CODE != 0 ] && grep -q 'set JOIN_SHARE_YES=1' '$T/out'"
 ok "nothing ran" sh -c "! grep -q '^sudo\|register' '$CALLS' '$T/hub/hub.log' && test ! -e '$T/home/.metaservice-join'"
+finish_world
+
+echo "== lowered share from the approval reaches the helper"
+new_world Linux x86_64; install_tools_already; start_hub
+join lowered-1 linux x86_64 y
+ok "machine.share replaces the asked numbers (2048 MB, 10 GB, not 4096 and 20)" has "$T/home/.config/systemd/user/io.metaservice.join.service" '--ram-allowance-mb 2048 --disk-allowance-gb 10'
+finish_world
+
+echo "== linux without the kernel module: userspace WireGuard"
+new_world Linux arm64; install_tools_already; : > "$NO_KERNEL"; start_hub
+join approve-user linux arm64 y
+ok "wireguard-go found: one line, continues, no package install" sh -c "[ $CODE = 0 ] && grep -q '\[found\] *WireGuard (userspace, wireguard-go)' '$T/out' && ! grep -q '^dnf\|^apt-get' '$CALLS' && grep -q 'systemctl enable wg-quick' '$CALLS'"
+finish_world
+
+new_world Linux arm64; install_tools_already; rm -f "$BIN/dnf" "$BIN/wireguard-go"; : > "$NO_KERNEL"; start_hub
+join approve-user2 linux arm64 y
+ok "neither: wireguard-go is installed once, in the first sudo block, and the join goes on" sh -c "[ $CODE = 0 ] && grep -q '\[missing\] *WireGuard' '$T/out' && [ \$(grep -c '^apt-get install -y wireguard-go' '$CALLS') = 1 ] && [ \$(grep -c '^sudo sh -c' '$CALLS') = 2 ] && [ \$(grep -c '^sudo -v' '$CALLS') = 1 ] && grep -n 'sudo sh -c\|^apt-get' '$CALLS' | head -2 | tail -1 | grep -q apt-get"
+finish_world
+
+new_world Linux arm64; install_tools_already; rm -f "$BIN/apt-get" "$BIN/wireguard-go"; : > "$NO_KERNEL"; start_hub
+join approve-user3 linux arm64 y
+ok "neither, only dnf: stops with a plain message, nothing ran" sh -c "[ $CODE != 0 ] && grep -q 'dnf has no userspace WireGuard' '$T/out' && ! grep -q '^sudo sh -c\|^dnf' '$CALLS'"
+finish_world
+
+new_world Linux arm64; install_tools_already; : > "$NO_KERNEL"; rm -f "$T/tun"; start_hub
+join approve-user4 linux arm64 y
+ok "userspace without /dev/net/tun: stops with a plain message" sh -c "[ $CODE != 0 ] && grep -q 'tun' '$T/out' && ! grep -q '^sudo' '$CALLS'"
 finish_world
 
 echo

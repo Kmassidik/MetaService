@@ -20,7 +20,8 @@ const PENDING = 'p1'
 const SECRET = 'secretvalue123'
 const CODE = '482917'
 const POLLS_BEFORE_ANSWER = 2
-const STORIES = ['approve', 'refuse', 'expire', 'badsha']
+const STORIES = ['approve', 'lowered', 'refuse', 'expire', 'badsha']
+const LOWERED_SHARE = { cores: 1, ram_mb: 2048, disk_gb: 10 }
 
 type Link = { story: string; registered: boolean; polls: number; tokenGiven: boolean }
 const links = new Map<string, Link>()
@@ -39,6 +40,7 @@ const unknown = () => json({ error: 'unknown_link' }, 404)
 
 function approved(state: Link) {
   const machine: Record<string, unknown> = { name: 'far-pc', parent_url: 'http://10.77.0.1:9102', helper_bind: '10.77.0.2', helper_port: 9101 }
+  if (state.story === 'lowered') machine.share = LOWERED_SHARE
   if (!state.tokenGiven) machine.enrollment_token = 'tok-' + 'a'.repeat(40)
   state.tokenGiven = true
   const sha = state.story === 'badsha' ? WRONG_SHA : AGENT_SHA
