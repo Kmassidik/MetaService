@@ -91,7 +91,8 @@ check "an unsupported pair is refused with 400 (Windows)" "$([ "$(curl -s -o /de
 
 # 4. The far PC: a clean container; the real script, in the background, its output in a file.
 inside 'sh ~/.metaservice-join/leave.sh >/dev/null 2>&1; rm -rf ~/.metaservice-join ~/metaservice-box /tmp/join.log; true' >/dev/null 2>&1
-container exec -d jstest-a sh -c "JOIN_SHARE_YES=1 $COMMAND > /tmp/join.log 2>&1"
+# The variable must reach the `sh` at the end of the pipe, not `curl`, so it is exported first.
+container exec -d jstest-a sh -c "export JOIN_SHARE_YES=1; $COMMAND > /tmp/join.log 2>&1"
 
 CODE=""
 for _ in $(seq 1 60); do
