@@ -96,7 +96,7 @@ const fleet = (): Json[] => [
 
 const externalFleet = (): Json[] => [
   { id: 'docker:abc123', name: 'postgres', runtime: 'docker', kind: 'container', state: 'running', image: 'postgres:18' },
-  { id: 'incus:build', name: 'build-cache', runtime: 'incus', kind: 'container', state: 'stopped', image: 'ubuntu:24.04' },
+  { id: 'incus:build', name: 'build-cache', runtime: 'incus', kind: 'container', state: 'stopped', image: 'registry.example.com/team/build-cache-image:2026.10.30-cuda13.0-runtime' },
   { id: 'apple:8D6C7F2E', name: 'mac-guest', runtime: 'apple', kind: 'vm', state: 'unknown' },
 ]
 

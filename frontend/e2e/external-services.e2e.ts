@@ -98,6 +98,9 @@ try {
     await page.waitForSelector(rowSelector(id))
   }
 
+  await b.click('Table')
+  await page.waitForSelector('.external-row')
+  await b.shot('machine-vm-table.png')
   await b.click('Cards')
   await page.waitForSelector('.external-card')
   await b.shot('machine-vm-cards.png')

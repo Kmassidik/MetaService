@@ -174,6 +174,8 @@
 <ExternalDialog service={openService} onClose={() => (openExternal = null)} onRun={external.run} />
 
 <style>
+  /* The list and the cards line up with the toolbar and the Building, not inset like a page of their own. */
+  .managed-block :global(.tablewrap), .managed-block :global(.grid) { padding-left: 0; padding-right: 0; }
   .managed-block > h2 { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
   .bar-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }

@@ -11,7 +11,7 @@
     <div class="ch">
       <div class="row1"><RuntimeLogo logo={block.logo} size={20} /><span class="nm">{block.name}</span><span class="tag" class:run={block.state === 'running'}>{block.state}</span><span class="tag">external</span></div>
       <div class="specs"><span>{block.tag}</span><span>{block.kind}</span></div>
-      <div class="dom">{block.image ?? '—'}</div>
+      <div class="dom" title={block.image ?? ''}>{block.image ?? '—'}</div>
     </div>
     <div class="acts"><button class="btn sm" type="button" onclick={() => onOpen(block.id)}>Details</button></div>
   </div>
