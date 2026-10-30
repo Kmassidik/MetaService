@@ -6,13 +6,13 @@
 # The other rules are kept as they are, and the old configuration is saved to join-share/state/ first. Safe to run again.
 # Usage: sh cloudflare-hostname.sh            (dry run: shows what it would do)
 #        sh cloudflare-hostname.sh --apply    (does it)
-#        JOIN_HOSTNAME=join.ruvio.site JOIN_SERVICE=http://localhost:9110 sh cloudflare-hostname.sh --apply
+#        JOIN_HOSTNAME=join.ruvio.site JOIN_SERVICE=http://127.0.0.1:9110 sh cloudflare-hostname.sh --apply
 set -eu
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 ARM64="${PARENT_DIR:-$HOME/MetaService/control-plane/arm64}"
 HOSTNAME_WANTED="${JOIN_HOSTNAME:-join.ruvio.site}"
-SERVICE_WANTED="${JOIN_SERVICE:-http://localhost:9110}"
+SERVICE_WANTED="${JOIN_SERVICE:-http://127.0.0.1:9110}"
 API=https://api.cloudflare.com/client/v4
 APPLY=no
 [ "${1:-}" = --apply ] && APPLY=yes
