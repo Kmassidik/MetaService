@@ -26,6 +26,7 @@
   ]
   const infrastructure: NavPage[] = [
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
+    { id: 'share', label: 'Share a PC', href: '#/share', icon: 'M3 4h13v9H3z M7 17h5 M9.5 13v4 M17 11l4 3.5-4 3.5z M17 14.5h-3' },
     { id: 'vms', label: 'VMs', href: '#/vms', icon: 'M4 4h16v6H4z M4 14h16v6H4z M8 7h1 M8 17h1' },
     { id: 'sandboxes', label: 'Sandboxes', href: '#/sandboxes', icon: 'M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10' },
   ]

@@ -9,7 +9,7 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc --noEmit && tsc -p e2e --noEmit",
     "check": "bun scripts/check-safe-markup.ts && bun run typecheck",
     "test": "bun test",
-    "e2e": "bun e2e/panel.e2e.ts && bun e2e/vms.e2e.ts && bun e2e/create-progress.e2e.ts && bun e2e/connect.e2e.ts && bun e2e/fix.e2e.ts && bun e2e/machine-page.e2e.ts && bun e2e/storage.e2e.ts && bun e2e/monitor.e2e.ts && bun e2e/monitor-real.e2e.ts && bun e2e/chat.e2e.ts && bun e2e/terminal.e2e.ts && bun e2e/gpu.e2e.ts && bun e2e/gpu-limit.e2e.ts && bun e2e/cpu-options.e2e.ts && bun e2e/external-services.e2e.ts"
+    "e2e": "bun e2e/panel.e2e.ts && bun e2e/vms.e2e.ts && bun e2e/create-progress.e2e.ts && bun e2e/connect.e2e.ts && bun e2e/fix.e2e.ts && bun e2e/machine-page.e2e.ts && bun e2e/storage.e2e.ts && bun e2e/monitor.e2e.ts && bun e2e/monitor-real.e2e.ts && bun e2e/chat.e2e.ts && bun e2e/terminal.e2e.ts && bun e2e/gpu.e2e.ts && bun e2e/gpu-limit.e2e.ts && bun e2e/cpu-options.e2e.ts && bun e2e/external-services.e2e.ts && bun e2e/share.e2e.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
