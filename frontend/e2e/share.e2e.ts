@@ -26,11 +26,16 @@ try {
   const field = (label: string) => `input[aria-label="${label}"]`
 
   await page.goto(`${hub.base}/#/`, { waitUntil: 'networkidle0' })
-  const sideText = await b.run(() => document.querySelector<HTMLElement>('aside.side')?.innerText ?? '')
-  check('the sidebar has a Share a PC entry', sideText.includes('Share a PC'), sideText)
-  await page.click('aside.side a[href="#/share"]')
+  check('Share a PC has no row of its own in the sidebar: it is one of the Machines pages', await b.run(() =>
+    [...document.querySelectorAll('aside.side nav > div > a')].every((link) => link.textContent?.trim() !== 'Share a PC')))
+  await page.click('aside.side button[aria-controls="machines-menu"]')
+  await b.until(() => document.querySelector('#machines-menu a[href="#/share"]') !== null)
+  check('the Machines dropdown lists Machine list, Find machines, Share a PC', await b.run(() =>
+    [...document.querySelectorAll('#machines-menu a')].map((link) => link.textContent?.trim()).join('|') === 'Machine list|Find machines|Share a PC'))
+  await page.click('#machines-menu a[href="#/share"]')
   await b.until(() => document.querySelector('h1')?.textContent === 'Share a PC')
-  check('the entry opens the page and is marked', await b.run(() => document.querySelector('aside.side a[href="#/share"]')?.getAttribute('aria-current') === 'page'))
+  check('the entry opens the page, is marked, and the Machines row is marked too', await b.run(() =>
+    document.querySelector('#machines-menu a[href="#/share"]')?.getAttribute('aria-current') === 'page' && document.querySelector('aside.side button.group')?.classList.contains('here') === true))
 
   // ---- the buttons and the CPU states ----
   await b.until(() => document.querySelectorAll('[aria-label="System"] button').length === 3)

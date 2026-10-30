@@ -7,13 +7,14 @@ test('the VMs pages mark nothing in the Machines dropdown', () => {
 
 const marked = (route: string) => machinesMenu(route).filter((item) => item.on).map((item) => item.label)
 
-test('the dropdown has two items: the machine list, then Find machines (the machines themselves are on the list page)', () => {
-  expect(machinesMenu('/machines').map((item) => [item.label, item.href])).toEqual([['Machine list', '#/machines'], ['Find machines', '#/machines/find']])
+test('the dropdown has three items: the machine list, Find machines, then Share a PC (the machines themselves are on the list page)', () => {
+  expect(machinesMenu('/machines').map((item) => [item.label, item.href])).toEqual([['Machine list', '#/machines'], ['Find machines', '#/machines/find'], ['Share a PC', '#/share']])
 })
 
 test('the page being looked at is marked', () => {
   expect(marked('/machines')).toEqual(['Machine list'])
   expect(marked('/machines/find')).toEqual(['Find machines'])
+  expect(marked('/share')).toEqual(['Share a PC'])
   expect(marked('/deployments')).toEqual(['Machine list'])
 })
 

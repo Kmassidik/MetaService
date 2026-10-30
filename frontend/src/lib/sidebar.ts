@@ -9,12 +9,13 @@ export interface MenuItem {
   on: boolean
 }
 
-/** The machine list and Find machines. A machine's own page belongs to the list, so the list stays marked there. Nothing is marked on other pages of the panel. */
+/** The machine list, Find machines and Share a PC (a computer somewhere else joins the machines). A machine's own page belongs to the list, so the list stays marked there. Nothing is marked on other pages of the panel. */
 export function machinesMenu(route: string): MenuItem[] {
   const here = pageFor(route) === 'machines'
   const view = machinesView(route)
   return [
     { key: 'list', label: 'Machine list', href: '#/machines', on: here && view === 'list' },
     { key: 'find', label: 'Find machines', href: '#/machines/find', on: here && view === 'find' },
+    { key: 'share', label: 'Share a PC', href: '#/share', on: pageFor(route) === 'share' },
   ]
 }

@@ -12,8 +12,10 @@
   let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
   // Machines is a dropdown: it opens by itself when one of its pages is shown, and the person can close or open it. VMs is one plain link to All VMs.
   let machinesOpen = $state(false)
-  $effect(() => { if (active === 'machines') machinesOpen = true })
-  const isOn = (page: NavPage) => active === page.id
+  // Share a PC is one of the Machines pages, so the dropdown opens and the Machines row is marked there too.
+  const inMachines = $derived(active === 'machines' || active === 'share')
+  $effect(() => { if (inMachines) machinesOpen = true })
+  const isOn = (page: NavPage) => (page.id === 'machines' ? inMachines : active === page.id)
   const dropdowns = $derived<Record<string, { items: MenuItem[]; open: boolean; toggle: () => void }>>({
     machines: { items: machinesMenu(route), open: machinesOpen, toggle: () => (machinesOpen = !machinesOpen) },
   })
@@ -26,7 +28,6 @@
   ]
   const infrastructure: NavPage[] = [
     { id: 'machines', label: 'Machines', href: '#/machines', icon: 'M4 5h16v10H4z M2 19h20 M9 15v4 M15 15v4' },
-    { id: 'share', label: 'Share a PC', href: '#/share', icon: 'M3 4h13v9H3z M7 17h5 M9.5 13v4 M17 11l4 3.5-4 3.5z M17 14.5h-3' },
     { id: 'vms', label: 'VMs', href: '#/vms', icon: 'M4 4h16v6H4z M4 14h16v6H4z M8 7h1 M8 17h1' },
     { id: 'sandboxes', label: 'Sandboxes', href: '#/sandboxes', icon: 'M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10' },
   ]
