@@ -4,6 +4,7 @@ import copy
 import pathlib
 
 from agent.fake.engine import CPU_OPTIONS, DEFAULT_AGENT_BUILD, DEFAULT_CPU_MODEL, DEFAULT_HARDWARE, MAC_CPU_MODEL, GPU_INSIDE, RTX_5090, FakeEngine, MachineSpec
+from agent.fake.security import MODE_OK, MODES, FakeSecurity
 from agent.fake.server import make_server
 from agent.fake.stats import FakeStats
 from agent.fake.stats_gpu import GPU_KINDS
@@ -46,6 +47,8 @@ def main():
     parser.add_argument("--cpu-options", action="store_true", help="play a helper with the CPU settings of Proxmox's Processors window (announces cpu_models, cpu_topology, cpu_flags and cpu_limit)")
     parser.add_argument("--os", choices=["linux", "macos"], default="linux", help="the system the facts report")
     parser.add_argument("--no-terminal", action="store_true", help="play an older helper that does not say it serves the console (no `terminal` in the capabilities)")
+    parser.add_argument("--no-security", action="store_true", help="play an older helper that does not serve the security log (no `security` in the capabilities)")
+    parser.add_argument("--security-mode", choices=MODES, default=MODE_OK, help="ok, error (answer 500) or hang (no answer) for GET /v1/security/events")
     parser.add_argument("--sandbox", action="store_true", help="run sandboxes (the pretend engine) and say so in the facts: capabilities.sandbox and Facts.sandbox")
     parser.add_argument("--workload", action="append", default=[], metavar="NAME:KIND", help="start with a running workload of this name and kind (vm or container); the first one is wl-1 and so on; can be repeated")
     parser.add_argument("--agent-build", default=DEFAULT_AGENT_BUILD, help="the build (64 lowercase hex digits) the facts report; 'none' reports no build, like an older helper")
@@ -57,13 +60,15 @@ def main():
     card = [dict(RTX_5090)] if has_card else []
     cpu_options = CPU_OPTIONS if args.cpu_options else {}
     spec = MachineSpec(cpu_model=cpu_model_for(args), hardware=hardware_for(args), os=args.os, arch="arm64" if args.os == "macos" else "x86_64", vm=not has_card, gpu=card, gpu_in_container=args.nvidia == "toolkit", gpu_inside=args.gpu_inside,
-                       gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, sandbox=args.sandbox, **cpu_options)
+                       gpu_memory_limit=not args.no_gpu_limit, terminal=not args.no_terminal, security=not args.no_security, sandbox=args.sandbox, **cpu_options)
     build = None if args.agent_build == "none" else args.agent_build
     engine = FakeEngine(spec, agent_build=build)
     for number, text in enumerate(args.workload, start=1):
         name, _, kind = text.partition(":")
         engine.create({"command_id": f"start-{number}", "name": name, "kind": kind or "container", "cpu": 1, "ram_mb": 512, "disk_gb": 1})
-    server = make_server(engine, token, args.host, args.port, FakeStats(cores=args.cores, gpu=args.gpu or has_card, gpus=parse_kinds(args.gpus), physical=args.physical, extras=args.extras))
+    security = FakeSecurity()
+    security.set_mode(args.security_mode)
+    server = make_server(engine, token, args.host, args.port, security=security, stats=FakeStats(cores=args.cores, gpu=args.gpu or has_card, gpus=parse_kinds(args.gpus), physical=args.physical, extras=args.extras))
     print(f"Fake Agent on http://{args.host}:{server.server_address[1]}")
     server.serve_forever()
 

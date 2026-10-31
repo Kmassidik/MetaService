@@ -13,6 +13,7 @@ from agent.fake.sandboxes import DEFAULT_LIMIT as DEFAULT_EVENT_LIMIT
 from agent.fake.sandboxes import MAX_LIMIT as MAX_EVENT_LIMIT
 from agent.fake.sandboxes import SandboxNotFound, SandboxRefused, SandboxTooOld
 from agent.fake.ssh_keys import is_valid_key
+from agent.fake.security import MODES, FakeSecurity
 from agent.fake.stats import FakeStats, wants_processes
 from agent.fake.storage import FakeStorage
 from agent.fake.terminal import Consoles, Session
@@ -57,6 +58,7 @@ class AgentHandler(BaseHTTPRequestHandler):
     engine = None
     consoles = None
     stats = None
+    security = None
     token = b""
     server_version = "FakeAgent"
     _anon_ids = itertools.count(1)
@@ -164,6 +166,22 @@ class AgentHandler(BaseHTTPRequestHandler):
         if with_processes is None:
             raise ApiError(400, "invalid_input", "processes must be 1 or 0")
         self._send(200, self.stats.reading(with_processes))
+
+    def get_security_events(self):
+        if not self.engine.spec.security:
+            raise NotFound()
+        status, body = self.security.answer(self.path)
+        self._send(status, body)
+
+    def set_security(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0") or 0)) or b"{}")
+        if body.get("mode") in MODES:
+            self.security.set_mode(body["mode"])
+        if body.get("rotate"):
+            self.security.rotate()
+        for event in body.get("append", []):
+            self.security.append(event)
+        self._send(204)
 
     def get_storage(self):
         self._send(200, self.storage.answer())
@@ -485,6 +503,8 @@ ROUTES = [
     ("GET", r"/v1/health", AgentHandler.health),
     ("GET", r"/v1/facts", AgentHandler.facts),
     ("GET", r"/v1/stats", AgentHandler.get_stats),
+    ("GET", r"/v1/security/events", AgentHandler.get_security_events),
+    ("POST", r"/fake/security", AgentHandler.set_security),
     ("GET", r"/v1/storage", AgentHandler.get_storage),
     ("POST", r"/v1/storage/scan", AgentHandler.scan_storage),
     ("GET", r"/v1/images", AgentHandler.list_images),
@@ -528,6 +548,6 @@ ROUTES = [
 ]
 
 
-def make_server(engine, token, host="127.0.0.1", port=0, stats=None, storage=None):
-    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles(), "stats": stats or FakeStats(), "storage": storage or FakeStorage()})
+def make_server(engine, token, host="127.0.0.1", port=0, stats=None, storage=None, security=None):
+    handler = type("BoundHandler", (AgentHandler,), {"engine": engine, "token": token.encode(), "consoles": Consoles(), "stats": stats or FakeStats(), "security": security or FakeSecurity(), "storage": storage or FakeStorage()})
     return ThreadingHTTPServer((host, port), handler)
