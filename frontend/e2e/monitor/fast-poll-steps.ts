@@ -1,7 +1,7 @@
 // The faster refresh while a person watches the Live tab: a request about every 2 seconds, none when another tab or a hidden browser tab is shown,
 // an immediate one on return, never two at once, a caption that says so, and the charts still growing by one point per 10 seconds.
 import type { Page } from 'puppeteer-core'
-import { openMachine, openTab } from '../machine/steps.ts'
+import { COMPUTE_TAB, openMachine, openTab } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
@@ -70,7 +70,7 @@ async function captionAndRate(page: Page, b: Browse, world: StandIn) {
 }
 
 async function otherTabStops(b: Browse, world: StandIn) {
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await wait(RETURN_SETTLE_MS)
   const before = asks(world, 'studio')
   await wait(QUIET_MS)

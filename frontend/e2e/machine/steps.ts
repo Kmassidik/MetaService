@@ -4,6 +4,9 @@ import type { Browse } from '../support/page.ts'
 
 export const SHORT_WAIT_MS = 10000
 export const COMMAND_WAIT_MS = 15000
+/** The machine page's tabs by their visible label (src/lib/machineTabs.ts); the vms id of old URLs is shown as Compute. */
+export const COMPUTE_TAB = 'Compute'
+export const MACHINE_TAB_LABELS = ['Live', COMPUTE_TAB, 'Storage', 'Environment', 'Security', 'Activity']
 const SWITCH = 'button[role=switch]'
 
 export const openMachine = async (b: Browse, base: string, id: string): Promise<void> => {
@@ -11,7 +14,7 @@ export const openMachine = async (b: Browse, base: string, id: string): Promise<
   await b.until((wanted) => document.querySelector('.phead h1')?.textContent === wanted, { timeout: SHORT_WAIT_MS }, id)
 }
 
-/** Opens a tab of the machine page by the start of its label (so "VMs" finds "VMs (2)"). */
+/** Opens a tab of the machine page by the start of its label (so "Compute" finds "Compute (2)"). */
 export const openTab = async (b: Browse, label: string): Promise<void> => {
   await b.run((wanted) => [...document.querySelectorAll<HTMLElement>('[role=tab]')].find((tab) => tab.textContent?.trim().startsWith(wanted))?.click(), label)
   await b.until((wanted) => document.querySelector('[role=tab][aria-selected=true]')?.textContent?.trim().startsWith(wanted), { timeout: SHORT_WAIT_MS }, label)

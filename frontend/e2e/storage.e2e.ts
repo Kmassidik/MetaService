@@ -4,7 +4,7 @@
 // Needs: a built panel (set PANEL_DIST to its folder; `bunx vite build --outDir <dir>`), Google Chrome (or CHROME_PATH), `bun install` in frontend/.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/storage.e2e.ts
 import puppeteer from 'puppeteer-core'
-import { SHORT_WAIT_MS, expectNoSideScroll, openTab } from './machine/steps.ts'
+import { MACHINE_TAB_LABELS, SHORT_WAIT_MS, expectNoSideScroll, openTab } from './machine/steps.ts'
 import { startFakeParent } from './storage/fake-parent.ts'
 import { HIDDEN_BYTES, HOSTILE_FOLDER, sparkMap } from './storage/sparkMap.ts'
 import { check, finish } from './support/check.ts'
@@ -44,7 +44,7 @@ async function firstScan(b: Browse, base: string, scans: () => number) {
   await b.shot('storage-first-scan-desktop.png')
   await untilMap(b)
   check('the scan ends in a map without a reload', (await b.text()).includes('scanned'))
-  check('the tab is named Storage and sits between VMs and Environment', (await b.run(() => [...document.querySelectorAll('[role=tab]')].map((tab) => tab.textContent?.trim().replace(/\s*\(\d+\)$/, '')).join('|'))) === 'Live|VMs|Storage|Environment|Activity')
+  check('the tab is named Storage and sits between Compute and Environment', (await b.run(() => [...document.querySelectorAll('[role=tab]')].map((tab) => tab.textContent?.trim().replace(/\s*\(\d+\)$/, '')).join('|'))) === MACHINE_TAB_LABELS.join('|'))
 }
 
 async function drawnLikeDisktree(b: Browse) {

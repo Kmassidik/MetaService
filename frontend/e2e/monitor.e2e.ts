@@ -6,7 +6,7 @@ import { startStandIn, type StandIn } from './monitor/stand-in.ts'
 import { cardsAreBorderedAndEqualInHeight, chartsAreFullWithHistory, coresAreAlwaysShown, helpButtonsToggleTheExplanations, listIsNeverFetchedOrDrawnWhileTheWindowIsClosed, oneColumnWithoutSidewaysScroll, SIZES, topologyShowsCoresAndThreads, waitForNumbers, windowListsFifteenAndFilters, windowRefreshesWhileOpenAndStopsWhenClosed, windowSortsByCpuAndMemory } from './monitor/live-steps.ts'
 import { fastRefreshWhileWatching, setVisible } from './monitor/fast-poll-steps.ts'
 import { gpuOnTheLiveTab } from './monitor/gpu-steps.ts'
-import { openMachine, openTab } from './machine/steps.ts'
+import { COMPUTE_TAB, MACHINE_TAB_LABELS, openMachine, openTab } from './machine/steps.ts'
 import { check, finish } from './support/check.ts'
 import { noSideScroll, owlShown } from './support/owls.ts'
 import { wait } from './support/net.ts'
@@ -16,8 +16,11 @@ import { chromePath, panelDist } from './support/paths.ts'
 const SHORT_WAIT_MS = 10000
 const PAGE_POLL_MS = 5000
 const LIST_POLL_MS = 15000
-const TABS = ['Live', 'VMs', 'Environment', 'Activity']
 const SLACK_MS = 2500
+/** The Compute tab reads the machine's memory once when it opens (then every 15 s); Live's own rhythm is what must stop, so the baseline is taken after that one read. */
+const COMPUTE_FIRST_READ_MS = 1500
+/** Live asks about every 2 s, so a 7.5 s window would hold 3 or 4 of its asks; the Compute tab's own reading is at most one. */
+const COMPUTE_OWN_READS_MAX = 1
 
 const cpuText = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('[data-testid=gauge-cpu]')?.innerText ?? '')
 const calls = (world: StandIn, id: string) => world.asked[id]?.length ?? 0
@@ -82,14 +85,15 @@ async function tabBarAndPolling(page: Page, b: Browse, world: StandIn) {
   await b.until(() => !!document.querySelector('[data-testid=gauge-cpu]'), { timeout: SHORT_WAIT_MS })
   check('the tab bar is visible without scrolling at 1280x800 on a machine with a GPU', await b.run(() => (document.querySelector('[role=tablist]')?.getBoundingClientRect().bottom ?? Infinity) <= window.innerHeight))
   await b.shot('monitor-live-laptop.png')
-  await openTab(b, 'VMs')
-  await wait(500)
+  await openTab(b, COMPUTE_TAB)
+  await wait(COMPUTE_FIRST_READ_MS)
   const paused = calls(world, 'studio')
   await wait(PAGE_POLL_MS + SLACK_MS)
-  check('polling pauses while another tab is shown', calls(world, 'studio') === paused, `${paused} then ${calls(world, 'studio')}`)
+  const beforeReturn = calls(world, 'studio')
+  check("Live's 2 s rhythm pauses while another tab is shown (at most the Compute tab's own memory read)", beforeReturn - paused <= COMPUTE_OWN_READS_MAX, `${paused} then ${beforeReturn}`)
   await openTab(b, 'Live')
   await wait(700)
-  check('Live asks at once when it is shown again', calls(world, 'studio') === paused + 1, `${paused} then ${calls(world, 'studio')}`)
+  check('Live asks at once when it is shown again', calls(world, 'studio') === beforeReturn + 1, `${beforeReturn} then ${calls(world, 'studio')}`)
   await page.setViewport(SIZES.desktop)
 }
 
@@ -97,7 +101,7 @@ async function everyTabFitsAPhone(page: Page, b: Browse, world: StandIn) {
   await page.setViewport(SIZES.phone)
   for (const id of ['studio', 'mini', 'oldbox']) {
     await openMachine(b, world.base, id)
-    for (const tab of TABS) {
+    for (const tab of MACHINE_TAB_LABELS) {
       await openTab(b, tab)
       await b.shot(`monitor-${id}-${tab.toLowerCase()}-phone.png`, true)
       check(`no sideways scroll at 400 px: ${id}, ${tab}`, await b.run(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
