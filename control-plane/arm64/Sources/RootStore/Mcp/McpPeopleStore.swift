@@ -27,7 +27,9 @@ public struct McpPeopleStore {
 
     public init(_ database: Database) { self.database = database }
 
+    /// Names are unique ignoring case ("Ayu" and "ayu" are one person), which the column's own UNIQUE does not know.
     public func create(id: String, name: String, scopes: Set<McpScope>, quotas: McpQuotas, now: Date) throws {
+        guard try find(name: name) == nil else { throw McpPeopleError.nameTaken }
         do {
             try database.execute("INSERT INTO mcp_people (id, name, scopes_json, quotas_json, created_at) VALUES (?, ?, ?, ?, ?)",
                                  [.text(id), .text(name), .text(Self.json(McpScope.names(scopes))), .text(Self.json(quotas.json)), .int(McpTokenStore.seconds(now))])

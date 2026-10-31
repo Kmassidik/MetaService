@@ -93,6 +93,7 @@ final class McpStoreTests: XCTestCase {
     func testAPersonIsFoundByNameIgnoringCaseAndNamesAreUnique() throws {
         XCTAssertEqual(try people.find(name: "ayu")?.id, "mp-1")
         XCTAssertThrowsError(try people.create(id: "mp-2", name: "Ayu", scopes: [.read], quotas: .defaults, now: now)) { XCTAssertEqual($0 as? McpPeopleError, .nameTaken) }
+        XCTAssertThrowsError(try people.create(id: "mp-3", name: "AYU", scopes: [.read], quotas: .defaults, now: now)) { XCTAssertEqual($0 as? McpPeopleError, .nameTaken) }
         XCTAssertEqual(try people.get(id: "mp-1")?.actor, "mcp:Ayu")
     }
 
