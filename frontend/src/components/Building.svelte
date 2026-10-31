@@ -20,9 +20,11 @@
     gpuText?: string
     /** The charts of the side card: real memory, and the GPU's memory on a machine with a card. */
     charts?: Snippet
+    /** Who made a VM, in words: "Ayu (MCP) · 7f3a9c21" or "unknown origin". */
+    createdBy?: (vmId: string) => string
   }
   /** servers: the VMs on this machine (id, display, status, cls, mem_mb, cpu, disk_gb). host: this machine's memory, cores and disk. vmLink: where a VM's own page is. */
-  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, externals = [], onExternal, gpuText = GPU_FLOOR_FALLBACK, charts }: Props = $props();
+  let { servers = [], host = null, vmLink, none = 'No MetaService workloads yet.', actions, externals = [], onExternal, gpuText = GPU_FLOOR_FALLBACK, charts, createdBy = () => '' }: Props = $props();
 
   const model = $derived(buildingModel(servers, host));
   const totals = $derived(model.totals);
@@ -48,7 +50,7 @@
   const firstOf = (segment: Segment, number: number) => tenantOf(segment).apt === number + letter(segment.column);
   const STATUS_TEXT: Record<string, string> = { run: 'running', prog: 'starting', warn: 'needs attention' };
   const statusText = (tenant: Tenant) => tenant.status === 'deleting' ? 'deleting' : STATUS_TEXT[tenant.cls] || tenant.status;
-  const describe = (tenant: Tenant) => `Apartment ${tenant.apt}: ${tenant.name} — ${gb(tenant.memMiB)} memory (${formatPct(tenant.share)} of this machine), ${tenant.cpu} vCPU, ${tenant.status}`
+  const describe = (tenant: Tenant) => `Apartment ${tenant.apt}: ${tenant.name} — ${gb(tenant.memMiB)} memory (${formatPct(tenant.share)} of this machine), ${tenant.cpu} vCPU, ${tenant.status}${createdBy(tenant.id) ? `, created by ${createdBy(tenant.id)}` : ''}`
    ;
   const idle = 'VMs on this machine cannot use this part yet. Nothing in the platform runs here.';
 </script>
@@ -192,6 +194,7 @@
               {#if chip}<AppChip {chip} />{/if}
               <small>{gb(tenant.memMiB)} · {formatPct(tenant.share)} of memory · {tenant.cpu} vCPU · {tenant.diskGB} GB disk</small>
               <small class="bv-live">{tenant.home ? tenant.status : 'keeps its disk · uses no memory while stopped'}</small>
+              {#if createdBy(tenant.id)}<small class="bv-by" data-testid="bv-created-by">Created by {createdBy(tenant.id)}</small>{/if}
               {#if actions}<span class="bv-act">{@render actions(tenant.id)}</span>{/if}
             </div>
           </li>

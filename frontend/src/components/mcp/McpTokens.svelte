@@ -3,7 +3,7 @@
   import ConfirmDialog from '../ConfirmDialog.svelte'
   import { mcpRevokeToken } from '../../lib/api.ts'
   import type { McpToken } from '../../lib/mcp.ts'
-  import { expiryText, isLive, lastUsedText, quotaLine, revokeCopy, SCOPE_TEXT } from '../../lib/mcpText.ts'
+  import { expiryText, isLive, lastUsedText, revokeCopy, SCOPE_TEXT } from '../../lib/mcpText.ts'
 
   let { tokens, now, onChanged, onCreate }: { tokens: McpToken[]; now: number; onChanged: () => Promise<void>; onCreate: () => void } = $props()
   let revoking = $state<McpToken | null>(null)
@@ -18,18 +18,18 @@
 
 <div class="bar"><button class="btn green sm" type="button" onclick={onCreate}>Create token</button></div>
 {#if tokens.length === 0}
-  <p class="none" data-testid="mcp-tokens-empty">No tokens yet. Make one to let an AI client connect.</p>
+  <p class="none" data-testid="mcp-tokens-empty">No tokens yet. Make one for a person to let an AI client connect.</p>
 {:else}
   <div class="tablewrap">
     <table class="restable stack" data-testid="mcp-tokens">
-      <thead><tr><th>Name</th><th>Prefix</th><th>Can do</th><th>Limits</th><th>Last used</th><th>Expires</th><th><span class="sr">Actions</span></th></tr></thead>
+      <thead><tr><th>Name</th><th>Person</th><th>Prefix</th><th>Can do</th><th>Last used</th><th>Expires</th><th><span class="sr">Actions</span></th></tr></thead>
       <tbody>
         {#each tokens as token (token.id)}
           <tr class:gone={!isLive(token, now)}>
-            <td class="c-name" data-label="Name" data-testid="token-name">{token.name}{#if token.autoApprove}<span class="tag warn auto">auto-approve</span>{/if}</td>
+            <td class="c-name" data-label="Name" data-testid="token-name">{token.name}</td>
+            <td data-label="Person" data-testid="token-person">{token.personName}</td>
             <td class="small" data-label="Prefix">msk_{token.prefix}…</td>
             <td data-label="Can do"><span class="chips">{#each token.scopes as scope (scope)}<span class="tag" title={SCOPE_TEXT[scope].explain}>{scope}</span>{/each}</span></td>
-            <td class="small" data-label="Limits">{quotaLine(token.quotas, token.scopes)}</td>
             <td data-label="Last used">{lastUsedText(token.lastUsedAt, now)}</td>
             <td data-label="Expires">{expiryText(token, now)}</td>
             <td data-label="">{#if token.revokedAt === null}<button class="btn danger sm" type="button" aria-label="Revoke {token.name}" onclick={() => (revoking = token)}>Revoke</button>{/if}</td>
@@ -48,7 +48,6 @@
   .tablewrap { padding: 0; }
   .small { font-family: var(--mono); font-size: 11px; color: var(--m50); overflow-wrap: anywhere; }
   .chips { display: flex; gap: 4px; flex-wrap: wrap; }
-  .auto { margin-left: 8px; }
   .gone { opacity: .55; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

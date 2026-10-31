@@ -16,9 +16,10 @@ import { parseJoinCommand, parsePeers, parsePending, parseSupported, type JoinCo
 import { describeShareError, isHubRefusal } from './shareErrors.ts'
 import type { ApproveBody } from './shareDraft.ts'
 import type { ShareCpu, ShareOs } from './share.ts'
-import { parseInfo, parseMadeToken, parseTokens, type McpInfo, type McpToken } from './mcp.ts'
-import { parseActivity, parseApprovals, type ActivityRow, type Approvals } from './mcpRequests.ts'
-import type { TokenBody } from './mcpDraft.ts'
+import { parseInfo, parseMadeToken, parsePeople, parseTokens, type McpInfo, type McpPerson, type McpToken } from './mcp.ts'
+import { parseActivity, type ActivityRow } from './mcpActivity.ts'
+import type { PersonBody, TokenBody } from './mcpDraft.ts'
+import { parseOrigin, type VmOrigin } from './vmOrigin.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
@@ -309,9 +310,9 @@ export const shareApprove = (id: string, body: ApproveBody) => shareCall('POST',
 export const shareRefuse = (id: string) => shareCall('POST', `pending/${encodeURIComponent(id)}/refuse`, {})
 export const shareRemovePeer = (name: string) => shareCall('DELETE', `peers/${encodeURIComponent(name)}`)
 
-// AI access (MCP): tokens, approvals and recent calls. A parent that is too old answers 404 to every one of these.
+// AI access (MCP): people, tokens and recent calls. A parent that is too old answers 404 to every one of these.
 /** An answer in another shape is an error, not an empty list. */
-async function mcpAnswer<T>(method: Method, path: string, parse: (raw: unknown) => T, body?: unknown): Promise<T> {
+async function parsedAnswer<T>(method: Method, path: string, parse: (raw: unknown) => T, body?: unknown): Promise<T> {
   try {
     return parse(await call<unknown>(method, path, body))
   } catch (error) {
@@ -320,14 +321,20 @@ async function mcpAnswer<T>(method: Method, path: string, parse: (raw: unknown) 
   }
 }
 
-const approvalPath = (id: string, verdict: 'approve' | 'deny') => `/api/mcp/approvals/${encodeURIComponent(id)}/${verdict}`
+const personPath = (id: string, tail = '') => `/api/mcp/people/${encodeURIComponent(id)}${tail}`
 
-export const mcpInfo = (): Promise<McpInfo> => mcpAnswer('GET', '/api/mcp/info', parseInfo)
-export const mcpTokens = (): Promise<McpToken[]> => mcpAnswer('GET', '/api/mcp/tokens', parseTokens)
+export const mcpInfo = (): Promise<McpInfo> => parsedAnswer('GET', '/api/mcp/info', parseInfo)
+export const mcpPeople = (): Promise<McpPerson[]> => parsedAnswer('GET', '/api/mcp/people', parsePeople)
+export const mcpAddPerson = (body: PersonBody) => call<unknown>('POST', '/api/mcp/people', body)
+export const mcpEditPerson = (id: string, body: Omit<PersonBody, 'name'>) => call<unknown>('PATCH', personPath(id), body)
+export const mcpDisablePerson = (id: string) => call<unknown>('POST', personPath(id, '/disable'), {})
+export const mcpEnablePerson = (id: string) => call<unknown>('POST', personPath(id, '/enable'), {})
+export const mcpTokens = (): Promise<McpToken[]> => parsedAnswer('GET', '/api/mcp/tokens', parseTokens)
 /** The token text comes back in this answer only. */
-export const mcpCreateToken = (body: TokenBody): Promise<string> => mcpAnswer('POST', '/api/mcp/tokens', parseMadeToken, body)
+export const mcpCreateToken = (body: TokenBody): Promise<string> => parsedAnswer('POST', '/api/mcp/tokens', parseMadeToken, body)
 export const mcpRevokeToken = (id: string) => call<unknown>('DELETE', `/api/mcp/tokens/${encodeURIComponent(id)}`)
-export const mcpApprovals = (): Promise<Approvals> => mcpAnswer('GET', '/api/mcp/approvals', parseApprovals)
-export const mcpApprove = (id: string) => call<unknown>('POST', approvalPath(id, 'approve'), {})
-export const mcpDeny = (id: string) => call<unknown>('POST', approvalPath(id, 'deny'), {})
-export const mcpActivity = (limit: number): Promise<ActivityRow[]> => mcpAnswer('GET', `/api/mcp/activity?limit=${limit}`, parseActivity)
+export const mcpActivity = (limit: number): Promise<ActivityRow[]> => parsedAnswer('GET', `/api/mcp/activity?limit=${limit}`, parseActivity)
+
+/** Who made a VM and when, kept by the parent for good (GET .../origin). Null when the parent did not make it or it was made before the record existed. */
+export const workloadOrigin = (machine: string, workload: string): Promise<VmOrigin | null> =>
+  parsedAnswer('GET', `/api/machines/${encodeURIComponent(machine)}/workloads/${encodeURIComponent(workload)}/origin`, parseOrigin)

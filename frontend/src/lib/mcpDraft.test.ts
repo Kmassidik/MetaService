@@ -1,24 +1,28 @@
 import { expect, test } from 'bun:test'
-import { draftFor, draftProblem, toggleScope, tokenBody } from './mcpDraft.ts'
+import type { McpPerson } from './mcp.ts'
+import { NAME_PROBLEM, personBody, personDraftFor, personPatch, personProblem, toggleScope, tokenBody, tokenDraftFor, tokenProblem } from './mcpDraft.ts'
 
-test('the starting values are the spec defaults with auto-approve off', () => {
-  const draft = draftFor()
-  expect(draft).toMatchObject({ name: '', scopes: ['read', 'create'], maxVms: 3, maxVcpu: 8, maxRamGb: 16, maxDiskGb: 200, createsPerDay: 10, gpuMemoryGb: 8, expiresInDays: 90, autoApprove: false })
+const ayu: McpPerson = { id: 'p1', name: 'Ayu', scopes: ['read', 'create'], quotas: { maxVms: 2, maxVcpu: 4, maxRamMb: 8192, maxDiskGb: 100, createsPerDay: 5, gpuMemoryGb: null }, tokens: 1, vmsAlive: 0, lastUsedAt: null, disabledAt: null }
+
+test('Add person starts with the spec defaults', () => {
+  expect(personDraftFor()).toMatchObject({ name: '', scopes: ['read', 'create'], maxVms: 3, maxVcpu: 8, maxRamGb: 16, maxDiskGb: 200, createsPerDay: 10, gpuMemoryGb: 8 })
 })
 
-test('the body sends RAM in MB and leaves the GPU cap out without the gpu scope', () => {
-  const body = tokenBody({ ...draftFor(), name: '  laptop ' })
-  expect(body).toEqual({
-    name: 'laptop', scopes: ['read', 'create'],
-    quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10 },
-    expires_in_days: 90, auto_approve: false,
+test('Edit person starts with the person own values', () => {
+  expect(personDraftFor(undefined, ayu)).toMatchObject({ name: 'Ayu', maxVms: 2, maxRamGb: 8, maxDiskGb: 100, createsPerDay: 5 })
+})
+
+test('the person body sends RAM in MB and leaves the GPU cap out without the gpu scope', () => {
+  expect(personBody({ ...personDraftFor(), name: '  Ayu ' })).toEqual({
+    name: 'Ayu', scopes: ['read', 'create'], quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10 },
   })
 })
 
-test('the gpu scope adds the cap and the scopes keep the spec order', () => {
-  const body = tokenBody({ ...draftFor(), name: 'a', scopes: toggleScope(['create', 'read'], 'gpu', true) })
-  expect(body.scopes).toEqual(['read', 'create', 'gpu'])
-  expect(body.quotas.gpu_memory_gb).toBe(8)
+test('the gpu scope adds the cap, scopes keep the spec order, and an edit has no name', () => {
+  const draft = { ...personDraftFor(), name: 'a', scopes: toggleScope(['create', 'read'], 'gpu', true) }
+  expect(personBody(draft).scopes).toEqual(['read', 'create', 'gpu'])
+  expect(personBody(draft).quotas.gpu_memory_gb).toBe(8)
+  expect(personPatch(draft)).not.toHaveProperty('name')
 })
 
 test('toggling a scope', () => {
@@ -27,17 +31,40 @@ test('toggling a scope', () => {
   expect(toggleScope(['read'], 'read', true)).toEqual(['read'])
 })
 
-test('what is wrong with a draft is said in plain words', () => {
-  const ok = { ...draftFor(), name: 'laptop' }
-  expect(draftProblem(ok)).toBeNull()
-  expect(draftProblem({ ...ok, name: '   ' })).toContain('name')
-  expect(draftProblem({ ...ok, name: 'x'.repeat(65) })).toContain('64')
-  expect(draftProblem({ ...ok, scopes: [] })).toContain('at least one')
-  expect(draftProblem({ ...ok, maxVms: 0 })).toContain('whole numbers')
-  expect(draftProblem({ ...ok, maxVcpu: null })).toContain('whole numbers')
-  expect(draftProblem({ ...ok, createsPerDay: 1.5 })).toContain('whole numbers')
-  expect(draftProblem({ ...ok, expiresInDays: 366 })).toContain('365')
-  expect(draftProblem({ ...ok, expiresInDays: null })).toContain('days')
-  expect(draftProblem({ ...ok, scopes: ['gpu'], gpuMemoryGb: null })).toContain('whole numbers')
-  expect(draftProblem({ ...ok, gpuMemoryGb: null })).toBeNull()
+test('what is wrong with a person is said in plain words', () => {
+  const ok = { ...personDraftFor(), name: 'Ayu' }
+  expect(personProblem(ok, true)).toBeNull()
+  expect(personProblem({ ...ok, name: '   ' }, true)).toBe(NAME_PROBLEM)
+  expect(personProblem({ ...ok, name: 'x'.repeat(41) }, true)).toBe(NAME_PROBLEM)
+  expect(personProblem({ ...ok, name: '<b>' }, true)).toBe(NAME_PROBLEM)
+  expect(personProblem({ ...ok, name: '' }, false)).toBeNull()
+  expect(personProblem({ ...ok, scopes: [] }, true)).toContain('at least one')
+  expect(personProblem({ ...ok, maxVms: 0 }, true)).toContain('whole numbers')
+  expect(personProblem({ ...ok, maxVcpu: null }, true)).toContain('whole numbers')
+  expect(personProblem({ ...ok, createsPerDay: 1.5 }, true)).toContain('whole numbers')
+  expect(personProblem({ ...ok, scopes: ['gpu'], gpuMemoryGb: null }, true)).toContain('whole numbers')
+  expect(personProblem({ ...ok, gpuMemoryGb: null }, true)).toBeNull()
+})
+
+test('Create token starts with the first person who is not disabled and all their scopes', () => {
+  const off: McpPerson = { ...ayu, id: 'p0', name: 'Old', disabledAt: 1 }
+  expect(tokenDraftFor([off, ayu])).toEqual({ name: '', personId: 'p1', scopes: ['read', 'create'], expiresInDays: 90 })
+  expect(tokenDraftFor([off]).personId).toBe('')
+  expect(tokenDraftFor([], 30).expiresInDays).toBe(30)
+})
+
+test('the token body names the person and has no quotas', () => {
+  const body = tokenBody({ name: ' laptop ', personId: 'p1', scopes: ['create', 'read'], expiresInDays: 30 })
+  expect(body).toEqual({ name: 'laptop', person_id: 'p1', scopes: ['read', 'create'], expires_in_days: 30 })
+})
+
+test('what is wrong with a token is said in plain words', () => {
+  const ok = { name: 'laptop', personId: 'p1', scopes: ['read' as const], expiresInDays: 90 }
+  expect(tokenProblem(ok, ayu)).toBeNull()
+  expect(tokenProblem(ok, undefined)).toContain('which person')
+  expect(tokenProblem({ ...ok, name: '' }, ayu)).toBe(NAME_PROBLEM)
+  expect(tokenProblem({ ...ok, scopes: [] }, ayu)).toContain('at least one')
+  expect(tokenProblem({ ...ok, scopes: ['destroy'] }, ayu)).toContain('Ayu does not have')
+  expect(tokenProblem({ ...ok, expiresInDays: 366 }, ayu)).toContain('365')
+  expect(tokenProblem({ ...ok, expiresInDays: null }, ayu)).toContain('days')
 })

@@ -72,3 +72,9 @@ test('a VM with a GPU memory limit has it in its row, and one without has none',
   const rows = vmRows([machine({ id: 'g', name: 'g', workloads: [workload({ id: 'a', name: 'a', gpu_memory_gb: 4 }), workload({ id: 'b', name: 'b', gpu_memory_gb: null }), workload({ id: 'c', name: 'c', gpu_memory_gb: 'four' }), workload({ id: 'd', name: 'd' })] })])
   expect(rows.map((row) => row.gpuLimitGb)).toEqual([4, null, null, null])
 })
+
+test('a row says who made the VM, or unknown origin', () => {
+  const by = { kind: 'mcp', label: 'Ayu (MCP)', fingerprint: '7f3a9c21' }
+  const rows = vmRows([machine({ workloads: [workload({ id: 'a', name: 'a', created_by: by }), workload({ id: 'b', name: 'b' }), workload({ id: 'c', name: 'c', created_by: 'odd' })] })])
+  expect(rows.map((row) => [row.id, row.createdBy])).toEqual([['a', 'Ayu (MCP) · 7f3a9c21'], ['b', 'unknown origin'], ['c', 'unknown origin']])
+})

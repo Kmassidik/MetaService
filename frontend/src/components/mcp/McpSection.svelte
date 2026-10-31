@@ -1,29 +1,32 @@
 <script lang="ts">
-  // AI access (MCP): connect an AI client, make and revoke its tokens, approve risky requests, see what it did.
+  // AI access (MCP): connect an AI client, add the people who use it, make and revoke their tokens, see what they did.
   // While the Settings page is open it asks again every few seconds (and stops when the page closes), and redraws a list only when it changed.
   import { onMount } from 'svelte'
   import McpActivity from './McpActivity.svelte'
-  import McpApprovals from './McpApprovals.svelte'
   import McpConnect from './McpConnect.svelte'
   import McpCreateDialog from './McpCreateDialog.svelte'
+  import McpPeople from './McpPeople.svelte'
+  import McpPersonDialog from './McpPersonDialog.svelte'
   import McpTokens from './McpTokens.svelte'
-  import { ApiError, mcpActivity, mcpApprovals, mcpInfo, mcpTokens } from '../../lib/api.ts'
-  import type { McpInfo, McpToken } from '../../lib/mcp.ts'
+  import { ApiError, mcpActivity, mcpInfo, mcpPeople, mcpTokens } from '../../lib/api.ts'
+  import type { McpInfo, McpPerson, McpToken } from '../../lib/mcp.ts'
   import { listChanged, MCP_POLL_MS, shouldPollMcp, signatureOf } from '../../lib/mcpPoll.ts'
-  import type { ActivityRow, Approvals } from '../../lib/mcpRequests.ts'
+  import type { ActivityRow } from '../../lib/mcpActivity.ts'
   import { NOT_AVAILABLE_TEXT } from '../../lib/mcpText.ts'
 
   const ACTIVITY_LIMIT = 20
   const NOT_FOUND = 404
   let info = $state<McpInfo | null>(null)
   let tokens = $state<McpToken[]>([])
-  let approvals = $state<Approvals>({ pending: [], recent: [] })
+  let people = $state<McpPerson[]>([])
   let activity = $state<ActivityRow[]>([])
-  let signatures: Record<'tokens' | 'approvals' | 'activity', string | null> = { tokens: null, approvals: null, activity: null }
+  let signatures: Record<'tokens' | 'people' | 'activity', string | null> = { tokens: null, people: null, activity: null }
   let loaded = $state(false)
   let unavailable = $state(false)
   let failure = $state('')
   let creating = $state(false)
+  /** The person window: closed, adding (person null) or editing. */
+  let personDialog = $state<{ person: McpPerson | null } | null>(null)
   let now = $state(Date.now())
   let reading = false
 
@@ -42,10 +45,10 @@
     if (reading) return
     reading = true
     try {
-      const [facts, list, asks, calls] = await Promise.all([info ?? mcpInfo(), mcpTokens(), mcpApprovals(), mcpActivity(ACTIVITY_LIMIT)])
+      const [facts, crowd, list, calls] = await Promise.all([info ?? mcpInfo(), mcpPeople(), mcpTokens(), mcpActivity(ACTIVITY_LIMIT)])
       info = facts
+      adopt('people', crowd, (value) => (people = value))
       adopt('tokens', list, (value) => (tokens = value))
-      adopt('approvals', asks, (value) => (approvals = value))
       adopt('activity', calls, (value) => (activity = value))
       unavailable = false
       failure = ''
@@ -83,18 +86,19 @@
       <button class="btn line sm" type="button" onclick={refresh}>Try again</button>
     </div>
   {:else}
-    <p class="muted">Let an AI client such as Claude Code create and manage VMs here. It gets its own token, limits you set, and asks you before anything risky.</p>
+    <p class="muted">Let people use an AI client such as Claude Code to create and manage VMs here. Each person has limits you set and their own tokens. Every VM keeps a record of who made it.</p>
     {#if failure}<p class="banner" role="alert" data-testid="mcp-banner">{failure}</p>{/if}
     <h3>Connect</h3>
     <McpConnect {info} />
+    <h3>People</h3>
+    <McpPeople {people} {now} onChanged={refresh} onAdd={() => (personDialog = { person: null })} onEdit={(person) => (personDialog = { person })} />
     <h3>Tokens</h3>
     <McpTokens {tokens} {now} onChanged={refresh} onCreate={() => (creating = true)} />
-    <h3>Waiting for approval{approvals.pending.length > 0 ? ` (${approvals.pending.length})` : ''}</h3>
-    <McpApprovals pending={approvals.pending} recent={approvals.recent} {now} onChanged={refresh} />
     <h3>Recent activity</h3>
     <McpActivity rows={activity} {now} />
   {/if}
-  <McpCreateDialog open={creating} defaults={info?.defaults} onClose={() => (creating = false)} onCreated={refresh} />
+  <McpPersonDialog open={personDialog !== null} person={personDialog?.person ?? null} defaults={info?.defaults} onClose={() => (personDialog = null)} onSaved={refresh} />
+  <McpCreateDialog open={creating} {people} defaults={info?.defaults} onClose={() => (creating = false)} onCreated={refresh} />
 </section>
 
 <style>

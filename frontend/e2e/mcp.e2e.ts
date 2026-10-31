@@ -1,7 +1,7 @@
 // The AI access (MCP) section of Settings, against a stand-in parent that plays /api/mcp/*:
-// it appears on Settings; Connect shows the endpoint and the copy lines with a placeholder; a token is made and shown once (copy works, closing
-// removes it, it is in no storage and no address); the list shows it; Revoke asks first; approvals are approved and denied in plain words;
-// recent activity; a parent without the feature; hostile text; polling keeps what is typed and stops when the page closes; no script errors.
+// it appears on Settings; Connect shows the endpoint and the copy lines with a placeholder; people are added, edited, disabled and enabled; a token is made
+// for a person and shown once (copy works, closing removes it, it is in no storage and no address); the list shows it with its person; Revoke asks first;
+// there is no approval anywhere; recent activity names the person; a parent without the feature; hostile text; polling keeps what is typed and stops when the page closes; no script errors.
 import puppeteer from 'puppeteer-core'
 import { check, finish } from './support/check.ts'
 import { wait } from './support/net.ts'
@@ -24,13 +24,14 @@ try {
   })
   const b = browse(page)
   const section = () => b.run(() => document.querySelector<HTMLElement>('[data-testid="mcp-section"]')?.innerText ?? '')
+  const pwned = () => b.run(() => (window as unknown as Record<string, unknown>).__pwned === undefined && document.querySelectorAll('main img:not(.oslogo)').length === 0 && document.querySelectorAll('[data-testid="mcp-people"] b').length === 0)
   const copied = () => b.run(() => (window as unknown as Record<string, string>).__copied)
-  const asks = () => b.run(() => [...document.querySelectorAll('[data-testid="ask-text"]')].map((x) => x.textContent?.trim()))
-  const pressIn = (scope: string, label: string) => b.run((where, wanted) => {
-    const button = [...document.querySelectorAll<HTMLButtonElement>(`${where} button`)].find((x) => x.textContent?.trim() === wanted)
-    if (!button) throw new Error(`no button ${wanted}`)
-    button.click()
-  }, scope, label)
+  const cells = (table: string) => b.run((where) => [...document.querySelectorAll(`[data-testid="${where}"] tbody tr`)].map((row) => [...row.querySelectorAll('td')].map((cell) => cell.textContent?.trim()).join(' | ')), table)
+  const value = (label: string) => b.run((wanted) => (document.querySelector(`dialog[open] input[aria-label="${wanted}"]`) as HTMLInputElement).value, label)
+  const closeDialog = async (button: string) => {
+    await b.click(button)
+    await b.until(() => document.querySelector('dialog[open]') === null)
+  }
 
   // ---- the section is on Settings, with the others ----
   await page.goto(`${parent.base}/#/settings`, { waitUntil: 'networkidle0' })
@@ -38,8 +39,9 @@ try {
   check('Settings has the AI access (MCP) section, after the other sections', await b.run(() =>
     [...document.querySelectorAll('main section h2')].map((x) => x.textContent).join('|') === 'AI provider|Chat bundle|AI access (MCP)'))
   check('there is no sidebar row of its own', await b.run(() => ![...document.querySelectorAll('aside.side a')].some((x) => /AI access|MCP/i.test(x.textContent ?? ''))))
-  check('the section lists Connect, Tokens, Waiting for approval and Recent activity', await b.run(() =>
-    [...document.querySelectorAll('[data-testid="mcp-section"] > h3')].map((x) => x.textContent?.trim().replace(/ \(\d+\)$/, '')).join('|') === 'Connect|Tokens|Waiting for approval|Recent activity'))
+  check('the section lists Connect, People, Tokens and Recent activity, and has no approval block', await b.run(() =>
+    [...document.querySelectorAll('[data-testid="mcp-section"] > h3')].map((x) => x.textContent?.trim()).join('|') === 'Connect|People|Tokens|Recent activity'))
+  check('no approval word anywhere in the section', !(await section()).toLowerCase().includes('approv'))
 
   // ---- Connect ----
   check('Connect shows the endpoint of the parent', await b.run(() => document.querySelector('[data-testid="mcp-endpoint"]')?.textContent) === ENDPOINT)
@@ -56,38 +58,79 @@ try {
   const tools = await b.run(() => [...document.querySelectorAll('[data-testid="mcp-tools"] tbody tr')].map((row) => [...row.querySelectorAll('td')].slice(0, 2).map((cell) => cell.textContent?.trim()).join(':')))
   check('the tools are listed with their scope', tools.length === 9 && tools.includes('create_vm:create') && tools.includes('delete_vm:destroy') && tools.includes('list_machines:read'), tools.join(','))
 
-  // ---- tokens ----
-  check('the list shows the existing token with prefix, scopes, limits, last used and expiry', await b.run(() => {
-    const row = document.querySelector('[data-testid="mcp-tokens"] tbody tr')?.textContent ?? ''
-    return row.includes('my laptop') && row.includes('msk_') && row.includes('readcreate') && row.includes('3 VMs · 8 vCPU · 16 GB RAM · 200 GB disk · 10 creates/day') && row.includes('5 min ago') && row.includes('in 89 days')
-  }))
+  // ---- people ----
+  const people = await cells('mcp-people')
+  check('the people are listed with scopes, limits, tokens, VMs alive and last used', people[0] === 'Ayu | readcreate | 3 VMs · 8 vCPU · 16 GB RAM · 200 GB disk · 10 creates/day | 1 token | 2 | 5 min ago | Edit Disable', people[0])
+  check('a person without tokens says so', people[1]?.includes('no tokens') === true && people[1]?.includes('never') === true && people[1]?.includes('GPU up to 8 GB') === false, people[1])
+  check('hostile names are shown as text', people[2]?.startsWith('<b>Eve</b><img') === true && await pwned())
   await b.shot('mcp-settings-1440.png', true)
-  await b.click('Create token')
+
+  await b.click('Add person')
   await b.until(() => document.querySelector('dialog[open]') !== null)
-  check('Create token opens a window with the spec defaults', await b.run(() => {
-    const value = (label: string) => (document.querySelector(`dialog[open] input[aria-label="${label}"]`) as HTMLInputElement).value
-    const box = (label: string) => (document.querySelector(`dialog[open] input[aria-label="${label}"]`) as HTMLInputElement).checked
-    return value('VMs alive at once') === '3' && value('vCPU in total') === '8' && value('RAM in total in GB') === '16' && value('Disk in total in GB') === '200' && value('Creates per day') === '10' && value('Days until it expires') === '90'
-      && box('Scope read') && box('Scope create') && !box('Scope destroy') && !box('Scope gpu') && !box('Scope shared') && !box('Auto-approve')
+  check('Add person opens with the spec defaults', await b.run(() => {
+    const field = (label: string) => (document.querySelector(`dialog[open] input[aria-label="${label}"]`) as HTMLInputElement)
+    return field('VMs alive at once').value === '3' && field('vCPU in total').value === '8' && field('RAM in total in GB').value === '16' && field('Disk in total in GB').value === '200' && field('Creates per day').value === '10'
+      && field('Scope read').checked && field('Scope create').checked && !field('Scope destroy').checked && !field('Scope gpu').checked && !field('Scope shared').checked
   }))
-  const explained = await b.dialogText()
-  check('every scope has a plain explanation', ['See machines', 'Create, start and stop', 'Delete VMs', 'GPU memory limit', 'Share a PC'].every((words) => explained.includes(words)))
-  await b.shot('mcp-create-1440.png')
-  await b.click('Create token')
-  await b.until(() => document.body.innerText.includes('Give the token a name'))
-  check('a token without a name is not sent', parent.made.length === 0)
-  await b.type('dialog[open] input[aria-label="Token name"]', 'ci <b>box</b>')
+  await b.shot('mcp-person-1440.png')
+  await b.click('Add person')
+  await b.until(() => document.body.innerText.includes('The name may have 1 to 40'))
+  check('a person without a valid name is not sent', parent.saved.length === 0)
+  await b.type('dialog[open] input[aria-label="Person name"]', 'Ayu')
+  await b.click('Add person')
+  await b.until(() => document.body.innerText.includes('There is already a person with that name.'))
+  check('a name already used shows the parent plain reason and keeps the window', parent.saved.length === 1 && await b.run(() => document.querySelector('dialog[open]') !== null))
+  await b.type('dialog[open] input[aria-label="Person name"]', 'Cem')
   await page.click('dialog[open] input[aria-label="Scope gpu"]')
   await b.until(() => document.querySelector('dialog[open] input[aria-label="GPU memory in GB"]') !== null)
-  await page.click('dialog[open] input[aria-label="Auto-approve"]')
-  await b.until(() => document.querySelector('[data-testid="auto-warning"]') !== null)
-  check('auto-approve shows a warning', (await b.dialogText()).includes('without asking you'))
-  await page.click('dialog[open] input[aria-label="Auto-approve"]')
+  await b.click('Add person')
+  await b.until(() => document.querySelector('dialog[open]') === null)
+  check('the new person is sent with scopes and quotas in MB, and is listed', JSON.stringify(parent.saved.at(-1)) === JSON.stringify({ name: 'Cem', scopes: ['read', 'create', 'gpu'], quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10, gpu_memory_gb: 8 } }) && (await cells('mcp-people')).some((row) => row.startsWith('Cem | readcreategpu')))
+
+  await page.click('button[aria-label="Edit Budi"]')
+  await b.until(() => document.querySelector('dialog[open]') !== null)
+  check('Edit person shows the person own values and no name field', (await value('VMs alive at once')) === '3' && await b.run(() => document.querySelector('dialog[open] input[aria-label="Person name"]') === null && (document.querySelector('dialog[open] input[aria-label="Scope gpu"]') as HTMLInputElement).checked) && (await b.dialogText()).toLowerCase().includes('edit budi'))
+  await b.type('dialog[open] input[aria-label="VMs alive at once"]', '5')
+  await page.click('dialog[open] input[aria-label="Scope destroy"]')
+  await b.click('Save')
+  await b.until(() => document.querySelector('dialog[open]') === null)
+  check('Edit sends scopes and quotas only, and the list shows them', JSON.stringify(parent.saved.at(-1)) === JSON.stringify({ scopes: ['read', 'create', 'gpu'], quotas: { max_vms: 5, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10, gpu_memory_gb: 8 } }) && (await cells('mcp-people')).some((row) => row.startsWith('Budi | readcreategpu | 5 VMs')))
+
+  await page.click('button[aria-label="Disable Cem"]')
+  const disabling = await b.dialogText()
+  check('Disable asks first, by name, and says what stays', disabling.toLowerCase().includes('disable this person?') && disabling.includes('Cem') && disabling.includes('keep running'), disabling)
+  await b.click('Cancel')
+  await b.until(() => document.querySelector('dialog[open]') === null)
+  check('Cancel disables nothing', !parent.people.some((row) => row.disabled_at))
+  await page.click('button[aria-label="Disable Cem"]')
+  await b.click('Disable person')
+  await b.until(() => document.querySelector('[data-testid="mcp-people"] .tag.off') !== null)
+  check('Disable marks the person disabled and offers Enable', parent.people.some((row) => row.name === 'Cem' && row.disabled_at) && (await cells('mcp-people')).some((row) => row.includes('Cem') && row.includes('disabled') && row.endsWith('Enable')))
+
+  // ---- tokens ----
+  check('the list shows the existing token with its person, prefix, scopes, last used and expiry', await b.run(() => {
+    const row = document.querySelector('[data-testid="mcp-tokens"] tbody tr')?.textContent ?? ''
+    return row.includes('my laptop') && row.includes('Ayu') && row.includes('msk_') && row.includes('readcreate') && row.includes('5 min ago') && row.includes('in 89 days') && !row.includes('GB RAM')
+  }))
+  await b.click('Create token')
+  await b.until(() => document.querySelector('dialog[open]') !== null)
+  const persons = await b.run(() => [...document.querySelectorAll('dialog[open] select option')].map((x) => x.textContent))
+  check('Create token asks which person, and offers only people who are not disabled', persons.join('|') === 'Ayu|Budi|<b>Eve</b><img src=x onerror="window.__pwned=1">', persons.join('|'))
+  const asked = (await b.dialogText()).toLowerCase()
+  check('Create token has no limits fields (they are the person\'s) and no approval wording', !asked.includes('vms alive') && !asked.includes('creates per day') && !asked.includes('approv') && asked.includes('never more than the person may'))
+  await b.shot('mcp-create-1440.png')
+  await b.click('Create token')
+  await b.until(() => document.body.innerText.includes('The name may have 1 to 40'))
+  check('a token without a name is not sent', parent.made.length === 0)
+  await page.select('dialog[open] select', 'p2')
+  check('choosing a person offers that person scopes', await b.run(() => ['read', 'create', 'gpu'].every((scope) => (document.querySelector(`dialog[open] input[aria-label="Scope ${scope}"]`) as HTMLInputElement | null)?.checked === true) && document.querySelector('dialog[open] input[aria-label="Scope destroy"]') === null))
+  await b.type('dialog[open] input[aria-label="Token name"]', 'ci box')
+  await page.click('dialog[open] input[aria-label="Scope gpu"]')
   await b.type('dialog[open] input[aria-label="Days until it expires"]', '30')
   await b.click('Create token')
   await b.until(() => document.querySelector('[data-testid="token-warning"]') !== null)
   const made = JSON.stringify(parent.made.at(-1))
-  check('the request carries the name, scopes, quotas in MB, expiry and auto-approve off', made === JSON.stringify({ name: 'ci <b>box</b>', scopes: ['read', 'create', 'gpu'], quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10, gpu_memory_gb: 8 }, expires_in_days: 30, auto_approve: false }), made)
+  check('the request carries the person, the name, fewer scopes and the expiry, and no quotas', made === JSON.stringify({ name: 'ci box', person_id: 'p2', scopes: ['read', 'create'], expires_in_days: 30 }), made)
   const shown = await b.run(() => document.querySelector('[data-testid="code-new-token"]')?.textContent ?? '')
   check('the new token is shown once, in full', shown === parent.lastSecret && shown.startsWith('msk_'), shown)
   check('the window warns that it cannot be shown again', (await b.dialogText()).includes('cannot be shown again'))
@@ -103,61 +146,46 @@ try {
     const stored = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie
     return !stored.includes(text) && !location.href.includes(text)
   }, secret))
-  check('the new token is in the list, with its prefix only and as text', await b.run(() => {
-    const names = [...document.querySelectorAll('[data-testid="token-name"]')].map((x) => x.textContent ?? '')
-    return names.some((name) => name.startsWith('ci <b>box</b>')) && document.querySelectorAll('[data-testid="mcp-tokens"] b').length === 0
-  }))
+  const tokens = await cells('mcp-tokens')
+  check('the new token is in the list with its person, and Budi now has 1 token', tokens.some((row) => row.startsWith('ci box | Budi | msk_')) && (await cells('mcp-people')).some((row) => row.startsWith('Budi') && row.includes('1 token')), tokens.join(' ; '))
   check('reopening Create token starts clean', await (async () => {
     await b.click('Create token')
     await b.until(() => document.querySelector('dialog[open]') !== null)
     const clean = await b.run(() => (document.querySelector('dialog[open] input[aria-label="Token name"]') as HTMLInputElement).value === '' && document.querySelector('[data-testid="code-new-token"]') === null)
-    await b.click('Cancel')
-    await b.until(() => document.querySelector('dialog[open]') === null)
+    await closeDialog('Cancel')
     return clean
   })())
 
   // ---- revoke ----
-  await page.click('button[aria-label="Revoke ci <b>box</b>"]')
-  const asked = await b.dialogText()
-  check('Revoke asks first, by name', asked.toLowerCase().includes('revoke this token?') && asked.includes('ci <b>box</b>'), asked)
-  await b.click('Cancel')
-  await b.until(() => document.querySelector('dialog[open]') === null)
+  await page.click('button[aria-label="Revoke ci box"]')
+  const revoking = await b.dialogText()
+  check('Revoke asks first, by name', revoking.toLowerCase().includes('revoke this token?') && revoking.includes('ci box'), revoking)
+  await closeDialog('Cancel')
   check('Cancel revokes nothing', !parent.tokens.some((row) => row.revoked_at))
-  await page.click('button[aria-label="Revoke ci <b>box</b>"]')
+  await page.click('button[aria-label="Revoke ci box"]')
   await b.click('Revoke token')
-  await b.until(() => document.querySelector('button[aria-label="Revoke ci <b>box</b>"]') === null)
-  check('Revoke marks the token revoked on the parent and in the list', parent.tokens.some((row) => row.name === 'ci <b>box</b>' && row.revoked_at) && (await section()).includes('revoked'))
+  await b.until(() => document.querySelector('button[aria-label="Revoke ci box"]') === null)
+  check('Revoke marks the token revoked on the parent and in the list', parent.tokens.some((row) => row.name === 'ci box' && row.revoked_at) && (await section()).includes('revoked'))
 
-  // ---- approvals ----
-  const waiting = await asks()
-  check('each request is told in plain words', waiting[0] === 'my laptop wants to create a medium VM on rtx-pc with a 4 GB GPU limit', waiting[0])
-  check('a delete request names the VM and the machine', waiting[1]?.endsWith('wants to delete VM <b>victim</b> on rtx-pc') === true, waiting[1])
-  const hostile = await b.run(() => ({ images: document.querySelectorAll('main img').length, bold: document.querySelectorAll('[data-testid="ask-text"] b').length, pwned: (window as unknown as Record<string, unknown>).__pwned }))
-  check('hostile names are shown as text and run nothing', hostile.images === 0 && hostile.bold === 0 && hostile.pwned === undefined && (await section()).includes('<img src=x'), JSON.stringify(hostile))
-  await b.shot('mcp-approvals-1440.png')
-  await pressIn('[data-testid="mcp-pending"] li:first-child', 'Approve')
-  await b.until(() => document.querySelectorAll('[data-testid="ask-text"]').length === 1)
-  check('Approve sends the approval and moves the request to decided', parent.calls.includes('POST approvals') && parent.recent.some((row) => row.id === 'r1' && row.state === 'done') && (await section()).includes('approved, done by kurnia'))
-  await pressIn('[data-testid="mcp-pending"] li:first-child', 'Deny')
-  await b.until(() => document.querySelector('[data-testid="mcp-approvals-empty"]') !== null)
-  check('Deny sends the denial and the waiting list is empty', parent.recent.some((row) => row.id === 'r2' && row.state === 'denied') && (await section()).includes('Nothing is waiting.'))
-  check('the decided requests are listed below', (await section()).includes('denied by kurnia') && (await section()).includes('wanted to create a medium VM'))
+  // ---- Enable, and no one to make a token for ----
+  await b.run(() => document.querySelector<HTMLButtonElement>('[data-testid="mcp-people"] tbody tr.gone .btn.green')?.click())
+  await b.until(() => document.querySelector('[data-testid="mcp-people"] .tag.off') === null)
+  check('Enable switches the person back on', parent.people.every((row) => !row.disabled_at))
 
   // ---- recent activity ----
-  const rows = await b.run(() => [...document.querySelectorAll('[data-testid="mcp-activity"] tbody tr')].map((row) => [...row.querySelectorAll('td')].map((cell) => cell.textContent?.trim()).join(' | ')))
-  check('recent activity shows time, token, tool, target and result', rows[0] === '2 min ago | my laptop | list_vms | — | ok' && rows[1] === '9 min ago | my laptop | create_vm | rtx-pc/box | ok', rows.join(' ; '))
+  const rows = await cells('mcp-activity')
+  check('recent activity shows time, person, tool, target and result', rows[0] === '2 min ago | Ayu | list_vms | — | ok' && rows[1] === '9 min ago | Ayu | create_vm | rtx-pc/box | ok', rows.join(' ; '))
   check('every write carried the CSRF header', parent.withoutCsrf.length === 0, parent.withoutCsrf.join(','))
 
-  // ---- polling keeps what is typed, a new request shows up by itself ----
-  await b.click('Create token')
-  await b.type('dialog[open] input[aria-label="Token name"]', 'half typed')
-  const before = parent.calls.filter((call) => call === 'GET approvals').length
-  parent.addPending('r3', 'night job', 'stop', { machine_name: 'mini', vm_name: 'web' })
-  await b.until(() => document.body.innerText.includes('night job wants to stop VM web on mini'), { timeout: POLL_WAIT_MS })
-  check('the section polls by itself and shows the new request without a reload', parent.calls.filter((call) => call === 'GET approvals').length > before)
-  check('a refresh that changed the list does not wipe what is typed', await b.run(() => (document.querySelector('dialog[open] input[aria-label="Token name"]') as HTMLInputElement).value) === 'half typed')
-  await b.click('Cancel')
-  await b.until(() => document.querySelector('dialog[open]') === null)
+  // ---- polling keeps what is typed, a new call shows up by itself ----
+  await b.click('Add person')
+  await b.type('dialog[open] input[aria-label="Person name"]', 'half typed')
+  const before = parent.calls.filter((call) => call === 'GET people').length
+  parent.activity.unshift({ at: new Date().toISOString(), actor: 'mcp:Budi', action: 'mcp.delete_vm', target: 'mini/web', status: 'refused' })
+  await b.until(() => document.body.innerText.includes('mini/web'), { timeout: POLL_WAIT_MS })
+  check('the section polls by itself and shows the new call without a reload', parent.calls.filter((call) => call === 'GET people').length > before)
+  check('a refresh that changed the list does not wipe what is typed', (await value('Person name')) === 'half typed')
+  await closeDialog('Cancel')
 
   // ---- a closed page stops polling ----
   await b.go('#/machines')
@@ -168,13 +196,16 @@ try {
 
   // ---- empty lists, errors, and a parent without the feature ----
   parent.tokens.length = 0
-  parent.pending.length = 0
-  parent.recent.length = 0
+  parent.people.length = 0
   parent.activity.length = 0
   await b.go('#/settings')
   await b.until(() => document.querySelector('[data-testid="mcp-tokens-empty"]') !== null)
   const empty = await section()
-  check('empty lists have their own text', empty.includes('No tokens yet.') && empty.includes('Nothing is waiting.') && empty.includes('No calls yet.'))
+  check('empty lists have their own text', empty.includes('No one yet.') && empty.includes('No tokens yet.') && empty.includes('No calls yet.'))
+  await b.click('Create token')
+  await b.until(() => document.querySelector('[data-testid="no-person"]') !== null)
+  check('Create token with no person says to add one first', (await b.dialogText()).includes('Add a person first.'))
+  await closeDialog('Close')
   parent.mode = 'broken'
   await page.reload({ waitUntil: 'networkidle0' })
   await b.until(() => document.querySelector('[data-testid="mcp-failure"]') !== null)
@@ -192,19 +223,23 @@ try {
   parent.mode = 'ok'
 
   // ---- a phone ----
-  parent.tokens.push({ id: 't9', name: 'phone-size token with a rather long name', prefix: 'abcd1234', scopes: ['read', 'create', 'destroy', 'gpu', 'shared'], quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10, gpu_memory_gb: 8 }, auto_approve: true, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 5 * 86_400_000).toISOString(), last_used_at: null, revoked_at: null })
-  parent.addPending('r4', 'phone-size token with a rather long name', 'create', { size: 'custom', vcpu: 12, ram_mb: 32768, disk_gb: 300 })
-  parent.activity.push({ at: new Date().toISOString(), actor: 'mcp:phone-size token with a rather long name', action: 'mcp.create_vm', target: 'a-machine-with-a-long-name/a-vm-with-a-long-name', status: 'needs_approval' })
+  const longName = 'phone-size person with a rather long name'
+  parent.people.push({ id: 'p9', name: longName, scopes: ['read', 'create', 'destroy', 'gpu', 'shared'], quotas: { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10, gpu_memory_gb: 8 }, tokens: 1, vms_alive: 2, last_used_at: null, disabled_at: null })
+  parent.tokens.push({ id: 't9', name: 'phone-size token with a rather long name', prefix: 'abcd1234', scopes: ['read', 'create', 'destroy', 'gpu', 'shared'], person_id: 'p9', person_name: longName, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 5 * 86_400_000).toISOString(), last_used_at: null, revoked_at: null })
+  parent.activity.push({ at: new Date().toISOString(), actor: `mcp:${longName}`, action: 'mcp.create_vm', target: 'a-machine-with-a-long-name/a-vm-with-a-long-name', status: 'ok' })
   await page.setViewport({ width: 390, height: 844 })
   await page.reload({ waitUntil: 'networkidle0' })
   await b.until(() => document.querySelector('[data-testid="mcp-activity"]') !== null)
-  check('a custom request lists its numbers', (await section()).includes('create a custom VM (12 vCPU, 32 GB RAM, 300 GB disk) on the least loaded machine that fits'))
   await b.shot('mcp-settings-390.png', true)
-  await b.click('Create token')
+  await b.click('Add person')
   await b.until(() => document.querySelector('dialog[open]') !== null)
   await page.click('dialog[open] input[aria-label="Scope gpu"]')
+  await b.shot('mcp-person-390.png')
+  await closeDialog('Cancel')
+  await b.click('Create token')
+  await b.until(() => document.querySelector('dialog[open]') !== null)
   await b.shot('mcp-create-390.png')
-  await b.click('Cancel')
+  await closeDialog('Cancel')
   const overflow = await b.run(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   check('no sideways scroll at 390 px', overflow <= 0, `${overflow}px`)
   check('no script errors', errors.length === 0, errors.join(' | '))

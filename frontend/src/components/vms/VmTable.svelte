@@ -18,7 +18,7 @@
 
 <div class="tablewrap">
   <table class="restable stack" aria-label="VMs">
-    <thead><tr><th>Name</th><th>Machine</th><th>Kind</th><th>State</th><th>vCPU</th><th>RAM</th><th>Disk</th><th><span class="sr">Actions</span></th></tr></thead>
+    <thead><tr><th>Name</th><th>Machine</th><th>Kind</th><th>State</th><th>vCPU</th><th>RAM</th><th>Disk</th><th>Created by</th><th><span class="sr">Actions</span></th></tr></thead>
     <tbody>
       {#each rows as row (`${row.machineId}/${row.id}`)}
         {@const vm = findVm(machines, row)}
@@ -41,6 +41,7 @@
           <td class="mono nums" data-label="vCPU">{row.cpu}</td>
           <td class="mono nums" data-label="RAM">{formatMb(row.ramMb)}</td>
           <td class="mono nums" data-label="Disk">{formatGb(row.diskGb)}</td>
+          <td class="mono by" data-label="Created by">{row.createdBy}</td>
           <td class="act" data-label="Actions">{#if vm}<VmActions machine={vm.machine} workload={vm.workload} {commands} {handlers} />{/if}</td>
         </tr>
       {/each}
@@ -55,6 +56,7 @@
   .vm-id { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--m50); }
   .name, .machine { overflow-wrap: anywhere; }
   .state { display: grid; justify-items: start; gap: 2px; max-width: 280px; }
+  .by { font-size: 11.5px; color: var(--m70); overflow-wrap: anywhere; }
   .plain { font-size: 11px; color: var(--m60); }
   /* The whole row is the link to the VM; the machine link sits above it. */
   .open::after { content: ''; position: absolute; inset: 0; }

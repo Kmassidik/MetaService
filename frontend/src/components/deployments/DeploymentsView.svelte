@@ -20,6 +20,7 @@
   import GpuBadge from '../GpuBadge.svelte'
   import GpuLimitChip from '../GpuLimitChip.svelte'
   import AppChip from '../vm/AppChip.svelte'
+  import CreatedBy from '../vm/CreatedBy.svelte'
   import WhyStopped from '../vm/WhyStopped.svelte'
   import { appChip } from '../../lib/appInstall.ts'
   import { isPlainMode, PLAIN_MODE_TEXT, readStoppedReason, reasonNote } from '../../lib/stoppedReason.ts'
@@ -33,6 +34,7 @@
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
   import { vmStateText } from '../../lib/vmList.ts'
+  import { workloadCreatedByText } from '../../lib/vmOrigin.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
   import type { BuildingServer } from '../../lib/building.ts'
   import type { Command, Machine, Workload } from '../../lib/types.ts'
@@ -76,6 +78,9 @@
     return found
   }
 
+  /** Who made a VM, as the building's labels say it. */
+  const createdByOf = (vmId: string) => workloadCreatedByText(machine.workloads.find((workload) => workload.id === vmId) ?? {})
+
   /** Why a VM stopped, when the machine said why: shown small under its state in the table and the cards. */
   const noteOf = (workload: Workload) => reasonNote(readStoppedReason(workload.stopped_reason))
 
@@ -108,7 +113,7 @@
 {/if}
 
 {#if view === 'building'}
-  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} externals={blocks} onExternal={(id) => (openExternal = id)} gpuText={gpuFloorText(gpuParts)}>
+  <Building {servers} {host} {actions} none={making > 0 ? MAKING_TEXT : NONE_TEXT} vmLink={(vmId) => vmHref(machine.id, vmId)} externals={blocks} onExternal={(id) => (openExternal = id)} gpuText={gpuFloorText(gpuParts)} createdBy={createdByOf}>
     {#snippet charts()}
       <div class="charts">
         <MachineMemory stats={reading.stats} failure={reading.failure} />
@@ -132,6 +137,7 @@
           <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
+          <div class="by"><span class="byl">Created by</span> <CreatedBy {workload} /></div>
           {#if note}<WhyStopped {note} compact />{/if}
           {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
         </div>
@@ -143,7 +149,7 @@
 {:else}
   <div class="tablewrap">
     <table class="restable stack">
-      <thead><tr><th>Name</th><th>Status</th><th>Ruvio</th><th>Type</th><th>Size</th><th>Address</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Ruvio</th><th>Type</th><th>Size</th><th>Address</th><th>Created by</th><th></th></tr></thead>
       <tbody>
         {#each servers as server (server.id)}
           {@const workload = workloadOf(server)}
@@ -161,6 +167,7 @@
             <td class="mono" data-label="Type">{workload.kind}</td>
             <td class="mono nums" data-label="Size">{server.cpu}c · {formatMb(server.mem_mb)} · {formatGb(server.disk_gb)}</td>
             <td class="mono muted" data-label="Address"><span class="addr">{workload.address ?? '—'}{#if workload.address}<CopyAddress address={workload.address} subject={workload.name} />{/if}</span></td>
+            <td data-label="Created by"><CreatedBy {workload} /></td>
             <td data-label="Actions"><VmActions {machine} {workload} {commands} {handlers} /></td>
           </tr>
         {/each}
@@ -181,6 +188,8 @@
   .waiting { margin: 0; padding: 12px 0; font-size: 13px; }
   .plain { display: block; max-width: 280px; font-size: 11px; color: var(--m60); }
   .vm-id { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--m50); }
+  .by { margin-top: 6px; }
+  .byl { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--m50); margin-right: 6px; }
   .addr { display: inline-flex; align-items: center; gap: 8px; }
   .warnings { margin: 0 0 12px; padding: 10px 14px 10px 32px; border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn); font-size: 12px; }
   .charts { display: grid; gap: 16px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }

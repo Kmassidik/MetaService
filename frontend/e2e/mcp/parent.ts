@@ -1,5 +1,5 @@
 // A stand-in parent for the AI access section: it serves the built panel, answers the sign-in calls, and plays /api/mcp/*
-// (info, tokens, approvals, activity). Every write must carry the CSRF header, as the real parent demands.
+// (info, people, tokens, activity), in the shapes of mcp/SPEC.md section 10. Every write must carry the CSRF header, as the real parent demands.
 import { randomBytes } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -9,7 +9,7 @@ import { panelDist } from '../support/paths.ts'
 export const CSRF = 'test-token'
 export const ENDPOINT = 'https://meta.example.test/mcp'
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' }
-const MCP_CALL = /^\/api\/mcp\/(info|tokens|approvals|activity)(?:\/([^/]+)(?:\/(approve|deny))?)?$/
+const MCP_CALL = /^\/api\/mcp\/(info|people|tokens|activity)(?:\/([^/]+)(?:\/(disable|enable))?)?$/
 const QUOTAS = { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10 }
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
@@ -21,19 +21,19 @@ export type ParentMode = 'ok' | 'old' | 'broken'
 export interface Parent {
   base: string
   mode: ParentMode
+  people: Json[]
   tokens: Json[]
-  pending: Json[]
-  recent: Json[]
   activity: Json[]
   /** The token text of the last token made: the only time it is ever sent. */
   lastSecret: string
   /** The body of every token made. */
   made: Json[]
-  /** Every call that reached /api/mcp, as "GET approvals". */
+  /** The body of every person added or edited, in order. */
+  saved: Json[]
+  /** Every call that reached /api/mcp, as "GET people". */
   calls: string[]
   /** Writes that came without the CSRF header. */
   withoutCsrf: string[]
-  addPending: (id: string, tokenName: string, kind: string, params: Json) => void
   close: () => void
 }
 
@@ -56,39 +56,67 @@ async function bodyOf(request: IncomingMessage): Promise<Json> {
   return text ? (JSON.parse(text) as Json) : {}
 }
 
-const tokenRow = (id: string, name: string, more: Json = {}): Json => ({
-  id, name, prefix: randomBytes(4).toString('hex'), scopes: ['read', 'create'], quotas: QUOTAS, auto_approve: false,
+const tokenRow = (id: string, name: string, person: Json, more: Json = {}): Json => ({
+  id, name, prefix: randomBytes(4).toString('hex'), scopes: ['read', 'create'], person_id: person.id, person_name: person.name,
   created_at: new Date(Date.now() - DAY_MS).toISOString(), expires_at: new Date(Date.now() + 89 * DAY_MS).toISOString(), last_used_at: null, revoked_at: null, ...more,
 })
 
-const activityRow = (minutesAgo: number, token: string, tool: string, target: string | null, status: string): Json => ({
-  at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), actor: `mcp:${token}`, action: `mcp.${tool}`, target, status,
+const personRow = (id: string, name: string, more: Json = {}): Json => ({
+  id, name, scopes: ['read', 'create'], quotas: QUOTAS, tokens: 0, vms_alive: 0, last_used_at: null, disabled_at: null, ...more,
+})
+
+const activityRow = (minutesAgo: number, person: string, tool: string, target: string | null, status: string): Json => ({
+  at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), actor: `mcp:${person}`, action: `mcp.${tool}`, target, status,
 })
 
 export async function startParent(): Promise<Parent> {
+  const ayu = personRow('p1', 'Ayu', { tokens: 1, vms_alive: 2, last_used_at: new Date(Date.now() - 5 * 60_000).toISOString() })
   const parent: Parent = {
-    base: '', mode: 'ok', tokens: [tokenRow('t1', 'my laptop', { last_used_at: new Date(Date.now() - 5 * 60_000).toISOString() })], pending: [], recent: [],
-    activity: [activityRow(2, 'my laptop', 'list_vms', null, 'ok'), activityRow(9, 'my laptop', 'create_vm', 'rtx-pc/box', 'ok')],
-    lastSecret: '', made: [], calls: [], withoutCsrf: [],
-    addPending: (id, tokenName, kind, params) => void parent.pending.push({ id, token_name: tokenName, kind, params, state: 'pending_approval', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + DAY_MS).toISOString(), decided_by: null, decided_at: null }),
+    base: '', mode: 'ok', people: [ayu, personRow('p2', 'Budi', { scopes: ['read', 'create', 'destroy', 'gpu'] }), personRow('p3', '<b>Eve</b><img src=x onerror="window.__pwned=1">')],
+    tokens: [tokenRow('t1', 'my laptop', ayu, { last_used_at: new Date(Date.now() - 5 * 60_000).toISOString() })],
+    activity: [activityRow(2, 'Ayu', 'list_vms', null, 'ok'), activityRow(9, 'Ayu', 'create_vm', 'rtx-pc/box', 'ok')],
+    lastSecret: '', made: [], saved: [], calls: [], withoutCsrf: [],
     close: () => {},
   }
-  parent.addPending('r1', 'my laptop', 'create', { machine_name: 'rtx-pc', size: 'medium', gpu_memory_gb: 4 })
-  parent.addPending('r2', '<img src=x onerror="window.__pwned=1">', 'delete', { machine_name: 'rtx-pc', vm_name: '<b>victim</b>' })
 
-  function decide(response: ServerResponse, id: string, verdict: string) {
-    const found = parent.pending.find((row) => row.id === id)
-    if (!found) return send(response, 409, { error: { code: 'not_pending', message: 'This request was already decided.' } })
-    parent.pending.splice(parent.pending.indexOf(found), 1)
-    parent.recent.unshift({ ...found, state: verdict === 'approve' ? 'done' : 'denied', decided_by: 'kurnia', decided_at: new Date().toISOString() })
-    return send(response, 200, { state: verdict })
+  function find(response: ServerResponse, id: string): Json | null {
+    const found = parent.people.find((row) => row.id === id) ?? null
+    if (!found) send(response, 404, { error: { code: 'unknown_person', message: 'No such person.' } })
+    return found
+  }
+
+  async function addPerson(request: IncomingMessage, response: ServerResponse) {
+    const input = await bodyOf(request)
+    parent.saved.push(input)
+    if (parent.people.some((row) => row.name === input.name)) return send(response, 409, { error: { code: 'name_taken', message: 'There is already a person with that name.' } })
+    parent.people.push(personRow(`p${parent.people.length + 1}`, String(input.name), { scopes: input.scopes, quotas: input.quotas }))
+    return send(response, 201, { person: parent.people.at(-1) })
+  }
+
+  async function editPerson(request: IncomingMessage, response: ServerResponse, id: string) {
+    const found = find(response, id)
+    if (!found) return
+    const input = await bodyOf(request)
+    parent.saved.push(input)
+    Object.assign(found, { scopes: input.scopes, quotas: input.quotas })
+    return send(response, 200, { person: found })
+  }
+
+  function switchPerson(response: ServerResponse, id: string, action: string) {
+    const found = find(response, id)
+    if (!found) return
+    found.disabled_at = action === 'disable' ? new Date().toISOString() : null
+    return send(response, 200, { person: found })
   }
 
   async function makeToken(request: IncomingMessage, response: ServerResponse) {
     const input = await bodyOf(request)
     parent.made.push(input)
     parent.lastSecret = `msk_${randomBytes(32).toString('base64url')}`
-    parent.tokens.push(tokenRow(`t${parent.tokens.length + 1}`, String(input.name), { scopes: input.scopes, quotas: input.quotas, auto_approve: input.auto_approve }))
+    const owner = parent.people.find((row) => row.id === input.person_id)
+    if (!owner) return send(response, 404, { error: { code: 'unknown_person', message: 'No such person.' } })
+    owner.tokens = Number(owner.tokens) + 1
+    parent.tokens.push(tokenRow(`t${parent.tokens.length + 1}`, String(input.name), owner, { scopes: input.scopes }))
     return send(response, 201, { token: parent.lastSecret, id: `t${parent.tokens.length}` })
   }
 
@@ -107,8 +135,10 @@ export async function startParent(): Promise<Parent> {
     if (route === 'tokens' && method === 'GET') return send(response, 200, { tokens: parent.tokens })
     if (route === 'tokens' && method === 'POST') return makeToken(request, response)
     if (route === 'tokens' && method === 'DELETE') return revoke(response, id)
-    if (route === 'approvals' && action) return decide(response, id, action)
-    if (route === 'approvals') return send(response, 200, { pending: parent.pending, recent: parent.recent })
+    if (route === 'people' && method === 'GET') return send(response, 200, { people: parent.people })
+    if (route === 'people' && method === 'POST' && !id) return addPerson(request, response)
+    if (route === 'people' && method === 'PATCH') return editPerson(request, response, id)
+    if (route === 'people' && action) return switchPerson(response, id, action)
     return send(response, 200, { activity: parent.activity })
   }
 
