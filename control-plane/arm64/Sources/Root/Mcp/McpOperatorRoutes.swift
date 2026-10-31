@@ -12,7 +12,7 @@ struct McpOperatorRoutes {
     let guards: Guards
 
     static let defaultActivityPage = 20
-    static let writesPerMinute = 20
+    static let writesPerMinute = 60
 
     func register(on group: RouterGroup<RootContext>) {
         group.get("/api/mcp/info", use: info)
