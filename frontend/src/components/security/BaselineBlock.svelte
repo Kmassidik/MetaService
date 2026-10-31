@@ -4,7 +4,7 @@
   import { baselineRows, type CheckState } from '../../lib/securityRules.ts'
   import type { MachineSecurity } from '../../lib/types.ts'
 
-  const WORDS: Record<CheckState, string> = { ok: 'OK', warning: 'Look', unknown: 'Unknown' }
+  const WORDS: Record<CheckState, string> = { ok: 'OK', warning: 'Fix', unknown: 'Unknown' }
   const TAG_CLASS: Record<CheckState, string> = { ok: 'run', warning: 'warn', unknown: '' }
 
   let { report }: { report: MachineSecurity } = $props()
