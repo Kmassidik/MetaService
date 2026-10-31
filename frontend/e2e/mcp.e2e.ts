@@ -33,12 +33,18 @@ try {
     await b.until(() => document.querySelector('dialog[open]') === null)
   }
 
-  // ---- the section is on Settings, with the others ----
+  // ---- its own page, reached from the Settings dropdown of the sidebar ----
   await page.goto(`${parent.base}/#/settings`, { waitUntil: 'networkidle0' })
+  await b.until(() => document.querySelector('aside.side button[aria-controls="settings-menu"]') !== null)
+  check('the General settings page no longer holds the AI access section', await b.run(() => document.querySelector('[data-testid="mcp-section"]') === null))
+  check('Settings is a dropdown of the sidebar that opens by itself on its own page, with General and AI access (MCP)', await b.run(() =>
+    [...document.querySelectorAll('#settings-menu a')].map((x) => x.textContent?.trim()).join('|') === 'General|AI access (MCP)'))
+  check('there is no extra sidebar row for it', await b.run(() => ![...document.querySelectorAll('aside.side nav > div > a')].some((x) => /AI access|MCP/i.test(x.textContent ?? ''))))
+  await page.click('#settings-menu a[href="#/mcp"]')
   await b.until(() => document.querySelector('[data-testid="mcp-connect"]') !== null)
-  check('Settings has the AI access (MCP) section, after the other sections', await b.run(() =>
-    [...document.querySelectorAll('main section h2')].map((x) => x.textContent).join('|') === 'AI provider|Chat bundle|AI access (MCP)'))
-  check('there is no sidebar row of its own', await b.run(() => ![...document.querySelectorAll('aside.side a')].some((x) => /AI access|MCP/i.test(x.textContent ?? ''))))
+  check('the sidebar item opens the page and is marked, and so is Settings', await b.run(() =>
+    document.querySelector('#settings-menu a[href="#/mcp"]')?.getAttribute('aria-current') === 'page' && document.querySelector('aside.side button[aria-controls="settings-menu"]')?.classList.contains('here') === true &&
+    document.querySelector('h1')?.textContent === 'AI access (MCP)'))
   check('the section lists Connect, People, Tokens and Recent activity, and has no approval block', await b.run(() =>
     [...document.querySelectorAll('[data-testid="mcp-section"] > h3')].map((x) => x.textContent?.trim()).join('|') === 'Connect|People|Tokens|Recent activity'))
   check('no approval word anywhere in the section', !(await section()).toLowerCase().includes('approv'))
@@ -198,7 +204,7 @@ try {
   parent.tokens.length = 0
   parent.people.length = 0
   parent.activity.length = 0
-  await b.go('#/settings')
+  await b.go('#/mcp')
   await b.until(() => document.querySelector('[data-testid="mcp-tokens-empty"]') !== null)
   const empty = await section()
   check('empty lists have their own text', empty.includes('No one yet.') && empty.includes('No tokens yet.') && empty.includes('No calls yet.'))
@@ -218,7 +224,11 @@ try {
   await page.reload({ waitUntil: 'networkidle0' })
   await b.until(() => document.querySelector('[data-testid="mcp-unavailable"]') !== null)
   check('a parent without AI access says so', (await section()).includes('AI access is not available on this parent.') && await b.run(() => document.querySelector('[data-testid="mcp-connect"]') === null))
-  check('the rest of Settings still works then', await b.run(() => document.querySelectorAll('main section h2').length === 3))
+  await b.go('#/settings')
+  await b.until(() => document.querySelectorAll('main section h2').length === 2)
+  check('the General settings page still works then', await b.run(() => [...document.querySelectorAll('main section h2')].map((x) => x.textContent).join('|') === 'AI provider|Chat bundle'))
+  await b.go('#/mcp')
+  await b.until(() => document.querySelector('[data-testid="mcp-unavailable"]') !== null)
   await b.shot('mcp-unavailable-1440.png')
   parent.mode = 'ok'
 

@@ -15,6 +15,7 @@ test('each address leads to its page', () => {
 })
 
 test('older addresses still lead to their new pages', () => {
+  expect(['/mcp'].map(pageFor)).toEqual(['mcp'])
   expect(['/deployments', '/scan', '/activity', '/bundle', '/ai'].map(pageFor)).toEqual(['machines', 'machines', 'health', 'settings', 'settings'])
 })
 

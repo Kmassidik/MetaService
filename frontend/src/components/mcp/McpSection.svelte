@@ -1,6 +1,6 @@
 <script lang="ts">
   // AI access (MCP): connect an AI client, add the people who use it, make and revoke their tokens, see what they did.
-  // While the Settings page is open it asks again every few seconds (and stops when the page closes), and redraws a list only when it changed.
+  // While the AI access page is open it asks again every few seconds (and stops when the page closes), and redraws a list only when it changed.
   import { onMount } from 'svelte'
   import McpActivity from './McpActivity.svelte'
   import McpConnect from './McpConnect.svelte'
@@ -75,7 +75,6 @@
 </script>
 
 <section class="mcp" aria-label="AI access (MCP)" data-testid="mcp-section">
-  <h2>AI access (MCP)</h2>
   {#if !loaded}
     <p class="muted" role="status" data-testid="mcp-loading">Reading AI access…</p>
   {:else if unavailable}
@@ -103,7 +102,6 @@
 
 <style>
   .mcp { display: grid; gap: 12px; }
-  h2 { font-size: 16px; }
   p { margin: 0; }
   .muted { color: var(--m60); font-size: 13px; line-height: 1.6; }
   .bad { display: grid; gap: 10px; justify-items: start; color: var(--danger-d); font-size: 13px; }

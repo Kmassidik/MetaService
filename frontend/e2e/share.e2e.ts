@@ -35,7 +35,7 @@ try {
   await page.click('#machines-menu a[href="#/share"]')
   await b.until(() => document.querySelector('h1')?.textContent === 'Share a PC')
   check('the entry opens the page, is marked, and the Machines row is marked too', await b.run(() =>
-    document.querySelector('#machines-menu a[href="#/share"]')?.getAttribute('aria-current') === 'page' && document.querySelector('aside.side button.group')?.classList.contains('here') === true))
+    document.querySelector('#machines-menu a[href="#/share"]')?.getAttribute('aria-current') === 'page' && document.querySelector('aside.side button[aria-controls="machines-menu"]')?.classList.contains('here') === true))
 
   // ---- the buttons and the CPU states ----
   await b.until(() => document.querySelectorAll('[aria-label="System"] button').length === 3)

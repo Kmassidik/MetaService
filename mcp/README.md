@@ -4,7 +4,7 @@ An AI client (Claude Code, Cursor, any MCP client) can create and manage VMs thr
 
 ## Connect Claude Code
 
-1. In the panel open **Settings**, find **AI access (MCP)**. Under **People**, press **Add person**: a name, what they may do, and their limits. (Do this once per person.)
+1. In the panel open **Settings → AI access (MCP)** in the sidebar. Under **People**, press **Add person**: a name, what they may do, and their limits. (Do this once per person.)
 2. Under **Tokens** press **Create token**: choose the person, name the token (for example `laptop`), tick what it may do (never more than the person may) and the days it lasts.
 3. Copy the token when it is shown. **It is shown once and cannot be shown again.**
 4. In a terminal, run the line from the **Connect** box, with your token in place of the placeholder:

@@ -7,17 +7,21 @@
   }
 
   import OwlMark from './OwlMark.svelte'
-  import { machinesMenu, type MenuItem } from '../lib/sidebar.ts'
+  import { machinesMenu, settingsMenu, type MenuItem } from '../lib/sidebar.ts'
 
   let { active = 'overview', route = '/', username, onSignOut }: { active?: string; route?: string; username: string; onSignOut: () => void } = $props()
-  // Machines is a dropdown: it opens by itself when one of its pages is shown, and the person can close or open it. VMs is one plain link to All VMs.
+  // Machines and Settings are dropdowns: each opens by itself when one of its pages is shown, and the person can close or open it. VMs is one plain link to All VMs.
   let machinesOpen = $state(false)
+  let settingsOpen = $state(false)
   // Share a PC is one of the Machines pages, so the dropdown opens and the Machines row is marked there too.
   const inMachines = $derived(active === 'machines' || active === 'share')
+  const inSettings = $derived(active === 'settings' || active === 'mcp')
   $effect(() => { if (inMachines) machinesOpen = true })
-  const isOn = (page: NavPage) => (page.id === 'machines' ? inMachines : active === page.id)
+  $effect(() => { if (inSettings) settingsOpen = true })
+  const isOn = (page: NavPage) => (page.id === 'machines' ? inMachines : page.id === 'settings' ? inSettings : active === page.id)
   const dropdowns = $derived<Record<string, { items: MenuItem[]; open: boolean; toggle: () => void }>>({
     machines: { items: machinesMenu(route), open: machinesOpen, toggle: () => (machinesOpen = !machinesOpen) },
+    settings: { items: settingsMenu(route), open: settingsOpen, toggle: () => (settingsOpen = !settingsOpen) },
   })
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [
