@@ -1,5 +1,6 @@
 // The VM page (the MAAS detail page for one VM): reached from all three VMs views, its four tabs, Stop and Start, the MAAS-only parts staying hidden,
 // and Delete (confirm first, then back to the machine's page).
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
@@ -18,7 +19,7 @@ const onTheVmPage = (b: Browse) => b.until((name) => document.querySelector('.ph
 async function backToVms(b: Browse): Promise<void> {
   await b.go(MACHINE_URL_END)
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'agent-mac', { timeout: SHORT_WAIT_MS })
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await b.page.waitForSelector('.segmented')
 }
 

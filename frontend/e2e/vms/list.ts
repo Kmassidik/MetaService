@@ -1,4 +1,5 @@
 // The All VMs page: the table of every VM, the Machine filter kept in the address, the empty states, a row opening the VM, and hostile text staying text.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import { noSideScroll, owlShown } from '../support/owls.ts'
 import type { Browse } from '../support/page.ts'
@@ -39,7 +40,7 @@ export async function fullTable(b: Browse): Promise<void> {
   const rows = await tableRows(b)
   const names = rows.map((cells) => `${cells[1]}/${cells[0]?.split(' ')[0]}`)
   check('All VMs lists the VMs of every machine, sorted by machine name then VM name', JSON.stringify(names) === JSON.stringify([`${CONTAINER_MACHINE}/${CONTAINER_VM}`, 'dgx-spark/demo', 'mac-mini/demo']), JSON.stringify(names))
-  check('a row shows name with its ID under it, machine, kind, state, vCPU, RAM and disk, and only icons for actions', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo wl-1', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb', '']), JSON.stringify(rows[2]))
+  check('a row shows name with its ID under it, machine, kind, state, vCPU, RAM, disk and who created it, and only icons for actions', JSON.stringify(rows[2]?.map((cell) => cell.toLowerCase())) === JSON.stringify(['demo wl-1', 'mac-mini', 'vm', 'running', '2', '2 gb', '20 gb', 'unknown origin', '']), JSON.stringify(rows[2]))
   check('a container is listed as a container, with its own sizes', rows[0]?.[2] === 'container' && rows[0][5] === '512 MB' && rows[0][6] === '5 GB')
   check('the header counts the VMs and the machines they are on', (await crumb(b)) === 'Infrastructure › 3 VMs on 3 machines', await crumb(b))
   check('the table shows no script from machine data', (await b.run(() => window.__xss)) === undefined && (await b.page.$('img[src="x"]')) === null)
@@ -70,7 +71,7 @@ export async function filtering(b: Browse): Promise<void> {
   await owlShown(b, 'emptyVms', 'All VMs narrowed to a machine without VMs')
   await b.shot('vms-none-on-machine.png')
   await b.go(`#/machines/details?id=${OFFLINE_MACHINE}`)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.until(() => document.body.innerText.includes('No VMs on this machine yet.'), { timeout: SHORT_WAIT_MS })
   await owlShown(b, 'emptyVms', 'the machine page VMs tab without VMs')

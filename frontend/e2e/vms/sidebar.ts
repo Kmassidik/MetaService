@@ -16,14 +16,14 @@ export async function vmsIsOneLink(b: Browse): Promise<void> {
   await b.page.reload({ waitUntil: 'networkidle0' })
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'Overview', { timeout: SHORT_WAIT_MS })
   const order = await infrastructure(b)
-  check('the Infrastructure group has the Machines dropdown button, then VMs as a plain link', JSON.stringify(order) === JSON.stringify(['button:Machines', 'a:VMs']), JSON.stringify(order))
+  check('the Infrastructure group has the Machines dropdown button, then VMs and Sandboxes as plain links', JSON.stringify(order) === JSON.stringify(['button:Machines', 'a:VMs', 'a:Sandboxes']), JSON.stringify(order))
   check('VMs has no chevron, no dropdown and no Create VM item', await b.run((selector) => {
     const link = document.querySelector(selector)
     return link !== null && link.querySelector('.chev') === null && document.querySelector('#vms-menu') === null && !/Create VM/.test(document.querySelector<HTMLElement>('aside.side')?.innerText ?? '')
   }, VMS_LINK))
   check('VMs points to All VMs and is not marked on the Overview', (await b.run((selector) => document.querySelector(selector)?.getAttribute('href'), VMS_LINK)) === '#/vms' && !(await isMarked(b)))
   await b.click('Machines')
-  check('the Machines dropdown still opens with Machine list and Find machines', JSON.stringify(await b.page.$$eval('#machines-menu a', (links) => links.map((link) => link.textContent?.trim()))) === JSON.stringify(['Machine list', 'Find machines']))
+  check('the Machines dropdown still opens with Machine list, Find machines and Share a PC', JSON.stringify(await b.page.$$eval('#machines-menu a', (links) => links.map((link) => link.textContent?.trim()))) === JSON.stringify(['Machine list', 'Find machines', 'Share a PC']))
   await b.click('Machines')
 }
 

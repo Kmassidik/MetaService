@@ -1,5 +1,6 @@
 // The web terminal of a VM in a real browser: open it from the VM page, type into the real shell, see the screen size follow the window,
 // close it with Escape and with Close, and Reconnect after the shell ends (which must ask for a new ticket).
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
 import type { Browse } from '../support/page.ts'
@@ -60,7 +61,7 @@ async function goToTheVmPage(b: Browse): Promise<void> {
   await b.go(`#/machines/details?id=${MACHINE}`)
   await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, MACHINE)
   await createAVm(b, VM)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   await b.run((name) => [...document.querySelectorAll<HTMLAnchorElement>('td.c-name a')].find((link) => link.textContent?.trim() === name)?.click(), VM)

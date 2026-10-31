@@ -1,4 +1,5 @@
 // How each page of the theme pictures is reached. Every step leaves the page open, ready to be photographed.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import type { HTTPRequest } from 'puppeteer-core'
 import type { Requirement } from '../../src/lib/types.ts'
 import { ADMIN } from '../support/admin.ts'
@@ -49,7 +50,7 @@ export async function livePage(b: Browse, standInBase: string): Promise<void> {
 
 export async function vmsTab(b: Browse, base: string): Promise<void> {
   await openMachine(b, base, MAC)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await b.until(() => !!document.querySelector('section.bv'), { timeout: SHORT_WAIT_MS })
 }
 

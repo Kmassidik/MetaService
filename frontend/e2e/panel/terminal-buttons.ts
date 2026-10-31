@@ -1,5 +1,6 @@
 // The Terminal button on each VM of the machine page (Building, Table and Cards) and of All VMs: it opens the same window over the page the person is on,
 // is switched off with its reason on a stopped VM and on a machine that is not a Mac, and does not open the VM's page from the stretched row link.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
 import { openTab, pickView } from './machines.ts'
@@ -58,7 +59,7 @@ async function closeIt(b: Browse): Promise<void> {
 async function onTheMachinePage(b: Browse): Promise<void> {
   await b.go(`#/machines/details?id=${MACHINE}`)
   await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, MACHINE)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await b.page.waitForSelector('.segmented')
   await pickView(b, 'Building')
   await b.page.waitForSelector('.bv-tenants li')
@@ -72,7 +73,7 @@ async function onTheMachinePage(b: Browse): Promise<void> {
   check('the table view has an enabled Terminal button for a running VM on a Mac', row.found && !row.disabled && row.label === `Terminal ${VM}`, JSON.stringify(row))
   await press(b, 'tbody tr', VM)
   await openAndUse(b, 'machine-page')
-  check('the terminal opens over the machine page, which stays where it was', b.page.url().endsWith(`#/machines/details?id=${MACHINE}`) && /VMs \(\d+\)/.test(await b.text()), b.page.url())
+  check('the terminal opens over the machine page, which stays where it was', b.page.url().endsWith(`#/machines/details?id=${MACHINE}`) && (await b.text()).includes(COMPUTE_TAB), b.page.url())
   await b.shot('terminal-from-machine-page.png')
   await closeIt(b)
   check('closing it leaves the machine page', !(await isOpen(b)) && b.page.url().endsWith(`#/machines/details?id=${MACHINE}`))
@@ -105,7 +106,7 @@ async function disabledOnes(b: Browse): Promise<void> {
   await b.page.setViewport(DESKTOP)
   await b.go(`#/machines/details?id=${NON_MAC_MACHINE}`)
   await b.until((name) => document.querySelector('.phead h1')?.textContent === name, { timeout: SHORT_WAIT_MS }, NON_MAC_MACHINE)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   const onMachinePage = await facts(b, 'tbody tr', NON_MAC_VM)

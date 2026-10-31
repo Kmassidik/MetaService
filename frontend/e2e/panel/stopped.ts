@@ -1,5 +1,6 @@
 // Why a VM stopped, as the machine reported it: on the VM's own page, in the VM lists, and in the terminal window (which explains instead of showing an error,
 // and has a Start button that works). The log lines come from inside the VM, so a hostile one must stay text.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { writeHeaders } from '../support/admin.ts'
 import { check } from '../support/check.ts'
 import { wait } from '../support/net.ts'
@@ -97,7 +98,7 @@ async function inTheLists(b: Browse): Promise<void> {
   await b.page.setViewport(DESKTOP)
   await b.go(`#/machines/details?id=${MACHINE}`)
   await b.until((wanted) => document.querySelector('.phead h1')?.textContent === wanted, { timeout: SHORT_WAIT_MS }, MACHINE)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.page.waitForSelector('td.c-name a')
   check('the VMs tab of the machine shows the reason in its table too', await b.run(() => document.querySelector('tbody details summary')?.textContent?.trim() === 'Why it stopped'))
@@ -105,6 +106,9 @@ async function inTheLists(b: Browse): Promise<void> {
   await b.page.waitForSelector('.card')
   check('and in its cards', await b.run(() => document.querySelectorAll('.card details summary').length > 0))
 }
+
+/** Presses Close in the terminal window's own notice (the Live tab, still in the page, has a Close button of its own that is hidden). */
+const closeNotice = (b: Browse) => b.page.click('.term-box .notice .nact button.line')
 
 const notice = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('.term-box .notice')?.innerText ?? '')
 
@@ -127,7 +131,7 @@ async function terminalOnAVmThatJustStopped(b: Browse, world: World, token: stri
   check('the window does not scroll sideways on a phone', await noSidewaysScroll(b) && await b.run(() => { const box = document.querySelector('.term-box'); return box !== null && box.getBoundingClientRect().right <= window.innerWidth }))
   await b.shot('stopped-terminal-window-phone.png')
   await b.page.setViewport(DESKTOP)
-  await b.click('Close')
+  await closeNotice(b)
   await b.until(() => document.querySelector('.term-box') === null, { timeout: SHORT_WAIT_MS })
 }
 
@@ -187,7 +191,7 @@ async function stoppingUnderAnOpenTerminal(b: Browse, world: World): Promise<voi
     await b.until(() => /This VM has stopped\./.test(document.querySelector<HTMLElement>('.term-box .notice')?.innerText ?? ''), { timeout: AGENT_WAIT_MS })
     check('a VM that stops under a terminal that was open for a while says "This VM has stopped."', true)
     check('the status line says not connected, not error', /not connected/i.test(await b.run(() => document.querySelector<HTMLElement>('.tstatus')?.innerText ?? '')))
-    await b.click('Close')
+    await closeNotice(b)
     await b.until(() => document.querySelector('.term-box') === null, { timeout: SHORT_WAIT_MS })
   } finally {
     agent.kill()

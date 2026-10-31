@@ -1,6 +1,7 @@
 // The Create VM window is ONE window for every way in, laid out like Proxmox's windows. Its size and runtime are selects: lines that do not fit are off with the reason, the number boxes are always there and
 // typing in them moves the size to Custom, the caption follows the runtime.
 // An empty name gets a generated one, five quick clicks send one order that carries the choices, and on a phone nothing scrolls sideways while the footer stays in reach.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import type { Page } from 'puppeteer-core'
 import { check } from '../support/check.ts'
 import { CREATE_FORM, NAME, RUNTIME, SIZE, captionOf, choose, closeProgress, createFormCount, fieldValue, imageListArrived, imageState, lines, openedMenu, selectValue, setField } from '../support/createVm.ts'
@@ -57,14 +58,14 @@ export async function oneWindowFromEveryWayIn(b: Browse): Promise<void> {
   await exactlyOne(b, 'the old #/vms/create address')
 
   await b.go(`#/machines/details?id=${OFFLINE_MACHINE}`)
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.until(() => document.body.innerText.includes('No VMs on this machine yet.'), { timeout: SHORT_WAIT_MS })
   await b.click('＋ Create a VM')
   await exactlyOne(b, 'a machine page, the empty state')
 
   await b.go('#/machines/details?id=mac-mini')
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await pickView(b, 'Table')
   await b.click('＋ New VM')
   await exactlyOne(b, 'a machine page, the + New VM button')

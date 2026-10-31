@@ -1,4 +1,5 @@
 // Signing in, the Overview, the sidebar, and the Machines list: its problems, hostile text, and removing a machine.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { ADMIN } from '../support/admin.ts'
 import { check } from '../support/check.ts'
 import { loginIsOneCentered } from '../support/loginLayout.ts'
@@ -8,9 +9,9 @@ import type { World } from './world.ts'
 
 const SHORT_WAIT_MS = 10000
 const REMOVE_WAIT_MS = 5000
-/** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row, open it holds the machine list and Find machines. VMs is one plain link to All VMs (its own checks are in vms.e2e.ts). */
-const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs']
-const DROPDOWN_ENDS = ['Machine list', 'Find machines']
+/** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row, open it holds the machine list, Find machines and Share a PC. VMs is one plain link to All VMs (its own checks are in vms.e2e.ts), Sandboxes the next link. */
+const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs', 'Sandboxes']
+const DROPDOWN_ENDS = ['Machine list', 'Find machines', 'Share a PC']
 
 const inputField = (b: Browse, name: string) => b.page.type(`input[name=${name}]`, name === 'username' ? ADMIN.username : ADMIN.password)
 
@@ -50,8 +51,8 @@ export async function overviewAndSidebar(b: Browse): Promise<void> {
   await b.click('Machines')
   const open = await items()
   const inside = open.slice(open.indexOf('Machines') + 1, open.indexOf('VMs'))
-  check('opening it shows the machine list then Find machines, and no machine names', JSON.stringify(inside) === JSON.stringify(DROPDOWN_ENDS), JSON.stringify(open))
-  check('the Machines button says whether it is open', await b.run(() => document.querySelector('aside.side nav button')?.getAttribute('aria-expanded') === 'true'))
+  check('opening it shows the machine list, Find machines, then Share a PC, and no machine names', JSON.stringify(inside) === JSON.stringify(DROPDOWN_ENDS), JSON.stringify(open))
+  check('the Machines button says whether it is open', await b.run(() => document.querySelector('aside.side nav button[aria-controls="machines-menu"]')?.getAttribute('aria-expanded') === 'true'))
   await b.shot('sidebar-open.png')
   await b.click('Machines')
   check('pressing it again closes the dropdown', JSON.stringify(await items()) === JSON.stringify(SIDEBAR_CLOSED))
@@ -83,7 +84,7 @@ async function cpuNamesOnTheCards(b: Browse): Promise<void> {
 export async function hostileTextIsShownAsText(b: Browse): Promise<void> {
   await b.go('#/machines/details?id=dgx-spark')
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'dgx-spark', { timeout: SHORT_WAIT_MS })
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await b.page.waitForSelector('.segmented')
   await pickView(b, 'Table')
   await b.until(() => document.body.innerText.includes('<img src=x'), {})

@@ -1,4 +1,5 @@
 // A machine's own page and its VMs: creating, listing in the three views, stopping, starting, deleting, and a request that fits nowhere.
+import { COMPUTE_TAB } from '../machine/steps.ts'
 import { check } from '../support/check.ts'
 import { NAME, PICKER, SIZE, choose, closeProgress, createDisabled, createFormCount, imageListArrived, setField } from '../support/createVm.ts'
 import { expandAll } from '../machine/environment.ts'
@@ -37,7 +38,7 @@ async function openTheMachine(b: Browse): Promise<void> {
   check('the machine page shows its facts on the Environment tab', /ID\s*agent-mac/i.test(facts) && /Memory/i.test(facts))
   await openTab(b, 'Live')
   const sidebar = await b.page.$eval('aside.side', (side) => side instanceof HTMLElement ? side.innerText : '')
-  check('the sidebar has no Deployments page: the VMs are inside the machine, on the VMs tab', !/Deployments$/m.test(sidebar) && /VMs \(0\)/.test(shown))
+  check('the sidebar has no Deployments page: the VMs are inside the machine, on the Compute tab', !/Deployments$/m.test(sidebar) && shown.includes(COMPUTE_TAB))
 }
 
 export async function createAVm(b: Browse, name = NEW_VM): Promise<void> {
@@ -69,7 +70,7 @@ async function itsActivity(b: Browse): Promise<void> {
 }
 
 async function theThreeViews(b: Browse): Promise<void> {
-  await openTab(b, 'VMs')
+  await openTab(b, COMPUTE_TAB)
   await b.until(() => document.body.innerText.includes('build-box'), { timeout: ROW_WAIT_MS })
   await b.page.waitForSelector('.segmented')
   await pickView(b, 'Building')
