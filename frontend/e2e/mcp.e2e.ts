@@ -1,5 +1,5 @@
 // The AI access (MCP) section of Settings, against a stand-in parent that plays /api/mcp/*:
-// it appears on Settings; Connect shows the endpoint and the copy lines with a placeholder; people are added, edited, disabled and enabled; a token is made
+// it appears on Settings; Connect shows the endpoint and a tab per app with its copy line and a placeholder; people are added, edited, disabled and enabled; a token is made
 // for a person and shown once (copy works, closing removes it, it is in no storage and no address); the list shows it with its person; Revoke asks first;
 // there is no approval anywhere; recent activity names the person; a parent without the feature; hostile text; polling keeps what is typed and stops when the page closes; no script errors.
 import puppeteer from 'puppeteer-core'
@@ -51,16 +51,71 @@ try {
 
   // ---- Connect ----
   check('Connect shows the endpoint of the parent', await b.run(() => document.querySelector('[data-testid="mcp-endpoint"]')?.textContent) === ENDPOINT)
-  const claude = await b.run(() => document.querySelector('[data-testid="code-Claude-Code-line"]')?.textContent ?? '')
-  check('the Claude Code line has the endpoint and a placeholder token', claude === `claude mcp add --transport http metaservice ${ENDPOINT} --header "Authorization: Bearer <YOUR_TOKEN>"`, claude)
-  const json = await b.run(() => document.querySelector('[data-testid="code-JSON-for-another-client"]')?.textContent ?? '')
-  check('the JSON for another client has the endpoint and a placeholder token', json.includes(ENDPOINT) && json.includes('Bearer <YOUR_TOKEN>') && !json.includes('msk_'))
-  await page.click('button[aria-label="Copy Claude Code line"]')
-  await b.until(() => (window as unknown as Record<string, string>).__copied !== undefined)
-  check('Copy puts the Claude Code line on the clipboard', (await copied()) === claude)
-  await page.click('button[aria-label="Copy JSON for another client"]')
-  await b.until((text: string) => (window as unknown as Record<string, string>).__copied === text, {}, json)
-  check('Copy puts the JSON on the clipboard', true)
+  const APPS: Array<[string, string, string]> = [
+    ['Claude Code', 'Run this in a terminal.', `claude mcp add --transport http metaservice ${ENDPOINT} --header "Authorization: Bearer <YOUR_TOKEN>"`],
+    ['Cursor', 'Put this in ~/.cursor/mcp.json', JSON.stringify({ mcpServers: { metaservice: { url: ENDPOINT, headers: { Authorization: 'Bearer <YOUR_TOKEN>' } } } }, null, 2)],
+    ['VS Code', 'Put this in .vscode/mcp.json', JSON.stringify({ servers: { metaservice: { type: 'http', url: ENDPOINT, headers: { Authorization: 'Bearer <YOUR_TOKEN>' } } } }, null, 2)],
+    ['OpenCode', 'Put this in opencode.json', JSON.stringify({ mcp: { metaservice: { type: 'remote', url: ENDPOINT, headers: { Authorization: 'Bearer <YOUR_TOKEN>' } } } }, null, 2)],
+    ['Gemini CLI', 'Put this in ~/.gemini/settings.json', JSON.stringify({ mcpServers: { metaservice: { httpUrl: ENDPOINT, headers: { Authorization: 'Bearer <YOUR_TOKEN>' } } } }, null, 2)],
+    ['Other apps', 'Any app that reads a JSON file of MCP servers takes this.', JSON.stringify({ mcpServers: { metaservice: { type: 'http', url: ENDPOINT, headers: { Authorization: 'Bearer <YOUR_TOKEN>' } } } }, null, 2)],
+  ]
+  const tabNames = () => b.run(() => [...document.querySelectorAll('[data-testid="mcp-apps"] [role="tab"]')].map((x) => x.textContent?.trim()).join('|'))
+  const panel = () => b.run(() => ({
+    where: document.querySelector('[data-testid="mcp-app-where"]')?.textContent ?? '',
+    code: document.querySelector('[data-testid="mcp-app-panel"] pre')?.textContent ?? '',
+    caution: document.querySelector('[data-testid="mcp-app-caution"]')?.textContent ?? '',
+    selected: [...document.querySelectorAll('[data-testid="mcp-apps"] [role="tab"]')].filter((x) => x.getAttribute('aria-selected') === 'true').map((x) => x.textContent?.trim()),
+  }))
+  check('Connect has one tab per app, in order, Claude Code first and selected', (await tabNames()) === APPS.map((app) => app[0]).join('|') && (await panel()).selected.join() === 'Claude Code')
+  check('the tab strip is a tablist whose tab owns the panel', await b.run(() => document.querySelector('[data-testid="mcp-apps"] [role="tablist"]') !== null && document.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute('aria-controls') === document.querySelector('[role="tabpanel"]')?.id))
+  for (const [label, where, code] of APPS) {
+    await b.click(label)
+    await b.until((name: string) => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim() === name, {}, label)
+    const shown = await panel()
+    check(`${label}: says where it goes and shows the snippet with the endpoint and a placeholder`, shown.where === where && shown.code === code && shown.code.includes(ENDPOINT) && shown.code.includes('Bearer <YOUR_TOKEN>') && !shown.code.includes('msk_'), shown.code)
+    const honest = label === 'Claude Code' || label === 'Other apps' ? '' : `Check ${label}'s own docs if the setting names changed.`
+    check(`${label}: ${honest === '' ? 'has no docs line' : 'carries the short docs line'}`, shown.caution === honest, shown.caution)
+    await page.click(`button[aria-label="Copy ${label} snippet"]`)
+    await b.until((text: string) => (window as unknown as Record<string, string>).__copied === text, {}, code)
+    check(`${label}: Copy puts the snippet on the clipboard`, true)
+  }
+  const bridge = await b.run(() => document.querySelector('[data-testid="code-Other-apps-bridge-line"]')?.textContent ?? '')
+  check('Other apps adds the bridge line with the endpoint and a placeholder, and says OAuth is not offered yet', bridge === `npx mcp-remote ${ENDPOINT} --header "Authorization: Bearer <YOUR_TOKEN>"` && await b.run(() => document.querySelector('[data-testid="mcp-app-footer"]')?.textContent?.includes('OAuth') === true))
+  await page.click('button[aria-label="Copy Other apps bridge line"]')
+  await b.until((text: string) => (window as unknown as Record<string, string>).__copied === text, {}, bridge)
+  check('Copy puts the bridge line on the clipboard', true)
+  await b.shot('mcp-connect-other-1440.png')
+  await b.click('Claude Code')
+  await page.keyboard.press('ArrowLeft')
+  check('ArrowLeft from the first tab wraps to the last, selects it and moves focus', (await panel()).selected.join() === 'Other apps' && await b.run(() => document.activeElement?.textContent?.trim() === 'Other apps'))
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  check('Home then ArrowRight reaches Cursor', (await panel()).selected.join() === 'Cursor' && (await panel()).where === 'Put this in ~/.cursor/mcp.json')
+  await page.keyboard.press('End')
+  check('End reaches the last tab', (await panel()).selected.join() === 'Other apps')
+  check('only the picked tab is in the tab order', await b.run(() => [...document.querySelectorAll('[data-testid="mcp-apps"] [role="tab"]')].filter((x) => x.getAttribute('tabindex') === '0').length === 1))
+  check('nothing about the tab is in storage or the address', await b.run(() => localStorage.length === 0 && sessionStorage.length === 0 && !location.href.includes('cursor')))
+  await b.click('Claude Code')
+  await b.shot('mcp-connect-claude-1440.png')
+
+  await page.setViewport({ width: 390, height: 844 })
+  await b.until(() => document.documentElement.clientWidth <= 390)
+  check('at 390 px the page does not scroll sideways, on every tab', await (async () => {
+    for (const [label] of APPS) {
+      await b.click(label)
+      if (await b.run(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)) return false
+    }
+    return true
+  })())
+  check('at 390 px the strip scrolls inside itself and the active snippet stays inside the screen', await b.run(() => {
+    const strip = document.querySelector('[data-testid="mcp-apps"] [role="tablist"]') as HTMLElement
+    const box = document.querySelector('[data-testid="mcp-app-panel"] pre')!.getBoundingClientRect()
+    return strip.scrollWidth > strip.clientWidth && strip.getBoundingClientRect().right <= 390 && box.right <= 390
+  }))
+  await b.click('Cursor')
+  await b.shot('mcp-connect-cursor-390.png')
+  await page.setViewport({ width: 1440, height: 900 })
+  await b.until(() => document.documentElement.clientWidth > 1000)
   const tools = await b.run(() => [...document.querySelectorAll('[data-testid="mcp-tools"] tbody tr')].map((row) => [...row.querySelectorAll('td')].slice(0, 2).map((cell) => cell.textContent?.trim()).join(':')))
   check('the tools are listed with their scope', tools.length === 9 && tools.includes('create_vm:create') && tools.includes('delete_vm:destroy') && tools.includes('list_machines:read'), tools.join(','))
 

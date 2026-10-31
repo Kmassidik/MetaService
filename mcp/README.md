@@ -2,32 +2,27 @@
 
 An AI client (Claude Code, Cursor, any MCP client) can create and manage VMs through MetaService. It connects to `https://meta.ruvio.site/mcp` with a token that belongs to a **person** (a name like "Ayu", not a login). The parent checks what the token may do, applies the person's limits, runs the call at once, writes it to the log, and records who made every VM. The full agreement between the parts is in `SPEC.md` (section 10 is the current design).
 
-## Connect Claude Code
+## Connect an app
 
 1. In the panel open **Settings → AI access (MCP)** in the sidebar. Under **People**, press **Add person**: a name, what they may do, and their limits. (Do this once per person.)
 2. Under **Tokens** press **Create token**: choose the person, name the token (for example `laptop`), tick what it may do (never more than the person may) and the days it lasts.
 3. Copy the token when it is shown. **It is shown once and cannot be shown again.**
-4. In a terminal, run the line from the **Connect** box, with your token in place of the placeholder:
+4. In the **Connect** box pick your app's tab, copy its snippet and put your token in place of `<YOUR_TOKEN>`. The panel shows each snippet with your endpoint (here `https://meta.ruvio.site/mcp`).
 
-```
-claude mcp add --transport http metaservice https://meta.ruvio.site/mcp --header "Authorization: Bearer <YOUR_TOKEN>"
-```
+| App | Where it goes | Snippet |
+|---|---|---|
+| Claude Code | a terminal | `claude mcp add --transport http metaservice https://meta.ruvio.site/mcp --header "Authorization: Bearer <YOUR_TOKEN>"` |
+| Cursor | `~/.cursor/mcp.json` | `{"mcpServers":{"metaservice":{"url":"<endpoint>","headers":{"Authorization":"Bearer <YOUR_TOKEN>"}}}}` |
+| VS Code | `.vscode/mcp.json` | `{"servers":{"metaservice":{"type":"http","url":"<endpoint>","headers":{"Authorization":"Bearer <YOUR_TOKEN>"}}}}` |
+| OpenCode | `opencode.json` | `{"mcp":{"metaservice":{"type":"remote","url":"<endpoint>","headers":{"Authorization":"Bearer <YOUR_TOKEN>"}}}}` |
+| Gemini CLI | `~/.gemini/settings.json` | `{"mcpServers":{"metaservice":{"httpUrl":"<endpoint>","headers":{"Authorization":"Bearer <YOUR_TOKEN>"}}}}` |
+| Other apps | a JSON file of MCP servers | `{"mcpServers":{"metaservice":{"type":"http","url":"<endpoint>","headers":{"Authorization":"Bearer <YOUR_TOKEN>"}}}}` |
 
-## Connect another client
+The formats for Cursor, VS Code, OpenCode and Gemini CLI come from those apps' docs and were not tried against this server yet. If an app does not connect, check its own docs for changed setting names.
 
-A client that reads a JSON file of MCP servers takes this (the panel shows it with your endpoint):
+Apps that can only run local programs or only speak the old SSE transport can use a bridge: `npx mcp-remote <endpoint> --header "Authorization: Bearer <YOUR_TOKEN>"`.
 
-```json
-{
-  "mcpServers": {
-    "metaservice": {
-      "type": "http",
-      "url": "https://meta.ruvio.site/mcp",
-      "headers": { "Authorization": "Bearer <YOUR_TOKEN>" }
-    }
-  }
-}
-```
+The claude.ai and ChatGPT connectors need OAuth, which this parent does not offer yet.
 
 ## What the AI can call
 

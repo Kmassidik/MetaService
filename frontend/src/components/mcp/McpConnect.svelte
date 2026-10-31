@@ -1,8 +1,8 @@
 <script lang="ts">
-  // Connect: the address of the AI endpoint, the two lines that connect a client (with a placeholder, never a real token), and the tools.
-  import McpCodeBox from './McpCodeBox.svelte'
+  // Connect: the address of the AI endpoint, a tab for each app with the snippet that connects it (with a placeholder, never a real token), and the tools.
+  import McpAppTabs from './McpAppTabs.svelte'
   import type { McpInfo } from '../../lib/mcp.ts'
-  import { claudeLine, jsonSnippet, SCOPE_TEXT, TOOL_TEXT } from '../../lib/mcpText.ts'
+  import { SCOPE_TEXT, TOOL_TEXT } from '../../lib/mcpText.ts'
 
   let { info }: { info: McpInfo } = $props()
   const tools = $derived(info.tools.length > 0 ? info.tools : Object.keys(TOOL_TEXT))
@@ -10,10 +10,8 @@
 
 <div class="connect" data-testid="mcp-connect">
   <p class="line">Endpoint <code data-testid="mcp-endpoint">{info.endpoint}</code></p>
-  <p class="muted">Make a token below, then connect Claude Code with this line. Replace the placeholder with your token.</p>
-  <McpCodeBox text={claudeLine(info.endpoint)} describe="Claude Code line" />
-  <p class="muted">Another client that reads a JSON file of MCP servers:</p>
-  <McpCodeBox text={jsonSnippet(info.endpoint)} describe="JSON for another client" />
+  <p class="muted">Make a token below, then pick your app. Replace the placeholder with your token.</p>
+  <McpAppTabs endpoint={info.endpoint} />
   <h4>Tools the AI can call</h4>
   <div class="tablewrap">
     <table class="restable stack" data-testid="mcp-tools">
