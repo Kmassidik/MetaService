@@ -85,7 +85,7 @@ function extrasOf(kind: Kind, call: number, total: number): { cpu: Json; top: Js
   }
 }
 
-export function reading(call: number, id: string, withProcesses: boolean): Json {
+export function reading(call: number, id: string, withProcesses: boolean, processCount = PROCESS_COUNT): Json {
   const kind = kindOf(id)
   const cores = kind.threads
   const used = (8 + (call % 8)) * GIB
@@ -98,7 +98,7 @@ export function reading(call: number, id: string, withProcesses: boolean): Json 
     disks: [{ mount: '/', name: 'root', fs: 'ext4', total_bytes: 500 * GIB, used_bytes: 200 * GIB, free_bytes: 300 * GIB }],
     network: { received_total_bytes: 1000 * call, sent_total_bytes: 500 * call, received_bytes_per_second: 100000 + call * 1000, sent_bytes_per_second: 20000 + call * 100, ...more.network },
     ...(kind.gpus.length > 0 ? { gpus: gpusAt(call, kind.gpus) } : {}),
-    processes: withProcesses ? processesAt(call).map((one, index) => ({ ...one, ...more.process(index) })) : [],
+    processes: withProcesses ? processesAt(call, processCount).map((one, index) => ({ ...one, ...more.process(index) })) : [],
     ...more.top,
   }
 }
@@ -122,12 +122,13 @@ function historyOf(id: string): Json {
 }
 
 /** Fifteen programs, busiest first: the hostile one, "node", then thirteen quiet workers run by "service". */
-function processesAt(call: number): Json[] {
-  const workers = Array.from({ length: PROCESS_COUNT - 2 }, (_, index) => ({ pid: index + 3, name: `worker-${index + 3}`, user: 'service', cpu_percent: 10 - index * 0.5, memory_bytes: GIB / 2 }))
+/** `count` programs: the real helper sends at most 15, but the panel must hold up when a list is long, so the paging check asks for hundreds. */
+function processesAt(call: number, count: number): Json[] {
+  const workers = Array.from({ length: count - 2 }, (_, index) => ({ pid: index + 3, name: `worker-${index + 3}`, user: 'service', cpu_percent: 10 - index * 0.5, memory_bytes: GIB / 2 }))
   return [{ pid: 1, name: HOSTILE_NAME, user: HOSTILE_USER, cpu_percent: 80 + call, memory_bytes: 5 * GIB }, { pid: 2, name: 'node', user: 'kurnia', cpu_percent: 12.5, memory_bytes: GIB }, ...workers]
 }
 
-export function startStandIn(dist: string): StandIn {
+export function startStandIn(dist: string, processCount = PROCESS_COUNT): StandIn {
   const machines = [machine('studio', STUDIO_THREADS), machine('mini', PLAIN_THREADS), machine('oldbox', 2), machine('mac', MAC_CORES, 'macos'), machine('bare', BARE_CORES, 'macos'), machine('duo', PLAIN_THREADS), machine('macgpu', MAC_CORES, 'macos')]
   const asked: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [], duo: [], macgpu: [] }
   const askedWithProcesses: Record<string, number[]> = { studio: [], mini: [], oldbox: [], mac: [], bare: [], duo: [], macgpu: [] }
@@ -148,7 +149,7 @@ export function startStandIn(dist: string): StandIn {
     const lastSeen = new Date().toISOString()
     if (id === 'oldbox') return reply({ state: 'old_helper', last_seen: lastSeen, fetched_at: null, stats: null })
     if (offline.has(id)) return reply({ state: 'offline', last_seen: new Date(Date.now() - 180000).toISOString(), fetched_at: null, stats: last.get(id) ?? null })
-    const one = reading(list.length, id, withProcesses)
+    const one = reading(list.length, id, withProcesses, processCount)
     last.set(id, one)
     return reply({ state: 'online', last_seen: lastSeen, fetched_at: lastSeen, stats: one })
   }

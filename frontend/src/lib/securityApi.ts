@@ -17,13 +17,14 @@ export interface SecuritySource {
 /** The address of the overview for a range. */
 export const overviewPath = (range: SecurityRange): string => `${OVERVIEW_PATH}?${new URLSearchParams({ range })}`
 
-/** The address of one page of the log. An empty filter is left out; the cursor is only sent for the second page and later. */
+/** The address of one page of the log. An empty filter is left out. */
 export function eventsPath(query: EventQuery): string {
   const params = new URLSearchParams({ range: query.range })
   if (query.machine !== '') params.set('machine', query.machine)
   if (query.type !== '') params.set('type', query.type)
   if (query.q.trim() !== '') params.set('q', query.q.trim())
-  if (query.cursor !== null) params.set('cursor', query.cursor)
+  params.set('page', String(query.page))
+  params.set('page_size', String(query.page_size))
   return `${EVENTS_PATH}?${params}`
 }
 

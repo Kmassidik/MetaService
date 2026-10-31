@@ -168,7 +168,9 @@ export const latestScan = async () => (await call<{ scan: Scan | null }>('GET', 
 
 export const createWorkload = (body: Record<string, unknown>) => call<unknown>('POST', '/api/workloads', body)
 
-export const listCommands = async () => (await call<{ commands: Command[] }>('GET', '/api/commands?limit=15')).commands
+/** How many of the newest commands the panel asks for. The activity list says so in plain words. */
+export const COMMANDS_LIMIT = 15
+export const listCommands = async () => (await call<{ commands: Command[] }>('GET', `/api/commands?limit=${COMMANDS_LIMIT}`)).commands
 
 export function workloadAction(machine: string, workload: string, action: WorkloadAction) {
   const body = action === 'delete' ? { confirm: true } : undefined

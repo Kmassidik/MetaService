@@ -1,6 +1,8 @@
 <script lang="ts">
   // API keys for sandboxes: a key's text is shown once, when it is made, and only its prefix is kept. A team is made the first
   // time a key names it, so no key is ever left without an owner.
+  import Pagination from '../components/Pagination.svelte'
+  import { Pager } from '../lib/pager.svelte.ts'
   import { onMount } from 'svelte'
   import ActionButton from '../components/ActionButton.svelte'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
@@ -56,6 +58,8 @@
   }
 
   onMount(load)
+  const pager = new Pager('sandbox-keys')
+  const shown = $derived(pager.slice(keys))
 </script>
 
 <div class="phead"><h1>API keys</h1><span class="crumb">Sandboxes › {keys.length} {keys.length === 1 ? 'key' : 'keys'}</span></div>
@@ -87,7 +91,7 @@
   <table class="restable stack">
     <thead><tr><th>Key</th><th>Team</th><th>Made</th><th>Last used</th><th>State</th><th><span class="sr">Actions</span></th></tr></thead>
     <tbody>
-      {#each keys as key (key.id)}
+      {#each shown as key (key.id)}
         <tr>
           <td data-label="Key"><b>{key.prefix}</b>…</td>
           <td data-label="Team">{key.team_name}</td>
@@ -107,6 +111,7 @@
       {/each}
     </tbody>
   </table>
+    <Pagination {pager} total={keys.length} label="keys" />
 </div>
 
 <ConfirmDialog open={revoking !== null} {...revokeText} onconfirm={revoke} onClose={() => (revoking = null)} />

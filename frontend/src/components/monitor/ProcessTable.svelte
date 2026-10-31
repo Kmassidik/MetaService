@@ -1,9 +1,13 @@
 <script lang="ts">
   // Read only: program name and who started it, never a command line. Everything is text. The box narrows the list by name or account.
+  import Pagination from '../Pagination.svelte'
+  import { Pager } from '../../lib/pager.svelte.ts'
   import { formatBytes, formatProcessCpu } from '../../lib/stats.ts'
+  import { slicePage } from '../../lib/paging.ts'
   import { ariaSortOf, filterProcesses, sortProcesses, type ProcessSort } from '../../lib/processList.ts'
   import type { StatsProcess } from '../../lib/types.ts'
 
+  const PROCESS_PAGE_SIZE = 25
   const NOTE = 'The programs that use the most of this machine. "Run by" is the account that started the program.'
 
   /** `processes` null: the first answer with the list has not arrived yet. */
@@ -11,7 +15,11 @@
   let filter = $state('')
   /** The window opens busiest first; pressing the Memory or CPU heading sorts by that number. */
   let sortBy = $state<ProcessSort>('cpu')
-  const rows = $derived(sortProcesses(filterProcesses(processes ?? [], filter), sortBy))
+  /** The filter and the sort work on every program; only the page of the result is drawn, so a refresh every two seconds touches 25 rows, not hundreds. */
+  const matching = $derived(sortProcesses(filterProcesses(processes ?? [], filter), sortBy))
+  const pager = new Pager('processes', PROCESS_PAGE_SIZE)
+  pager.resetWhen(() => `${filter}|${sortBy}`)
+  const rows = $derived(slicePage(matching, pager.window(matching.length).page, pager.size))
 </script>
 
 {#if processes === null}
@@ -34,6 +42,7 @@
       </tbody>
     </table>
   </div>
+  <Pagination {pager} total={matching.length} label="programs" />
 {/if}
 <p class="note">{NOTE}</p>
 <div class="actions"><button class="btn line" type="button" onclick={onClose}>Close</button></div>

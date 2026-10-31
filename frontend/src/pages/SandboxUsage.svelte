@@ -1,6 +1,8 @@
 <script lang="ts">
   // What each team's finished sandboxes used: how many ran, how long, and the vCPU and memory seconds they held. No charts:
   // a plain table, next to the token ledger.
+  import Pagination from '../components/Pagination.svelte'
+  import { Pager } from '../lib/pager.svelte.ts'
   import { onMount } from 'svelte'
   import { ApiError, sandboxUsage } from '../lib/api.ts'
   import { countText, durationText, USAGE_WINDOWS, usageTotals, windowLabel } from '../lib/sandboxPanel.ts'
@@ -33,6 +35,8 @@
   const totals = $derived(usageTotals(rows))
 
   onMount(load)
+  const pager = new Pager('sandbox-usage')
+  const shown = $derived(pager.slice(rows))
 </script>
 
 <div class="phead"><h1>Sandbox usage</h1><span class="crumb">Sandboxes › {windowLabel(days)}</span></div>
@@ -57,7 +61,7 @@
   <table class="restable stack">
     <thead><tr><th>Team</th><th>Sandboxes run</th><th>Running time</th><th>vCPU time</th><th>Memory (MB·s)</th></tr></thead>
     <tbody>
-      {#each rows as row (row.team)}
+      {#each shown as row (row.team)}
         <tr>
           <td data-label="Team"><b>{row.team_name}</b></td>
           <td data-label="Sandboxes run" class="nums">{countText(row.sandboxes)}</td>
@@ -70,6 +74,7 @@
       {/each}
     </tbody>
   </table>
+    <Pagination {pager} total={rows.length} label="teams" />
 </div>
 
 <style>

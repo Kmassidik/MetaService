@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { matchesText, pageOfEvents, rangeStart } from './securityFilter.ts'
-import { EVENTS_PAGE_SIZE, type EventQuery, type SecurityEvent } from './securityTypes.ts'
+import { MAX_EVENTS_PAGE_SIZE, type EventQuery, type SecurityEvent } from './securityTypes.ts'
 
 const NOW = Date.parse('2026-11-01T12:00:00Z')
 const HOUR_MS = 3_600_000
@@ -10,7 +10,7 @@ function event(id: string, hoursAgo: number, extra: Partial<SecurityEvent> = {})
   return { id, time: at(hoursAgo), machine: 'rtx-pc', type: 'failed_login', user: 'root', address: '203.0.113.9', detail: null, method: null, count: 3, ...extra }
 }
 
-const query = (extra: Partial<EventQuery> = {}): EventQuery => ({ range: '7d', machine: '', type: '', q: '', cursor: null, ...extra })
+const query = (extra: Partial<EventQuery> = {}): EventQuery => ({ range: '7d', machine: '', type: '', q: '', page: 1, page_size: 50, ...extra })
 const ids = (events: SecurityEvent[]) => events.map((one) => one.id)
 
 test('a range starts that many days before now', () => {
@@ -49,20 +49,26 @@ test('events in the future are not shown', () => {
   expect(pageOfEvents([event('later', -2)], query(), NOW).events).toEqual([])
 })
 
-test('the log comes 50 rows a page, with a cursor to the next page and none on the last', () => {
-  const events = Array.from({ length: EVENTS_PAGE_SIZE * 2 + 5 }, (_, index) => event(`e${index}`, index / 10))
+test('the log comes one page at a time, with the count of all matching rows', () => {
+  const size = 50
+  const events = Array.from({ length: size * 2 + 5 }, (_, index) => event(`e${index}`, index / 10))
   const first = pageOfEvents(events, query(), NOW)
-  expect(first.events).toHaveLength(EVENTS_PAGE_SIZE)
-  expect(first.next_cursor).not.toBeNull()
-  const second = pageOfEvents(events, query({ cursor: first.next_cursor }), NOW)
-  expect(second.events).toHaveLength(EVENTS_PAGE_SIZE)
-  const third = pageOfEvents(events, query({ cursor: second.next_cursor }), NOW)
+  expect(first).toMatchObject({ total: events.length, page: 1, page_size: size })
+  expect(first.events).toHaveLength(size)
+  const second = pageOfEvents(events, query({ page: 2 }), NOW)
+  expect(second.events).toHaveLength(size)
+  const third = pageOfEvents(events, query({ page: 3 }), NOW)
   expect(third.events).toHaveLength(5)
-  expect(third.next_cursor).toBeNull()
   expect(new Set([...first.events, ...second.events, ...third.events].map((one) => one.id)).size).toBe(events.length)
 })
 
-test('a cursor that is not a number starts from the top', () => {
-  const events = [event('a', 1)]
-  expect(ids(pageOfEvents(events, query({ cursor: 'junk' }), NOW).events)).toEqual(['a'])
+test('the total counts only the rows that match the filters', () => {
+  const events = [event('a', 1), event('b', 2, { machine: 'other' }), event('c', 3)]
+  expect(pageOfEvents(events, query({ machine: 'rtx-pc' }), NOW).total).toBe(2)
+})
+
+test('the page size is capped at 100 and a page past the end is the last page', () => {
+  const events = Array.from({ length: 130 }, (_, index) => event(`e${index}`, index / 10))
+  expect(pageOfEvents(events, query({ page_size: 5000 }), NOW)).toMatchObject({ page_size: MAX_EVENTS_PAGE_SIZE, page: 1 })
+  expect(pageOfEvents(events, query({ page: 9, page_size: 50 }), NOW)).toMatchObject({ page: 3 })
 })

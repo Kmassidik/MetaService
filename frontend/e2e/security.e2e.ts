@@ -1,5 +1,5 @@
 // The Security page in a real browser against a stand-in parent with four machines (one never reports) and a stand-in Security API that can also answer 404.
-// Checks: the sidebar item (present, below Sandboxes, marked on the page), the machines table with a "Not watched" row, the filters of the event log, "Load more",
+// Checks: the sidebar item (present, below Sandboxes, marked on the page), the machines table with a "Not watched" row, the filters of the event log, its page numbers and page size,
 // the 404 banner with every machine "Not watched", the sample-data preview and its loud banner (only when the address asks), hostile text shown as text, no sideways
 // scrolling at phone width, the machine card's badge as a link, and no Security tab on the machine page. Pictures at desktop and phone width, light.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/security.e2e.ts   (needs a built panel and Google Chrome)
@@ -18,6 +18,9 @@ const SAMPLE_BANNER = 'SAMPLE DATA. These numbers are made up to show the page. 
 const SAMPLE_MACHINES = ['Mac Studio', 'Mac Mini', 'DGX Spark', 'RTX 5090 PC']
 const LOG_ROWS = '[data-testid=security-log] tbody tr'
 
+const SHOWING = '[data-testid=pagination-showing]'
+const showing = (b: Browse) => b.run((selector) => document.querySelector<HTMLElement>(selector)?.innerText ?? '', SHOWING)
+const goToPage = (b: Browse, page: number) => b.run((label) => document.querySelector<HTMLButtonElement>(`[data-testid=pagination] button[aria-label="${label}"]`)?.click(), `Page ${page}`)
 const logCount = (b: Browse) => b.run((selector) => document.querySelectorAll(selector).length, LOG_ROWS)
 const pageText = (b: Browse) => b.run(() => document.body.innerText)
 const rowText = (b: Browse, id: string) => b.run((machine) => document.querySelector<HTMLElement>(`[data-testid=security-machines] tr[data-machine=${machine}]`)?.innerText ?? '', id)
@@ -69,22 +72,28 @@ async function machinesTable(b: Browse, base: string) {
 async function eventLog(b: Browse, base: string) {
   await open(b, base, '/security?range=90d')
   await waitLogCount(b, PAGE_SIZE)
-  check('the log shows 50 rows and a Load more button', (await logCount(b)) === PAGE_SIZE && (await b.run(() => document.querySelector('[data-testid=load-more]') !== null)))
+  check('the log shows 50 rows of 130 with page numbers', (await logCount(b)) === PAGE_SIZE && (await showing(b)) === `Showing 1 to 50 of ${TOTAL_ROWS}` && (await b.run(() => document.querySelectorAll('[data-testid=pagination] ol button').length)) === 3)
   check('the newest row is first', await b.run((selector) => {
     const times = [...document.querySelectorAll(`${selector} td[data-label=Time]`)].map((cell) => cell.getAttribute('title') ?? '')
     return times.length > 1 && times.every((time, index) => index === 0 || (times[index - 1] ?? '') >= time)
   }, LOG_ROWS))
-  await b.click('Load more')
-  await waitLogCount(b, PAGE_SIZE * 2)
-  await b.click('Load more')
-  await waitLogCount(b, TOTAL_ROWS)
-  check('Load more adds the next rows, and the button goes when there are no more', (await logCount(b)) === TOTAL_ROWS && (await b.run(() => document.querySelector('[data-testid=load-more]') === null)))
+  const firstTimes = await b.run((selector) => [...document.querySelectorAll(`${selector} td[data-label=Time]`)].map((cell) => cell.getAttribute('title')), LOG_ROWS)
+  await goToPage(b, 2)
+  await b.until((text) => document.querySelector<HTMLElement>('[data-testid=pagination-showing]')?.innerText === text, { timeout: SHORT_WAIT_MS }, `Showing 51 to 100 of ${TOTAL_ROWS}`)
+  const secondTimes = await b.run((selector) => [...document.querySelectorAll(`${selector} td[data-label=Time]`)].map((cell) => cell.getAttribute('title') ?? ''), LOG_ROWS)
+  check('page 2 shows the next 50 rows, all older than page 1', secondTimes.length === PAGE_SIZE && (secondTimes[0] ?? '') <= (firstTimes.at(-1) ?? ''))
+  await b.run(() => document.querySelector<HTMLButtonElement>('[data-testid=page-next]')?.click())
+  await waitLogCount(b, TOTAL_ROWS - PAGE_SIZE * 2)
+  check('Next goes to the last page with the rest, and Next is then disabled', (await showing(b)) === `Showing 101 to ${TOTAL_ROWS} of ${TOTAL_ROWS}` && (await b.run(() => document.querySelector<HTMLButtonElement>('[data-testid=page-next]')?.disabled === true)))
+  await goToPage(b, 1)
+  await waitLogCount(b, PAGE_SIZE)
   check('a password login row is highlighted', await b.run(() => document.querySelectorAll('[data-testid=security-log] tr.pwd').length === 1))
 
   await b.page.select('#sec-machine', WARNING)
   await waitLogCount(b, PAGE_SIZE)
-  await b.click('Load more')
-  await waitLogCount(b, FAILED_ROWS_WARNING + 1)
+  check('a new filter goes back to page 1 (it was on page 3)', (await showing(b)).startsWith('Showing 1 to 50 of '))
+  await goToPage(b, 2)
+  await waitLogCount(b, FAILED_ROWS_WARNING + 1 - PAGE_SIZE)
   check('the machine filter narrows the log to that machine', await b.run(() => [...document.querySelectorAll('[data-testid=security-log] td[data-label=Machine]')].every((cell) => cell.textContent === 'gpu-pc')))
   check('the filter is kept in the address', (await b.run(() => location.hash)).includes('machine=gpu-pc'))
   await b.page.select('#sec-type', 'login')
@@ -106,6 +115,21 @@ async function eventLog(b: Browse, base: string) {
   await b.page.goto(`${base}/#/security?range=24h`, { waitUntil: 'networkidle0' })
   await b.until((selector) => document.querySelectorAll(selector).length > 0 && document.querySelectorAll(selector).length < 90, { timeout: SHORT_WAIT_MS }, LOG_ROWS)
   check('a shorter time range shows fewer rows', (await logCount(b)) < TOTAL_ROWS)
+  await open(b, base, '/security?range=90d')
+  await b.page.select('[data-testid=page-size]', '25')
+  await waitLogCount(b, 25)
+  check('the page size select changes the page, and the choice is kept after a reload', await (async () => {
+    const fresh = (await showing(b)) === `Showing 1 to 25 of ${TOTAL_ROWS}`
+    await open(b, base, '/security?range=90d')
+    await waitLogCount(b, 25)
+    return fresh && (await b.run(() => document.querySelector<HTMLSelectElement>('[data-testid=page-size]')?.value)) === '25'
+  })())
+  await b.shot('security-log-pages-desktop-light.png', true)
+  await b.page.select('[data-testid=page-size]', '100')
+  await waitLogCount(b, 100)
+  check('page size 100 shows 100 rows of 130 on two pages', (await showing(b)) === `Showing 1 to 100 of ${TOTAL_ROWS}`)
+  await b.page.select('[data-testid=page-size]', String(PAGE_SIZE))
+  await waitLogCount(b, PAGE_SIZE)
 }
 
 async function hostile(b: Browse, base: string) {
@@ -142,7 +166,7 @@ async function preview(b: Browse, base: string) {
   check('the sample has the four machines, one that never reported', JSON.stringify(await b.run(() => [...document.querySelectorAll('[data-testid=security-machines] tbody tr')].map((row) => row.querySelector('td')?.textContent?.trim()))) === JSON.stringify(SAMPLE_MACHINES))
   check('the Mac Mini is Not watched, the RTX PC shows about 96,000 failed logins', (await rowText(b, 'mac-mini')).toLowerCase().includes('not watched') && /9\d,\d{3}/.test(await rowText(b, 'rtx-5090-pc')))
   check('the DGX Spark has password login on (a warning)', await b.run(() => document.querySelector('tr[data-machine=dgx-spark] [data-check=password_login]')?.getAttribute('data-state') === 'warning'))
-  check('the sample log has rows and Load more', (await logCount(b)) === PAGE_SIZE && (await b.run(() => document.querySelector('[data-testid=load-more]') !== null)))
+  check('the sample log has a page of rows and page numbers', (await logCount(b)) === PAGE_SIZE && (await b.run(() => document.querySelector('[data-testid=pagination]') !== null)))
   check('the sample keeps the preview switch when the range changes', await (async () => {
     await b.click('30 d')
     await b.until(() => location.hash.includes('range=30d'), { timeout: SHORT_WAIT_MS })

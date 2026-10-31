@@ -4,7 +4,7 @@
 import { readBaseline } from './security.ts'
 import { MAX_DETAIL, MAX_TEXT, clean, flag, isRec, rows, when, whole, type Rec } from './securityPrims.ts'
 import {
-  DEFAULT_RANGE, EVENT_TYPES, RANGES, type BlockedNowRow, type DailyFailed, type EventsPage, type SecurityEvent, type SecurityEventType, type SecurityMachineLine,
+  DEFAULT_RANGE, EVENT_TYPES, MAX_EVENTS_PAGE_SIZE, RANGES, type BlockedNowRow, type DailyFailed, type EventsPage, type SecurityEvent, type SecurityEventType, type SecurityMachineLine,
   type SecurityOverview, type SecurityRange, type TopRow,
 } from './securityTypes.ts'
 import { UnreadableAnswer } from './unreadable.ts'
@@ -14,9 +14,7 @@ export const MAX_MACHINES = 100
 export const MAX_BLOCKED_NOW = 200
 export const MAX_TOP_ROWS = 50
 export const MAX_DAILY_POINTS = 5000
-export const MAX_EVENTS_PER_PAGE = 200
 const MAX_ID_TEXT = 64
-const MAX_CURSOR_TEXT = 200
 const DAY_FORMAT = /^\d{4}-\d{2}-\d{2}$/
 
 const rangeOf = (value: unknown): SecurityRange => RANGES.find((range) => range === value) ?? DEFAULT_RANGE
@@ -90,5 +88,8 @@ function eventRow(value: unknown): SecurityEvent | null {
 /** The answer of GET /api/security/events. */
 export function parseEvents(value: unknown): EventsPage {
   const body = record(value, 'the security events')
-  return { events: rows(body.events, eventRow, MAX_EVENTS_PER_PAGE), next_cursor: clean(body.next_cursor, MAX_CURSOR_TEXT) }
+  const events = rows(body.events, eventRow, MAX_EVENTS_PAGE_SIZE)
+  const pageSize = Math.min(Math.max(whole(body.page_size) ?? events.length, 1), MAX_EVENTS_PAGE_SIZE)
+  // A parent that leaves the count out is taken to have sent everything it has: the rows of this page.
+  return { events, total: Math.max(whole(body.total) ?? events.length, events.length), page: Math.max(whole(body.page) ?? 1, 1), page_size: pageSize }
 }

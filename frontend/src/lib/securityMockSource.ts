@@ -11,14 +11,17 @@ const DAY_MS = 86_400_000
 const TOP_ROWS_KEPT = 50
 const DAY_LENGTH = 10
 
+/** A query that only has a time range: every machine, every type, no search. The page fields do not matter to matchesQuery. */
+const everyEvent = (range: SecurityRange): EventQuery => ({ range, machine: '', type: '', q: '', page: 1, page_size: 1 })
+
 const failedIn = (store: MockStore, range: SecurityRange, now: number): SecurityEvent[] =>
-  store.events.filter((event) => event.type === 'failed_login' && matchesQuery(event, { range, machine: '', type: '', q: '', cursor: null }, now))
+  store.events.filter((event) => event.type === 'failed_login' && matchesQuery(event, everyEvent(range), now))
 
 const sumOf = (events: SecurityEvent[]): number => events.reduce((sum, event) => sum + (event.count ?? 0), 0)
 
 function machineLine(machine: MockMachine, store: MockStore, range: SecurityRange, now: number): SecurityMachineLine {
   const own = failedIn(store, range, now).filter((event) => event.machine === machine.id)
-  const blocks = store.events.filter((event) => event.machine === machine.id && event.type === 'blocked' && matchesQuery(event, { range, machine: '', type: '', q: '', cursor: null }, now))
+  const blocks = store.events.filter((event) => event.machine === machine.id && event.type === 'blocked' && matchesQuery(event, everyEvent(range), now))
   return { machine: machine.id, reported: true, last_reported: new Date(now - MINUTES_AGO_REPORTED * MINUTE_MS).toISOString(), baseline: machine.baseline, failed: sumOf(own), blocked: blocks.length }
 }
 

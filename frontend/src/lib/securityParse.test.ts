@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { MAX_DAILY_POINTS, MAX_EVENTS_PER_PAGE, MAX_MACHINES, parseEvents, parseOverview } from './securityParse.ts'
+import { MAX_DAILY_POINTS, MAX_MACHINES, parseEvents, parseOverview } from './securityParse.ts'
+import { MAX_EVENTS_PAGE_SIZE } from './securityTypes.ts'
 import { MAX_DETAIL, MAX_TEXT } from './securityPrims.ts'
 import { UnreadableAnswer } from './unreadable.ts'
 
@@ -57,17 +58,23 @@ test('lists are capped', () => {
   const overview = parseOverview({ machines: many(500, (index) => ({ ...line, machine: `m${index}` })), daily: many(MAX_DAILY_POINTS + 10, () => ({ day: '2026-10-31', machine: 'a', failed: 1 })) })
   expect(overview.machines).toHaveLength(MAX_MACHINES)
   expect(overview.daily).toHaveLength(MAX_DAILY_POINTS)
-  const events = parseEvents({ events: many(MAX_EVENTS_PER_PAGE + 20, (index) => ({ id: `e${index}`, time: '2026-11-01T10:00:00Z', machine: 'a', type: 'blocked' })) })
-  expect(events.events).toHaveLength(MAX_EVENTS_PER_PAGE)
+  const events = parseEvents({ events: many(MAX_EVENTS_PAGE_SIZE + 20, (index) => ({ id: `e${index}`, time: '2026-11-01T10:00:00Z', machine: 'a', type: 'blocked' })) })
+  expect(events.events).toHaveLength(MAX_EVENTS_PAGE_SIZE)
 })
 
 test('events: a good row is read, a row with an unknown type, no id or a bad time is left out', () => {
   const good = { id: 'e1', time: '2026-11-01T10:00:00Z', machine: 'rtx-pc', type: 'failed_login', user: 'root', address: '203.0.113.9', detail: 'invalid user', count: 120 }
-  const page = parseEvents({ events: [good, { ...good, id: 'e2', type: 'nope' }, { ...good, id: '' }, { ...good, id: 'e4', time: 'x' }, { ...good, id: 'e5', method: 'password', type: 'login', count: 'many' }], next_cursor: 'abc' })
+  const page = parseEvents({ events: [good, { ...good, id: 'e2', type: 'nope' }, { ...good, id: '' }, { ...good, id: 'e4', time: 'x' }, { ...good, id: 'e5', method: 'password', type: 'login', count: 'many' }], total: 340, page: 2, page_size: 50 })
   expect(page.events.map((event) => event.id)).toEqual(['e1', 'e5'])
   expect(page.events[1]).toMatchObject({ method: 'password', count: null })
-  expect(page.next_cursor).toBe('abc')
-  expect(parseEvents({ events: [] }).next_cursor).toBeNull()
+  expect(page).toMatchObject({ total: 340, page: 2, page_size: 50 })
+})
+
+test('events: the page size is capped at 100, and a missing count is the rows that came', () => {
+  expect(parseEvents({ events: [], total: 5000, page: 1, page_size: 5000 }).page_size).toBe(MAX_EVENTS_PAGE_SIZE)
+  const bare = parseEvents({ events: [{ id: 'e1', time: '2026-11-01T10:00:00Z', machine: 'a', type: 'blocked' }] })
+  expect(bare).toMatchObject({ total: 1, page: 1, page_size: 1 })
+  expect(parseEvents({ events: [], total: 'many', page: -4 })).toMatchObject({ total: 0, page: 1 })
 })
 
 test('helper text is plain text of limited length, with no control characters', () => {

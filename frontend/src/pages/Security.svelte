@@ -12,6 +12,7 @@
   import TopList from '../components/security/TopList.svelte'
   import MetricCard from '../components/monitor/MetricCard.svelte'
   import { chartData } from '../lib/securityChart.ts'
+  import { Pager } from '../lib/pager.svelte.ts'
   import { SecurityPageData } from '../lib/securityPage.svelte.ts'
   import { parseSecurityView } from '../lib/securityRoute.ts'
   import { NOT_COLLECTED_BANNER, anyWatched, infoOf, machineRows } from '../lib/securityView.ts'
@@ -33,7 +34,10 @@
   const collecting = $derived(data.overviewPhase === 'ready' && anyWatched(rows))
   let typed = $state('')
   let searched = $state('')
-  const query = $derived({ range, machine: view.machine, type: view.type, q: searched, cursor: null })
+  const pager = new Pager('security-events')
+  // A new filter starts at the first page again.
+  pager.resetWhen(() => [range, view.machine, view.type, searched].join('|'))
+  const query = $derived({ range, machine: view.machine, type: view.type, q: searched, page: pager.wanted, page_size: pager.size })
 
   $effect(() => {
     const asked = { preview, range }
@@ -43,6 +47,14 @@
   $effect(() => {
     const asked = { preview, query }
     untrack(() => void data.loadEvents(asked.preview, asked.query))
+  })
+
+  // Rows that disappeared while someone was on a late page: ask for the last page that exists.
+  $effect(() => {
+    const total = data.total
+    const wanted = untrack(() => pager.wanted)
+    const last = pager.window(total).page
+    if (data.eventsPhase === 'ready' && !data.refreshing && wanted !== last) untrack(() => pager.go(last))
   })
 
   $effect(() => {
@@ -80,7 +92,7 @@
     </div>
   {/if}
   {#if data.overviewPhase !== 'loading'}
-    <EventLog {data} {infos} {view} bind:text={typed} onMore={() => data.loadMore(view.preview, query)} />
+    <EventLog {data} {infos} {view} {pager} bind:text={typed} />
   {/if}
 </div>
 

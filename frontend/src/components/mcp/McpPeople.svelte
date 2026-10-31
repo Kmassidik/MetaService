@@ -1,5 +1,7 @@
 <script lang="ts">
   // The people who use AI clients. The limits belong to the person, over all their tokens. Names are typed by people: shown as text only.
+  import Pagination from '../Pagination.svelte'
+  import { Pager } from '../../lib/pager.svelte.ts'
   import ActionButton from '../ActionButton.svelte'
   import ConfirmDialog from '../ConfirmDialog.svelte'
   import { mcpDisablePerson, mcpEnablePerson } from '../../lib/api.ts'
@@ -20,6 +22,8 @@
     await mcpEnablePerson(person.id)
     await onChanged()
   }
+  const pager = new Pager('mcp-people')
+  const shown = $derived(pager.slice(people))
 </script>
 
 <div class="bar"><button class="btn green sm" type="button" onclick={onAdd}>Add person</button></div>
@@ -30,7 +34,7 @@
     <table class="restable stack" data-testid="mcp-people">
       <thead><tr><th>Name</th><th>Can do</th><th>Limits</th><th>Tokens</th><th>VMs alive</th><th>Last used</th><th><span class="sr">Actions</span></th></tr></thead>
       <tbody>
-        {#each people as person (person.id)}
+        {#each shown as person (person.id)}
           <tr class:gone={person.disabledAt !== null}>
             <td class="c-name" data-label="Name" data-testid="person-name">{person.name}{#if person.disabledAt !== null}<span class="tag warn off">disabled</span>{/if}</td>
             <td data-label="Can do"><span class="chips">{#each person.scopes as scope (scope)}<span class="tag" title={SCOPE_TEXT[scope].explain}>{scope}</span>{/each}</span></td>
@@ -52,6 +56,7 @@
         {/each}
       </tbody>
     </table>
+    <Pagination {pager} total={people.length} label="people" />
   </div>
 {/if}
 

@@ -1,7 +1,10 @@
 <script lang="ts">
   // All VMs: every VM and container on every machine, narrowed to one machine by the address (#/vms?machine=<id>).
   import Owl from '../components/Owl.svelte'
+  import Pagination from '../components/Pagination.svelte'
   import VmTable from '../components/vms/VmTable.svelte'
+  import { Pager } from '../lib/pager.svelte.ts'
+  import { slicePage } from '../lib/paging.ts'
   import { machineChoices } from '../lib/createVm.ts'
   import { createVmHref, vmsHref } from '../lib/routes.ts'
   import PendingVms from '../components/vms/PendingVms.svelte'
@@ -14,6 +17,9 @@
   const allRows = $derived(vmRows(machines))
   const chosen = $derived(vmFilterFromRoute(route, machines))
   const rows = $derived(filterRows(allRows, chosen))
+  const pager = new Pager('vms')
+  pager.resetWhen(() => chosen ?? '')
+  const shown = $derived(slicePage(rows, pager.window(rows.length).page, pager.size))
   const making = $derived(pendingFor(pending, chosen))
   const names = $derived(machineChoices(machines))
 
@@ -48,12 +54,14 @@
 {:else if rows.length === 0}
   <div class="empty stage" role="status"><Owl name="emptyVms" />No VMs on this machine.<a class="btn green sm" href={createVmHref(chosen)}>＋ Create VM</a></div>
 {:else}
-  <VmTable {rows} {machines} {commands} {handlers} />
+  <VmTable rows={shown} {machines} {commands} {handlers} />
+  <div class="pages"><Pagination {pager} total={rows.length} label="VMs" /></div>
 {/if}
 
 <style>
+  .pages { padding: 0 28px 20px; }
   .waiting { padding: 16px 28px 0; margin: 0; font-size: 13px; }
   .filter { display: flex; align-items: center; gap: 10px; padding: 16px 28px 0; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--m50); }
   select { min-height: 38px; min-width: 200px; max-width: 100%; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); font-family: var(--mono); font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text); }
-  @media (max-width: 820px) { .filter { padding: 16px 16px 0; } select { flex: 1; min-width: 0; } }
+  @media (max-width: 820px) { .pages { padding: 0 16px 20px; } .filter { padding: 16px 16px 0; } select { flex: 1; min-width: 0; } }
 </style>

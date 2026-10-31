@@ -18,19 +18,19 @@ function answerWith(status: number, body: unknown) {
 
 afterEach(() => { globalThis.fetch = realFetch })
 
-const query = (extra: Partial<EventQuery> = {}): EventQuery => ({ range: '7d', machine: '', type: '', q: '', cursor: null, ...extra })
+const query = (extra: Partial<EventQuery> = {}): EventQuery => ({ range: '7d', machine: '', type: '', q: '', page: 1, page_size: 50, ...extra })
 
 test('the addresses carry the range and only the filters that are set', () => {
   expect(overviewPath('30d')).toBe('/api/security/overview?range=30d')
-  expect(eventsPath(query())).toBe('/api/security/events?range=7d')
-  expect(eventsPath(query({ machine: 'rtx-pc', type: 'blocked', q: ' 45.1 ', cursor: '50' }))).toBe('/api/security/events?range=7d&machine=rtx-pc&type=blocked&q=45.1&cursor=50')
+  expect(eventsPath(query())).toBe('/api/security/events?range=7d&page=1&page_size=50')
+  expect(eventsPath(query({ machine: 'rtx-pc', type: 'blocked', q: ' 45.1 ', page: 3, page_size: 25 }))).toBe('/api/security/events?range=7d&machine=rtx-pc&type=blocked&q=45.1&page=3&page_size=25')
 })
 
 test('a 404 from the parent means it has no security API: null, not an error', async () => {
   answerWith(404, { error: { code: 'not_found', message: 'no such route' } })
   expect(await getSecurityOverview('7d')).toBeNull()
   expect(await getSecurityEvents(query())).toBeNull()
-  expect(asked).toEqual(['/api/security/overview?range=7d', '/api/security/events?range=7d'])
+  expect(asked).toEqual(['/api/security/overview?range=7d', '/api/security/events?range=7d&page=1&page_size=50'])
 })
 
 test('any other refusal is passed on, not hidden', async () => {
@@ -77,16 +77,14 @@ test('the sample is modelled on the real machines', async () => {
   const events = await source.events(query({ range: '30d', machine: 'rtx-5090-pc', type: 'failed_login' }))
   expect(new Set((await collect(source, 'rtx-5090-pc')).map((event) => event.address)).size).toBe(24)
   expect(events?.events).toHaveLength(50)
-  expect(events?.next_cursor).not.toBeNull()
+  expect(events?.total ?? 0).toBeGreaterThan(50)
 })
 
 async function collect(source: Awaited<ReturnType<typeof loadSource>>['source'], machine: string) {
   const all = []
-  let cursor: string | null = null
-  do {
-    const page = await source.events(query({ range: '30d', machine, type: 'failed_login', cursor }))
-    all.push(...(page?.events ?? []))
-    cursor = page?.next_cursor ?? null
-  } while (cursor !== null)
-  return all
+  for (let page = 1; ; page += 1) {
+    const answer = await source.events(query({ range: '30d', machine, type: 'failed_login', page }))
+    all.push(...(answer?.events ?? []))
+    if (all.length >= (answer?.total ?? 0)) return all
+  }
 }

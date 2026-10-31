@@ -1,9 +1,15 @@
 // The stand-in parent's Security API: GET /api/security/overview and /events answered from a small made-up set (or with 404, like a parent that has no security API yet).
-// The log is filtered and paged here the way the real parent will do it, so the page's filters and "Load more" can be tried in a real browser.
+// The log is filtered and paged here the way the real parent will do it (?page=&page_size=, answering { events, total, page, page_size }), so the page's filters
+// and page numbers can be tried in a real browser.
 import { HEALTHY, HOSTILE_IMG, HOSTILE_NAME, MAC, WARNING } from './data.ts'
 import type { Json } from '../support/json.ts'
 
 export const PAGE_SIZE = 50
+/** The parent caps page_size here. */
+export const MAX_PAGE_SIZE = 100
+/** Rows in the big log of the performance check. */
+export const BIG_LOG_ROWS = 5000
+const BIG_STEP_MS = 60_000
 /** Rows of each kind in the stand-in log: 130 in all, so the log needs three pages. */
 export const FAILED_ROWS_HEALTHY = 60
 export const FAILED_ROWS_WARNING = 50
@@ -21,9 +27,17 @@ const STEP_MS = 50 * 60_000
 export interface SecurityStandIn {
   /** True: the routes answer 404, like a parent without a security API. */
   missing: boolean
+  /** True: the log holds BIG_LOG_ROWS rows, to prove the page draws one page of them. */
+  big?: boolean
 }
 
 const ago = (ms: number): string => new Date(Date.now() - ms).toISOString()
+
+function bigEvents(): Json[] {
+  return Array.from({ length: BIG_LOG_ROWS }, (_, index): Json => ({
+    id: `big-${index}`, time: ago(index * BIG_STEP_MS + HOUR_MS), machine: HEALTHY, type: 'failed_login', user: 'ubuntu', address: `10.${index % 250}.${Math.floor(index / 250)}.1`, detail: 'Invalid user', count: 1,
+  }))
+}
 
 function events(): Json[] {
   const failed = (machine: string, index: number): Json => ({
@@ -59,18 +73,18 @@ function overview(range: string): Json {
   }
 }
 
-function eventsPage(query: URLSearchParams): Json {
+function eventsPage(query: URLSearchParams, big: boolean): Json {
   const days = RANGE_DAYS[query.get('range') ?? ''] ?? RANGE_DAYS['7d'] ?? 7
   const text = (query.get('q') ?? '').toLowerCase()
-  const matching = events().filter((event) => {
+  const matching = (big ? bigEvents() : events()).filter((event) => {
     if (Date.parse(String(event.time)) < Date.now() - days * DAY_MS) return false
     if (query.get('machine') && event.machine !== query.get('machine')) return false
     if (query.get('type') && event.type !== query.get('type')) return false
     return text === '' || [event.address, event.user].some((field) => typeof field === 'string' && field.toLowerCase().includes(text))
   })
-  const start = Number(query.get('cursor') ?? 0) || 0
-  const end = start + PAGE_SIZE
-  return { events: matching.slice(start, end), next_cursor: end < matching.length ? String(end) : null }
+  const size = Math.min(Math.max(Number(query.get('page_size')) || PAGE_SIZE, 1), MAX_PAGE_SIZE)
+  const page = Math.max(Math.floor(Number(query.get('page'))) || 1, 1)
+  return { events: matching.slice((page - 1) * size, page * size), total: matching.length, page, page_size: size }
 }
 
 /** The routes option of the stand-in parent. */
@@ -78,6 +92,6 @@ export function securityRoutes(mode: SecurityStandIn): (path: string, query: URL
   return (path, query) => {
     if (path !== '/api/security/overview' && path !== '/api/security/events') return null
     if (mode.missing) return { status: 404, body: { error: { code: 'not_found', message: 'no such route' } } }
-    return { status: 200, body: path.endsWith('/overview') ? overview(query.get('range') ?? '7d') : eventsPage(query) }
+    return { status: 200, body: path.endsWith('/overview') ? overview(query.get('range') ?? '7d') : eventsPage(query, mode.big === true) }
   }
 }

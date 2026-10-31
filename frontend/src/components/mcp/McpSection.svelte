@@ -94,7 +94,7 @@
     <h3>Tokens</h3>
     <McpTokens {tokens} {now} onChanged={refresh} onCreate={() => (creating = true)} />
     <h3>Recent activity</h3>
-    <McpActivity rows={activity} {now} />
+    <McpActivity rows={activity} {now} limit={ACTIVITY_LIMIT} />
   {/if}
   <McpPersonDialog open={personDialog !== null} person={personDialog?.person ?? null} defaults={info?.defaults} onClose={() => (personDialog = null)} onSaved={refresh} />
   <McpCreateDialog open={creating} {people} defaults={info?.defaults} onClose={() => (creating = false)} onCreated={refresh} />

@@ -69,10 +69,12 @@ export interface SecurityEvent {
   count: number | null
 }
 
+/** One page of the log, as the parent counts it: `total` is every row that matches the filters, `page` starts at 1. */
 export interface EventsPage {
   events: SecurityEvent[]
-  /** Hand this back as `cursor` for the next page; null when there are no more. */
-  next_cursor: string | null
+  total: number
+  page: number
+  page_size: number
 }
 
 /** What the person asked the log to show. Empty text means "any". */
@@ -81,10 +83,10 @@ export interface EventQuery {
   machine: string
   type: SecurityEventType | ''
   q: string
-  cursor: string | null
+  /** The page wanted, starting at 1, and how many rows it holds. */
+  page: number
+  page_size: number
 }
 
-/** Rows asked for on each page of the log. */
-export const EVENTS_PAGE_SIZE = 50
-/** The log never holds more rows than this in the page; the person is told to narrow the filters. */
-export const MAX_LOADED_EVENTS = 1000
+/** The most rows one page of the log may hold; the parent caps `page_size` here and the panel reads no more than this from one answer. */
+export const MAX_EVENTS_PAGE_SIZE = 100

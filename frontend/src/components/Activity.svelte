@@ -1,5 +1,6 @@
 <script lang="ts">
   import { relativeTime, commandName, commandOutcome } from '../lib/format.ts'
+  import { COMMANDS_LIMIT } from '../lib/api.ts'
   import type { Command } from '../lib/types.ts'
 
   let { commands, now }: { commands: Command[]; now: number } = $props()
@@ -7,6 +8,7 @@
 
 <section class="activity" aria-label="Recent activity">
   <h2>Recent activity</h2>
+  <p class="muted window" data-testid="activity-window">The last {COMMANDS_LIMIT} requests. Older ones are not listed here.</p>
   {#if commands.length === 0}
     <p class="muted">Nothing yet. Requests to create, start, stop or delete VMs show up here.</p>
   {:else}
@@ -26,6 +28,7 @@
 <style>
   .activity { display: grid; gap: 10px; }
   h2 { font-size: 16px; }
+  .window { margin: 0; font-size: 12px; }
   ul { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
   li { display: grid; grid-template-columns: minmax(180px, 2fr) 90px minmax(160px, 3fr) 80px; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); }
   li:first-child { border-top: 0; }

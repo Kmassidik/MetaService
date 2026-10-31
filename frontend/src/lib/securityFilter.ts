@@ -1,6 +1,6 @@
-// How a list of events is narrowed and paged: by time range, machine, type and a text search on the address or user; newest first; 50 rows a page with an opaque
-// cursor. The real parent does this on the server; the sample data (securityMock.ts) uses these same functions, and the tests pin the rules. Pure functions.
-import { EVENTS_PAGE_SIZE, RANGE_DAYS, type EventQuery, type EventsPage, type SecurityEvent, type SecurityRange } from './securityTypes.ts'
+// How a list of events is narrowed and paged: by time range, machine, type and a text search on the address or user; newest first; one page of up to 100 rows. The real parent does this on the server; the sample data (securityMock.ts) uses these same functions, and the tests pin the rules. Pure functions.
+import { pageBounds } from './paging.ts'
+import { MAX_EVENTS_PAGE_SIZE, RANGE_DAYS, type EventQuery, type EventsPage, type SecurityEvent, type SecurityRange } from './securityTypes.ts'
 
 const DAY_MS = 86_400_000
 
@@ -27,16 +27,10 @@ export function matchesQuery(event: SecurityEvent, query: EventQuery, now: numbe
 /** Newest first; equal times keep their order. */
 export const newestFirst = (events: SecurityEvent[]): SecurityEvent[] => [...events].sort((a, b) => eventTime(b) - eventTime(a))
 
-/** Where a cursor points: a whole number, or the start when the cursor is missing or not one. */
-function offsetOf(cursor: string | null): number {
-  const offset = Number(cursor)
-  return cursor !== null && Number.isInteger(offset) && offset > 0 ? offset : 0
-}
-
-/** One page of the matching events, newest first, with the cursor of the next page (null on the last page). */
+/** One page of the matching events, newest first (offset paging; the page size is capped like the parent caps it). */
 export function pageOfEvents(events: SecurityEvent[], query: EventQuery, now: number): EventsPage {
   const matching = newestFirst(events.filter((event) => matchesQuery(event, query, now)))
-  const start = offsetOf(query.cursor)
-  const end = start + EVENTS_PAGE_SIZE
-  return { events: matching.slice(start, end), next_cursor: end < matching.length ? String(end) : null }
+  const pageSize = Math.min(Math.max(query.page_size, 1), MAX_EVENTS_PAGE_SIZE)
+  const { page, start, end } = pageBounds(query.page, matching.length, pageSize)
+  return { events: matching.slice(start, end), total: matching.length, page, page_size: pageSize }
 }

@@ -3,12 +3,13 @@
   import type { ActivityRow } from '../../lib/mcpActivity.ts'
   import { agoText } from '../../lib/mcpText.ts'
 
-  let { rows, now }: { rows: ActivityRow[]; now: number } = $props()
+  let { rows, now, limit }: { rows: ActivityRow[]; now: number; limit: number } = $props()
 </script>
 
 {#if rows.length === 0}
   <p class="none" data-testid="mcp-activity-empty">No calls yet. Every call an AI client makes is listed here.</p>
 {:else}
+  <p class="none window" data-testid="mcp-activity-window">The last {limit} calls. Older ones are not listed here.</p>
   <div class="tablewrap">
     <table class="restable stack" data-testid="mcp-activity">
       <thead><tr><th>When</th><th>Person</th><th>Tool</th><th>Target</th><th>Result</th></tr></thead>

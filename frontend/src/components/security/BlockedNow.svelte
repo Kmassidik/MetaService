@@ -1,5 +1,7 @@
 <script lang="ts">
   // Blocked now: the addresses a ban tool is keeping out at this moment, across all watched machines. Read only: nothing can be unblocked from here.
+  import Pagination from '../Pagination.svelte'
+  import { Pager } from '../../lib/pager.svelte.ts'
   import MetricCard from '../monitor/MetricCard.svelte'
   import { relativeTime } from '../../lib/format.ts'
   import { blockEndText, numberText } from '../../lib/securityRules.ts'
@@ -7,6 +9,8 @@
   import { nameOf, type MachineInfo } from '../../lib/securityView.ts'
 
   let { rows, infos, now }: { rows: BlockedNowRow[]; infos: MachineInfo[]; now: number } = $props()
+  const pager = new Pager('blocked-now')
+  const shown = $derived(pager.slice(rows))
 </script>
 
 <MetricCard label="Blocked now" hint="Addresses a ban tool keeps out for a while because they failed to log in too often. Nothing can be unblocked from here.">
@@ -17,7 +21,7 @@
       <table class="restable stack" data-testid="security-blocked">
         <thead><tr><th>Address</th><th>Machine</th><th>Since</th><th>Until</th><th class="num">Attempts</th></tr></thead>
         <tbody>
-          {#each rows as row (`${row.machine}/${row.address}`)}
+          {#each shown as row (`${row.machine}/${row.address}`)}
             <tr>
               <td data-label="Address" class="addr">{row.address}</td>
               <td data-label="Machine">{nameOf(infos, row.machine)}</td>
@@ -28,6 +32,7 @@
           {/each}
         </tbody>
       </table>
+    <Pagination {pager} total={rows.length} label="blocked addresses" />
     </div>
   {/if}
 </MetricCard>

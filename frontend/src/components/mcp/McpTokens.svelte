@@ -1,5 +1,7 @@
 <script lang="ts">
   // The tokens: a table, Revoke with a confirm, and the button that opens the Create token window. Names are typed by people: shown as text only.
+  import Pagination from '../Pagination.svelte'
+  import { Pager } from '../../lib/pager.svelte.ts'
   import ConfirmDialog from '../ConfirmDialog.svelte'
   import { mcpRevokeToken } from '../../lib/api.ts'
   import type { McpToken } from '../../lib/mcp.ts'
@@ -14,6 +16,8 @@
     await mcpRevokeToken(revoking.id)
     await onChanged()
   }
+  const pager = new Pager('mcp-tokens')
+  const shown = $derived(pager.slice(tokens))
 </script>
 
 <div class="bar"><button class="btn green sm" type="button" onclick={onCreate}>Create token</button></div>
@@ -24,7 +28,7 @@
     <table class="restable stack" data-testid="mcp-tokens">
       <thead><tr><th>Name</th><th>Person</th><th>Prefix</th><th>Can do</th><th>Last used</th><th>Expires</th><th><span class="sr">Actions</span></th></tr></thead>
       <tbody>
-        {#each tokens as token (token.id)}
+        {#each shown as token (token.id)}
           <tr class:gone={!isLive(token, now)}>
             <td class="c-name" data-label="Name" data-testid="token-name">{token.name}</td>
             <td data-label="Person" data-testid="token-person">{token.personName}</td>
@@ -37,6 +41,7 @@
         {/each}
       </tbody>
     </table>
+    <Pagination {pager} total={tokens.length} label="tokens" />
   </div>
 {/if}
 

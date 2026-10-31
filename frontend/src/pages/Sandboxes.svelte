@@ -1,6 +1,8 @@
 <script lang="ts">
   // Sandboxes, live: every machine's microVMs across all teams, with the time each has left, and an operator's kill or pause.
   // The list is asked for again every few seconds, but only while the browser tab is visible.
+  import Pagination from '../components/Pagination.svelte'
+  import { Pager } from '../lib/pager.svelte.ts'
   import { onMount } from 'svelte'
   import ActionButton from '../components/ActionButton.svelte'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
@@ -59,6 +61,8 @@
   })
 
   const count = $derived(sandboxes.length)
+  const pager = new Pager('sandboxes')
+  const shown = $derived(pager.slice(sandboxes))
 </script>
 
 <div class="phead"><h1>Sandboxes</h1><span class="crumb">Sandboxes › {count} running</span></div>
@@ -70,7 +74,7 @@
   <table class="restable stack">
     <thead><tr><th>Sandbox</th><th>Team</th><th>Machine</th><th>State</th><th>Shape</th><th>Ends</th><th>Created</th><th><span class="sr">Actions</span></th></tr></thead>
     <tbody>
-      {#each sandboxes as sandbox (sandbox.id)}
+      {#each shown as sandbox (sandbox.id)}
         <tr>
           <td data-label="Sandbox"><b class="mono">{sandbox.id}</b><br /><span class="muted">{sandbox.template}</span></td>
           <td data-label="Team">{sandbox.team_name}</td>
@@ -95,6 +99,7 @@
       {/each}
     </tbody>
   </table>
+    <Pagination {pager} total={sandboxes.length} label="sandboxes" />
 </div>
 
 <ConfirmDialog open={killing !== null} {...killText} onconfirm={kill} onClose={() => (killing = null)} />

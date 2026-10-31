@@ -1,5 +1,7 @@
 <script lang="ts">
   // Token ledger, as in the MAAS panel: what each machine and VM has used of the AI, as the Root counted it.
+  import Pagination from '../components/Pagination.svelte'
+  import { Pager } from '../lib/pager.svelte.ts'
   import { usageName, usageTotals } from '../lib/overview.ts'
 
   import type { BrainStatus } from '../lib/types.ts'
@@ -8,6 +10,8 @@
   const rows = $derived(brain?.usage ?? [])
   const totals = $derived(usageTotals(rows))
   const number = (value: number) => value.toLocaleString('en')
+  const pager = new Pager('token-ledger')
+  const shown = $derived(pager.slice(rows))
 </script>
 
 <div class="phead"><h1>Token ledger</h1><span class="crumb">Operator › Token ledger</span></div>
@@ -22,11 +26,12 @@
   <table class="restable">
     <thead><tr><th>Machine / VM</th><th>Replies</th><th>Tokens in</th><th>Tokens out</th></tr></thead>
     <tbody>
-      {#each rows as row (usageName(row))}
+      {#each shown as row (usageName(row))}
         <tr><td><b>{usageName(row)}</b></td><td class="nums">{number(row.requests)}</td><td class="nums">{number(row.prompt_tokens)}</td><td class="nums">{number(row.completion_tokens)}</td></tr>
       {:else}
         <tr><td colspan="4">{brain?.configured ? 'No replies yet.' : 'The AI provider is not set up, so nothing is counted yet.'}</td></tr>
       {/each}
     </tbody>
   </table>
+    <Pagination {pager} total={rows.length} label="machines and VMs" />
 </div>
