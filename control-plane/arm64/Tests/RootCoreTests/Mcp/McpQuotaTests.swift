@@ -61,7 +61,7 @@ final class McpQuotaTests: XCTestCase {
     func testGpuMemoryCapRefusesAboveAndAllowsAtTheCap() {
         XCTAssertNil(McpQuotaCheck.refusal(quotas, used: none, wish: McpWish(vcpu: 1, ramMb: 2048, diskGb: 20, gpuMemoryGb: 8)))
         let message = McpQuotaCheck.refusal(quotas, used: none, wish: McpWish(vcpu: 1, ramMb: 2048, diskGb: 20, gpuMemoryGb: 9))
-        XCTAssertEqual(message, "gpu_memory_gb is capped at 8 for this token and 9 was asked for: ask for 8 or less.")
+        XCTAssertEqual(message, "gpu_memory_gb is capped at 8 for this person and 9 was asked for: ask for 8 or less.")
     }
 
     func testTheFirstBrokenLimitIsTheOneReported() {

@@ -12,8 +12,8 @@ test('it asks while the tab is shown, also after an error, but not when hidden o
 })
 
 test('a list is redrawn only when it changed', () => {
-  const shown = signatureOf([{ id: 'r1', state: 'pending_approval' }])
-  expect(listChanged(shown, [{ id: 'r1', state: 'pending_approval' }])).toBe(false)
-  expect(listChanged(shown, [{ id: 'r1', state: 'denied' }])).toBe(true)
+  const shown = signatureOf([{ id: 'r1', state: 'running' }])
+  expect(listChanged(shown, [{ id: 'r1', state: 'running' }])).toBe(false)
+  expect(listChanged(shown, [{ id: 'r1', state: 'done' }])).toBe(true)
   expect(listChanged(null, [])).toBe(true)
 })

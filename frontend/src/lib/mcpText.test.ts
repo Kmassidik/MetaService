@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_QUOTAS } from './mcp.ts'
-import { agoText, claudeLine, expiryText, isLive, jsonSnippet, lastUsedText, quotaLine, revokeCopy, SCOPE_TEXT, TOKEN_PLACEHOLDER, TOOL_TEXT } from './mcpText.ts'
+import { agoText, claudeLine, disableCopy, tokensText, expiryText, isLive, jsonSnippet, lastUsedText, quotaLine, revokeCopy, SCOPE_TEXT, TOKEN_PLACEHOLDER, TOOL_TEXT } from './mcpText.ts'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -52,4 +52,18 @@ test('revoke says what stops and what stays', () => {
   const copy = revokeCopy({ name: 'laptop' })
   expect(copy.what).toContain('laptop')
   expect(copy.consequence).toContain('keep running')
+})
+
+test('disable says what stops and what stays', () => {
+  const copy = disableCopy({ name: 'Ayu' })
+  expect(copy.what).toContain('Ayu')
+  expect(copy.consequence).toContain('keep running')
+  expect(tokensText(0)).toBe('no tokens')
+  expect(tokensText(1)).toBe('1 token')
+  expect(tokensText(3)).toBe('3 tokens')
+})
+
+test('no approval wording is left in the scopes and tools', () => {
+  const words = JSON.stringify([SCOPE_TEXT, TOOL_TEXT]).toLowerCase()
+  expect(words).not.toContain('approv')
 })

@@ -1,5 +1,5 @@
 // Read the AI access answers of the parent (tokens, the connection facts) before the panel trusts them. See mcp/SPEC.md sections 3 and 7.
-import { fields, flag, listUnder, maybeText, maybeTime, oneOf, text, time, whole, list } from './mcpParse.ts'
+import { fields, listUnder, maybeText, maybeTime, oneOf, text, time, whole, list } from './mcpParse.ts'
 import { isFields, UnreadableAnswer, type Fields } from './unreadable.ts'
 
 export const MCP_SCOPES = ['read', 'create', 'destroy', 'gpu', 'shared'] as const
@@ -27,12 +27,25 @@ export interface McpToken {
   name: string
   prefix: string
   scopes: McpScope[]
-  quotas: McpQuotas
-  autoApprove: boolean
+  personId: string
+  personName: string
   createdAt: number
   expiresAt: number
   lastUsedAt: number | null
   revokedAt: number | null
+}
+
+/** A person who uses AI clients. The quotas are the person's, counted over all their tokens. */
+export interface McpPerson {
+  id: string
+  /** Typed by the operator: only ever shown as text. */
+  name: string
+  scopes: McpScope[]
+  quotas: McpQuotas
+  tokens: number
+  vmsAlive: number
+  lastUsedAt: number | null
+  disabledAt: number | null
 }
 
 export interface McpInfo {
@@ -62,8 +75,8 @@ function token(value: unknown): McpToken {
     name: text(row, 'name'),
     prefix: text(row, 'prefix'),
     scopes: scopeList(row.scopes, 'scopes'),
-    quotas: quotas(row.quotas),
-    autoApprove: flag(row, 'auto_approve'),
+    personId: text(row, 'person_id'),
+    personName: text(row, 'person_name'),
     createdAt: time(row, 'created_at'),
     expiresAt: time(row, 'expires_at'),
     lastUsedAt: maybeTime(row, 'last_used_at'),
@@ -73,6 +86,23 @@ function token(value: unknown): McpToken {
 
 /** The tokens (GET /api/mcp/tokens): a bare list or `{tokens: [...]}`. */
 export const parseTokens = (raw: unknown): McpToken[] => listUnder(raw, 'tokens', 'the tokens answer').map(token)
+
+function person(value: unknown): McpPerson {
+  const row = fields(value, 'a person')
+  return {
+    id: text(row, 'id'),
+    name: text(row, 'name'),
+    scopes: scopeList(row.scopes, 'scopes'),
+    quotas: quotas(row.quotas),
+    tokens: whole(row, 'tokens', 0),
+    vmsAlive: whole(row, 'vms_alive', 0),
+    lastUsedAt: maybeTime(row, 'last_used_at'),
+    disabledAt: maybeTime(row, 'disabled_at'),
+  }
+}
+
+/** The people (GET /api/mcp/people): a bare list or `{people: [...]}`. */
+export const parsePeople = (raw: unknown): McpPerson[] => listUnder(raw, 'people', 'the people answer').map(person)
 
 /** The token text from the reply that made it. It comes back this once and nowhere else. */
 export function parseMadeToken(raw: unknown): string {

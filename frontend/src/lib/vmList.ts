@@ -3,6 +3,7 @@ import { appChip, type AppChip } from './appInstall.ts'
 import { readGpuMemoryGb } from './gpuBooking.ts'
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
+import { workloadCreatedByText } from './vmOrigin.ts'
 import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
 import type { Machine, MachineState, Workload, WorkloadKind } from './types.ts'
 
@@ -27,6 +28,8 @@ export interface VmRow {
   plain: boolean
   /** The chip for the app being installed in the VM; null when it has none. */
   app: AppChip | null
+  /** Who made it, in words: "Ayu (MCP) · 7f3a9c21" or "unknown origin". */
+  createdBy: string
 }
 
 const IN_PROGRESS = new Set(['creating', 'starting', 'provisioning', 'deleting'])
@@ -57,6 +60,7 @@ export function vmRows(machines: Machine[]): VmRow[] {
       note: reasonNote(readStoppedReason(workload.stopped_reason)),
       plain: isPlainMode(workload),
       app: appChip(workload.app),
+      createdBy: workloadCreatedByText(workload),
     })),
   )
   return rows.sort(compareRows)

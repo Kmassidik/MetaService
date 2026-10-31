@@ -17,7 +17,13 @@ extension McpService {
 
     func vmView(_ vm: WorkloadSummary, on machine: MachineSummary) -> [String: Any] {
         ["machine": machine.id, "id": vm.id, "name": vm.name, "state": vm.state, "vcpu": vm.cpu, "ram_mb": vm.ramMb, "disk_gb": vm.diskGb,
-         "gpu_memory_gb": Self.null(vm.gpuMemoryGb), "address": Self.null(vm.address), "created_by_me": true]
+         "gpu_memory_gb": Self.null(vm.gpuMemoryGb), "address": Self.null(vm.address), "created_by_me": true, "created_by": createdByView(machine: machine.id, workload: vm.id)]
+    }
+
+    /// The short creator record, the same object the machine answers carry on every workload.
+    func createdByView(machine: String, workload: String) -> [String: Any] {
+        let found = (try? origins.get(machine: machine, workload: workload))?.createdBy ?? .unknown
+        return ["kind": found.kind, "label": found.label, "fingerprint": Self.null(found.fingerprint), "intact": found.intact]
     }
 
     /// vm_status and every finished request: the VM plus how to log in and, for a VM that stopped by itself, why.
@@ -31,7 +37,7 @@ extension McpService {
     /// A VM still being made has no id yet: it is listed by its request so the AI can follow it.
     func creatingView(_ row: McpWorkloadRow) -> [String: Any] {
         ["machine": row.machineId, "id": NSNull(), "name": NSNull(), "state": "creating", "vcpu": row.vcpu, "ram_mb": row.ramMb, "disk_gb": row.diskGb,
-         "gpu_memory_gb": NSNull(), "address": NSNull(), "created_by_me": true, "request_id": row.requestId]
+         "gpu_memory_gb": NSNull(), "address": NSNull(), "created_by_me": true, "created_by": NSNull(), "request_id": row.requestId]
     }
 
     /// The VM a row of this token stands for, as the machine reports it now. Nil when the machine does not (yet) list it.

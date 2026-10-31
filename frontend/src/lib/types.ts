@@ -123,6 +123,8 @@ export interface Workload {
   init_mode?: 'systemd' | 'plain' | null
   /** The app being installed in, or installed in, the VM. Null or left out when there is none. */
   app?: WorkloadApp | null
+  /** Who made the VM, short: read it with `readCreatedBy`. Left out or null for a VM the parent did not make. */
+  created_by?: unknown
 }
 
 /** What a machine's helper can offer for sandboxes, as the machine reports it. Null or left out when it does not say, or says it cannot run any. */

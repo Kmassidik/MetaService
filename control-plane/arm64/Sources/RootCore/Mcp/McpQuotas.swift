@@ -106,7 +106,7 @@ public enum McpQuotaCheck {
             return "creates_per_day is \(quotas.createsPerDay) and \(used.createsLastDay) were made in the last 24 hours: try again later."
         }
         if let gpu = wish.gpuMemoryGb, gpu > quotas.gpuMemoryGb {
-            return "gpu_memory_gb is capped at \(quotas.gpuMemoryGb) for this token and \(gpu) was asked for: ask for \(quotas.gpuMemoryGb) or less."
+            return "gpu_memory_gb is capped at \(quotas.gpuMemoryGb) for this person and \(gpu) was asked for: ask for \(quotas.gpuMemoryGb) or less."
         }
         let sums: [(name: String, limit: Int, used: Int, needed: Int)] = [
             ("max_vcpu", quotas.maxVcpu, used.vcpu, wish.vcpu),

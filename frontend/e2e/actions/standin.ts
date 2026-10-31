@@ -16,6 +16,7 @@ const SETTINGS_CALL = /^\/api\/machines\/([^/]+)\/settings$/
 const RETRY_SEGMENT = 'retry'
 const MACHINE_PAGE = /^\/api\/machines\/([^/]+)$/
 const SSH_KEYS_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/ssh-keys(?:\/([^/]+))?$/
+const ORIGIN_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/origin$/
 const APP_CALL = /^\/api\/machines\/([^/]+)\/workloads\/([^/]+)\/app(\/retry)?$/
 const IMAGES_CALL = /^\/api\/machines\/([^/]+)\/images$/
 /** The fleet has vm1 to vm4, so the first VM a test creates is vm5. */
@@ -63,6 +64,8 @@ export interface StandIn {
   apps: AppBook
   /** Existing services and the discovery/action calls of the external-services routes. */
   external: ExternalBook
+  /** The full creator record of a VM (GET .../origin), by "machine/vm". A VM with no entry answers `{origin: null}`. Its short `created_by` is set on the VM itself with `putVm`. */
+  origins: Record<string, Json>
   /** The raw text of every body POSTed to create a VM, in order. */
   createBodies: string[]
   /** When `order` is set, a create or delete answers with it and the order list holds it: the test plays the parent's order by hand and moves VMs with `putVm`. */
@@ -154,6 +157,7 @@ export async function startStandIn(): Promise<StandIn> {
   const bundles = createBundleBook()
   const sshKeys = createSshKeyBook()
   const apps = createAppBook()
+  const origins: Record<string, Json> = {}
   const external: ExternalBook = { available: false, gpu: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] }
   const externalCommands = new Map<string, Json>()
   const createBodies: string[] = []
@@ -310,6 +314,8 @@ export async function startStandIn(): Promise<StandIn> {
     if (path === '/api/auth/status') return send(response, 200, { configured: true, signedIn: true, min_password_length: 8 })
     const posted = request.method === 'POST'
     if (path === CREATE_PATH && posted) return createCall(request, response)
+    const originRoute = ORIGIN_CALL.exec(path)
+    if (originRoute) return send(response, 200, { origin: origins[`${originRoute[1]}/${originRoute[2]}`] ?? null })
     const appRoute = APP_CALL.exec(path)
     if (appRoute) return appCall(response, appRoute)
     const imagesRoute = IMAGES_CALL.exec(path)
@@ -357,6 +363,7 @@ export async function startStandIn(): Promise<StandIn> {
     sshKeys,
     apps,
     external,
+    origins,
     createBodies,
     script,
     putVm(machineId, entry) {
@@ -375,6 +382,7 @@ export async function startStandIn(): Promise<StandIn> {
       Object.assign(external, { available: false, gpu: false, delayMs: 0, commandDelayMs: 0, refuseWith: null, services: externalFleet(), warnings: externalWarnings(), discoveries: 0, actions: [] })
       externalCommands.clear()
       createBodies.length = 0
+      for (const key of Object.keys(origins)) delete origins[key]
       bundles.reset()
       sshKeys.reset()
       calls.length = 0

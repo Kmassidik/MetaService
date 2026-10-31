@@ -1,6 +1,6 @@
 // The words of the AI access section: scopes, limits, expiry, the tools and the two connection lines. Pure, so the wording is tested.
 import type { ConfirmCopy } from './confirmCopy.ts'
-import type { McpQuotas, McpScope, McpToken } from './mcp.ts'
+import type { McpPerson, McpQuotas, McpScope, McpToken } from './mcp.ts'
 
 export interface ScopeText {
   /** The short name on a chip and next to a checkbox. */
@@ -10,24 +10,24 @@ export interface ScopeText {
 }
 
 export const SCOPE_TEXT: Record<McpScope, ScopeText> = {
-  read: { name: 'read', explain: 'See machines, their free room, and the VMs this token made.' },
-  create: { name: 'create', explain: 'Create, start and stop VMs. Only the VMs this token made.' },
-  destroy: { name: 'destroy', explain: 'Delete VMs this token made. Every delete waits for your approval.' },
-  gpu: { name: 'gpu', explain: 'Ask for a GPU memory limit on a new VM. This waits for your approval.' },
-  shared: { name: 'shared', explain: 'Use machines that joined through Share a PC. This waits for your approval.' },
+  read: { name: 'read', explain: 'See machines, their free room, and the VMs this person made.' },
+  create: { name: 'create', explain: 'Create, start and stop VMs. Only the VMs this person made.' },
+  destroy: { name: 'destroy', explain: 'Delete VMs this person made.' },
+  gpu: { name: 'gpu', explain: 'Ask for a GPU memory limit on a new VM.' },
+  shared: { name: 'shared', explain: 'Use machines that joined through Share a PC.' },
 }
 
 /** What each tool does and which scope it needs (mcp/SPEC.md section 4). The panel shows the tools the parent lists, with these words. */
 export const TOOL_TEXT: Record<string, { scope: McpScope; explain: string }> = {
   list_machines: { scope: 'read', explain: 'List the machines and how much room they have.' },
   machine_capacity: { scope: 'read', explain: 'Say what a new VM can still get on one machine.' },
-  list_vms: { scope: 'read', explain: 'List the VMs this token made.' },
+  list_vms: { scope: 'read', explain: 'List the VMs this person made.' },
   vm_status: { scope: 'read', explain: 'Show one VM: state, size, address.' },
-  create_vm: { scope: 'create', explain: 'Create a VM. Some sizes need your approval.' },
-  start_vm: { scope: 'create', explain: 'Start a VM this token made.' },
-  stop_vm: { scope: 'create', explain: 'Stop a VM this token made.' },
-  delete_vm: { scope: 'destroy', explain: 'Delete a VM this token made. Always needs your approval.' },
-  get_request: { scope: 'read', explain: 'Check a request that waited for approval.' },
+  create_vm: { scope: 'create', explain: 'Create a VM. A GPU limit needs the gpu scope.' },
+  start_vm: { scope: 'create', explain: 'Start a VM this person made.' },
+  stop_vm: { scope: 'create', explain: 'Stop a VM this person made.' },
+  delete_vm: { scope: 'destroy', explain: 'Delete a VM this person made.' },
+  get_request: { scope: 'read', explain: 'Check a create, start, stop or delete that is still running.' },
 }
 
 const MB_PER_GB = 1024
@@ -84,8 +84,6 @@ export const jsonSnippet = (endpoint: string): string =>
 
 export const NOT_AVAILABLE_TEXT = 'AI access is not available on this parent.'
 export const NEW_TOKEN_WARNING = 'Copy this token now. It cannot be shown again, and the panel does not keep it. If you lose it, revoke it and make a new one.'
-export const AUTO_APPROVE_WARNING = 'With this on, this token can delete VMs, use a GPU and make large VMs without asking you. Leave it off unless you fully trust the AI client.'
-
 export const revokeCopy = (token: Pick<McpToken, 'name'>): ConfirmCopy => ({
   title: 'Revoke this token?',
   what: `${token.name} stops working at once.`,
@@ -94,3 +92,15 @@ export const revokeCopy = (token: Pick<McpToken, 'name'>): ConfirmCopy => ({
   busyLabel: 'Revoking…',
   doneLabel: 'Revoked',
 })
+
+export const disableCopy = (person: Pick<McpPerson, 'name'>): ConfirmCopy => ({
+  title: 'Disable this person?',
+  what: `${person.name} and all their tokens stop working at once.`,
+  consequence: 'Their VMs keep running and keep their creator record. You can enable them again.',
+  confirmLabel: 'Disable person',
+  busyLabel: 'Disabling…',
+  doneLabel: 'Disabled',
+})
+
+/** How many tokens a person has, in words. */
+export const tokensText = (count: number): string => (count === 0 ? 'no tokens' : `${count} ${count === 1 ? 'token' : 'tokens'}`)

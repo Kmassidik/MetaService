@@ -9,6 +9,7 @@
   import GpuBadge from '../components/GpuBadge.svelte'
   import VmSoftware from '../components/vm/VmSoftware.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
+  import VmOrigin from '../components/vm/VmOrigin.svelte'
   import { hasGpu } from '../lib/gpuChoice.ts'
   import { deleteFailure } from '../lib/deleteOrders.ts'
   import { machineHref } from '../lib/routes.ts'
@@ -77,6 +78,7 @@
   <div class="tabbody">
     {#if tab === 'overview'}
       <VmOverview {machine} {workload} {server} {pinned} {note} onInstall={() => onInstall(machine, workload)} />
+      {#key workload.id}<VmOrigin machineId={machine.id} workloadId={workload.id} />{/key}
       {#if workload.app}{#key workload.id}<VmSoftware machineId={machine.id} workloadId={workload.id} />{/key}{/if}
       {#if hasGpu(workload)}{#key workload.id}<VmGpu machineId={machine.id} workloadId={workload.id} />{/key}{/if}
     {:else if tab === 'monitoring'}

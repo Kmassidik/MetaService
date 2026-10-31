@@ -19,12 +19,16 @@ final class WorkloadService: @unchecked Sendable {
     private let apps: AppService
     private let images: ImagesService
     private let gpuLimit: GpuLimitService
+    private let origins: VmOriginStore
     private let creating = NSLock()
     private let deleting = NSLock()
     /// The create command's parameter that carries the app asked for, so the wish survives until the helper names the new VM.
     private static let appParam = "app"
+    /// The create command's parameter that carries when the order was accepted, for the creator record.
+    private static let originAtParam = "origin_at"
 
-    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore, apps: AppService, images: ImagesService, gpuLimit: GpuLimitService) {
+    init(machines: MachineStore, commands: CommandStore, audit: AuditStore, client: AgentClient, clock: Clock, bundles: BundleStore, autoPin: BundleAutoPin, chatAccess: ChatAccessStore, secrets: SecretBox, sshKeys: SshKeyStore, apps: AppService, images: ImagesService, gpuLimit: GpuLimitService, origins: VmOriginStore) {
+        self.origins = origins
         self.gpuLimit = gpuLimit
         self.sshKeys = sshKeys
         self.apps = apps
@@ -42,9 +46,10 @@ final class WorkloadService: @unchecked Sendable {
 
     // MARK: asking for things
 
-    func create(actor: String, request: CreateWorkloadOperatorRequest) async throws -> CommandRow {
+    /// `origin` is who is asking, for the creator record that is written once the machine has named the new VM.
+    func create(actor: String, request: CreateWorkloadOperatorRequest, origin: VmOriginInput) async throws -> CommandRow {
         let request = try await placedWhereTheAppCanBeInstalled(request)
-        let (machine, id) = try reserve(actor: actor, request: request)
+        let (machine, id) = try reserve(actor: actor, request: request, origin: origin)
         let savedDefault = (try? machines.get(id: machine, now: clock.now))?.settings?.vmImage
         let body = HelperCreateBody.make(commandId: id, request: request, machineDefaultImage: savedDefault)
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads", body: body)
@@ -69,7 +74,7 @@ final class WorkloadService: @unchecked Sendable {
     }
 
     /// Chooses the machine and writes the command in one step, so two requests made at once cannot both count the same free room.
-    private func reserve(actor: String, request: CreateWorkloadOperatorRequest) throws -> (machine: String, id: String) {
+    private func reserve(actor: String, request: CreateWorkloadOperatorRequest, origin: VmOriginInput) throws -> (machine: String, id: String) {
         creating.lock()
         defer { creating.unlock() }
         let now = clock.now
@@ -77,6 +82,8 @@ final class WorkloadService: @unchecked Sendable {
         let id = Self.newCommandId()
         var params = ["name": request.name, "kind": request.kind, "cpu": String(request.cpu), "ram_mb": String(request.ramMb), "disk_gb": String(request.diskGb), "gpu_mode": request.gpuMode]
         params[Self.appParam] = AppCatalog.isApp(request.bundle) ? request.bundle : nil
+        params.merge(origin.params) { $1 }
+        params[Self.originAtParam] = String(Int(now.timeIntervalSince1970))
         try gpuLimit.book(machine: try machines.get(id: machine, now: now), command: id, request: request)
         do {
             try commands.create(id: id, machine: machine, workloadId: nil, type: "create", params: params, actor: actor, now: now)
@@ -251,6 +258,8 @@ final class WorkloadService: @unchecked Sendable {
         var text = (result ?? [:]).compactMapValues { $0 as? String }
         keepChatKey(id, &text)
         forgetKeysOfDeletedVM(id, state: state)
+        recordOriginOfCreatedVM(id, state: state, result: text)
+        noteDeletionOfVM(id, state: state)
         startAppOfCreatedVM(id, state: state, result: text)
         try? finish(id, state: state, result: HelperFailureText.cleanResult(text))
     }
@@ -268,6 +277,18 @@ final class WorkloadService: @unchecked Sendable {
         guard state == "succeeded", let row = try? commands.get(id), row.type == "delete", let workload = row.workloadId else { return }
         try? sshKeys.forget(workload: workload, machine: row.machine)
         apps.forget(workload: workload, machine: row.machine)
+    }
+
+    /// The VM now has an id: its creator record is written, from what the create command kept. A create without that (an order from before records existed) leaves none.
+    private func recordOriginOfCreatedVM(_ id: String, state: String, result: [String: String]) {
+        guard state == "succeeded", let row = try? commands.get(id), row.type == "create", let workload = result["workload_id"], let origin = VmOriginInput(params: row.params) else { return }
+        try? origins.record(machine: row.machine, workload: workload, input: origin, createdAt: row.params[Self.originAtParam].flatMap(Int.init))
+    }
+
+    /// A VM the parent deleted notes when and by whom on its creator record.
+    private func noteDeletionOfVM(_ id: String, state: String) {
+        guard state == "succeeded", let row = try? commands.get(id), row.type == "delete", let workload = row.workloadId else { return }
+        try? origins.markDeleted(machine: row.machine, workload: workload, by: row.actor, now: clock.now)
     }
 
     /// A create that asked for an app has made its VM: the wish is kept and the install starts in the background.

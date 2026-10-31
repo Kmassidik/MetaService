@@ -52,12 +52,14 @@ struct Services {
     let sandboxPortForwarder: AgentSandboxPortForwarder
     let joinShare: JoinShareHub
     let mcp: McpService
+    let origins: VmOriginStore
 
     init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
         self.setupGate = setupGate
         self.clock = clock
-        machines = MachineStore(database)
+        origins = VmOriginStore(database) { secrets.signature($0, purpose: VmOriginSeal.purpose) }
+        machines = MachineStore(database, origins: origins)
         enrollments = EnrollmentStore(database)
         audit = AuditStore(database)
         admin = AdminStore(database)
@@ -77,7 +79,7 @@ struct Services {
         apps = AppService(machines: machines, apps: AppStateStore(database), audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         workloads = WorkloadService(machines: machines, commands: commands, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
                                     bundles: bundles, autoPin: autoPin, chatAccess: chatAccess, secrets: secrets, sshKeys: sshKeyStore, apps: apps, images: images,
-                                    gpuLimit: GpuLimitService(bookings: GpuBookingStore(database), clock: clock))
+                                    gpuLimit: GpuLimitService(bookings: GpuBookingStore(database), clock: clock), origins: origins)
         externalServices = ExternalServicesService(machines: machines, commands: commands, audit: audit,
                                                    client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         bundleService = BundleService(machines: machines, commands: commands, bundles: bundles, workloads: workloads, autoPin: autoPin, clock: clock)
@@ -107,7 +109,7 @@ struct Services {
         sandboxHelper = AgentSandboxHelper(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
         sandboxPortForwarder = AgentSandboxPortForwarder(client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts))
         joinShare = JoinShareHub(config: config)
-        mcp = McpService(database: database, machines: machines, commands: commands, audit: audit, workloads: workloads, sshKeys: sshKeys, terminal: terminal, throttle: throttle,
+        mcp = McpService(database: database, machines: machines, commands: commands, audit: audit, workloads: workloads, sshKeys: sshKeys, terminal: terminal, origins: origins, throttle: throttle,
                          clock: clock, publicBaseURL: config.publicBaseURL)
     }
 }

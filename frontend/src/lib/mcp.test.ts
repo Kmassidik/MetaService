@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_QUOTAS, parseInfo, parseMadeToken, parseTokens } from './mcp.ts'
+import { DEFAULT_QUOTAS, parseInfo, parseMadeToken, parsePeople, parseTokens } from './mcp.ts'
 import { UnreadableAnswer } from './unreadable.ts'
 
 const quotas = { max_vms: 3, max_vcpu: 8, max_ram_mb: 16384, max_disk_gb: 200, creates_per_day: 10 }
 const token = (more: Record<string, unknown> = {}) => ({
-  id: 't1', name: 'laptop', prefix: 'AbCd1234', scopes: ['read', 'create'], quotas, auto_approve: false,
+  id: 't1', name: 'laptop', prefix: 'AbCd1234', scopes: ['read', 'create'], person_id: 'p1', person_name: 'Ayu',
   created_at: '2026-10-30T10:00:00Z', expires_at: '2027-01-28T10:00:00Z', last_used_at: null, revoked_at: null, ...more,
 })
 
@@ -12,8 +12,8 @@ test('a token list is read from a bare list or from {tokens}', () => {
   expect(parseTokens([token()]).length).toBe(1)
   const read = parseTokens({ tokens: [token({ last_used_at: '2026-10-31T09:00:00Z' })] })[0]
   expect(read?.name).toBe('laptop')
-  expect(read?.quotas.maxRamMb).toBe(16384)
-  expect(read?.quotas.gpuMemoryGb).toBeNull()
+  expect(read?.personName).toBe('Ayu')
+  expect(read?.personId).toBe('p1')
   expect(read?.lastUsedAt).toBe(Date.parse('2026-10-31T09:00:00Z'))
 })
 
@@ -22,7 +22,7 @@ test('a number is read as seconds since 1970', () => {
 })
 
 test('an unreadable token list throws and is never an empty list', () => {
-  for (const bad of [null, 'x', {}, { tokens: 'x' }, [token({ scopes: ['root'] })], [token({ quotas: { max_vms: 0 } })], [token({ auto_approve: 'no' })], [token({ expires_at: 'soon' })], [token({ name: 7 })]]) {
+  for (const bad of [null, 'x', {}, { tokens: 'x' }, [token({ scopes: ['root'] })], [token({ person_id: 4 })], [token({ person_name: undefined })], [token({ expires_at: 'soon' })], [token({ name: 7 })]]) {
     expect(() => parseTokens(bad)).toThrow(UnreadableAnswer)
   }
 })
@@ -46,4 +46,23 @@ test('the parent defaults win when sent', () => {
   expect(info.defaults.quotas.maxVms).toBe(1)
   expect(info.defaults.quotas.gpuMemoryGb).toBe(8)
   expect(info.defaults.expiryDays).toBe(30)
+})
+
+const person = (more: Record<string, unknown> = {}) => ({
+  id: 'p1', name: 'Ayu', scopes: ['read', 'create'], quotas, tokens: 2, vms_alive: 1, last_used_at: null, disabled_at: null, ...more,
+})
+
+test('the people are read from {people} or a bare list', () => {
+  const read = parsePeople({ people: [person({ last_used_at: '2026-10-31T09:00:00Z', disabled_at: '2026-10-31T10:00:00Z' })] })[0]
+  expect(read).toMatchObject({ id: 'p1', name: 'Ayu', tokens: 2, vmsAlive: 1 })
+  expect(read?.quotas.maxVms).toBe(3)
+  expect(read?.quotas.gpuMemoryGb).toBeNull()
+  expect(read?.disabledAt).toBe(Date.parse('2026-10-31T10:00:00Z'))
+  expect(parsePeople([person()]).length).toBe(1)
+})
+
+test('unreadable people throw and are never an empty list', () => {
+  for (const bad of [null, {}, { people: 'x' }, [person({ scopes: ['root'] })], [person({ quotas: { max_vms: 0 } })], [person({ tokens: -1 })], [person({ vms_alive: 'one' })], [person({ name: 3 })]]) {
+    expect(() => parsePeople(bad)).toThrow(UnreadableAnswer)
+  }
 })
