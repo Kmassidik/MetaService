@@ -15,6 +15,17 @@ public struct SecurityHelperEvent: Equatable, Sendable {
     public let count: Int
     public let until: Date?
     public let detail: String?
+
+    public init(time: Date, type: SecurityEventType, user: String?, address: String?, method: String?, count: Int, until: Date?, detail: String?) {
+        self.time = time
+        self.type = type
+        self.user = user
+        self.address = address
+        self.method = method
+        self.count = count
+        self.until = until
+        self.detail = detail
+    }
 }
 
 public struct SecurityPullError: Error, Equatable, CustomStringConvertible {
