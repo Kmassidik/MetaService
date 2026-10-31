@@ -12,6 +12,8 @@ pub enum Verb {
     Setup { yes: bool, user: Option<String> },
     /// The root half of the sandbox engine, on a local socket: the same program, and only the steps that need root.
     SandboxRunner,
+    /// Print what the security route would answer for these log files (a first call), for checking a real log by hand.
+    SecurityDump { auth: String, fail2ban: Option<String>, limit: usize, all: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -50,9 +52,10 @@ const VALUED: &[&str] = &[
     "--state-dir", "--port", "--bind", "--engine", "--sandbox", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb", "--disk-allowance-gb", "--bad-token-limit",
     "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--incus-path", "--default-image", "--backup-dir", "--root", "--name", "--enrollment-token-file", "--user",
     "--sandbox-runner-socket", "--sandbox-runner-dir", "--sandbox-runner-uplink", "--sandbox-kernel", "--sandbox-rootfs",
+    "--auth", "--fail2ban", "--limit",
 ];
 /// Options that carry no value: they are another mode, not a setting.
-const FLAGS: &[&str] = &["--yes", "--sandbox-runner"];
+const FLAGS: &[&str] = &["--yes", "--sandbox-runner", "--all"];
 
 impl Config {
     pub fn parse(arguments: &[String]) -> Result<Config, String> {
@@ -71,7 +74,13 @@ impl Config {
                 token_file: options.get("--enrollment-token-file").cloned(),
             },
             "setup" => Verb::Setup { yes: options.contains_key("--yes"), user: options.get("--user").cloned() },
-            other => return Err(format!("unknown command {other}; use run, enroll or setup")),
+            "security-dump" => Verb::SecurityDump {
+                auth: options.get("--auth").cloned().ok_or("security-dump needs --auth FILE")?,
+                fail2ban: options.get("--fail2ban").cloned(),
+                limit: number(&options, "--limit", 1, 2000)?.map_or(2000, |n| n as usize),
+                all: options.contains_key("--all"),
+            },
+            other => return Err(format!("unknown command {other}; use run, enroll, setup or security-dump")),
         };
         if options.contains_key("--sandbox-runner") {
             if !matches!(config.verb, Verb::Run) {
@@ -197,5 +206,14 @@ mod tests {
         assert!(matches!(parse(&["setup"]).unwrap().verb, Verb::Setup { yes: false, user: None }));
         let config = parse(&["enroll", "--root", "http://10.0.0.1:9100", "--name", "dgx", "--enrollment-token-file", "/tmp/t"]).unwrap();
         assert!(matches!(config.verb, Verb::Enroll { ref name, token_file: Some(_), .. } if name == "dgx"));
+    }
+
+    #[test]
+    fn security_dump_needs_a_file_and_takes_optional_ones() {
+        assert!(parse(&["security-dump"]).is_err());
+        let dump = parse(&["security-dump", "--auth", "/tmp/a", "--fail2ban", "/tmp/f", "--limit", "10", "--all"]).unwrap();
+        assert!(matches!(dump.verb, Verb::SecurityDump { ref auth, fail2ban: Some(_), limit: 10, all: true } if auth == "/tmp/a"));
+        assert!(matches!(parse(&["security-dump", "--auth", "/tmp/a"]).unwrap().verb, Verb::SecurityDump { limit: 2000, all: false, fail2ban: None, .. }));
+        assert!(parse(&["security-dump", "--auth", "/tmp/a", "--limit", "0"]).is_err());
     }
 }

@@ -15,7 +15,7 @@ pub mod runner;
 mod store;
 #[cfg(test)]
 mod tests;
-mod time;
+pub(crate) mod time;
 
 pub use engine::{Limits, Sample, SandboxEngine, SimulatedSandboxEngine, Template, SIMULATED};
 pub use record::{CreateRequest, EndRequest, Sandbox};

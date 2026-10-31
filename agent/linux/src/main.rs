@@ -29,6 +29,7 @@ mod live_space;
 mod models;
 mod preflight;
 mod sandbox;
+mod security;
 mod service;
 mod setup;
 mod ssh_install;
@@ -55,6 +56,7 @@ fn main() {
         Verb::Enroll { root, name, token_file } => enroll::run(&config, &root, &name, token_file.as_deref()),
         Verb::Setup { yes, user } => run_setup(yes, user),
         Verb::SandboxRunner => run_sandbox_runner(&config),
+        Verb::SecurityDump { auth, fail2ban, limit, all } => security::dump(&auth, fail2ban.as_deref(), limit, all).map(|json| println!("{json}")),
         Verb::Run => run(config),
     });
     if let Err(message) = result {

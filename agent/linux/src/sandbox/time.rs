@@ -32,7 +32,7 @@ pub fn parse(text: &str) -> Option<u64> {
 }
 
 /// Howard Hinnant's date-to-days rule, the other way round from the one the monitor uses.
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+pub(crate) fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = year.div_euclid(400);
     let year_of_era = year.rem_euclid(400);

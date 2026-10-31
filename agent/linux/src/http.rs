@@ -35,6 +35,8 @@ pub struct App {
     /// The sandboxes this helper runs. The service owns the one of them, so `/v1/facts` and these routes always agree.
     pub sandboxes: Arc<Sandboxes>,
     stats: Monitor,
+    /// The login log and baseline settings, read as this helper's own user.
+    pub(crate) security: Arc<crate::security::Security>,
     /// The map of what fills the disk (the panel's Storage tab), scanned at startup and on request.
     storage: Storage,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
@@ -43,7 +45,7 @@ pub struct App {
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32, storage_cache: Option<PathBuf>) -> Arc<App> {
         let sandboxes = service.sandboxes();
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), security: Arc::new(crate::security::Security::system()), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
     }
 
     pub fn start_storage_if_needed(&self) {
@@ -70,6 +72,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/facts", get(facts))
         .route("/v1/stats", get(stats))
+        .route("/v1/security/events", get(crate::security::events))
         .route("/v1/storage", get(storage))
         .route("/v1/storage/scan", post(storage_scan))
         .route("/v1/images", get(images))
