@@ -16,6 +16,8 @@
   import CardUpdate from './CardUpdate.svelte'
   import CardFix from './CardFix.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
+  import { securityOf } from '../lib/security.ts'
+  import { securityBadge } from '../lib/securityRules.ts'
   import { cardFacts, vmsChip } from '../lib/cardFacts.ts'
   import { gpuFact, gpuTitle, readGpuLive } from '../lib/gpuLive.ts'
   import { getMachineStats } from '../lib/api.ts'
@@ -30,6 +32,7 @@
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
   const updateTag = $derived(listTag(machine))
+  const badge = $derived(securityBadge(securityOf(machine)))
   /** The card's name for the route; a new machine object with the same id must not restart the polling. */
   const machineId = $derived(machine.id)
   let stats = $state<MachineStats | null>(null)
@@ -81,6 +84,7 @@
       <span class="tags">
         {#if isParent}<span class="tag run">Parent</span>{/if}
         {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
+        {#if badge}<span class="tag" class:warn={badge.warning} data-security-badge title="Failed logins blocked in the last 7 days">{badge.text}</span>{/if}
         {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
         {#if machine.bundle_version}<span class="tag" class:stale={flag.stale}>{flag.text}</span>{/if}
         {#each labels as label (label)}<span class="tag">{label}</span>{/each}

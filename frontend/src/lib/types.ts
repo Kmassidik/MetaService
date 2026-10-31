@@ -237,6 +237,68 @@ export interface Machine {
   agent_port?: number | null
   /** Only in GET /api/machines/{id}. Null until the machine has reported once. */
   ruvio?: Ruvio | null
+  /** What the helper reports about who is knocking and what is blocked; left out when it does not report (old helper, offline, never connected). Read it with `readSecurity`. */
+  security?: unknown
+}
+
+/** The ban tool: running, installed but stopped (or not installed on a machine that could have one), or not available on this kind of computer (a Mac). Null when the helper does not say. */
+export type BanToolState = 'running' | 'not_running' | 'not_available'
+
+/** What the helper checked about the machine. Each field is null when it does not know. */
+export interface SecurityBaseline {
+  /** True when SSH accepts a password (the machines should be key-only). */
+  password_login: boolean | null
+  ban_tool: BanToolState | null
+  firewall: boolean | null
+  auto_updates: boolean | null
+  /** True when the helper starts by itself after a reboot. */
+  starts_after_reboot: boolean | null
+  pending_updates: number | null
+}
+
+export interface SecurityCount {
+  failed: number | null
+  blocked: number | null
+}
+
+/** Failed logins and blocked addresses over the last 24 hours, 7 days and 30 days. */
+export interface SecurityWindows {
+  h24: SecurityCount
+  d7: SecurityCount
+  d30: SecurityCount
+}
+
+export interface BlockedAddress {
+  address: string
+  since: string | null
+  until: string | null
+  attempts: number | null
+}
+
+export interface BotName {
+  name: string
+  count: number
+}
+
+export type LoginMethod = 'key' | 'password'
+
+export interface AcceptedLogin {
+  method: LoginMethod
+  user: string
+  address: string
+  count: number
+  last_seen: string | null
+}
+
+/** The security report of one machine, as the panel keeps it after reading `Machine.security`. All text is plain text. */
+export interface MachineSecurity {
+  baseline: SecurityBaseline
+  windows: SecurityWindows
+  /** Failed logins per day, the oldest first and today last, up to 30 days; null for a day the helper did not count. */
+  daily_failed: (number | null)[]
+  blocked: BlockedAddress[]
+  usernames: BotName[]
+  logins: AcceptedLogin[]
 }
 
 /**

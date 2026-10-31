@@ -38,6 +38,8 @@ export interface FakeParentOptions {
   dist: string
   /** The helper programs; left out, every machine is up to date. */
   helper?: HelperScenario
+  /** The machines to serve instead of mac-studio and mac-mini (the Security test brings four, each with its own report). */
+  machines?: Json[]
 }
 
 export interface FakeParent {
@@ -85,7 +87,7 @@ function applyPatch(machine: Json, patch: Json): Json {
 
 export function startFakeParent(options: FakeParentOptions): FakeParent {
   const helper = options.helper ?? { build: HELPER_UP_TO_DATE, newest: HELPER_UP_TO_DATE, answer: { status: 200, body: {} } }
-  const machines: Json[] = [withHelper(studio(), helper, helper.build), withHelper(mini(), helper, helper.newest)]
+  const machines: Json[] = options.machines ?? [withHelper(studio(), helper, helper.build), withHelper(mini(), helper, helper.newest)]
   const patches: Json[] = []
   const commands: string[] = []
   const updates: string[] = []

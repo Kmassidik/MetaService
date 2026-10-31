@@ -10,6 +10,7 @@
   import MachineAlerts from '../components/environment/MachineAlerts.svelte'
   import Monitor from '../components/monitor/Monitor.svelte'
   import PendingVms from '../components/vms/PendingVms.svelte'
+  import SecurityTab from '../components/security/SecurityTab.svelte'
   import StorageTab from '../components/storage/StorageTab.svelte'
   import { machineTabs, nextTab, pollsLive, type MachineTab } from '../lib/machineTabs.ts'
   import { actionLabel } from '../lib/action.ts'
@@ -125,6 +126,9 @@
         <EnvironmentTab {machine} {remote} {now} {newestHelper} {chatsBuilt} {onRuvio} {onOpenChat} {onChanged} />
       {/key}
     {/if}
+  </div>
+  <div class="tabbody" role="tabpanel" id={panelId('security')} aria-labelledby={tabId('security')} hidden={tab !== 'security'}>
+    {#if tab === 'security'}{#key machine.id}<SecurityTab {machine} {now} />{/key}{/if}
   </div>
   <div class="tabbody" role="tabpanel" id={panelId('activity')} aria-labelledby={tabId('activity')} hidden={tab !== 'activity'}>
     {#if tab === 'activity'}<Activity commands={activity} {now} />{/if}
