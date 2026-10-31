@@ -53,8 +53,9 @@ struct Services {
     let joinShare: JoinShareHub
     let mcp: McpService
     let origins: VmOriginStore
+    let security: SecurityService
 
-    init(config: RootConfig, database: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
+    init(config: RootConfig, database: Database, securityDatabase: Database, secrets: SecretBox, setupGate: SetupGate, clock: Clock = SystemClock()) {
         self.config = config
         self.setupGate = setupGate
         self.clock = clock
@@ -97,6 +98,8 @@ struct Services {
         terminal = TerminalService(machines: machines, audit: audit, clock: clock, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), tunnels: tunnelPorts)
         sshKeys = SshKeyService(machines: machines, remoteMachines: remoteMachines, keys: sshKeyStore, audit: audit, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
+        security = SecurityService(machines: machines, store: SecurityStore(securityDatabase), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
+                                   pollSeconds: config.securityPollSeconds)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)

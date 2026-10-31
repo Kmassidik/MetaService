@@ -41,6 +41,8 @@ struct RootConfig {
     var remoteTriesPerMinute = 4
     /// Seconds between the history readings of a machine. Ten in real use; a test shortens it.
     var historyIntervalSeconds = StatsHistory.intervalSeconds
+    /// Seconds between two rounds of asking the helpers for their security events. A minute in real use; a test shortens it.
+    var securityPollSeconds = 60
     var envFile = RootConfig.defaultEnvFile
     var aiBaseURL: String?
     var aiApiKey: String?
@@ -164,6 +166,7 @@ enum ConfigLoader {
             config.port = port
         }
         config.historyIntervalSeconds = try number(env["HISTORY_INTERVAL_SECONDS"], named: "HISTORY_INTERVAL_SECONDS", in: historyIntervalRange, default: config.historyIntervalSeconds)
+        config.securityPollSeconds = try number(env["SECURITY_POLL_SECONDS"], named: "SECURITY_POLL_SECONDS", in: securityPollRange, default: config.securityPollSeconds)
         try applyScan(env, to: &config)
         try applyBrain(env, to: &config)
         try applySandboxes(env, to: &config)
@@ -217,6 +220,8 @@ enum ConfigLoader {
 
     /// One second at the shortest (for tests), one minute at the longest.
     static let historyIntervalRange = 1...60
+    /// One second at the shortest (for tests), one hour at the longest.
+    static let securityPollRange = 1...3600
 
     private static func number(_ text: String?, named name: String, in range: ClosedRange<Int>, default fallback: Int) throws -> Int {
         guard let text else { return fallback }

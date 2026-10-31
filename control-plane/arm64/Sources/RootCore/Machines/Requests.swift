@@ -87,10 +87,12 @@ public struct Capabilities: Equatable, Codable {
     public let terminal: Bool
     /// The helper can run sandboxes right now (Firecracker, /dev/kvm and a ready template). False for older helpers.
     public let sandbox: Bool
+    /// The helper serves `GET /v1/security/events` (failed logins, logins, blocks and a baseline of its settings). Older helpers do not say, which reads as false: the machine is not watched.
+    public let security: Bool
 
     public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, gpuMemoryLimit: Bool = false,
                 cpuModels: [String] = CpuSettings.defaultModels, cpuTopology: Bool = false, cpuFlags: [String] = [], cpuLimit: Bool = false, terminal: Bool = false,
-                sandbox: Bool = false) {
+                sandbox: Bool = false, security: Bool = false) {
         self.vm = vm
         self.container = container
         self.gpuInVm = gpuInVm
@@ -102,9 +104,10 @@ public struct Capabilities: Equatable, Codable {
         self.cpuLimit = cpuLimit
         self.terminal = terminal
         self.sandbox = sandbox
+        self.security = security
     }
 
-    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit, cpuModels, cpuTopology, cpuFlags, cpuLimit, terminal, sandbox }
+    enum CodingKeys: String, CodingKey { case vm, container, gpuInVm, gpuInContainer, gpuMemoryLimit, cpuModels, cpuTopology, cpuFlags, cpuLimit, terminal, sandbox, security }
 
     /// Capabilities saved before a feature leave out its fields: no `gpuMemoryLimit`, no CPU settings.
     public init(from decoder: Decoder) throws {
@@ -117,7 +120,8 @@ public struct Capabilities: Equatable, Codable {
                   cpuFlags: try box.decodeIfPresent([String].self, forKey: .cpuFlags) ?? [],
                   cpuLimit: try box.decodeIfPresent(Bool.self, forKey: .cpuLimit) ?? false,
                   terminal: try box.decodeIfPresent(Bool.self, forKey: .terminal) ?? false,
-                  sandbox: try box.decodeIfPresent(Bool.self, forKey: .sandbox) ?? false)
+                  sandbox: try box.decodeIfPresent(Bool.self, forKey: .sandbox) ?? false,
+                  security: try box.decodeIfPresent(Bool.self, forKey: .security) ?? false)
     }
 }
 
@@ -161,7 +165,7 @@ public struct FactsReport: Equatable {
         freeDiskGb = try object.int("free_disk_gb", range: 0...100_000_000)
         gpu = try object.objects("gpu", allowed: GpuInfo.keys, maxCount: Self.maxGpus).map(GpuInfo.init)
         let caps = try object.object("capabilities", allowed: ["vm", "container", "gpu_in_vm", "gpu_in_container", "gpu_memory_limit", "terminal",
-                                                               "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit", "sandbox"])
+                                                               "cpu_models", "cpu_topology", "cpu_flags", "cpu_limit", "sandbox", "security"])
         capabilities = Capabilities(vm: try caps.bool("vm"), container: try caps.bool("container"),
                                     gpuInVm: try caps.bool("gpu_in_vm"), gpuInContainer: try caps.bool("gpu_in_container"),
                                     gpuMemoryLimit: caps.has("gpu_memory_limit") ? try caps.bool("gpu_memory_limit") : false,
@@ -170,7 +174,8 @@ public struct FactsReport: Equatable {
                                     cpuFlags: caps.has("cpu_flags") ? try CpuSettings.offeredFlags(caps) : [],
                                     cpuLimit: caps.has("cpu_limit") ? try caps.bool("cpu_limit") : false,
                                     terminal: caps.has("terminal") ? try caps.bool("terminal") : false,
-                                    sandbox: caps.has("sandbox") ? try caps.bool("sandbox") : false)
+                                    sandbox: caps.has("sandbox") ? try caps.bool("sandbox") : false,
+                                    security: caps.has("security") ? try caps.bool("security") : false)
         problems = object.has("problems") ? try object.objects("problems", allowed: ["code", "message", "fix"], maxCount: Self.maxProblems).map(Self.problem) : []
         agentVersion = try ReportedVersion.optional(object, "agent_version")
         engine = object.has("engine") ? try EngineReport(try object.object("engine", allowed: EngineReport.keys)) : nil

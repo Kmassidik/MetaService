@@ -2,7 +2,7 @@ import Foundation
 
 /// Numbered schema steps. A step runs once, in order, inside a transaction. Add new steps at the end; never edit old ones.
 public enum Migrations {
-    static let steps: [(version: Int, apply: (Database) throws -> Void)] = [
+    static let steps: [Step] = [
         (1, { try $0.exec("""
             CREATE TABLE machines (
               id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, ip TEXT,
@@ -277,7 +277,14 @@ public enum Migrations {
 
     public static var latest: Int { steps.last?.version ?? 0 }
 
+    public typealias Step = (version: Int, apply: (Database) throws -> Void)
+
     public static func migrate(_ database: Database) throws {
+        try run(steps, on: database)
+    }
+
+    /// Runs the numbered steps that this file has not seen yet, each in its own transaction. The security database has its own steps and its own `schema_version`.
+    static func run(_ steps: [Step], on database: Database) throws {
         try database.exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
         let current = try database.query("SELECT COALESCE(MAX(version), 0) AS version FROM schema_version").first?.int("version") ?? 0
         for step in steps where step.version > current {

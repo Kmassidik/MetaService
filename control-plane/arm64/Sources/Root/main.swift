@@ -8,6 +8,7 @@ do {
                                             withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     let database = try Database(path: config.databasePath)
     try Migrations.migrate(database)
+    let securityDatabase = try SecurityDatabase.open(path: SecurityDatabase.path(besides: config.databasePath))
     let secrets = try SecretBox.loadOrCreate(path: (config.databasePath as NSString).deletingLastPathComponent + "/root.key")
     let tokenWasInEnvFile = config.setupToken != nil
     let setupGate = try SetupGate.prepare(configured: config.setupToken, adminExists: AdminStore(database).isConfigured, envFile: config.envFile)
@@ -15,7 +16,7 @@ do {
         print("metaservice-root: first run. Create the admin login in the panel with the setup token: \(SetupGate.variable) in \(setupGate.envFile)" + (tokenWasInEnvFile ? "." : " (the Root just wrote it there, mode 600)."))
         fflush(stdout)
     }
-    let services = Services(config: config, database: database, secrets: secrets, setupGate: setupGate)
+    let services = Services(config: config, database: database, securityDatabase: securityDatabase, secrets: secrets, setupGate: setupGate)
     services.tunnels.resume()
     // Once, ever: the VMs listed before creator records existed are recorded as made by the admin. Later VMs without a record stay "unknown origin".
     try services.origins.backfillOnce(now: services.clock.now)
@@ -23,6 +24,7 @@ do {
     services.externalServices.resume()
     services.bundleService.start()
     services.history.start()
+    services.security.start()
     let operatorApp = buildOperatorApplication(services: services)
     let agentApp = buildAgentApplication(services: services)
     try await withThrowingTaskGroup(of: Void.self) { group in

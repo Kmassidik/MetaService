@@ -73,7 +73,7 @@ public struct MachineSettings: Codable, Equatable {
         guard !allowGpu, let capabilities else { return capabilities }
         return Capabilities(vm: capabilities.vm, container: capabilities.container, gpuInVm: false, gpuInContainer: false, gpuMemoryLimit: capabilities.gpuMemoryLimit,
                             cpuModels: capabilities.cpuModels, cpuTopology: capabilities.cpuTopology, cpuFlags: capabilities.cpuFlags, cpuLimit: capabilities.cpuLimit,
-                            terminal: capabilities.terminal, sandbox: capabilities.sandbox)
+                            terminal: capabilities.terminal, sandbox: capabilities.sandbox, security: capabilities.security)
     }
 
     /// True when the machine already runs as many VMs as it was allowed.
