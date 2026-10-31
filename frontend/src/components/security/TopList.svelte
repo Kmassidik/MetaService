@@ -18,7 +18,7 @@
       {#each shown as row, index (row.name)}
         <li>
           <span class="name">{row.name}</span>
-          <span class="nums count">{numberText(row.count)}</span>
+          <span class="nums tries">{numberText(row.count)}</span>
           <span class="bar" aria-hidden="true"><i style:width="{(shares[index] ?? 0) * 100}%"></i></span>
         </li>
       {/each}
@@ -31,7 +31,7 @@
   ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; font-size: 13px; }
   .name { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-  .count { color: var(--m60); font-family: var(--mono); font-size: 12px; }
+  .tries { color: var(--m60); font-family: var(--mono); font-size: 12px; }
   .bar { grid-column: 1 / -1; height: 4px; background: var(--line); display: block; }
   .bar i { display: block; height: 100%; background: var(--chart-orange); }
 </style>

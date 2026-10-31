@@ -22,6 +22,9 @@
   let { machines, route, now }: { machines: Machine[]; route: string; now: number } = $props()
   const data = new SecurityPageData()
   const view = $derived(parseSecurityView(route))
+  // Single values, so a change of machine or type in the address does not reload what did not change (the overview follows only the range and the preview switch).
+  const preview = $derived(view.preview)
+  const range = $derived(view.range)
   /** The sample's own machines in preview, the panel's machines otherwise. */
   const infos = $derived(view.preview ? (data.sampleMachines ?? []) : infoOf(machines))
   const rows = $derived(machineRows(infos, data.overviewPhase === 'ready' ? data.overview : null))
@@ -30,17 +33,16 @@
   const collecting = $derived(data.overviewPhase === 'ready' && anyWatched(rows))
   let typed = $state('')
   let searched = $state('')
-  const query = $derived({ range: view.range, machine: view.machine, type: view.type, q: searched, cursor: null })
+  const query = $derived({ range, machine: view.machine, type: view.type, q: searched, cursor: null })
 
   $effect(() => {
-    const { preview, range } = view
-    untrack(() => void data.loadOverview(preview, range))
+    const asked = { preview, range }
+    untrack(() => void data.loadOverview(asked.preview, asked.range))
   })
 
   $effect(() => {
-    const { preview } = view
-    const asked = query
-    untrack(() => void data.loadEvents(preview, asked))
+    const asked = { preview, query }
+    untrack(() => void data.loadEvents(asked.preview, asked.query))
   })
 
   $effect(() => {

@@ -40,6 +40,8 @@ export interface FakeParentOptions {
   helper?: HelperScenario
   /** The machines to serve instead of mac-studio and mac-mini (the Security test brings four, each with its own report). */
   machines?: Json[]
+  /** Extra routes: gets the path and query of a request and answers it, or returns null to leave it to the usual routes (the Security test serves /api/security/* this way). */
+  routes?: (path: string, query: URLSearchParams) => { status: number; body: unknown } | null
 }
 
 export interface FakeParent {
@@ -132,6 +134,8 @@ export function startFakeParent(options: FakeParentOptions): FakeParent {
 
   async function api(request: Request, path: string): Promise<Response> {
     const machineId = /^\/api\/machines\/([a-z0-9-]+)/.exec(path)?.[1] ?? ''
+    const extra = options.routes?.(path, new URL(request.url).searchParams)
+    if (extra) return reply(extra.body, extra.status)
     if (path === '/api/session') return reply({ username: 'kurnia', csrf_token: CSRF })
     if (path === '/api/machines') return reply({ machines })
     if (request.method === 'PATCH' && path.endsWith('/settings')) return change(request, machineId)

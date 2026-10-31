@@ -21,7 +21,7 @@
           <td data-label="Machine" class="c-name"><a href={machineHref(row.id)}>{row.name}</a></td>
           <td data-label="Status"><StatePill state={row.state} /></td>
           <td data-label="Reported" class="muted" title={row.lastReported ?? ''}>{row.watched ? relativeTime(row.lastReported, now) : 'never'}</td>
-          <td data-label="Baseline" class="chips">
+          <td data-label="Baseline"><div class="chips">
             {#if row.watched}
               {#each row.checks as check (check.id)}
                 <span class="tag {TONES[check.state]}" data-check={check.id} data-state={check.state} title={check.line}>{check.label}: {check.short}</span>
@@ -29,7 +29,7 @@
             {:else}
               <span class="tag warn" data-testid="not-watched">{NOT_WATCHED_LABEL}</span><span class="muted">{NOT_WATCHED_LINE}</span>
             {/if}
-          </td>
+          </div></td>
           <td data-label="Failed" class="nums num">{numberText(row.failed)}</td>
           <td data-label="Blocked" class="nums num">{numberText(row.blocked)}</td>
         </tr>
@@ -48,6 +48,6 @@
   @media (max-width: 820px) {
     .num { text-align: left; }
     :global(.restable.stack tbody td) { padding: 3px 0; }
-    .chips { display: flex; flex: 1; }
+    .chips { flex: 1; }
   }
 </style>
