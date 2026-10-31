@@ -6,7 +6,7 @@ export const SHORT_WAIT_MS = 10000
 export const COMMAND_WAIT_MS = 15000
 /** The machine page's tabs by their visible label (src/lib/machineTabs.ts); the vms id of old URLs is shown as Compute. */
 export const COMPUTE_TAB = 'Compute'
-export const MACHINE_TAB_LABELS = ['Live', COMPUTE_TAB, 'Storage', 'Environment', 'Security', 'Activity']
+export const MACHINE_TAB_LABELS = ['Live', COMPUTE_TAB, 'Storage', 'Environment', 'Activity']
 const SWITCH = 'button[role=switch]'
 
 export const openMachine = async (b: Browse, base: string, id: string): Promise<void> => {
