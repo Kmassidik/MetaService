@@ -153,12 +153,14 @@ final class McpStoreTests: XCTestCase {
     }
 
     func testTheSameKeyOfAnotherPersonIsAnotherRequest() throws {
+        try tokens.create(newToken())
         try people.create(id: "mp-2", name: "Budi", scopes: [.read], quotas: .defaults, now: now)
         XCTAssertTrue(try requests.create(newRequest("mr-1", key: "k1")).created)
         XCTAssertTrue(try requests.create(newRequest("mr-2", person: "mp-2", key: "k1")).created)
     }
 
     func testARequestStartsRunningAndEndsOnce() throws {
+        try tokens.create(newToken())
         _ = try requests.create(newRequest("mr-1"))
         XCTAssertEqual(try requests.get(id: "mr-1")?.state, .running)
         XCTAssertEqual(try requests.unfinished(person: "mp-1").map(\.id), ["mr-1"])
@@ -170,6 +172,7 @@ final class McpStoreTests: XCTestCase {
     }
 
     func testPublicKeysWaitingForTheirVmAreFound() throws {
+        try tokens.create(newToken())
         _ = try requests.create(NewMcpRequest(id: "mr-1", personId: "mp-1", tokenId: "mt-1", kind: .create, params: ["size": "small", "ssh_public_key": "ssh-ed25519 AAAA"], idempotencyKey: nil, createdAt: now))
         XCTAssertEqual(try requests.withPublicKey(person: "mp-1").map(\.id), ["mr-1"])
         try requests.setParams(id: "mr-1", params: ["size": "small"])

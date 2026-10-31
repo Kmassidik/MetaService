@@ -132,21 +132,39 @@ def parent(machines=None, beat_seconds=BEAT_SECONDS):
                 machine.helper.stop()
 
 
-def make_token(operator, name="claude", **fields):
-    """Creates a token in the panel way. Returns (text, info)."""
-    reply = operator.write("POST", "/api/mcp/tokens", {"name": name, **fields})
+def make_person(operator, name="Ayu", scopes=None, quotas=None):
+    """Adds a person in the panel way. Returns the person row."""
+    body = {"name": name}
+    if scopes is not None:
+        body["scopes"] = scopes
+    if quotas is not None:
+        body["quotas"] = quotas
+    reply = operator.write("POST", "/api/mcp/people", body)
+    expect(reply.status == 201, f"person add gave {reply.status}: {reply.raw[:200]!r}")
+    return reply.body["person"]
+
+
+def make_token(operator, person_id, name="laptop", **fields):
+    """Creates a token for a person in the panel way. Returns (text, info)."""
+    reply = operator.write("POST", "/api/mcp/tokens", {"name": name, "person_id": person_id, **fields})
     expect(reply.status == 201, f"token create gave {reply.status}: {reply.raw[:200]!r}")
     return reply.body["token"], reply.body["info"]
 
 
-def client_for(root, operator, name="claude", **fields):
-    text, info = make_token(operator, name, **fields)
-    return Client(root, text), text, info
+def client_for(root, operator, name="claude", scopes=None, quotas=None, client_name=None):
+    """A person called `name` (with these scopes and quotas) and one token of theirs. Returns (client, token text, token info).
+    With `client_name` the client also says hello the way an MCP client does, so the creator record can name it."""
+    person = make_person(operator, name, scopes, quotas)
+    text, info = make_token(operator, person["id"], f"{name}-token")
+    client = Client(root, text)
+    if client_name:
+        client.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": client_name, "version": "1.2.3"}})
+    return client, text, info
 
 
 def everything_said(root, operator):
     """All the text the operator API and the audit trail hold, to search for secrets."""
-    parts = [operator.request("GET", path).raw.decode() for path in ("/api/mcp/tokens", "/api/mcp/approvals", "/api/mcp/activity?limit=200", "/api/audit?limit=200", "/api/mcp/info")]
+    parts = [operator.request("GET", path).raw.decode() for path in ("/api/mcp/tokens", "/api/mcp/people", "/api/mcp/activity?limit=200", "/api/audit?limit=200", "/api/mcp/info")]
     parts += [str(row) for row in sql(root, "SELECT * FROM audit_log")]
     return "\n".join(parts)
 
@@ -159,3 +177,17 @@ def wait_until(condition, seconds=15, what="the condition"):
             return value
         time.sleep(0.5)
     raise AssertionError(f"timed out waiting for {what}")
+
+
+def origin(operator, machine, vm):
+    """The creator record of a VM as the panel reads it (None when the parent has none)."""
+    reply = operator.request("GET", f"/api/machines/{machine}/workloads/{vm}/origin")
+    expect(reply.status == 200, f"origin gave {reply.status}: {reply.raw[:200]!r}")
+    return reply.body["origin"]
+
+
+def workload_of(operator, machine, vm):
+    """A workload as the machine's answer lists it, with its short created_by."""
+    found = [w for w in operator.request("GET", f"/api/machines/{machine}").body["workloads"] if w["id"] == vm]
+    expect(len(found) == 1, f"{vm} not listed on {machine}")
+    return found[0]

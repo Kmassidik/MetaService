@@ -12,9 +12,9 @@ struct McpRefusal: Error {
     static func quota(_ message: String) -> McpRefusal { McpRefusal(kind: "quota", message: message) }
     static func invalid(_ message: String) -> McpRefusal { McpRefusal(kind: "invalid", message: message) }
     static func busy(_ message: String) -> McpRefusal { McpRefusal(kind: "busy", message: message) }
-    static let noMachine = McpRefusal(kind: "not_found", message: "There is no such machine for this token: call list_machines for the ids it can use.")
-    static let noVm = McpRefusal(kind: "not_found", message: "There is no such VM for this token: call list_vms for the VMs it created.")
-    static let noRequest = McpRefusal(kind: "not_found", message: "There is no such request for this token.")
+    static let noMachine = McpRefusal(kind: "not_found", message: "There is no such machine for this person: call list_machines for the ids it can use.")
+    static let noVm = McpRefusal(kind: "not_found", message: "There is no such VM for this person: call list_vms for the VMs they created.")
+    static let noRequest = McpRefusal(kind: "not_found", message: "There is no such request for this person.")
 
     /// Turns what the services throw into a sentence the AI can act on. Nothing about the inside of the parent.
     static func from(_ error: Error) -> McpRefusal {

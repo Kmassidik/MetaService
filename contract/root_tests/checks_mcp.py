@@ -4,7 +4,7 @@ shown once, and that no token text or key reaches an answer or the audit trail. 
 import json
 
 from agent.fake.engine import MachineSpec
-from contract.root_tests.mcp_support import FAKE_TOKEN_TEXT, SSH_KEY, Client, client_for, everything_said, make_token, parent, sql, wait_until
+from contract.root_tests.mcp_support import FAKE_TOKEN_TEXT, SSH_KEY, Client, client_for, everything_said, make_person, make_token, parent, sql, wait_until, workload_of
 from contract.root_tests.support import Browser, expect
 
 TOOLS = ["list_machines", "machine_capacity", "list_vms", "vm_status", "create_vm", "start_vm", "stop_vm", "delete_vm", "get_request"]
@@ -35,7 +35,7 @@ def check_mcp_a_revoked_or_expired_token_is_401_and_a_good_one_works():
         sql(root, "UPDATE api_tokens SET expires_at = 1 WHERE id = ?", old_info["id"])
         expect(old.rpc("ping").status == 401, "an expired token must be refused")
         listed = {row["name"]: row for row in operator.request("GET", "/api/mcp/tokens").body["tokens"]}
-        expect(listed["old"]["status"] == "revoked" and listed["stale"]["status"] == "expired", f"{listed}")
+        expect(listed["old-token"]["status"] == "revoked" and listed["stale-token"]["status"] == "expired", f"{listed}")
 
 
 def check_mcp_bad_tokens_from_one_address_are_locked_out_for_a_while():
@@ -129,6 +129,8 @@ def check_mcp_the_tools_do_their_job_on_the_happy_path():
         expect(client.tool("list_vms", {"machine": "mini"}).ok()["vms"][0]["id"] == vm["id"], "list_vms by machine")
         status = client.tool("vm_status", {"machine": "mini", "vm": vm["id"]}).ok()
         expect(status["state"] == "running" and status["stopped_reason"] is None, status)
+        for shown in (vm, vms["vms"][0], status):
+            expect(shown["created_by"]["kind"] == "mcp" and shown["created_by"]["label"] == "claude (MCP)" and len(shown["created_by"]["fingerprint"]) == 8 and shown["created_by"]["intact"] is True, shown["created_by"])
         stopped = client.tool("stop_vm", {"machine": "mini", "vm": vm["id"]}).ok()
         expect(stopped["status"] == "done", stopped)
         wait_until(lambda: client.tool("vm_status", {"machine": "mini", "vm": vm["id"]}).data.get("state") == "stopped", what="the VM to show stopped")
@@ -168,47 +170,68 @@ def check_mcp_bad_arguments_are_refused_in_words_that_name_the_field():
 
 def check_mcp_the_panel_shows_the_token_once_and_nothing_secret_is_ever_said():
     with parent() as (root, operator, machines):
-        reply = operator.write("POST", "/api/mcp/tokens", {"name": "once", "scopes": ["read", "create"], "quotas": {"max_vms": 2}, "expires_in_days": 30, "auto_approve": False})
+        person = make_person(operator, "Ayu", ["read", "create"], {"max_vms": 2})
+        reply = operator.write("POST", "/api/mcp/tokens", {"name": "once", "person_id": person["id"], "scopes": ["read"], "expires_in_days": 30})
         text = reply.body["token"]
         expect(reply.status == 201 and text.startswith("msk_") and len(text) == 47, reply.raw)
         info = reply.body["info"]
-        expect(info["prefix"] == text[4:12] and info["scopes"] == ["read", "create"] and info["quotas"]["max_vms"] == 2 and info["quotas"]["max_vcpu"] == 8, info)
+        expect(info["prefix"] == text[4:12] and info["scopes"] == ["read"] and info["person_id"] == person["id"] and info["person_name"] == "Ayu", info)
+        expect("quotas" not in info and "auto_approve" not in info, "quotas are the person's, and nothing is auto-approved any more")
         expect(text not in json.dumps(info), "the info row must not hold the token")
-        client = Client(root, text)
-        client.tool("create_vm", {"size": "small", "ssh_public_key": SSH_KEY, "idempotency_key": "k-1"})
-        client.tool("list_machines")
-        client.rpc("tools/call", {"name": "create_vm", "arguments": {"size": "bogus", "ssh_public_key": SSH_KEY}})
+        full = Client(root, make_token(operator, person["id"], "full")[0])
+        full.tool("create_vm", {"size": "small", "ssh_public_key": SSH_KEY, "idempotency_key": "k-1"})
+        full.tool("list_machines")
+        full.rpc("tools/call", {"name": "create_vm", "arguments": {"size": "bogus", "ssh_public_key": SSH_KEY}})
         said = everything_said(root, operator)
-        expect(text not in said, "the token text reached an answer or the audit trail")
+        expect(text not in said and full.token not in said, "a token text reached an answer or the audit trail")
         expect(SSH_KEY not in said and SSH_KEY.split()[1] not in said, "the public key must not be in the audit trail or the panel's answers")
-        expect(SSH_KEY not in operator.request("GET", "/api/mcp/approvals").raw.decode(), "the key is not shown to the panel")
         again = operator.request("GET", "/api/mcp/tokens")
-        expect("token" not in again.body["tokens"][0] and text not in again.raw.decode(), "the token is shown once")
+        expect(all("token" not in row for row in again.body["tokens"]) and text not in again.raw.decode(), "the token is shown once")
         info_text = operator.request("GET", "/api/mcp/info")
         expect(info_text.body["endpoint"].endswith("/mcp") and info_text.body["tools"] == TOOLS and info_text.body["defaults"]["expires_in_days"] == 90, info_text.raw)
+        expect("auto_approve" not in info_text.raw.decode(), "no approval wording is left")
         stored = " ".join(str(row) for row in sql(root, "SELECT * FROM api_tokens"))
-        expect(text not in stored, "the token text is stored")
+        expect(text not in stored and full.token not in stored, "a token text is stored")
+        reader = Client(root, text)
+        expect(reader.tool("create_vm", {"size": "small"}).is_error, "the token's own scopes (read only) are the limit, though the person may create")
 
 
 def check_mcp_the_operator_api_needs_a_session_and_the_csrf_header_and_checks_its_input():
     with parent() as (root, operator, machines):
         anonymous = Browser(root, auto_login=False)
-        for method, path in [("GET", "/api/mcp/info"), ("GET", "/api/mcp/tokens"), ("GET", "/api/mcp/approvals"), ("GET", "/api/mcp/activity")]:
+        for method, path in [("GET", "/api/mcp/info"), ("GET", "/api/mcp/tokens"), ("GET", "/api/mcp/people"), ("GET", "/api/mcp/activity")]:
             expect(anonymous.request(method, path).status == 401, f"{path} without a session")
-        expect(operator.request("POST", "/api/mcp/tokens", {"name": "x"}).status == 403, "a write without the CSRF header")
-        expect(operator.write("POST", "/api/mcp/tokens", {"name": "x"}, origin="https://evil.example").status == 403, "a write from another origin")
-        bad = [{}, {"name": ""}, {"name": "a" * 41}, {"name": "<script>"}, {"name": "a", "scopes": []}, {"name": "a", "scopes": ["root"]}, {"name": "a", "expires_in_days": 366},
-               {"name": "a", "expires_in_days": 0}, {"name": "a", "quotas": {"max_vms": 0}}, {"name": "a", "quotas": {"max_pcs": 1}}, {"name": "a", "auto_approve": "yes"}, {"name": "a", "token": "msk_x"}]
+        expect(operator.request("GET", "/api/mcp/approvals").status == 404, "approvals are gone")
+        person = make_person(operator, "Ayu")
+        expect(operator.request("POST", "/api/mcp/tokens", {"name": "x", "person_id": person["id"]}).status == 403, "a write without the CSRF header")
+        expect(operator.write("POST", "/api/mcp/tokens", {"name": "x", "person_id": person["id"]}, origin="https://evil.example").status == 403, "a write from another origin")
+        expect(operator.request("POST", "/api/mcp/people", {"name": "Zed"}).status == 403, "a person without the CSRF header")
+        pid = person["id"]
+        bad = [{}, {"name": "a"}, {"person_id": pid}, {"name": "", "person_id": pid}, {"name": "a" * 41, "person_id": pid}, {"name": "<script>", "person_id": pid}, {"name": "a", "person_id": pid, "scopes": []},
+               {"name": "a", "person_id": pid, "scopes": ["root"]}, {"name": "a", "person_id": pid, "expires_in_days": 366}, {"name": "a", "person_id": pid, "expires_in_days": 0},
+               {"name": "a", "person_id": pid, "quotas": {"max_vms": 1}}, {"name": "a", "person_id": pid, "auto_approve": True}, {"name": "a", "person_id": pid, "token": "msk_x"}]
         for body in bad:
             reply = operator.write("POST", "/api/mcp/tokens", body)
             expect(reply.status == 400, f"{body}: {reply.status} {reply.raw[:120]!r}")
-        make_token(operator, "taken")
-        duplicate = operator.write("POST", "/api/mcp/tokens", {"name": "taken"})
+        expect(operator.write("POST", "/api/mcp/tokens", {"name": "a", "person_id": "mp-nobody"}).status == 404, "an unknown person")
+        wide = operator.write("POST", "/api/mcp/tokens", {"name": "wide", "person_id": pid, "scopes": ["read", "destroy"]})
+        expect(wide.status == 400 and "must be among" in wide.body["error"]["message"], f"a token cannot have more scopes than its person: {wide.raw}")
+        for body in [{}, {"name": ""}, {"name": "<i>"}, {"name": "b", "scopes": []}, {"name": "b", "scopes": ["root"]}, {"name": "b", "quotas": {"max_vms": 0}}, {"name": "b", "auto_approve": True}]:
+            expect(operator.write("POST", "/api/mcp/people", body).status == 400, f"person {body}")
+        duplicate = operator.write("POST", "/api/mcp/people", {"name": "ayu"})
         expect(duplicate.status == 409 and duplicate.body["error"]["code"] == "name_taken", duplicate.raw)
-        expect(operator.write("POST", "/api/mcp/approvals/mr-none/approve").status == 404, "unknown request id")
-        defaults = operator.request("GET", "/api/mcp/tokens").body["tokens"][0]
-        expect(defaults["scopes"] == ["read", "create"] and defaults["auto_approve"] is False and defaults["quotas"] == {"max_vms": 3, "max_vcpu": 8, "max_ram_mb": 16384, "max_disk_gb": 200, "creates_per_day": 10, "gpu_memory_gb": 8}, defaults)
-        days = (_iso(defaults["expires_at"]) - _iso(defaults["created_at"]))
+        expect(person["scopes"] == ["read", "create"] and person["quotas"] == {"max_vms": 3, "max_vcpu": 8, "max_ram_mb": 16384, "max_disk_gb": 200, "creates_per_day": 10, "gpu_memory_gb": 8}, person)
+        expect(person["tokens"] == 0 and person["vms_alive"] == 0 and person["disabled_at"] is None and person["last_used_at"] is None, person)
+        changed = operator.write("PATCH", f"/api/mcp/people/{pid}", {"scopes": ["read"], "quotas": {"max_vms": 1}}).body["person"]
+        expect(changed["scopes"] == ["read"] and changed["quotas"]["max_vms"] == 1 and changed["quotas"]["max_vcpu"] == 8, changed)
+        for body in [{}, {"name": "New"}, {"scopes": []}, {"quotas": {"max_vms": 0}}]:
+            expect(operator.write("PATCH", f"/api/mcp/people/{pid}", body).status == 400, f"patch {body}")
+        expect(operator.write("PATCH", "/api/mcp/people/mp-nobody", {"scopes": ["read"]}).status == 404, "patch of an unknown person")
+        expect(operator.write("POST", "/api/mcp/people/mp-nobody/disable").status == 404, "disable of an unknown person")
+        listed = operator.request("GET", "/api/mcp/people").body["people"]
+        expect([row["name"] for row in listed] == ["Ayu"], listed)
+        token_text, token = make_token(operator, pid, "t", scopes=["read"])
+        days = _iso(token["expires_at"]) - _iso(token["created_at"])
         expect(abs(days - 90 * 86400) < 5, f"the default life is 90 days, not {days}")
 
 
@@ -225,6 +248,7 @@ def check_mcp_every_tool_call_is_audited_with_the_token_name_and_the_activity_ro
         entries = operator.request("GET", "/api/mcp/activity?limit=20").body["activity"]
         expect([(row["actor"], row["action"], row["status"]) for row in entries] == [("mcp:audited", "mcp.create_vm", "refused"), ("mcp:audited", "mcp.list_machines", "ok")], entries)
         expect(all(set(row) >= {"at", "actor", "action", "target", "status"} for row in entries), entries)
+        expect(all(row["person"] == "audited" and len(row["token_prefix"]) == 8 for row in entries), f"the activity names the person and the token by its prefix: {entries}")
         expect(operator.request("GET", "/api/mcp/activity?limit=1").body["activity"][0]["action"] == "mcp.create_vm", "limit")
 
 
