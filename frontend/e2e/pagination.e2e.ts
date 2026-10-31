@@ -25,6 +25,7 @@ const nodeCount = (b: Browse) => b.run(() => document.querySelectorAll('*').leng
 const rowCount = (b: Browse, selector: string) => b.run((one) => document.querySelectorAll(one).length, selector)
 const showing = (b: Browse) => b.run(() => document.querySelector<HTMLElement>('[data-testid=pagination-showing]')?.innerText ?? '')
 const goToPage = (b: Browse, page: number) => b.run((label) => document.querySelector<HTMLButtonElement>(`[data-testid=pagination] button[aria-label="${label}"]`)?.click(), `Page ${page}`)
+const showControls = (b: Browse) => b.run(() => document.querySelector('[data-testid=pagination]')?.scrollIntoView({ block: 'end' }))
 const waitShowing = (b: Browse, text: string) => b.until((wanted) => document.querySelector<HTMLElement>('[data-testid=pagination-showing]')?.innerText === wanted, { timeout: SHORT_WAIT_MS }, text)
 
 async function processList(page: Page, b: Browse, base: string, asked: () => number) {
@@ -39,6 +40,7 @@ async function processList(page: Page, b: Browse, base: string, asked: () => num
   await waitShowing(b, `Showing 26 to 50 of ${PROCESS_COUNT}`)
   const first = await b.run((selector) => document.querySelector<HTMLElement>(`${selector} .name`)?.textContent ?? '', PROCESS_ROWS)
   check('page 2 shows the programs 26 to 50 of the busiest-first order', first === SECOND_PAGE_FIRST_PROCESS && (await rowCount(b, PROCESS_ROWS)) === PROCESS_PAGE, first)
+  await showControls(b)
   await b.shot('pagination-processes-desktop-light.png')
 
   await b.run((selector) => { const row = document.querySelector<HTMLElement>(selector); if (row) row.dataset.mark = 'kept' }, PROCESS_ROWS)
@@ -56,8 +58,10 @@ async function processList(page: Page, b: Browse, base: string, asked: () => num
   const filtered = await showing(b)
   check('the filter works on all 800 programs, then pages (page 1 of the matches)', /^Showing 1 to 25 of \d+$/.test(filtered) && Number(filtered.split(' ').at(-1)) > PROCESS_PAGE, filtered)
   await b.type('dialog[open] input[type=search]', '')
+  await goToPage(b, 3)
   await page.setViewport(SIZES.phone)
   await wait(300)
+  await showControls(b)
   await b.shot('pagination-processes-phone-light.png')
   check('the page controls fit a phone: no sideways scroll', await b.run(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
   await page.setViewport(SIZES.desktop)
@@ -83,7 +87,13 @@ async function securityLog(b: Browse, base: string) {
   await goToPage(b, 100)
   await waitShowing(b, 'Showing 4,951 to 5,000 of 5,000')
   check('the last page is page 100 and Next is disabled there', await b.run(() => document.querySelector<HTMLButtonElement>('[data-testid=page-next]')?.disabled === true))
+  await showControls(b)
   await b.shot('pagination-security-big-desktop-light.png')
+  await b.page.setViewport(SIZES.phone)
+  await wait(300)
+  await showControls(b)
+  await b.shot('pagination-security-big-phone-light.png')
+  check('the log controls fit a phone: no sideways scroll', await b.run(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
 }
 
 const errors: string[] = []
