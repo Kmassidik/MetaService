@@ -12,7 +12,7 @@
   import { CARD_ICONS, MACHINE_ICONS, OPEN_LABEL, REMOVE_LABEL, RENAME_LABEL } from '../lib/machineIcons.ts'
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
-  import { machineHref } from '../lib/routes.ts'
+  import { machineHref, securityHref } from '../lib/routes.ts'
   import CardUpdate from './CardUpdate.svelte'
   import CardFix from './CardFix.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
@@ -84,7 +84,7 @@
       <span class="tags">
         {#if isParent}<span class="tag run">Parent</span>{/if}
         {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
-        {#if badge}<span class="tag" class:warn={badge.warning} data-security-badge title="Failed logins blocked in the last 7 days">{badge.text}</span>{/if}
+        {#if badge}<a class="tag" class:warn={badge.warning} data-security-badge href={securityHref({ machine: machine.id })} title="Failed logins blocked in the last 7 days. Open Security.">{badge.text}</a>{/if}
         {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
         {#if machine.bundle_version}<span class="tag" class:stale={flag.stale}>{flag.text}</span>{/if}
         {#each labels as label (label)}<span class="tag">{label}</span>{/each}

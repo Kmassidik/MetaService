@@ -1,6 +1,7 @@
 // Reads a machine's `security` report the way the helper sent it, defensively: a value of the wrong type is dropped (a count becomes "unknown", a row
 // is left out), text is cleaned and cut short, and every list is capped. Nothing here is trusted: a user name or an address comes from an attacker, so
 // it is only ever a string to show as plain text. Pure functions, no DOM, no network. A machine that sent nothing readable gives null: "not reporting".
+import { MAX_TEXT, clean, flag, isRec, rows, when, whole } from './securityPrims.ts'
 import type {
   AcceptedLogin, BanToolState, BlockedAddress, BotName, LoginMethod, Machine, MachineSecurity, SecurityBaseline, SecurityCount, SecurityWindows,
 } from './types.ts'
@@ -9,39 +10,11 @@ import type {
 export const MAX_ROWS = 50
 /** Days in the daily chart. */
 export const CHART_DAYS = 30
-/** The longest user name or address kept; a longer one is cut and ends with an ellipsis. */
-export const MAX_TEXT = 64
-const MAX_DATE_TEXT = 40
-const MAX_COUNT = 1_000_000_000_000
-const ELLIPSIS = '…'
-/** Control characters (including newlines and the escape code) never reach the page. */
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
-
-type Rec = Record<string, unknown>
-
-const isRec = (value: unknown): value is Rec => typeof value === 'object' && value !== null && !Array.isArray(value)
-
-/** Plain text of at most `limit` characters, or null when nothing is left. */
-function clean(value: unknown, limit: number): string | null {
-  if (typeof value !== 'string') return null
-  const text = value.replace(CONTROL, ' ').trim()
-  if (text === '') return null
-  return text.length > limit ? `${text.slice(0, limit - 1)}${ELLIPSIS}` : text
-}
-
-const whole = (value: unknown): number | null => (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_COUNT ? value : null)
-const flag = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null)
-
-/** A date as text the helper gave; only a date that parses is kept. */
-function when(value: unknown): string | null {
-  const text = clean(value, MAX_DATE_TEXT)
-  return text !== null && !Number.isNaN(Date.parse(text)) ? text : null
-}
 
 const BAN_TOOL_STATES: readonly BanToolState[] = ['running', 'not_running', 'not_available']
 const banTool = (value: unknown): BanToolState | null => BAN_TOOL_STATES.find((state) => state === value) ?? null
 
-function baseline(value: unknown): SecurityBaseline {
+export function readBaseline(value: unknown): SecurityBaseline {
   const source = isRec(value) ? value : {}
   return {
     password_login: flag(source.password_login), ban_tool: banTool(source.ban_tool), firewall: flag(source.firewall),
@@ -88,10 +61,7 @@ function loginRow(value: unknown): AcceptedLogin | null {
   return { method: how, user, address, count: times, last_seen: when(value.last_seen) }
 }
 
-function rows<T>(value: unknown, read: (item: unknown) => T | null): T[] {
-  if (!Array.isArray(value)) return []
-  return value.slice(0, MAX_ROWS).map(read).filter((row): row is T => row !== null)
-}
+const listed = <T>(value: unknown, read: (item: unknown) => T | null): T[] => rows(value, read, MAX_ROWS)
 
 const counts = (one: SecurityCount): (number | null)[] => [one.failed, one.blocked]
 
@@ -105,8 +75,8 @@ function saidAnything(report: MachineSecurity): boolean {
 export function readSecurity(value: unknown): MachineSecurity | null {
   if (!isRec(value)) return null
   const report: MachineSecurity = {
-    baseline: baseline(value.baseline), windows: windows(value.windows), daily_failed: daily(value.daily_failed),
-    blocked: rows(value.blocked, blockedRow), usernames: rows(value.usernames, nameRow), logins: rows(value.logins, loginRow),
+    baseline: readBaseline(value.baseline), windows: windows(value.windows), daily_failed: daily(value.daily_failed),
+    blocked: listed(value.blocked, blockedRow), usernames: listed(value.usernames, nameRow), logins: listed(value.logins, loginRow),
   }
   return saidAnything(report) ? report : null
 }

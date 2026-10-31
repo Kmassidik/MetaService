@@ -1,7 +1,9 @@
 // The panel's pages and the addresses that lead to them. Older addresses still work.
 import { tabFromName, type MachineTab } from './machineTabs.ts'
 
-export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings' | 'sandboxes' | 'share' | 'mcp' | 'notfound'
+export { securityHref } from './securityRoute.ts'
+
+export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings' | 'sandboxes' | 'share' | 'mcp' | 'security' | 'notfound'
 
 const PAGES: Record<string, Page> = {
   '/': 'overview',
@@ -17,6 +19,7 @@ const PAGES: Record<string, Page> = {
   '/sandboxes/usage': 'sandboxes',
   '/share': 'share',
   '/mcp': 'mcp',
+  '/security': 'security',
   '/health': 'health',
   '/settings': 'settings',
   '/deployments': 'machines',

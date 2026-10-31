@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { CHART_DAYS, MAX_ROWS, MAX_TEXT, readSecurity } from './security.ts'
+import { CHART_DAYS, MAX_ROWS, readSecurity } from './security.ts'
+import { MAX_TEXT } from './securityPrims.ts'
 
 const healthy = {
   baseline: { password_login: false, ban_tool: 'running', firewall: true, auto_updates: true, starts_after_reboot: true, pending_updates: 0 },

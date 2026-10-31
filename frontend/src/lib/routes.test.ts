@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { createVmHref, createVmOpen, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, shownAddress, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute } from './routes.ts'
+import { createVmHref, createVmOpen, machineFromRoute, machineHref, machinesView, machineTabFromRoute, pageFor, securityHref, shownAddress, vmFromRoute, vmHref, vmsHref, vmsMachineFromRoute } from './routes.ts'
 
 test('a machine address can name a tab (&tab=); old names and missing names land on a new tab', () => {
   expect(machineTabFromRoute('/machines/details?id=mac-mini&tab=vms')).toBe('vms')
@@ -81,4 +81,9 @@ test('the VMs addresses are built with the machine only when there is one', () =
 test('Share a PC has its own address, with or without a trailing slash', () => {
   expect(['/share', '/share/', '/share?x=1'].map(pageFor)).toEqual(['share', 'share', 'share'])
   expect(pageFor('/share/other')).toBe('notfound')
+})
+
+test('Security has its own address, and the machine card badge links to it with the machine', () => {
+  expect(['/security', '/security/', '/security?preview=1'].map(pageFor)).toEqual(['security', 'security', 'security'])
+  expect(securityHref({ machine: 'rtx-pc' })).toBe('#/security?machine=rtx-pc')
 })

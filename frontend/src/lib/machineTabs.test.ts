@@ -1,9 +1,9 @@
 import { test, expect } from 'bun:test'
 import { DEFAULT_TAB, machineTabs, nextTab, pollsLive, tabFromName } from './machineTabs.ts'
 
-test('the tabs are Live, Compute, Storage, Environment, Security, Activity, in that order', () => {
-  expect(machineTabs().map((tab) => tab.label)).toEqual(['Live', 'Compute', 'Storage', 'Environment', 'Security', 'Activity'])
-  expect(machineTabs().map((tab) => tab.id)).toEqual(['live', 'vms', 'storage', 'environment', 'security', 'activity'])
+test('the tabs are Live, Compute, Storage, Environment, Activity, in that order', () => {
+  expect(machineTabs().map((tab) => tab.label)).toEqual(['Live', 'Compute', 'Storage', 'Environment', 'Activity'])
+  expect(machineTabs().map((tab) => tab.id)).toEqual(['live', 'vms', 'storage', 'environment', 'activity'])
 })
 
 test('old tab names land on a sensible new tab, in any letter case', () => {
