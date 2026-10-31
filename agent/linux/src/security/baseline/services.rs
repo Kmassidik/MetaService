@@ -7,7 +7,7 @@ use std::time::Duration;
 const SYSTEMCTL: &str = "systemctl";
 const TIMEOUT: Duration = Duration::from_secs(5);
 const BAN_UNITS: [&str; 2] = ["fail2ban.service", "sshguard.service"];
-const FIREWALL_UNITS: [&str; 3] = ["ufw.service", "nftables.service", "firewalld.service"];
+const FIREWALLD_UNIT: &str = "firewalld.service";
 const UPDATES_UNIT: &str = "unattended-upgrades.service";
 const UFW_CONFIG: &str = "/etc/ufw/ufw.conf";
 const AUTO_UPGRADES_CONFIG: &str = "/etc/apt/apt.conf.d/20auto-upgrades";
@@ -59,33 +59,27 @@ pub fn ban_tool(commands: &dyn Commands) -> Option<BanTool> {
     })
 }
 
+/// ufw.conf decides for ufw: its systemd unit is a one-shot that is "active" even when the firewall is disabled, and an active nftables unit
+/// says nothing about the rules, so neither unit counts. firewalld being active does.
 pub fn firewall(env: &Environment, commands: &dyn Commands) -> Option<bool> {
-    let ufw_config = std::fs::read_to_string(env.at(UFW_CONFIG))
+    let ufw_enabled = std::fs::read_to_string(env.at(UFW_CONFIG))
         .ok()
-        .map(|text| config_value(&text, "ENABLED"));
-    if ufw_config
-        .as_ref()
-        .is_some_and(|value| value.as_deref() == Some("yes"))
+        .map(|text| config_value(&text, "ENABLED").as_deref() == Some("yes"));
+    if ufw_enabled == Some(true) || unit(commands, FIREWALLD_UNIT).is_some_and(|state| state.active)
     {
         return Some(true);
     }
-    let states: Vec<Option<Unit>> = FIREWALL_UNITS
-        .iter()
-        .map(|name| unit(commands, name))
-        .collect();
-    if states.iter().flatten().any(|state| state.active) {
-        return Some(true);
-    }
-    let answered = ufw_config.is_some() || states.iter().any(Option::is_some);
-    answered.then_some(false)
+    ufw_enabled
 }
 
+/// A package that is not installed, or a service that is off, means no automatic updates; both on and the setting at "1" means yes.
 pub fn auto_updates(env: &Environment, commands: &dyn Commands) -> Option<bool> {
-    let text = std::fs::read_to_string(env.at(AUTO_UPGRADES_CONFIG)).ok()?;
-    if !apt_switch_is_on(&text, UNATTENDED_KEY) {
+    let state = unit(commands, UPDATES_UNIT)?;
+    if !(state.loaded && state.active && state.enabled) {
         return Some(false);
     }
-    unit(commands, UPDATES_UNIT).map(|state| state.active || state.enabled)
+    let text = std::fs::read_to_string(env.at(AUTO_UPGRADES_CONFIG)).ok()?;
+    Some(apt_switch_is_on(&text, UNATTENDED_KEY))
 }
 
 /// `KEY=value` or `KEY="value"` in a plain settings file.
@@ -198,65 +192,102 @@ mod tests {
         );
     }
 
+    /// The real state of the RTX PC and the DGX Spark: ufw.service active and enabled, yet ufw.conf says ENABLED=no.
+    fn real_machine() -> FakeCommands {
+        FakeCommands::default()
+            .with(
+                &show("ufw.service"),
+                Ok(&shown("loaded", "active", "enabled")),
+            )
+            .with(
+                &show("nftables.service"),
+                Ok(&shown("loaded", "inactive", "disabled")),
+            )
+            .with(
+                &show("firewalld.service"),
+                Ok(&shown("not-found", "inactive", "")),
+            )
+    }
+
     #[test]
-    fn the_firewall_from_the_ufw_file_or_a_service() {
-        let (root, env) = env_with(&[("/etc/ufw/ufw.conf", "# x\nENABLED=yes\nLOGLEVEL=low\n")]);
+    fn the_firewall_follows_ufw_conf_and_firewalld_never_the_ufw_or_nftables_unit() {
+        let (root, env) = env_with(&[("/etc/ufw/ufw.conf", "# x\nENABLED=no\nLOGLEVEL=low\n")]);
+        assert_eq!(
+            firewall(&env, &real_machine()),
+            Some(false),
+            "ufw unit active but ENABLED=no"
+        );
+        let firewalld = FakeCommands::default().with(
+            &show("firewalld.service"),
+            Ok(&shown("loaded", "active", "enabled")),
+        );
+        assert_eq!(
+            firewall(&env, &firewalld),
+            Some(true),
+            "firewalld on beats ufw off"
+        );
+        let _ = std::fs::remove_dir_all(root);
+        let (root, env) = env_with(&[("/etc/ufw/ufw.conf", "ENABLED=yes\n")]);
         assert_eq!(firewall(&env, &FakeCommands::default()), Some(true));
         let _ = std::fs::remove_dir_all(root);
-        let (root, env) = env_with(&[("/etc/ufw/ufw.conf", "ENABLED=no\n")]);
+        let (root, env) = env_with(&[]);
         assert_eq!(
-            firewall(&env, &FakeCommands::default()),
-            Some(false),
-            "the file answered"
+            firewall(&env, &real_machine()),
+            None,
+            "no ufw.conf: the unit says nothing"
         );
         let nft = FakeCommands::default().with(
             &show("nftables.service"),
             Ok(&shown("loaded", "active", "enabled")),
         );
-        assert_eq!(firewall(&env, &nft), Some(true));
-        let _ = std::fs::remove_dir_all(root);
-        let (root, env) = env_with(&[]);
         assert_eq!(
-            firewall(&env, &FakeCommands::default()),
+            firewall(&env, &nft),
             None,
-            "no file and no systemctl: unknown"
+            "nftables alone says nothing about the rules"
         );
-        let none = FakeCommands::default().with(
-            &show("ufw.service"),
-            Ok(&shown("not-found", "inactive", "")),
-        );
-        assert_eq!(firewall(&env, &none), Some(false));
         let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
-    fn automatic_updates_need_the_setting_and_the_service() {
+    fn automatic_updates_are_false_when_absent_or_off_and_true_only_with_service_and_setting() {
         let on = "APT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n";
-        let service = FakeCommands::default().with(
+        let active = FakeCommands::default().with(
             &show(UPDATES_UNIT),
             Ok(&shown("loaded", "active", "enabled")),
         );
         let (root, env) = env_with(&[("/etc/apt/apt.conf.d/20auto-upgrades", on)]);
-        assert_eq!(auto_updates(&env, &service), Some(true));
-        assert_eq!(
-            auto_updates(&env, &FakeCommands::default()),
-            None,
-            "setting on, service unknown"
-        );
+        assert_eq!(auto_updates(&env, &active), Some(true));
         let off_service = FakeCommands::default().with(
             &show(UPDATES_UNIT),
             Ok(&shown("loaded", "inactive", "disabled")),
         );
         assert_eq!(auto_updates(&env, &off_service), Some(false));
+        let spark = FakeCommands::default()
+            .with(&show(UPDATES_UNIT), Ok(&shown("not-found", "inactive", "")));
+        assert_eq!(
+            auto_updates(&env, &spark),
+            Some(false),
+            "the package is not installed"
+        );
+        assert_eq!(
+            auto_updates(&env, &FakeCommands::default()),
+            None,
+            "no systemctl"
+        );
         let _ = std::fs::remove_dir_all(root);
         let (root, env) = env_with(&[(
             "/etc/apt/apt.conf.d/20auto-upgrades",
             "APT::Periodic::Unattended-Upgrade \"0\";\n",
         )]);
-        assert_eq!(auto_updates(&env, &service), Some(false));
+        assert_eq!(auto_updates(&env, &active), Some(false));
         let _ = std::fs::remove_dir_all(root);
         let (root, env) = env_with(&[]);
-        assert_eq!(auto_updates(&env, &service), None, "unreadable");
+        assert_eq!(
+            auto_updates(&env, &active),
+            None,
+            "service on but the setting file is unreadable"
+        );
+        assert_eq!(auto_updates(&env, &spark), Some(false));
         let _ = std::fs::remove_dir_all(root);
     }
 
