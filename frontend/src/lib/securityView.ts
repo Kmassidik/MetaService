@@ -1,7 +1,7 @@
 // What the Security page shows, worked out from the machines the panel knows and the overview the parent gave: one table line for EVERY machine (a machine that
 // has not reported is "Not watched", never a row of zeros), the top lists, and the plain words around them. Pure functions; the components only draw what these return.
 import { baselineRows, type BaselineRow } from './securityRules.ts'
-import type { SecurityOverview, TopRow } from './securityTypes.ts'
+import type { SecurityEvent, SecurityOverview, TopRow } from './securityTypes.ts'
 import type { Machine, MachineState } from './types.ts'
 
 /** The plain line a machine without security data gets. */
@@ -53,3 +53,26 @@ export function topShares(rows: TopRow[]): number[] {
 
 /** True when at least one machine is watched, so the page has something to say about the range. */
 export const anyWatched = (rows: MachineSecurityRow[]): boolean => rows.some((row) => row.watched)
+
+const MINUTES_END = 16
+
+/** The time of a log row as "2026-11-01 10:00" in UTC; a dash when it cannot be read. */
+export function eventTimeText(iso: string): string {
+  const ms = Date.parse(iso)
+  return Number.isNaN(ms) ? '–' : new Date(ms).toISOString().slice(0, MINUTES_END).replace('T', ' ')
+}
+
+/** The detail column: for a failed login how many tries the row stands for, then what the helper said. */
+export function eventDetailText(event: SecurityEvent): string {
+  const tries = event.count === null ? null : `${event.count.toLocaleString('en-US')} ${event.count === 1 ? 'try' : 'tries'}`
+  return [tries, event.detail].filter((part) => part !== null).join(' · ')
+}
+
+/** True for a login that got in with a password: these should not exist, so the row is highlighted. */
+export const isPasswordLogin = (event: SecurityEvent): boolean => event.type === 'login' && event.method === 'password'
+
+/** The colour of the type tag: a password login and a block are marked, a key login is fine, the rest are plain. */
+export function eventTone(event: SecurityEvent): 'run' | 'warn' | '' {
+  if (isPasswordLogin(event) || event.type === 'blocked') return 'warn'
+  return event.type === 'login' ? 'run' : ''
+}

@@ -16,6 +16,7 @@
   import SandboxesShell from './pages/SandboxesShell.svelte'
   import Share from './pages/Share.svelte'
   import Mcp from './pages/Mcp.svelte'
+  import Security from './pages/Security.svelte'
   import Health from './pages/Health.svelte'
   import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
@@ -297,6 +298,8 @@
         <Share />
       {:else if page === 'mcp'}
         <Mcp />
+      {:else if page === 'security'}
+        <Security {machines} {route} {now} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}
