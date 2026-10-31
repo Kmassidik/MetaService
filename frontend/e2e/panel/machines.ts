@@ -10,7 +10,7 @@ import type { World } from './world.ts'
 const SHORT_WAIT_MS = 10000
 const REMOVE_WAIT_MS = 5000
 /** The sidebar as the MAAS panel has it. Machines is a dropdown: closed it is one row, open it holds the machine list, Find machines and Share a PC. VMs is one plain link to All VMs (its own checks are in vms.e2e.ts), Sandboxes the next link. */
-const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs', 'Sandboxes']
+const SIDEBAR_CLOSED = ['Operator', 'Overview', 'Token ledger', 'Settings', 'Health & alerts', 'Infrastructure', 'Machines', 'VMs', 'Sandboxes', 'Security']
 const DROPDOWN_ENDS = ['Machine list', 'Find machines', 'Share a PC']
 
 const inputField = (b: Browse, name: string) => b.page.type(`input[name=${name}]`, name === 'username' ? ADMIN.username : ADMIN.password)

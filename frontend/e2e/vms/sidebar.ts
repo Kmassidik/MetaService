@@ -16,7 +16,7 @@ export async function vmsIsOneLink(b: Browse): Promise<void> {
   await b.page.reload({ waitUntil: 'networkidle0' })
   await b.until(() => document.querySelector('.phead h1')?.textContent === 'Overview', { timeout: SHORT_WAIT_MS })
   const order = await infrastructure(b)
-  check('the Infrastructure group has the Machines dropdown button, then VMs and Sandboxes as plain links', JSON.stringify(order) === JSON.stringify(['button:Machines', 'a:VMs', 'a:Sandboxes']), JSON.stringify(order))
+  check('the Infrastructure group has the Machines dropdown button, then VMs, Sandboxes and Security as plain links', JSON.stringify(order) === JSON.stringify(['button:Machines', 'a:VMs', 'a:Sandboxes', 'a:Security']), JSON.stringify(order))
   check('VMs has no chevron, no dropdown and no Create VM item', await b.run((selector) => {
     const link = document.querySelector(selector)
     return link !== null && link.querySelector('.chev') === null && document.querySelector('#vms-menu') === null && !/Create VM/.test(document.querySelector<HTMLElement>('aside.side')?.innerText ?? '')
