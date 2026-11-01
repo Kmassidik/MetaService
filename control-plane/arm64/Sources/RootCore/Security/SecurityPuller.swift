@@ -44,6 +44,11 @@ public final class SecurityPuller: Sendable {
         self.report = report
     }
 
+    /// A machine is asked when it can answer (online, or busy because VMs are running; not offline) and its helper says it serves security events.
+    public static func isWatched(state: String, serves security: Bool?) -> Bool {
+        state != "offline" && security == true
+    }
+
     /// One tick: every machine at the same time, each limited to its own pages. Returns when all are done.
     public func tick(machines: [String]) async {
         await withTaskGroup(of: Void.self) { group in

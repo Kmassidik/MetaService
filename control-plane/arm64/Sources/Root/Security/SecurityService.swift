@@ -55,10 +55,10 @@ final class SecurityService: Sendable {
         }
     }
 
-    /// The online machines whose helper says it serves security events.
+    /// The machines that can answer (online or busy) and whose helper says it serves security events.
     func watchedMachines() -> [String] {
         let all = (try? machines.list(now: clock.now)) ?? []
-        return all.filter { $0.state == "online" && $0.capabilities?.security == true }.map(\.id)
+        return all.filter { SecurityPuller.isWatched(state: $0.state, serves: $0.capabilities?.security) }.map(\.id)
     }
 
     private func prune() {
