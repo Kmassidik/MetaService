@@ -52,11 +52,8 @@ pub fn ban_tool(commands: &dyn Commands) -> Option<BanTool> {
     if known.iter().any(|state| state.active) {
         return Some(BanTool::Running);
     }
-    Some(if known.iter().any(|state| state.loaded) {
-        BanTool::NotRunning
-    } else {
-        BanTool::NotAvailable
-    })
+    // A Linux machine can have a ban tool, so "none installed" is as much a warning as "installed but stopped". `NotAvailable` is for machines that cannot have one (macOS).
+    Some(BanTool::NotRunning)
 }
 
 /// ufw.conf decides for ufw: its systemd unit is a one-shot that is "active" even when the firewall is disabled, and an active nftables unit
@@ -174,7 +171,7 @@ mod tests {
                 &show("sshguard.service"),
                 Ok(&shown("not-found", "inactive", "")),
             );
-        assert_eq!(ban_tool(&absent), Some(BanTool::NotAvailable));
+        assert_eq!(ban_tool(&absent), Some(BanTool::NotRunning));
         let sshguard = FakeCommands::default()
             .with(
                 &show("fail2ban.service"),
