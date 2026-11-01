@@ -1,5 +1,6 @@
 //! MetaService Agent for Linux. Runs workloads on this machine for the Root, through Incus.
 mod apps;
+mod autostart;
 mod budget;
 mod build;
 mod bundle;
@@ -52,6 +53,9 @@ use std::sync::Arc;
 
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.first().map(String::as_str) == Some(autostart::VERB) {
+        std::process::exit(autostart::run_verb(&arguments[1..]));
+    }
     let result = Config::parse(&arguments).and_then(|config| match config.verb.clone() {
         Verb::Enroll { root, name, token_file } => enroll::run(&config, &root, &name, token_file.as_deref()),
         Verb::Setup { yes, user } => run_setup(yes, user),
