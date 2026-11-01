@@ -44,5 +44,20 @@ public enum SecurityDatabase {
             CREATE INDEX events_by_type ON events (type, time);
             CREATE INDEX events_by_address ON events (address);
             """) }),
+        // failed_buckets: the same failed logins as failed_daily, but per ten-minute UTC bucket (`bucket_start`, e.g. 2026-11-01T08:40:00Z), for the 1 h to 24 h ranges. Same '' sentinel for unknown user and address. Kept 8 days.
+        // failed_slots: both tables in one view, so a query picks the day counts or the buckets with a bound `kind` and its SQL stays fixed text.
+        // Only data collected live after this step is precise: a helper catch-up groups one reply per (user, address) with the latest time, so older history lands in one bucket.
+        (2, { try $0.exec("""
+            CREATE TABLE failed_buckets (
+              bucket_start TEXT NOT NULL, machine TEXT NOT NULL, user TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '',
+              count INTEGER NOT NULL, last_seen TEXT NOT NULL,
+              PRIMARY KEY (bucket_start, machine, user, address)
+            );
+            CREATE INDEX failed_buckets_by_machine ON failed_buckets (machine, bucket_start);
+            CREATE VIEW failed_slots AS
+              SELECT 'days' AS kind, day AS slot, machine, user, address, count, last_seen, 'f' || rowid AS id FROM failed_daily
+              UNION ALL
+              SELECT 'buckets' AS kind, bucket_start AS slot, machine, user, address, count, last_seen, 'b' || rowid AS id FROM failed_buckets;
+            """) }),
     ]
 }

@@ -56,6 +56,15 @@ final class SecurityTimeAndRangeTests: XCTestCase {
         XCTAssertNil(SecurityRange(rawValue: "1y"))
     }
 
+    func testTheShortRangesAreAcceptedAndOthersStayRefused() throws {
+        for name in ["1h", "6h", "12h"] {
+            XCTAssertEqual(try SecurityQuery.overview([("range", name)]).rawValue, name)
+            XCTAssertEqual(try SecurityQuery.events([("range", name)]).range.rawValue, name)
+        }
+        XCTAssertEqual(SecurityRange.sixHours.seconds, 6 * 3_600)
+        for bad in ["2h", "48h", "1H", "0h"] { XCTAssertThrowsError(try SecurityQuery.overview([("range", bad)]), bad) }
+    }
+
     func testRetentionIsNinetyDaysAndRunsEverySixHours() {
         XCTAssertEqual(SecurityTime.day(SecurityTime.retentionCutoff(now: now)), "2026-08-03")
         XCTAssertTrue(SecurityTime.retentionDue(lastRun: nil, now: now))

@@ -73,20 +73,29 @@ final class SecurityService: Sendable {
         let now = clock.now
         let known = try machines.list(now: now)
         let ids = Set(known.map(\.id))
-        let firstDay = range.firstDay(now: now)
+        let window = range.window(now: now)
         let states = try store.states()
-        let failed = try store.failedTotals(sinceDay: firstDay)
+        let failed = try store.failedTotals(in: window)
         let blocked = try store.blockedTotals(since: range.start(now: now))
         let lines = known.map { machine -> SecurityMachineLine in
             guard machine.capabilities?.security == true, let state = states[machine.id], let reported = state.lastReported else { return .notWatched(machine.id) }
             return SecurityMachineLine(machine: machine.id, reported: true, lastReported: reported, baseline: state.baseline, failed: failed[machine.id] ?? 0, blocked: blocked[machine.id] ?? 0)
         }
         let watched = Set(lines.filter(\.reported).map(\.machine))
+        let series = try failedSeries(range: range, window: window, watched: watched)
         return SecurityOverviewReply(
             range: range.rawValue, generatedAt: SecurityTime.text(now), machines: lines,
-            blockedNow: SecurityBlocking.inForce(try store.blockCandidates(attemptsSinceDay: firstDay), now: now).filter { ids.contains($0.machine) },
-            topUsers: try store.topUsers(sinceDay: firstDay), topAddresses: try store.topAddresses(sinceDay: firstDay),
-            daily: try store.daily(sinceDay: firstDay).filter { watched.contains($0.machine) })
+            blockedNow: SecurityBlocking.inForce(try store.blockCandidates(attemptsIn: window), now: now).filter { ids.contains($0.machine) },
+            topUsers: try store.topUsers(in: window), topAddresses: try store.topAddresses(in: window),
+            daily: series.daily, buckets: series.buckets)
+    }
+
+    /// The chart data of a range: ten-minute buckets up to 24 hours, UTC days for longer ranges; only watched machines, and the other kind stays empty.
+    private func failedSeries(range: SecurityRange, window: SecurityWindow, watched: Set<String>) throws -> (daily: [SecurityDailyRow], buckets: [SecurityBucketRow]) {
+        guard case .buckets(let first) = window else {
+            return (try store.daily(sinceDay: range.firstDay(now: clock.now)).filter { watched.contains($0.machine) }, [])
+        }
+        return ([], try store.buckets(from: first).filter { watched.contains($0.machine) })
     }
 
     func events(_ query: SecurityQuery) throws -> SecurityEventsReply {

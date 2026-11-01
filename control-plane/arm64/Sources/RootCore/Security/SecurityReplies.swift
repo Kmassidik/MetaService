@@ -85,6 +85,19 @@ public struct SecurityDailyRow: Encodable, Equatable, Sendable {
     }
 }
 
+/// Failed logins of one machine in one ten-minute bucket; a bucket without a count has no row.
+public struct SecurityBucketRow: Encodable, Equatable, Sendable {
+    public let start: String
+    public let machine: String
+    public let failed: Int
+
+    public init(start: String, machine: String, failed: Int) {
+        self.start = start
+        self.machine = machine
+        self.failed = failed
+    }
+}
+
 public struct SecurityOverviewReply: Encodable, Equatable, Sendable {
     public let range: String
     public let generatedAt: String
@@ -93,8 +106,12 @@ public struct SecurityOverviewReply: Encodable, Equatable, Sendable {
     public let topUsers: [SecurityTopRow]
     public let topAddresses: [SecurityTopRow]
     public let daily: [SecurityDailyRow]
+    /// Ten-minute counts for ranges up to 24 hours; empty for longer ranges, which use `daily`.
+    public let buckets: [SecurityBucketRow]
+    public let bucketMinutes: Int
 
-    public init(range: String, generatedAt: String, machines: [SecurityMachineLine], blockedNow: [SecurityBlockedRow], topUsers: [SecurityTopRow], topAddresses: [SecurityTopRow], daily: [SecurityDailyRow]) {
+    public init(range: String, generatedAt: String, machines: [SecurityMachineLine], blockedNow: [SecurityBlockedRow], topUsers: [SecurityTopRow], topAddresses: [SecurityTopRow],
+                daily: [SecurityDailyRow], buckets: [SecurityBucketRow] = [], bucketMinutes: Int = SecurityTime.bucketMinutes) {
         self.range = range
         self.generatedAt = generatedAt
         self.machines = machines
@@ -102,6 +119,8 @@ public struct SecurityOverviewReply: Encodable, Equatable, Sendable {
         self.topUsers = topUsers
         self.topAddresses = topAddresses
         self.daily = daily
+        self.buckets = buckets
+        self.bucketMinutes = bucketMinutes
     }
 }
 
