@@ -164,7 +164,7 @@ final class AgentCoreTests: XCTestCase {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let object = try JSONSerialization.jsonObject(with: encoder.encode(facts)) as! [String: Any]
         XCTAssertEqual(Set(object.keys), ["os", "arch", "cpu_cores", "ram_total_mb", "disk_total_gb", "free_ram_mb", "free_disk_gb", "gpu", "capabilities", "problems", "agent_version", "engine"])
-        XCTAssertEqual(Set((object["capabilities"] as! [String: Any]).keys), ["vm", "container", "gpu_in_vm", "gpu_in_container"])
+        XCTAssertEqual(Set((object["capabilities"] as! [String: Any]).keys), ["vm", "container", "gpu_in_vm", "gpu_in_container", "security"])
         let workload = try JSONSerialization.jsonObject(with: encoder.encode(running(512, 1))) as! [String: Any]
         XCTAssertTrue(workload["address"] is NSNull && workload["bundle_version"] is NSNull)
     }

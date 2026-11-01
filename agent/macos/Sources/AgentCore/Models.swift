@@ -21,8 +21,11 @@ public struct Capabilities: Codable, Equatable {
     public let container: Bool
     public let gpuInVm: Bool
     public let gpuInContainer: Bool
+    /// This helper serves `GET /v1/security/events`. True on every Mac, whatever the engine.
+    public let security: Bool
 
-    public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool) {
+    public init(vm: Bool, container: Bool, gpuInVm: Bool, gpuInContainer: Bool, security: Bool = true) {
+        self.security = security
         self.vm = vm
         self.container = container
         self.gpuInVm = gpuInVm
