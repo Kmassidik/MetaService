@@ -629,11 +629,11 @@ paths:
       summary: >
         Root endpoint for the panel. What the Security page shows for a range: every machine the Root knows (a machine nobody watches has `reported: false`, a null `last_reported`,
         an all-null baseline and null counts, never zeros), the addresses blocked now (the latest block or unblock event is a block and its end, when known, is still ahead),
-        the 8 most tried user names and addresses, and failed logins per UTC day and machine. Failed logins are counted per UTC day, so a range reaches back to the day it starts on.
+        the 8 most tried user names and addresses, and failed logins per UTC day and machine. For `7d`, `30d` and `90d` failed logins are counted per UTC day (a range reaches back to the day it starts on) and `daily` holds the chart; for `1h`, `6h`, `12h` and `24h` the totals, top lists and the chart come from ten-minute UTC buckets that start after now minus the range, and `buckets` holds the chart (`daily` is then empty). A bucket without a count has no entry. Buckets are kept 8 days. Only data collected live after the buckets were introduced is precise: a helper catch-up groups one reply per user and address with its latest time, so older history sits in one bucket.
         Optional, added without a version change. Read from security.sqlite3, a database of its own beside root.sqlite3, filled by the parent from the helpers.
       security: []
       parameters:
-        - { name: range, in: query, required: false, schema: { type: string, enum: ['24h', '7d', '30d', '90d'], default: '7d' } }
+        - { name: range, in: query, required: false, schema: { type: string, enum: ['1h', '6h', '12h', '24h', '7d', '30d', '90d'], default: '7d' } }
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/SecurityOverview' } } } }
         '400': { description: 'an unknown parameter, a repeated one or a bad range (code invalid_input)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -643,13 +643,13 @@ paths:
     servers: [ { url: 'https://panel.example', description: the Root operator listener (session cookie and Host checked like every operator read) } ]
     get:
       summary: >
-        Root endpoint for the panel. The event log, newest first, with offset paging. Failed logins are stored as daily counts, so one failed_login row stands for `count` tries of one user from one address
-        on one UTC day (its time is the newest of them); logins, blocks and unblocks are one row each. `q` is part of an address or user name (not case sensitive).
+        Root endpoint for the panel. The event log, newest first, with offset paging. Failed logins are stored as counts, so one failed_login row stands for `count` tries of one user from one address
+        on one UTC day (ranges 7d and longer) or in one ten-minute bucket (ranges up to 24h); its time is the newest of them; logins, blocks and unblocks are one row each. `q` is part of an address or user name (not case sensitive).
         Anything unknown, repeated, empty (except `q`) or out of range is a 400 (code invalid_input). A machine id that is not known simply gives no rows.
         Optional, added without a version change.
       security: []
       parameters:
-        - { name: range, in: query, required: false, schema: { type: string, enum: ['24h', '7d', '30d', '90d'], default: '7d' } }
+        - { name: range, in: query, required: false, schema: { type: string, enum: ['1h', '6h', '12h', '24h', '7d', '30d', '90d'], default: '7d' } }
         - { name: machine, in: query, required: false, schema: { type: string, maxLength: 63 } }
         - { name: type, in: query, required: false, schema: { type: string, enum: [failed_login, login, blocked, unblocked] } }
         - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 } }
@@ -1072,10 +1072,10 @@ components:
         blocked: { type: integer, nullable: true, minimum: 0 }
     SecurityOverview:
       type: object
-      required: [range, generated_at, machines, blocked_now, top_users, top_addresses, daily]
+      required: [range, generated_at, machines, blocked_now, top_users, top_addresses, daily, buckets, bucket_minutes]
       additionalProperties: false
       properties:
-        range: { type: string, enum: ['24h', '7d', '30d', '90d'] }
+        range: { type: string, enum: ['1h', '6h', '12h', '24h', '7d', '30d', '90d'] }
         generated_at: { type: string }
         machines: { type: array, items: { $ref: '#/components/schemas/SecurityMachineLine' } }
         blocked_now:
@@ -1103,6 +1103,19 @@ components:
               day: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
               machine: { type: string }
               failed: { type: integer, minimum: 0 }
+        buckets:
+          type: array
+          maxItems: 20000
+          description: Failed logins per ten-minute UTC bucket and machine for ranges up to 24 h; empty for longer ranges. Zero buckets are left out.
+          items:
+            type: object
+            required: [start, machine, failed]
+            additionalProperties: false
+            properties:
+              start: { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:00Z$' }
+              machine: { type: string }
+              failed: { type: integer, minimum: 1 }
+        bucket_minutes: { type: integer, enum: [10] }
     SecurityTopRow:
       type: object
       required: [name, count]
