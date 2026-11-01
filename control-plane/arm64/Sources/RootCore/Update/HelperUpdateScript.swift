@@ -59,7 +59,9 @@ public enum HelperUpdateScript {
         mv -f bin/metaservice-agent.new bin/metaservice-agent
         sh ./start.sh >/dev/null 2>&1 || true
         sleep \#(settleSeconds)
-        alive && say updated
+        if alive; then
+          \#(HelperAutostart.updateLines)
+        fi
         [ ! -x ./stop.sh ] || sh ./stop.sh
         sleep 1
         cp -p "$keep" bin/metaservice-agent
@@ -76,8 +78,15 @@ public enum HelperUpdateScript {
         let message: String
     }
 
+    private static let lingerCode = "updated_linger"
+    private static let notYetStarting = "The helper was replaced with the newest one and it is running. It does not start again after a restart yet: "
+    private static let keepRunning = " Your VMs keep running."
+
     private static let answers: [String: Answer] = [
-        "updated": Answer(result: "updated", message: "The helper was replaced with the newest one and it is running. Your VMs keep running."),
+        "updated": Answer(result: "updated", message: "The helper was replaced with the newest one and it is running. It also starts again by itself after a restart of that computer. Your VMs keep running."),
+        "updated_linger": Answer(result: "updated", message: notYetStarting + HelperAutostart.ownerStep(isMac: false, login: "") + keepRunning),
+        "updated_autologin": Answer(result: "updated", message: notYetStarting + HelperAutostart.ownerStep(isMac: true, login: "") + keepRunning),
+        "updated_no_autostart": Answer(result: "updated", message: "The helper was replaced with the newest one and it is running, but it could not be set to start again by itself after a restart (the reason is in logs/agent.log in the MetaService folder). After a restart, run start.sh in that folder. Your VMs keep running."),
         "rolled_back": Answer(result: "rolled_back", message: "The new helper did not start, so the old one was put back and is running again. Nothing was lost."),
         "rollback_failed": Answer(result: "failed", message: "The new helper did not start and the old one could not be put back. Look at logs/agent.log in the MetaService folder on that computer."),
         "checksum": Answer(result: "failed", message: "The program that arrived is not the one that was sent (its checksum is different). Nothing was changed."),
@@ -101,8 +110,13 @@ public enum HelperUpdateScript {
     }
 
     /// The last `ms-code:` word of the output, turned into the answer. A missing or unknown word is a failure; the other computer's own text is never passed on.
-    public static func outcome(output: String) -> HelperUpdateResult {
-        let answer = answers[code(in: output)] ?? unknown
-        return HelperUpdateResult(result: answer.result, message: answer.message)
+    /// `login` is the login the parent uses on that computer: it goes into the one `sudo` line a Linux owner may need, when it is a plain name.
+    public static func outcome(output: String, login: String = "") -> HelperUpdateResult {
+        let word = code(in: output)
+        guard word == lingerCode else {
+            let answer = answers[word] ?? unknown
+            return HelperUpdateResult(result: answer.result, message: answer.message)
+        }
+        return HelperUpdateResult(result: "updated", message: notYetStarting + HelperAutostart.ownerStep(isMac: false, login: login) + keepRunning)
     }
 }

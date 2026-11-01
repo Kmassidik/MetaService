@@ -5,7 +5,7 @@ import pathlib
 import tempfile
 from contextlib import contextmanager
 
-from contract.agent_tests.support import MACOS_BINARY
+from contract.root_tests.fakes.safe_agent import safe_agent
 from contract.root_tests.checks_remote import authorize_parent, rows, verify_body
 from contract.root_tests.checks_scan import Skip
 from contract.root_tests.fakes.fake_linux import FakeLinux, PASSWORD
@@ -20,7 +20,7 @@ def fake_computer(password=PASSWORD):
     if not available():
         raise Skip("no OpenSSH server program on this machine")
     server = FakeLinux(password).start()
-    extra = ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-"), "--agent-binary", str(MACOS_BINARY), "--remote-engine", "simulated", "--remote-allow-loopback", "yes"]
+    extra = ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-"), "--agent-binary", str(safe_agent()), "--remote-engine", "simulated", "--remote-allow-loopback", "yes"]
     root = RunningRoot(extra_args=extra).start()
     try:
         operator = Browser(root)

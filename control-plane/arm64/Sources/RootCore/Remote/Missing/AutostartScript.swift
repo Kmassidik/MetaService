@@ -23,6 +23,8 @@ enum AutostartScript {
     static let legacyContainerStartPath = "/Library/LaunchDaemons/" + legacyContainerStartLabel + ".plist"
     static let unitName = "metaservice-agent"
     static let linuxPath = "/etc/systemd/system/" + unitName + ".service"
+    /// The unit the helper's own `autostart on` writes into the login's home (no root), taken away with the box.
+    static let linuxUserPath = "$HOME/.config/systemd/user/" + unitName + ".service"
 
     /// launchd restarts a job no sooner than this, so a program that fails at once cannot fill the disk with its own log.
     static let throttleSeconds = 10

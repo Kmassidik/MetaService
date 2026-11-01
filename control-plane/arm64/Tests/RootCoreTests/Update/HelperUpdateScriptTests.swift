@@ -41,6 +41,34 @@ final class HelperUpdateScriptTests: XCTestCase {
         }
     }
 
+    /// The update turns autostart on for the NEW program only once it answered, and never before the replacement or in the rollback branch.
+    func testAutostartRunsForTheNewProgramAfterItAnsweredAndNeverBeforeOrInTheRollback() throws {
+        let text = try script()
+        let replaced = try XCTUnwrap(text.range(of: "mv -f bin/metaservice-agent.new bin/metaservice-agent"))
+        let started = try XCTUnwrap(text.range(of: "sh ./start.sh", range: replaced.upperBound..<text.endIndex))
+        let answered = try XCTUnwrap(text.range(of: "if alive; then", range: started.upperBound..<text.endIndex))
+        let autostart = try XCTUnwrap(text.range(of: "./bin/metaservice-agent autostart on --box \"$box\"", range: answered.upperBound..<text.endIndex))
+        let rollback = try XCTUnwrap(text.range(of: "cp -p \"$keep\" bin/metaservice-agent"))
+        XCTAssertLessThan(autostart.lowerBound, rollback.lowerBound, "never in the rollback branch")
+        XCTAssertEqual(text.components(separatedBy: "autostart on").count - 1, 1, "exactly once")
+        XCTAssertTrue(text.contains("say updated_no_autostart"), "any other exit code is a note, not a failure")
+        XCTAssertTrue(text.contains(">> logs/agent.log 2>&1; rc=$?"), "the helper's own reason goes to the log")
+    }
+
+    func testAutostartThatNeedsTheOwnerOrFailsStillCountsAsUpdatedWithAPlainSentence() {
+        let sudo = HelperUpdateScript.outcome(output: "ms-code: updated_linger\n", login: "kurnia")
+        XCTAssertEqual(sudo.result, "updated")
+        XCTAssertTrue(sudo.message.contains("`sudo loginctl enable-linger kurnia`"), sudo.message)
+        XCTAssertFalse(HelperUpdateScript.outcome(output: "ms-code: updated_linger\n", login: "a b; reboot").message.contains("reboot"))
+        let mac = HelperUpdateScript.outcome(output: "ms-code: updated_autologin\n")
+        XCTAssertEqual(mac.result, "updated")
+        XCTAssertTrue(mac.message.contains("automatic login"), mac.message)
+        let failed = HelperUpdateScript.outcome(output: "ms-code: updated_no_autostart\n")
+        XCTAssertEqual(failed.result, "updated")
+        XCTAssertTrue(failed.message.contains("could not be set to start again by itself") && failed.message.contains("logs/agent.log"), failed.message)
+        XCTAssertTrue(HelperUpdateScript.outcome(output: "ms-code: updated\n").message.contains("starts again by itself"))
+    }
+
     func testTheResultNamesMatchWhatHappened() {
         XCTAssertEqual(HelperUpdateScript.outcome(output: "ms-code: updated\n").result, "updated")
         XCTAssertEqual(HelperUpdateScript.outcome(output: "ms-code: rolled_back\n").result, "rolled_back")

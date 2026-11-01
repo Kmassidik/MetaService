@@ -11,7 +11,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 
-from contract.agent_tests.support import MACOS_BINARY
+from contract.root_tests.fakes.safe_agent import safe_agent
 from contract.root_tests.checks_scan import Skip
 from contract.root_tests.fakes.loopback_ssh import SshServer, available
 from contract.root_tests.support import Browser, RunningRoot, expect
@@ -34,11 +34,11 @@ def stop_boxes():
 
 
 @contextmanager
-def remote(answer=None, allow_loopback=True, agent_binary=MACOS_BINARY):
+def remote(answer=None, allow_loopback=True, agent_binary=None):
     if not available():
         raise Skip("no OpenSSH server program on this machine")
     server = SshServer(answer=answer).start()
-    extra = ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-"), "--agent-binary", str(agent_binary), "--remote-engine", "simulated"] + (["--remote-allow-loopback", "yes"] if allow_loopback else [])
+    extra = ["--ui-dir", tempfile.mkdtemp(prefix="ms-no-ui-"), "--agent-binary", str(agent_binary or safe_agent()), "--remote-engine", "simulated"] + (["--remote-allow-loopback", "yes"] if allow_loopback else [])
     root = RunningRoot(extra_args=extra).start()
     try:
         yield root, Browser(root), server

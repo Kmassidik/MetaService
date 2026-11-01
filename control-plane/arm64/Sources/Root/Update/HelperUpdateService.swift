@@ -54,7 +54,7 @@ final class HelperUpdateService: @unchecked Sendable {
         try begin(machine.id)
         defer { end(machine.id) }
         let output = try await replace(record, with: offer)
-        return (HelperUpdateScript.outcome(output: output), output)
+        return (HelperUpdateScript.outcome(output: output, login: record.sshUser), output)
     }
 
     private func replace(_ record: RemoteMachine, with offer: HelperUpdates.Offer) async throws -> String {

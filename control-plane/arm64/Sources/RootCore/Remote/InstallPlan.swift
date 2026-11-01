@@ -84,7 +84,7 @@ public struct InstallPlan: Equatable, Sendable {
         let box = options.box
         return PlannedStep(id: "start", label: "Start the program",
                            changes: ["Write \(box)/start.sh and \(box)/stop.sh, then start the program. It listens only on 127.0.0.1:\(options.agentPort) of that computer, so nothing else on the network can reach it.",
-                                     "It does not start again by itself after a restart of that computer: run \(box)/start.sh."],
+                                     "Once it answers, it is also set to start again by itself after a restart (a systemd user unit on Linux, a LaunchAgent on a Mac, both in that login's home, no admin rights). If that cannot be done, run \(box)/start.sh after a restart."],
                            operations: [.putFile(path: box + "/start.sh", mode: "700", source: .text(PlanScripts.startScript(options))),
                                         .putFile(path: box + "/stop.sh", mode: "700", source: .text(PlanScripts.stopScript())),
                                         .run(command: "sh " + Shell.quote(box + "/start.sh"))])

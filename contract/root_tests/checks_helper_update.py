@@ -9,14 +9,14 @@ import sqlite3
 import tempfile
 import time
 
-from contract.agent_tests.support import MACOS_BINARY
+from contract.root_tests.fakes.safe_agent import calls, program_text, safe_agent, write_program, NEEDS_OWNER
 from contract.root_tests.checks_remote import authorize_parent, remote
 from contract.root_tests.checks_remote_install import add_body, box_folder, running as pid_alive, start_install, wait_for_job
 from contract.root_tests.support import Browser, enrolled_machine, expect, good_heartbeat
 
 UPDATE_PATH = "/api/machines/{}/update-helper"
-OLD_TEXT = f'#!/bin/sh\n# build A\nexec {MACOS_BINARY} "$@"\n'
-NEW_TEXT = f'#!/bin/sh\n# build B, a different program with a longer text\nexec {MACOS_BINARY} "$@"\n'
+OLD_TEXT = program_text("build A")
+NEW_TEXT = program_text("build B, a different program with a longer text")
 BROKEN_TEXT = "#!/bin/sh\n# a build that stops at once\nexit 1\n"
 SETTLE_SECONDS = 8
 UPDATE_REQUEST_SECONDS = 90  # the script waits for the new program twice when it has to roll back
@@ -27,9 +27,7 @@ def sha(text):
 
 
 def wrapper(text):
-    path = pathlib.Path(tempfile.mkdtemp(prefix="ms-wrapper-")) / "metaservice-agent"
-    write_wrapper(path, text)
-    return path
+    return write_program(text)
 
 
 def write_wrapper(path, text):
@@ -81,7 +79,7 @@ def check_the_update_route_is_guarded_and_knows_which_machines_exist():
 def check_a_machine_reports_its_build_and_the_parent_says_whether_a_different_one_is_on_offer():
     with remote() as (root, operator, server):
         token = enrolled_machine(operator, "mini")
-        own = hashlib.sha256(pathlib.Path(MACOS_BINARY).read_bytes()).hexdigest()
+        own = hashlib.sha256(safe_agent().read_bytes()).hexdigest()
         heartbeat(root, token)
         old = machine(operator, "mini")
         expect(old["agent_build"] is None, f"an old helper says no build: {old['agent_build']!r}")
@@ -161,6 +159,41 @@ def check_the_update_replaces_the_program_keeps_the_old_one_and_leaves_the_state
         expect(sha(NEW_TEXT) not in json.dumps(operator.request("GET", "/api/audit?limit=100").body), "the audit log holds no checksum or secret")
 
 
+def update_with_autostart_answer(code):
+    """Install a helper, update it to a build that answers `autostart on` with this exit code; returns the box, the update's answer and the recorded autostart calls."""
+    exit_file = pathlib.Path(tempfile.mkdtemp(prefix="ms-autostart-exit-")) / "code"
+    exit_file.write_text("0")
+    program = wrapper(program_text("build A", exit_file=exit_file))
+    with remote(agent_binary=program) as (root, operator, server):
+        box = box_folder()
+        install(operator, server, box)
+        write_wrapper(program, program_text("build B, new and longer", exit_file=exit_file))
+        exit_file.write_text(str(code))
+        operator.timeout = UPDATE_REQUEST_SECONDS
+        reply = operator.write("POST", UPDATE_PATH.format("test-box"), {})
+        expect(reply.status == 200 and reply.body["result"] == "updated", f"update: {reply.status} {reply.raw[:300]!r}")
+        expect(pid_alive(box / "state" / "agent.pid"), "the helper is running again")
+        return reply.body["message"], calls(box), box
+
+
+def check_the_update_turns_autostart_on_for_the_new_program_once_it_is_running():
+    message, asked, box = update_with_autostart_answer(0)
+    expect(len(asked) == 2 and asked[0].endswith("alive=yes"), f"the install asked once: {asked}")
+    expect(asked[1] == f"autostart on --box {box} alive=yes", f"the update asked the new program, and only after it was running: {asked}")
+    expect("starts again by itself after a restart" in message, f"message: {message}")
+
+
+def check_an_update_whose_autostart_needs_the_owner_still_succeeds_and_says_what_is_left():
+    message, asked, box = update_with_autostart_answer(NEEDS_OWNER)
+    expect("does not start again after a restart yet" in message and "automatic login" in message, f"message (this is a Mac): {message}")
+
+
+def check_an_update_whose_autostart_fails_still_succeeds_and_says_so():
+    message, asked, box = update_with_autostart_answer(1)
+    expect("could not be set to start again by itself" in message and "start.sh" in message, f"message: {message}")
+    expect(len(asked) == 2, f"asked: {asked}")
+
+
 def check_a_new_program_that_does_not_start_is_rolled_back_automatically():
     program = wrapper(OLD_TEXT)
     with remote(agent_binary=program) as (root, operator, server):
@@ -194,4 +227,6 @@ def check_a_machine_that_no_longer_accepts_the_parents_key_answers_login_needed(
 CHECKS = [check_the_update_route_is_guarded_and_knows_which_machines_exist, check_a_machine_reports_its_build_and_the_parent_says_whether_a_different_one_is_on_offer,
           check_a_hostile_build_is_refused_at_the_heartbeat, check_refusals_are_plain_409s_and_the_route_is_limited_per_machine,
           check_a_machine_with_a_running_order_is_busy_and_nothing_is_changed, check_the_update_replaces_the_program_keeps_the_old_one_and_leaves_the_state_alone,
-          check_a_new_program_that_does_not_start_is_rolled_back_automatically, check_a_machine_that_no_longer_accepts_the_parents_key_answers_login_needed]
+          check_a_new_program_that_does_not_start_is_rolled_back_automatically, check_a_machine_that_no_longer_accepts_the_parents_key_answers_login_needed,
+          check_the_update_turns_autostart_on_for_the_new_program_once_it_is_running, check_an_update_whose_autostart_needs_the_owner_still_succeeds_and_says_what_is_left,
+          check_an_update_whose_autostart_fails_still_succeeds_and_says_so]

@@ -258,7 +258,14 @@ final class RemoteInstallService: @unchecked Sendable {
         let alive = "cd \(Shell.quote(box)) && sleep 2 && if kill -0 \"$(cat state/agent.pid)\" 2>/dev/null; then echo alive; else echo dead; tail -n 5 logs/agent.log; fi\n"
         let result = try await parts.ssh.run(alive, on: context.target, with: context.credentials, timeout: Self.stepSeconds)
         guard result.output.hasPrefix("alive") else { throw InstallFailure("the program stopped right after it started: " + String(result.output.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)) }
-        return "Running; it listens only on 127.0.0.1:\(context.plan.options.agentPort) of that computer."
+        return "Running; it listens only on 127.0.0.1:\(context.plan.options.agentPort) of that computer. " + (try await registerForRestart(context))
+    }
+
+    /// Asks the running helper to start by itself after a restart. Whatever it answers, the install goes on: the sentence tells the owner what is left.
+    private func registerForRestart(_ context: Context) async throws -> String {
+        let result = try await parts.ssh.run(HelperAutostart.installScript(box: context.plan.options.box), on: context.target, with: context.credentials, timeout: Self.stepSeconds)
+        let answer = HelperAutostart.result(output: result.output)
+        return HelperAutostart.installSentence(answer, isMac: HelperAutostart.isMac(output: result.output), login: context.target.user)
     }
 
     /// Makes this machine's own key, and adds its restricted line. The private half is sealed and stored; the other computer only ever gets the public one.

@@ -11,6 +11,7 @@ import tempfile
 import time
 
 from contract.root_tests.checks_remote import BOXES, authorize_parent, remote, rows, verify_body
+from contract.root_tests.fakes.safe_agent import NEEDS_OWNER, calls, program_text, write_program
 from contract.root_tests.support import _free_port, expect
 
 STEPS = ["check", "folder", "agent", "enroll", "start", "key", "manifest", "tunnel", "online"]
@@ -328,10 +329,45 @@ def check_without_the_key_there_is_no_tunnel_and_the_machine_only_reports_in():
         expect(len(machines) == 1 and machines[0]["has_key"] is False and machines[0].get("tunnel") is None, f"machines: {machines}")
 
 
+def install_with_autostart_answer(code):
+    """One install whose helper answers `autostart on` with this exit code; returns the box, the finished job and the start step."""
+    exit_file = pathlib.Path(tempfile.mkdtemp(prefix="ms-autostart-exit-")) / "code"
+    exit_file.write_text(str(code))
+    with remote(agent_binary=write_program(program_text("autostart answers", exit_file=exit_file))) as (root, operator, server):
+        authorize_parent(operator, server)
+        box = box_folder()
+        job = wait_for_job(operator, start_install(operator, add_body(server, box)).body["id"])
+        step = next(step for step in job["steps"] if step["id"] == "start")
+        return box, job, step, calls(box)
+
+
+def check_the_install_asks_the_running_helper_to_start_at_boot_after_it_answered():
+    box, job, step, asked = install_with_autostart_answer(0)
+    expect(job["state"] == "done", f"install: {job.get('error')}")
+    expect(len(asked) == 1 and asked[0] == f"autostart on --box {box} alive=yes", f"asked once, with the box, after the helper was alive: {asked}")
+    expect("starts again by itself after a restart" in step["detail"], f"the start step says so: {step['detail']}")
+    expect("sudo" not in step["detail"] and "automatic login" not in step["detail"], f"nothing left for the owner: {step['detail']}")
+
+
+def check_an_autostart_that_needs_the_owner_is_a_plain_note_and_never_a_failure():
+    box, job, step, asked = install_with_autostart_answer(NEEDS_OWNER)
+    expect(job["state"] == "done" and all(item["state"] == "done" for item in job["steps"]), f"install: {job['state']} {job.get('error')}")
+    expect("One step is left for the owner" in step["detail"] and "automatic login" in step["detail"], f"the plain note (this is a Mac): {step['detail']}")
+    expect(len(asked) == 1, f"asked once: {asked}")
+
+
+def check_an_autostart_that_fails_does_not_fail_the_install():
+    box, job, step, asked = install_with_autostart_answer(1)
+    expect(job["state"] == "done", f"install: {job['state']} {job.get('error')}")
+    expect("could not be set to start again by itself" in step["detail"] and "start.sh" in step["detail"], f"the plain reason: {step['detail']}")
+
+
 CHECKS = [check_what_will_change_is_shown_without_a_login_or_any_change, check_a_full_install_adds_only_the_box_and_one_key_line_and_the_machine_reports_in,
           check_repeating_the_same_registration_resumes_readiness_without_reinstalling,
           check_a_machine_can_be_removed_and_added_again_with_a_new_key,
           check_a_step_that_fails_takes_everything_that_was_added_away_again, check_an_existing_folder_is_never_touched_and_a_wrong_fingerprint_changes_nothing,
           check_one_install_at_a_time_and_a_name_cannot_be_used_twice, check_an_install_needs_a_login_and_refuses_bad_requests,
           check_commands_go_through_the_tunnel_which_comes_back_by_itself_and_is_never_gone_around, check_tunnels_are_opened_again_when_the_parent_starts_again,
-          check_without_the_key_there_is_no_tunnel_and_the_machine_only_reports_in]
+          check_without_the_key_there_is_no_tunnel_and_the_machine_only_reports_in,
+          check_the_install_asks_the_running_helper_to_start_at_boot_after_it_answered, check_an_autostart_that_needs_the_owner_is_a_plain_note_and_never_a_failure,
+          check_an_autostart_that_fails_does_not_fail_the_install]
