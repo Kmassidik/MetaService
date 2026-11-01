@@ -102,6 +102,7 @@ func runAgent(_ config: AgentConfig) async throws {
     _ = storage.startIfNeeded()
     StorageRoutes(state: storage).register(on: router)
     ImagesRoutes().register(on: router)
+    SecurityRoutes(service: SecurityHost.makeService()).register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)
     terminal.registerPlain(on: router)
     if let root, let machineToken {
@@ -129,6 +130,7 @@ do {
     switch config.command {
     case .run: try await runAgent(config)
     case .enroll(let root, let name, let tokenFile): try await Enroller.run(root: root, name: name, tokenFile: tokenFile, config: config)
+    case .securityDump(let hours): try await SecurityDump.run(hours: hours)
     }
 } catch {
     fail("\(error)")

@@ -8,6 +8,7 @@ struct ConfigError: Error, CustomStringConvertible {
 enum Verb {
     case run
     case enroll(root: String, name: String, tokenFile: String?)
+    case securityDump(hours: Int)
 }
 
 /// Settings from the command line. Secrets never go on the command line: the enrollment token comes from a file or an env variable.
@@ -40,8 +41,10 @@ struct AgentConfig {
     var settingsFile: String { stateDirectory + "/agent.json" }
 
     static let version = "0.1.0"
+    static let defaultDumpHours = 7 * 24
+    static let maxDumpHours = 90 * 24
     private static let valued = ["--state-dir", "--port", "--bind", "--engine", "--ram-reserve-mb", "--disk-reserve-gb", "--ram-allowance-mb",
-                                 "--disk-allowance-gb", "--bad-token-limit", "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--container-path", "--default-image", "--backup-dir", "--ready-seconds", "--settle-seconds", "--root", "--name", "--enrollment-token-file"]
+                                 "--disk-allowance-gb", "--bad-token-limit", "--heartbeat-seconds", "--chat-port", "--chat-bind", "--python-path", "--container-path", "--default-image", "--backup-dir", "--ready-seconds", "--settle-seconds", "--root", "--name", "--enrollment-token-file", "--hours"]
 
     static func parse(_ arguments: [String]) throws -> AgentConfig {
         var config = AgentConfig()
@@ -53,7 +56,8 @@ struct AgentConfig {
         switch verb {
         case "run": config.command = .run
         case "enroll": config.command = try enrollCommand(options)
-        default: throw ConfigError(description: "unknown command \(verb); use run or enroll")
+        case "security-dump": config.command = .securityDump(hours: try config.number(options["--hours"], range: 1...maxDumpHours) ?? defaultDumpHours)
+        default: throw ConfigError(description: "unknown command \(verb); use run, enroll or security-dump")
         }
         return config
     }

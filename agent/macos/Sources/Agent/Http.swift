@@ -80,6 +80,8 @@ struct ErrorMiddleware: RouterMiddleware {
             return Json.error(.conflict, refusal.code.rawValue, refusal.message, extra: ["resource": refusal.resource.rawValue, "needed": refusal.needed, "free": refusal.free])
         } catch let failure as AppInstallFailure {
             return Json.error(.badGateway, AppInstallFailure.errorCode, failure.message, extra: ["log_tail": failure.logTail])
+        } catch let failure as SecurityLogFailure {
+            return Json.error(.badGateway, SecurityLogFailure.errorCode, failure.message)
         } catch let failure as SshdFailure {
             return Json.error(.badGateway, SshdFailure.errorCode, failure.message)
         } catch AgentError.notFound {
