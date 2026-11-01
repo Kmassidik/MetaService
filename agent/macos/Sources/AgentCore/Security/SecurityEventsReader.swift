@@ -8,19 +8,21 @@ public struct SecurityEventsPage: Equatable {
 }
 
 /// Turns the SSH connections in the macOS log into one `failed_login` event per hour (see SshConnectionLog for why nothing finer is possible).
-/// The log is asked only for the window after the cursor, six hours at a time, and a call stops when its time budget is used up; the cursor then
-/// sits where reading stopped, so the next call (the parent calls every minute) goes on from there.
+/// The log is asked only for the window after the cursor, one hour at a time, and a call stops when its time budget is used up; the cursor then
+/// sits where reading stopped, so the next call (the parent calls every minute) goes on from there. The budget must stay well under the parent's
+/// own time limit for this route (10 s), or the parent gives up before the answer comes and never stores the cursor.
 public actor SecurityEventsReader {
     /// Asks the system log for the `sshd-session` lines between two Unix seconds (start included, end excluded) and gives the compact text.
     public typealias ReadLog = @Sendable (_ start: Int, _ end: Int, _ timeout: TimeInterval) async throws -> String
 
     public static let detail = "SSH connections (macOS does not log who tried)"
-    /// A first call reaches back this far.
-    public static let historySeconds = 7 * 24 * 3600
-    public static let windowSeconds = 6 * 3600
+    /// A first call reaches back this far; at about a second per window the catch-up takes a few calls.
+    public static let historySeconds = 24 * 3600
+    /// One hour is a second or so of `log show` on a busy Mac, so even the first window fits the budget.
+    public static let windowSeconds = 3600
     /// The newest seconds are left for the next call, so a connection still being logged is not cut in two.
     public static let settleSeconds = 5
-    public static let budgetSeconds: TimeInterval = 20
+    public static let budgetSeconds: TimeInterval = 5
 
     private let readLog: ReadLog
     private let now: @Sendable () -> Int
@@ -28,13 +30,14 @@ public actor SecurityEventsReader {
     private let zone: TimeZone
     private let budget: TimeInterval
     private let history: Int
+    private let window: Int
     private var counter = ConnectionCounter()
     /// Where the counter has read up to; a cursor that is not this one means the counter's memory does not fit and it starts empty.
     private var position: Int?
 
-    public init(zone: TimeZone = .current, budget: TimeInterval = SecurityEventsReader.budgetSeconds, history: Int = SecurityEventsReader.historySeconds, now: @escaping @Sendable () -> Int = { Int(Date().timeIntervalSince1970) },
+    public init(zone: TimeZone = .current, budget: TimeInterval = SecurityEventsReader.budgetSeconds, history: Int = SecurityEventsReader.historySeconds, window: Int = SecurityEventsReader.windowSeconds, now: @escaping @Sendable () -> Int = { Int(Date().timeIntervalSince1970) },
                 uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }, readLog: @escaping ReadLog) {
-        self.readLog = readLog; self.now = now; self.uptime = uptime; self.zone = zone; self.budget = budget; self.history = history
+        self.readLog = readLog; self.now = now; self.uptime = uptime; self.zone = zone; self.budget = budget; self.history = history; self.window = window
     }
 
     public func read(after: String?, limit: Int) async throws -> SecurityEventsPage {
@@ -46,7 +49,7 @@ public actor SecurityEventsReader {
         var events: [SecurityEvent] = []
         let deadline = uptime() + budget
         while cursor < settled, events.count < limit, deadline - uptime() > 0 {
-            let end = min(cursor + Self.windowSeconds, settled)
+            let end = min(cursor + window, settled)
             let window: Window
             do {
                 window = try await consume(from: cursor, to: end, room: limit - events.count, timeout: deadline - uptime())

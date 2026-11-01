@@ -21,8 +21,8 @@ private final class LogStub: @unchecked Sendable {
 final class SecurityEventsReaderTests: XCTestCase {
     private let now = securityEpoch("2026-11-01T08:00:00Z")
 
-    private func reader(_ stub: LogStub, budget: TimeInterval = 20, history: Int = 24 * 3600) -> SecurityEventsReader {
-        SecurityEventsReader(zone: securityTestZone, budget: budget, history: history, now: { stub.now }, uptime: { stub.clock }, readLog: stub.read)
+    private func reader(_ stub: LogStub, budget: TimeInterval = 20, history: Int = 24 * 3600, window: Int = 6 * 3600) -> SecurityEventsReader {
+        SecurityEventsReader(zone: securityTestZone, budget: budget, history: history, window: window, now: { stub.now }, uptime: { stub.clock }, readLog: stub.read)
     }
 
     func testAFirstCallReadsTheHistoryInSixHourWindowsAndStopsJustBeforeNow() async throws {
@@ -112,6 +112,33 @@ final class SecurityEventsReaderTests: XCTestCase {
         XCTAssertEqual(stub.calls.count, 2)
         XCTAssertEqual(page.cursor, "m1.\(now - 24 * 3600 + 12 * 3600)")
         XCTAssertFalse(page.reset)
+    }
+
+    func testTheDefaultsFitInsideTheParentsTenSecondLimit() {
+        XCTAssertLessThanOrEqual(SecurityEventsReader.budgetSeconds, 5, "the parent gives up on this route after 10 s")
+        XCTAssertEqual(SecurityEventsReader.windowSeconds, 3600)
+        XCTAssertEqual(SecurityEventsReader.historySeconds, 24 * 3600)
+    }
+
+    func testWithTheDefaultsASlowLogStillGivesAnAnswerInTimeAndTheCatchUpCompletes() async throws {
+        let stub = LogStub()
+        stub.secondsPerCall = 1.5
+        let service = SecurityEventsReader(zone: securityTestZone, now: { stub.now }, uptime: { stub.clock }, readLog: stub.read)
+        var cursor: String?
+        var calls = 0
+        while calls < 20 {
+            stub.clock = 0
+            let before = stub.calls.count
+            let page = try await service.read(after: cursor, limit: 500)
+            XCTAssertLessThanOrEqual(stub.clock, SecurityEventsReader.budgetSeconds + stub.secondsPerCall, "no call runs past its budget by more than one window")
+            XCTAssertGreaterThan(stub.calls.count, before, "every call moves on")
+            cursor = page.cursor
+            calls += 1
+            if SecurityCursor.decode(page.cursor) == stub.now - SecurityEventsReader.settleSeconds { break }
+        }
+        XCTAssertEqual(SecurityCursor.decode(cursor ?? ""), stub.now - SecurityEventsReader.settleSeconds, "24 hours of 1.5 s windows is caught up in a few calls")
+        XCTAssertLessThanOrEqual(calls, 10)
+        XCTAssertEqual(stub.calls.map(\.end).max(), stub.now - SecurityEventsReader.settleSeconds)
     }
 
     func testAFailingLogIsAnErrorOnTheFirstWindowAndPartialLaterOn() async throws {
