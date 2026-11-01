@@ -9,6 +9,8 @@ from contract.root_tests.fakes.loopback_ssh import SshServer
 
 PASSWORD = "Fake-Sudo-Pw-7c41e9"
 BASE_ANSWER = "os=Linux\narch=x86_64\nuser=build\nhome=/home/build\nversion=Ubuntu 24.04.1 LTS\nchip=Intel Xeon\ncpu=8\nram_mb=32108\nkvm=yes\ndisk_free_gb=412\ntool=curl\npkg=apt\nsudo=password\nport_9101=free\n"
+# What the security look prints on a fresh Ubuntu: passwords on, no ban tool, no firewall, no automatic updates, security updates waiting, a key is there.
+BASE_SECURITY = "password_login=yes\nban_tool=not_running\nfirewall=no\nauto_updates=no\nhas_key_login=yes\npending_updates=4\n"
 WINDOWS_ERROR = "'sh' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
 
 DISPATCH = """#!/bin/sh
@@ -17,7 +19,13 @@ PATH="$DIR/bin:$PATH"; export PATH
 [ "$(command -v sudo)" = "$DIR/bin/sudo" ] || exit 99
 case "$SSH_ORIGINAL_COMMAND" in
   "sh -s")
-    cat >/dev/null
+    script=$(cat)
+    case "$script" in
+      "# metaservice-security-baseline"*)
+        echo security >> "$DIR/commands.log"
+        [ -e "$DIR/state/security_fails" ] && exit 1
+        cat "$DIR/security.txt"; exit 0 ;;
+    esac
     if [ -e "$DIR/state/windows" ]; then printf '%s' "$(cat "$DIR/windows_error.txt")" >&2; exit 1; fi
     cat "$DIR/answer.txt"
     [ -e "$DIR/state/incus" ] && echo tool=incus
@@ -109,7 +117,7 @@ SIMPLE = {
 
 
 class FakeLinux(SshServer):
-    """`state(name)` switches a behaviour on: sudo_denied, passwordless, apt_lock, no_network, no_candidate, windows, initialised."""
+    """`state(name)` switches a behaviour on: security_fails (the security look exits 1), sudo_denied, passwordless, apt_lock, no_network, no_candidate, windows, initialised."""
 
     def __init__(self, password=PASSWORD):
         super().__init__(answer=None)
@@ -118,6 +126,7 @@ class FakeLinux(SshServer):
         os.makedirs(os.path.join(self.dir, "bin"))
         self._file("answer.txt", BASE_ANSWER)
         self._file("windows_error.txt", WINDOWS_ERROR)
+        self._file("security.txt", BASE_SECURITY)
         self._file("sudo_password", password)
         self._file("dispatch.sh", DISPATCH, executable=True)
         for name, template in {"sudo": SUDO, "apt-get": APT_GET, "apt-cache": APT_CACHE, "incus": INCUS, **SIMPLE}.items():
@@ -138,6 +147,13 @@ class FakeLinux(SshServer):
             open(path, "w").close()
         elif os.path.exists(path):
             os.remove(path)
+
+    def security(self, text):
+        """What the security look prints on this computer (any text, so a check can send something hostile)."""
+        self._file("security.txt", text)
+
+    def security_runs(self):
+        return self.commands().count("security\n")
 
     def has(self, name):
         return os.path.exists(os.path.join(self.dir, "state", name))

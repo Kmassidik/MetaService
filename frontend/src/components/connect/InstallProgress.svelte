@@ -65,6 +65,7 @@
   <section class="cx-card">
     <h4>Where it is</h4>
     <div class="where"><StatusMark kind="ready" /><div><span class="lbl">{job.name}</span><span class="det">Online · {where}</span></div></div>
+    <p class="after">Security: see the Security page for this machine's baseline.</p>
   </section>
   <details class="all"><summary>Show the {progress.total} steps</summary>{@render steps()}</details>
 {:else}
@@ -102,6 +103,7 @@
   .list li[data-state='pending'] .lbl { font-weight: 400; }
   .det { display: block; font-size: 12px; color: var(--m70); }
   .where { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0 8px; }
+  .after { margin: 0 0 8px; font-size: 13px; color: var(--m70); }
   .all { font-size: 13px; }
   .all summary { padding: 4px 0; color: var(--m70); text-decoration: underline; cursor: pointer; }
   .all summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }

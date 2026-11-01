@@ -516,7 +516,12 @@ export interface VerifyResult {
   can_add: boolean
   isolation: string[]
   system: string
+  /** The security baseline seen before the install; left out for a computer it cannot be read from (Windows). Each field is null when it could not be told. */
+  security?: VerifySecurity
 }
+
+/** What the read-only security look found: the Security page's checks except the one that needs the helper, plus whether the login user has an SSH key. */
+export type VerifySecurity = Omit<SecurityBaseline, 'starts_after_reboot'> & { has_key_login: boolean | null }
 
 /** The Connect form's fields. */
 export interface ConnectForm {

@@ -3,6 +3,7 @@
   // added: this is a machine that is already there ("Check again"), so the footer closes instead of adding it a second time.
   import CheckCard from './CheckCard.svelte'
   import CheckHead from './CheckHead.svelte'
+  import SecurityBaseline from './SecurityBaseline.svelte'
   import { checkCards, checkRows, stoppedEarly } from '../../lib/checkRows.ts'
   import { isolationText } from '../../lib/remote.ts'
   import type { ConnectForm, VerifyResult } from '../../lib/types.ts'
@@ -28,6 +29,7 @@
 <div class="cards">
   {#each cards as card (card.id)}<CheckCard {card} {form} fingerprint={result.fingerprint} {onChecked} />{/each}
 </div>
+{#if result.security}<SecurityBaseline security={result.security} os={result.facts.os} />{/if}
 {#if stoppedEarly(rows)}<p class="note">We stopped here, so nothing else was checked.</p>{/if}
 <p class="note"><b>Two words:</b> a VM is a whole virtual computer. A container is a small sealed box that runs one program.</p>
 {#if result.isolation.length > 0}
