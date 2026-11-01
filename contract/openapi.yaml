@@ -1026,6 +1026,18 @@ components:
         auto_updates: { type: boolean, nullable: true }
         starts_after_reboot: { type: boolean, nullable: true }
         pending_updates: { type: integer, nullable: true, minimum: 0, maximum: 100000 }
+    RemoteVerifySecurity:
+      type: object
+      required: [password_login, ban_tool, firewall, auto_updates, pending_updates, has_key_login]
+      additionalProperties: false
+      description: The optional `security` object in the answer of the panel route POST /api/remote/verify (Add machine, Verify). It is a read-only look at the computer before any helper is installed there, with the rules of SecurityBaseline except starts_after_reboot, which is not asked. Every field is null when the look could not tell; a look that fails or prints something unreadable gives all nulls and never fails the check. The object is left out for a computer it cannot be read from (Windows).
+      properties:
+        password_login: { type: boolean, nullable: true, description: 'True when SSH accepts passwords.' }
+        ban_tool: { type: string, nullable: true, enum: [running, not_running, not_available, null] }
+        firewall: { type: boolean, nullable: true }
+        auto_updates: { type: boolean, nullable: true }
+        pending_updates: { type: integer, nullable: true, minimum: 0, maximum: 100000 }
+        has_key_login: { type: boolean, nullable: true, description: 'True when the login user has at least one public key in authorized_keys, so turning password login off cannot lock that user out.' }
     SecurityHelperBaseline:
       type: object
       additionalProperties: false
