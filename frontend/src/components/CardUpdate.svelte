@@ -1,10 +1,11 @@
 <script lang="ts">
-  // The Update helper button of a machine card, with "Updating…" while it runs and the result sentence after. Same call and wording as the Environment tab.
+  // The Update helper button of a machine card (or of a Not watched row of the Security page), with "Updating…" while it runs and the result sentence after. Same call and wording as the Environment tab.
   import { cardUpdate, UPDATE_BUTTON, UPDATE_EXPLANATION, UPDATING_TEXT } from '../lib/helperUpdate.ts'
   import { HelperUpdater } from '../lib/helperUpdater.svelte.ts'
   import type { Machine } from '../lib/types.ts'
 
-  let { machine, onChanged }: { machine: Machine; onChanged: () => void } = $props()
+  /** The machine card and a row of the Security page both use it: all it needs of a machine is who it is and what its helper says. */
+  let { machine, onChanged }: { machine: Pick<Machine, 'id' | 'agent_build' | 'update' | 'state'>; onChanged: () => void } = $props()
   const updater = new HelperUpdater()
   const offer = $derived(cardUpdate(machine))
   const outcome = $derived(updater.outcome)

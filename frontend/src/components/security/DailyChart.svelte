@@ -9,7 +9,7 @@
   const VIEW_HEIGHT = 60
   const BAR_GAP = 0.2
 
-  let { chart }: { chart: ChartData } = $props()
+  let { chart, phrase }: { chart: ChartData; phrase: string } = $props()
   const slot = $derived(VIEW_WIDTH / Math.max(1, chart.labels.length))
   const first = $derived(chart.labels[0] ?? '')
   const last = $derived(chart.labels.at(-1) ?? '')
@@ -17,7 +17,7 @@
 
 <MetricCard label="Failed logins per day" hint="One small chart for each machine, all drawn on the same scale, so a tall bar on one machine is really taller than a short bar on another. A day with no bar has no count. Days are UTC days, as the parent stores them, so they are not converted to your time zone. A Mac counts SSH connections, because macOS does not log who tried.">
   {#if chart.series.length === 0}
-    <p class="none" data-testid="chart-empty">No failed logins were counted in this time range.</p>
+    <p class="none" data-testid="chart-empty">No failed logins were counted {phrase}.</p>
   {:else}
     <p class="scale">Tallest day: {numberText(chart.tallest)} · each bar is one UTC day</p>
     <div class="multiples">

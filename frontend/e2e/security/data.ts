@@ -53,7 +53,7 @@ const keyLogins = [
 
 const healthyBaseline = { password_login: false, ban_tool: 'running', firewall: true, auto_updates: true, starts_after_reboot: true, pending_updates: 0 }
 
-const machine = (id: string, os: string, extra: Json): Json => ({
+export const machine = (id: string, os: string, extra: Json): Json => ({
   id, name: id, state: 'online', os, arch: os === 'macos' ? 'arm64' : 'x86_64', ip: '192.168.1.30', cpu_cores: 16, cpu_model: 'Test CPU', ram_total_mb: 65536, disk_total_gb: 1000,
   free_ram_mb: 40000, free_disk_gb: 700, gpu: [], capabilities: { vm: true, container: true, gpu_in_vm: false, gpu_in_container: false }, last_seen: new Date().toISOString(),
   settings: { profile: 'custom', labels: [], notes: '', allow_gpu: true, public_chat: false }, problems: [], workloads: [], bundle_version: null, agent_version: '0.9.0',

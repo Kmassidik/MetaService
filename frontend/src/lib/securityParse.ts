@@ -4,7 +4,7 @@
 import { readBaseline } from './security.ts'
 import { MAX_DETAIL, MAX_TEXT, clean, flag, isRec, rows, when, whole, type Rec } from './securityPrims.ts'
 import {
-  DEFAULT_RANGE, EVENT_TYPES, MAX_EVENTS_PAGE_SIZE, RANGES, type BlockedNowRow, type DailyFailed, type EventsPage, type SecurityEvent, type SecurityEventType, type SecurityMachineLine,
+  DEFAULT_RANGE, EVENT_TYPES, MAX_EVENTS_PAGE_SIZE, RANGES, type BlockedNowRow, type BucketFailed, type DailyFailed, type EventsPage, type SecurityEvent, type SecurityEventType, type SecurityMachineLine,
   type SecurityOverview, type SecurityRange, type TopRow,
 } from './securityTypes.ts'
 import { UnreadableAnswer } from './unreadable.ts'
@@ -14,6 +14,9 @@ export const MAX_MACHINES = 100
 export const MAX_BLOCKED_NOW = 200
 export const MAX_TOP_ROWS = 50
 export const MAX_DAILY_POINTS = 5000
+/** A day holds 144 ten-minute buckets; the most buckets kept are those of every machine the panel keeps. */
+export const BUCKETS_PER_DAY = 144
+export const MAX_BUCKET_POINTS = BUCKETS_PER_DAY * MAX_MACHINES
 const MAX_ID_TEXT = 64
 const DAY_FORMAT = /^\d{4}-\d{2}-\d{2}$/
 
@@ -52,6 +55,13 @@ function dailyPoint(value: unknown): DailyFailed | null {
   return { day, machine, failed: whole(value.failed) }
 }
 
+function bucketPoint(value: unknown): BucketFailed | null {
+  if (!isRec(value)) return null
+  const machine = clean(value.machine, MAX_ID_TEXT)
+  const start = when(value.start)
+  return machine === null || start === null ? null : { start, machine, failed: whole(value.failed) }
+}
+
 function record(value: unknown, what: string): Rec {
   if (!isRec(value)) throw new UnreadableAnswer(`${what} is not an object`)
   return value
@@ -68,6 +78,8 @@ export function parseOverview(value: unknown): SecurityOverview {
     top_users: rows(body.top_users, topRow, MAX_TOP_ROWS),
     top_addresses: rows(body.top_addresses, topRow, MAX_TOP_ROWS),
     daily: rows(body.daily, dailyPoint, MAX_DAILY_POINTS),
+    buckets: rows(body.buckets, bucketPoint, MAX_BUCKET_POINTS),
+    bucket_minutes: whole(body.bucket_minutes),
   }
 }
 

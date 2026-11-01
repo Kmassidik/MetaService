@@ -10,7 +10,7 @@ const infos: MachineInfo[] = [
 
 function overview(extra: Partial<SecurityOverview> = {}): SecurityOverview {
   return {
-    range: '7d', generated_at: null, blocked_now: [], top_users: [], top_addresses: [], daily: [],
+    range: '7d', generated_at: null, blocked_now: [], top_users: [], top_addresses: [], daily: [], buckets: [], bucket_minutes: null,
     machines: [{ machine: 'a', reported: true, last_reported: '2026-11-01T11:00:00Z', baseline: { password_login: true, ban_tool: 'running', firewall: null, auto_updates: true, starts_after_reboot: true, pending_updates: 0 }, failed: 12, blocked: 0 }],
     ...extra,
   }

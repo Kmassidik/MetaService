@@ -4,6 +4,7 @@
   // numbers. The sample-data preview (#/security?preview=1) shows the same page from made-up data under a loud banner.
   import { untrack } from 'svelte'
   import BlockedNow from '../components/security/BlockedNow.svelte'
+  import BucketChart from '../components/security/BucketChart.svelte'
   import DailyChart from '../components/security/DailyChart.svelte'
   import EventLog from '../components/security/EventLog.svelte'
   import MachinesTable from '../components/security/MachinesTable.svelte'
@@ -11,18 +12,20 @@
   import SecurityHeader from '../components/security/SecurityHeader.svelte'
   import TopList from '../components/security/TopList.svelte'
   import MetricCard from '../components/monitor/MetricCard.svelte'
+  import { bucketChart } from '../lib/securityBuckets.ts'
   import { chartData } from '../lib/securityChart.ts'
+  import { RANGE_PHRASE, bucketMinutesOf, isShortRange } from '../lib/securityRanges.ts'
   import { Pager } from '../lib/pager.svelte.ts'
   import { SecurityPageData } from '../lib/securityPage.svelte.ts'
   import { parseSecurityView } from '../lib/securityRoute.ts'
-  import { NOT_COLLECTED_BANNER, anyWatched, infoOf, machineRows } from '../lib/securityView.ts'
+  import { NOT_COLLECTED_BANNER, anyWatched, infoOf, machineRows, rangeSummary } from '../lib/securityView.ts'
   import { browserZone, makeTimeFormat, type TimeMode } from '../lib/securityTime.ts'
   import type { Machine } from '../lib/types.ts'
 
   const SEARCH_PAUSE_MS = 250
 
   /** `localZone` is the viewer's own time zone; it is a prop so a test can fix it. */
-  let { machines, route, now, localZone = browserZone() }: { machines: Machine[]; route: string; now: number; localZone?: string } = $props()
+  let { machines, route, now, localZone = browserZone(), onChanged = () => {} }: { machines: Machine[]; route: string; now: number; localZone?: string; onChanged?: () => void } = $props()
   // Local or UTC times: kept for this visit to the page only, not stored anywhere.
   let timeMode = $state<TimeMode>('local')
   const time = $derived(makeTimeFormat(timeMode, localZone, now))
@@ -35,7 +38,11 @@
   const infos = $derived(view.preview ? (data.sampleMachines ?? []) : infoOf(machines))
   const rows = $derived(machineRows(infos, data.overviewPhase === 'ready' ? data.overview : null))
   const watched = $derived(rows.filter((row) => row.watched).map(({ id, name, state, os }) => ({ id, name, state, os })))
+  const short = $derived(isShortRange(range))
+  const phrase = $derived(RANGE_PHRASE[range])
+  const summary = $derived(rangeSummary(rows, range))
   const chart = $derived(chartData(data.overview?.daily ?? [], watched, view.range, now))
+  const buckets = $derived(bucketChart(data.overview?.buckets ?? [], watched, range, now, time.zone, bucketMinutesOf(data.overview?.bucket_minutes ?? null)))
   const collecting = $derived(data.overviewPhase === 'ready' && anyWatched(rows))
   let typed = $state('')
   let searched = $state('')
@@ -84,16 +91,17 @@
       {#if rows.length === 0}
         <p class="none">No machines yet. Add a machine and it will be listed here.</p>
       {:else}
-        <MachinesTable {rows} {now} {time} />
+        <MachinesTable {rows} {now} {time} {onChanged} />
       {/if}
     </MetricCard>
   {/if}
   {#if collecting}
-    <DailyChart {chart} />
+    {#if summary}<p class="summary" data-testid="range-summary">{summary}</p>{/if}
+    {#if short}<BucketChart chart={buckets} {phrase} zoneLabel={time.label} />{:else}<DailyChart {chart} {phrase} />{/if}
     <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} {time} />
     <div class="pair">
-      <TopList label="User names the bots try" hint="The user names failed logins used most in this time range. Attackers guess common names." rows={data.overview?.top_users ?? []} testId="top-users" />
-      <TopList label="Addresses attacking most" hint="The addresses with the most failed logins in this time range." rows={data.overview?.top_addresses ?? []} testId="top-addresses" />
+      <TopList label="User names the bots try" hint="The user names failed logins used most in this time range. Attackers guess common names." rows={data.overview?.top_users ?? []} testId="top-users" {phrase} />
+      <TopList label="Addresses attacking most" hint="The addresses with the most failed logins in this time range." rows={data.overview?.top_addresses ?? []} testId="top-addresses" {phrase} />
     </div>
   {/if}
   {#if data.overviewPhase !== 'loading'}
@@ -102,6 +110,7 @@
 </div>
 
 <style>
+  .summary { margin: 0; font-size: 13px; color: var(--m60); }
   .none { margin: 0; font-size: 13px; color: var(--m60); }
   .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
   .body { min-width: 0; }

@@ -2,10 +2,14 @@
 // has not reported is "Not watched", never a row of zeros), the top lists, and the plain words around them. Pure functions; the components only draw what these return.
 import { baselineRows, type BaselineRow } from './securityRules.ts'
 import { EVENT_TYPE_LABELS, type SecurityEvent, type SecurityOverview, type TopRow } from './securityTypes.ts'
-import type { Machine, MachineState } from './types.ts'
+import { RANGE_PHRASE } from './securityRanges.ts'
+import type { SecurityRange } from './securityTypes.ts'
+import type { HelperUpdateInfo, Machine, MachineState } from './types.ts'
 
-/** The plain line a machine without security data gets. */
-export const NOT_WATCHED_LINE = 'no security data yet'
+/** The plain line a machine that is online but sends no security data gets. */
+export const NOT_WATCHED_LINE = 'No security data yet: its helper may be old'
+/** The line of a machine that is switched off or cannot be reached: nothing can be asked of it now, and no button is offered. */
+export const OFFLINE_LINE = 'The machine is offline.'
 export const NOT_WATCHED_LABEL = 'Not watched'
 /** The banner when the parent has no security API at all. */
 export const NOT_COLLECTED_BANNER = 'Security data is not collected yet. Nothing here is being watched.'
@@ -19,6 +23,9 @@ export interface MachineInfo {
   state: MachineState
   /** The operating system the machine reported ("macos", "linux"). */
   os: string
+  /** The helper program's build and whether a newer one is on offer (the Update helper button of a machine that is not watched). */
+  agent_build?: string | null
+  update?: HelperUpdateInfo
 }
 
 export interface MachineSecurityRow extends MachineInfo {
@@ -30,7 +37,11 @@ export interface MachineSecurityRow extends MachineInfo {
   blocked: number | null
 }
 
-export const infoOf = (machines: Machine[]): MachineInfo[] => machines.map(({ id, name, state, os }) => ({ id, name, state, os }))
+export const infoOf = (machines: Machine[]): MachineInfo[] =>
+  machines.map(({ id, name, state, os, agent_build, update }) => ({ id, name, state, os, ...(agent_build === undefined ? {} : { agent_build }), ...(update === undefined ? {} : { update }) }))
+
+/** What a machine that does not report says in its Baseline cell, besides the Not watched tag. Never a number. */
+export const notWatchedLine = (row: Pick<MachineSecurityRow, 'state'>): string => (row.state === 'offline' ? OFFLINE_LINE : NOT_WATCHED_LINE)
 
 /** One row per machine, in the order the machines came, whether or not the overview mentions them. */
 export function machineRows(infos: MachineInfo[], overview: SecurityOverview | null): MachineSecurityRow[] {
@@ -93,4 +104,15 @@ export function eventTone(event: SecurityEvent): 'run' | 'warn' | '' {
   if (isConnectionCount(event)) return ''
   if (isPasswordLogin(event) || event.type === 'blocked') return 'warn'
   return event.type === 'login' ? 'run' : ''
+}
+
+/** One plain sentence on the range: failed logins on the watched Linux machines and SSH connections on the Macs, in the range's own words ("in the last 6 hours"). Null when nothing is watched. */
+export function rangeSummary(rows: MachineSecurityRow[], range: SecurityRange): string | null {
+  const watched = rows.filter((row) => row.watched)
+  if (watched.length === 0) return null
+  const sum = (part: MachineSecurityRow[]): number => part.reduce((total, row) => total + (row.failed ?? 0), 0)
+  const macs = watched.filter((row) => isMacOs(row.os))
+  const others = watched.filter((row) => !isMacOs(row.os))
+  const parts = [others.length > 0 ? countText(sum(others), 'failed login', 'failed logins') : null, macs.length > 0 ? countText(sum(macs), 'SSH connection', 'SSH connections') : null]
+  return `${parts.filter((part) => part !== null).join(' and ')} ${RANGE_PHRASE[range]}.`
 }

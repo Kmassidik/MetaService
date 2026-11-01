@@ -82,3 +82,17 @@ export function makeTimeFormat(mode: TimeMode, localZone: string, at: number): T
   const zone = mode === 'utc' ? UTC_ZONE : localZone
   return { mode, zone, label: zoneName(zone, at), show: (iso) => formatTime(iso, zone), title: (iso) => timeTitle(iso, localZone) }
 }
+
+/** "15:40": the clock time of a moment in `zone`, for the axis of the short-range chart. */
+export function clockLabel(ms: number, zone: string): string {
+  const parts = partsOf(ms, zone)
+  return `${parts.hour}:${parts.minute}`
+}
+
+const MINUTES_PER_HOUR = 60
+
+/** The minute of the day (0 to 1439) a moment falls on in `zone`; ticks of the chart sit on whole hours of the viewer's own clock. */
+export function minuteOfDay(ms: number, zone: string): number {
+  const parts = partsOf(ms, zone)
+  return Number(parts.hour) * MINUTES_PER_HOUR + Number(parts.minute)
+}

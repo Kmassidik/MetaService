@@ -20,7 +20,10 @@ export const FAILED_ROWS_WARNING = 50
 export const BLOCK_ROWS = 10
 export const LOGIN_ROWS = 10
 export const TOTAL_ROWS = FAILED_ROWS_HEALTHY + FAILED_ROWS_WARNING + CONNECTION_ROWS + BLOCK_ROWS + LOGIN_ROWS
-export const RANGE_DAYS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
+export const RANGE_DAYS: Record<string, number> = { '1h': 1 / 24, '6h': 0.25, '12h': 0.5, '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
+/** How many ten-minute buckets each short range holds. */
+export const SHORT_BUCKETS: Record<string, number> = { '1h': 6, '6h': 36, '12h': 72, '24h': 144 }
+export const BUCKET_MS = 600_000
 /** The one address that only the warning machine sees, to search for. */
 export const NEEDLE_ADDRESS = '45.148.10.92'
 
@@ -63,6 +66,14 @@ function events(): Json[] {
 
 const baseline = { password_login: false, ban_tool: 'running', firewall: true, auto_updates: true, starts_after_reboot: true, pending_updates: 0 }
 
+/** Ten-minute counts for the short ranges: every machine's buckets, oldest first; some buckets have no row (nothing was counted then). */
+function buckets(range: string): Json[] {
+  const count = SHORT_BUCKETS[range] ?? 0
+  const last = Math.floor(Date.now() / BUCKET_MS) * BUCKET_MS
+  return [HEALTHY, WARNING, MAC].flatMap((machine, kind) => Array.from({ length: count }, (_, slot) => ({ slot, kind, machine })).filter(({ slot }) => (slot + kind) % 4 !== 0)
+    .map(({ slot, machine: id }): Json => ({ start: new Date(last - (count - 1 - slot) * BUCKET_MS).toISOString().replace('.000Z', 'Z'), machine: id, failed: 20 + ((slot * 7 + kind * 13) % 60) })))
+}
+
 function overview(range: string): Json {
   const line = (machine: string, failed: number, extra: Json): Json => ({ machine, reported: true, last_reported: ago(5 * 60_000), baseline, failed, blocked: 3, ...extra })
   const day = (machine: string, back: number, failed: number): Json => ({ day: new Date(Date.now() - back * DAY_MS).toISOString().slice(0, 10), machine, failed })
@@ -76,7 +87,8 @@ function overview(range: string): Json {
     blocked_now: [{ machine: HEALTHY, address: '185.224.128.17', since: ago(2 * HOUR_MS), until: new Date(Date.now() + 22 * HOUR_MS).toISOString(), attempts: 12 }],
     top_users: [{ name: 'ubuntu', count: 31_800 }, { name: HOSTILE_NAME, count: 900 }, { name: HOSTILE_IMG, count: 400 }, { name: 'user', count: 22_400 }],
     top_addresses: [{ name: '185.224.128.17', count: 8_000 }, { name: NEEDLE_ADDRESS, count: 4_000 }],
-    daily: [0, 1, 2, 3, 4, 5, 6].flatMap((back) => [day(HEALTHY, back, 12_000 + back * 900), day(WARNING, back, 4_000 + back * 300)]),
+    daily: range in SHORT_BUCKETS ? [] : [0, 1, 2, 3, 4, 5, 6].flatMap((back) => [day(HEALTHY, back, 12_000 + back * 900), day(WARNING, back, 4_000 + back * 300)]),
+    buckets: buckets(range), bucket_minutes: 10,
   }
 }
 

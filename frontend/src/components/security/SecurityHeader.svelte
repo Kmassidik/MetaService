@@ -14,7 +14,7 @@
 <div class="phead">
   <h1>Security</h1><span class="crumb">Infrastructure › Security</span>
   <div class="sp">
-    <div class="segmented" role="group" aria-label="Time range">
+    <div class="segmented ranges" role="group" aria-label="Time range">
       {#each RANGES as range (range)}
         <button type="button" class:on={view.range === range} aria-pressed={view.range === range} data-range={range} onclick={() => choose(range)}>{RANGE_LABELS[range]}</button>
       {/each}
@@ -32,6 +32,8 @@
 </p>
 
 <style>
+  .ranges { max-width: 100%; overflow-x: auto; }
+  .ranges button { padding: 8px 11px; white-space: nowrap; }
   .sp { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; }
   .what { margin: 0; padding: 12px 28px 0; font-size: 13px; color: var(--m60); display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: baseline; }
   .what a { font-family: var(--mono); font-size: 11px; color: var(--m50); text-decoration: underline; }

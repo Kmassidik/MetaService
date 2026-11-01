@@ -7,13 +7,14 @@
   import type { Pager } from '../../lib/pager.svelte.ts'
   import type { SecurityPageData } from '../../lib/securityPage.svelte.ts'
   import type { SecurityView } from '../../lib/securityRoute.ts'
+  import { RANGE_PHRASE } from '../../lib/securityRanges.ts'
   import type { TimeFormat } from '../../lib/securityTime.ts'
   import { eventDetailText, eventTone, eventTypeLabel, eventTypeTitle, isPasswordLogin, nameOf, type MachineInfo } from '../../lib/securityView.ts'
 
   let { data, infos, view, text = $bindable(), pager, time }: { data: SecurityPageData; infos: MachineInfo[]; view: SecurityView; text: string; pager: Pager; time: TimeFormat } = $props()
 </script>
 
-<MetricCard label="Event log" hint="Failed logins are stored as one row per day, machine, user and address with a count of tries. Blocks, unblocks and successful logins are stored one by one. Times are in your time zone; the Local | UTC switch at the top changes that. A Mac cannot say who connected, so its daily count of SSH connections is stored the same way.">
+<MetricCard label="Event log" hint="Failed logins are stored as one row per machine, user and address with a count of tries: per UTC day for 7 d and longer, per ten minutes for 1 h to 24 h. Blocks, unblocks and successful logins are stored one by one. Times are in your time zone; the Local | UTC switch at the top changes that. A Mac cannot say who connected, so its daily count of SSH connections is stored the same way.">
   <EventFilters {infos} {view} bind:text />
   {#if data.eventsPhase === 'loading'}
     <p class="none" role="status">Loading the log…</p>
@@ -22,7 +23,7 @@
   {:else if data.eventsPhase === 'missing'}
     <p class="none" role="status" data-testid="log-missing">No events are collected yet.</p>
   {:else if data.events.length === 0}
-    <p class="none" role="status" data-testid="log-empty">No events match these filters in this time range.</p>
+    <p class="none" role="status" data-testid="log-empty">No events match these filters {RANGE_PHRASE[view.range]}.</p>
   {:else}
     <div class="scroll" aria-busy={data.refreshing}>
       <table class="restable stack" data-testid="security-log">

@@ -5,14 +5,14 @@
   import type { TopRow } from '../../lib/securityTypes.ts'
   import { topShares, topShown } from '../../lib/securityView.ts'
 
-  let { label, hint, rows, testId }: { label: string; hint: string; rows: TopRow[]; testId: string } = $props()
+  let { label, hint, rows, testId, phrase }: { label: string; hint: string; rows: TopRow[]; testId: string; phrase: string } = $props()
   const shown = $derived(topShown(rows))
   const shares = $derived(topShares(shown))
 </script>
 
 <MetricCard {label} {hint}>
   {#if shown.length === 0}
-    <p class="none">Nothing counted in this time range.</p>
+    <p class="none" data-testid="{testId}-empty">Nothing counted {phrase}.</p>
   {:else}
     <ol data-testid={testId}>
       {#each shown as row, index (row.name)}

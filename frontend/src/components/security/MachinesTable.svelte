@@ -1,16 +1,18 @@
 <script lang="ts">
   // One row for every machine the panel knows. A machine that has not reported is "Not watched" with the plain line "no security data yet": its counts are dashes,
   // never zeros. A watched machine shows its six baseline checks as chips (ok, needs a look, unknown) and its failed logins and blocked addresses in the range.
+  import CardUpdate from '../CardUpdate.svelte'
   import StatePill from '../StatePill.svelte'
   import { relativeTime } from '../../lib/format.ts'
   import { machineHref } from '../../lib/routes.ts'
   import { numberText } from '../../lib/securityRules.ts'
-  import { NOT_WATCHED_LABEL, NOT_WATCHED_LINE, type MachineSecurityRow } from '../../lib/securityView.ts'
+  import { NOT_WATCHED_LABEL, notWatchedLine, type MachineSecurityRow } from '../../lib/securityView.ts'
   import type { TimeFormat } from '../../lib/securityTime.ts'
   import { CONNECTION_TOOLTIP, MAC_NOTE, isMacOs } from '../../lib/securityView.ts'
   import type { CheckState } from '../../lib/securityRules.ts'
 
-  let { rows, now, time }: { rows: MachineSecurityRow[]; now: number; time: TimeFormat } = $props()
+  /** `onChanged` reads the machines again after a helper was updated. */
+  let { rows, now, time, onChanged }: { rows: MachineSecurityRow[]; now: number; time: TimeFormat; onChanged: () => void } = $props()
   const showsMacNote = $derived(rows.some((row) => row.watched && isMacOs(row.os)))
   const TONES: Record<CheckState, string> = { ok: 'run', warning: 'warn', unknown: '' }
 </script>
@@ -30,7 +32,8 @@
                 <span class="tag {TONES[check.state]}" data-check={check.id} data-state={check.state} title={check.line}>{check.label}: {check.short}</span>
               {/each}
             {:else}
-              <span class="tag warn" data-testid="not-watched">{NOT_WATCHED_LABEL}</span><span class="muted">{NOT_WATCHED_LINE}</span>
+              <span class="tag warn" data-testid="not-watched">{NOT_WATCHED_LABEL}</span><span class="muted" data-testid="not-watched-line">{notWatchedLine(row)}</span>
+              {#if row.state !== 'offline'}<div class="help" data-testid="not-watched-help"><CardUpdate machine={row} {onChanged} /></div>{/if}
             {/if}
           </div></td>
           <td data-label="Failed" class="nums num">
@@ -51,6 +54,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
   .chips .tag { white-space: normal; }
   .num { text-align: right; }
+  .help { flex-basis: 100%; }
   .note { margin: 8px 0 0; font-size: 12px; color: var(--m60); }
   a { color: inherit; }
   :global(.restable.stack td) { padding: 10px 14px; }

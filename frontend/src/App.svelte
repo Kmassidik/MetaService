@@ -299,7 +299,7 @@
       {:else if page === 'mcp'}
         <Mcp />
       {:else if page === 'security'}
-        <Security {machines} {route} {now} />
+        <Security {machines} {route} {now} onChanged={refresh} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}

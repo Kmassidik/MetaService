@@ -1,6 +1,7 @@
 // SAMPLE DATA ONLY. Everything in this file is made up to show the Security page before the parent collects anything. Nothing here is real, and nothing outside the
 // sample-data preview (#/security?preview=1) may import this file: the real data path (securityApi.ts, securityParse.ts) never does. The numbers are modelled on what
 // the real machines see: about 96,000 failed logins in 17 days on the RTX PC from 24 addresses, about 33,000 on the DGX Spark from 38, the same few user names.
+import { bucketRows, type MockBucket } from './securityMockBuckets.ts'
 import type { BlockedNowRow, SecurityEvent } from './securityTypes.ts'
 import type { SecurityBaseline } from './types.ts'
 
@@ -18,6 +19,8 @@ export interface MockStore {
   machines: MockMachine[]
   events: SecurityEvent[]
   blocked_now: BlockedNowRow[]
+  /** Ten-minute counts of the last 24 hours, for the ranges up to 24 h. */
+  buckets: MockBucket[]
 }
 
 const HOUR_MS = 3_600_000
@@ -38,6 +41,10 @@ const SEED = 20261101
 const BOT_USERS: readonly (readonly [string, number])[] = [['ubuntu', 33], ['user', 23], ['test', 15], ['admin', 12], ['postgres', 8], ['root', 5], ['oracle', 2], ['git', 2]]
 const ADDRESS_PREFIXES = ['185.224', '45.148', '92.118', '193.32', '141.98', '80.94', '178.128', '206.189']
 const FAVOURITE_STAYS = 0.7
+const RTX_PER_BUCKET = 40
+const SPARK_PER_BUCKET = 14
+const STUDIO_PER_BUCKET = 22
+const STUDIO_ADDRESSES: string[] = []
 
 const key = { password_login: false, ban_tool: 'running', firewall: true, auto_updates: true, starts_after_reboot: true, pending_updates: 0 } as const
 
@@ -152,5 +159,10 @@ export function buildMockStore(now: number): MockStore {
     ...rtxBlocks.events, ...sparkBlocks.events,
     ...loginEvents('mac-studio', 3, now, next), ...loginEvents('rtx-5090-pc', 1, now, next), ...loginEvents('dgx-spark', 1, now, next, true),
   ]
-  return { machines: MACHINES, events, blocked_now: [...rtxBlocks.stillBlocked, ...sparkBlocks.stillBlocked] }
+  const buckets = [
+    ...bucketRows({ machine: 'rtx-5090-pc', perBucket: RTX_PER_BUCKET, addresses: rtx, user: botUser }, now, next),
+    ...bucketRows({ machine: 'dgx-spark', perBucket: SPARK_PER_BUCKET, addresses: spark, user: botUser }, now, next),
+    ...bucketRows({ machine: 'mac-studio', perBucket: STUDIO_PER_BUCKET, addresses: STUDIO_ADDRESSES, user: null }, now, next),
+  ]
+  return { machines: MACHINES, events, blocked_now: [...rtxBlocks.stillBlocked, ...sparkBlocks.stillBlocked], buckets }
 }

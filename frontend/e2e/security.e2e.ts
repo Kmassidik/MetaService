@@ -49,7 +49,7 @@ async function sidebar(b: Browse, base: string) {
   const infrastructure = items.find((group) => group.title === 'Infrastructure')
   check('the sidebar has Security in Infrastructure, below Sandboxes', infrastructure?.links?.slice(-2).join() === 'Sandboxes,Security', JSON.stringify(infrastructure))
   check('the Security item is marked as the current page', await b.run(() => document.querySelector('aside nav a[href="#/security"]')?.getAttribute('aria-current') === 'page'))
-  check('the page has its name, a one-line explanation and four time ranges', (await b.run(() => [...document.querySelectorAll('.segmented[aria-label="Time range"] button')].map((button) => button.textContent?.trim()).join('|'))) === '24 h|7 d|30 d|90 d')
+  check('the page has its name, a one-line explanation and seven time ranges', (await b.run(() => [...document.querySelectorAll('.segmented[aria-label="Time range"] button')].map((button) => button.textContent?.trim()).join('|'))) === '1 h|6 h|12 h|24 h|7 d|30 d|90 d')
   check('the Security tab is gone from the machine page', await (async () => {
     await openMachine(b, base, HEALTHY)
     return !(await b.run(() => [...document.querySelectorAll('[role=tab]')].some((tab) => tab.textContent?.trim() === 'Security')))
@@ -60,7 +60,7 @@ async function machinesTable(b: Browse, base: string) {
   await open(b, base, '/security')
   check('the machines table has a row for every machine, including the one that never reported', JSON.stringify(await machineRowIds(b)) === JSON.stringify([HEALTHY, WARNING, MAC, OLD_HELPER]), JSON.stringify(await machineRowIds(b)))
   const silent = await rowText(b, OLD_HELPER)
-  check('a machine that has not reported says "Not watched" and "no security data yet"', silent.toLowerCase().includes('not watched') && silent.includes('no security data yet'))
+  check('a machine that has not reported says "Not watched" and "no security data yet"', silent.toLowerCase().includes('not watched') && silent.includes('No security data yet: its helper may be old'))
   check('and shows no zeros', !/\d/.test(silent.replace(/\s/g, '').replace(/dgx-old/g, '')), silent)
   check('the not-watched tag is in the warning colour', await b.run(() => document.querySelector('[data-testid=not-watched]')?.classList.contains('warn') === true))
   check('a watched machine has six baseline chips and its counts', (await b.run(() => document.querySelectorAll('tr[data-machine=ubuntu-box] [data-check]').length)) === 6 && (await rowText(b, HEALTHY)).includes('96,000'))
@@ -167,7 +167,7 @@ async function eventLog(b: Browse, base: string) {
   await b.shot('security-filtered-desktop-light.png', true)
   await b.type('#sec-search', 'no-such-user-anywhere')
   await b.until(() => document.querySelector('[data-testid=log-empty]') !== null, { timeout: SHORT_WAIT_MS })
-  check('a search with no match says so in plain words', (await pageText(b)).includes('No events match these filters in this time range.'))
+  check('a search with no match says so in plain words', (await pageText(b)).includes('No events match these filters in the last 90 days.'))
   await b.type('#sec-search', '')
 
   await b.page.goto(`${base}/#/security?range=24h`, { waitUntil: 'networkidle0' })
