@@ -4,7 +4,7 @@
 // scrolling at phone width, the machine card's badge as a link, and no Security tab on the machine page. Pictures at desktop and phone width, light.
 // Run: PANEL_DIST=<dir> SHOTS_DIR=<dir> bun e2e/security.e2e.ts   (needs a built panel and Google Chrome)
 import puppeteer, { type Page } from 'puppeteer-core'
-import { BLOCK_ROWS, FAILED_ROWS_WARNING, NEEDLE_ADDRESS, PAGE_SIZE, TOTAL_ROWS, securityRoutes, type SecurityStandIn } from './security/api.ts'
+import { BLOCK_ROWS, CONNECTION_COUNT, CONNECTION_ROWS, FAILED_ROWS_WARNING, NEEDLE_ADDRESS, PAGE_SIZE, TOTAL_ROWS, securityRoutes, type SecurityStandIn } from './security/api.ts'
 import { HEALTHY, HOSTILE_IMG, HOSTILE_NAME, MAC, OLD_HELPER, WARNING, securityMachines } from './security/data.ts'
 import { startFakeParent } from './machine/fake-parent.ts'
 import { SHORT_WAIT_MS, expectNoSideScroll, openMachine } from './machine/steps.ts'
@@ -17,6 +17,12 @@ const NOT_COLLECTED = 'Security data is not collected yet. Nothing here is being
 const SAMPLE_BANNER = 'SAMPLE DATA. These numbers are made up to show the page. Nothing here is real.'
 const SAMPLE_MACHINES = ['Mac Studio', 'Mac Mini', 'DGX Spark', 'RTX 5090 PC']
 const LOG_ROWS = '[data-testid=security-log] tbody tr'
+const OWNER_ZONE = 'Asia/Jakarta'
+const OWNER_OFFSET_HOURS = 7
+const HOUR_MS = 3_600_000
+const CONNECTION_TOOLTIP = "macOS does not record who connected. This counts every SSH connection that day, including MetaService's own tunnels and your own logins."
+const MAC_NOTE = 'Mac numbers count connections, not failed logins: macOS does not log who connected.'
+const LOCAL_ZONE_LABEL = /^(GMT\+7|WIB)$/
 
 const SHOWING = '[data-testid=pagination-showing]'
 const showing = (b: Browse) => b.run((selector) => document.querySelector<HTMLElement>(selector)?.innerText ?? '', SHOWING)
@@ -43,7 +49,7 @@ async function sidebar(b: Browse, base: string) {
   const infrastructure = items.find((group) => group.title === 'Infrastructure')
   check('the sidebar has Security in Infrastructure, below Sandboxes', infrastructure?.links?.slice(-2).join() === 'Sandboxes,Security', JSON.stringify(infrastructure))
   check('the Security item is marked as the current page', await b.run(() => document.querySelector('aside nav a[href="#/security"]')?.getAttribute('aria-current') === 'page'))
-  check('the page has its name, a one-line explanation and four time ranges', (await b.run(() => [...document.querySelectorAll('.segmented button')].map((button) => button.textContent?.trim()).join('|'))) === '24 h|7 d|30 d|90 d')
+  check('the page has its name, a one-line explanation and four time ranges', (await b.run(() => [...document.querySelectorAll('.segmented[aria-label="Time range"] button')].map((button) => button.textContent?.trim()).join('|'))) === '24 h|7 d|30 d|90 d')
   check('the Security tab is gone from the machine page', await (async () => {
     await openMachine(b, base, HEALTHY)
     return !(await b.run(() => [...document.querySelectorAll('[role=tab]')].some((tab) => tab.textContent?.trim() === 'Security')))
@@ -67,6 +73,58 @@ async function machinesTable(b: Browse, base: string) {
   }))
   check('the top lists show text and at most eight rows', await b.run(() => document.querySelectorAll('[data-testid=top-users] li').length <= 8 && document.querySelectorAll('[data-testid=top-users] li').length > 0))
   await b.shot('security-real-desktop-light.png', true)
+}
+
+
+const timeHeader = (b: Browse) => b.run(() => document.querySelector('[data-testid=security-log] thead th')?.textContent?.trim() ?? '')
+const firstTime = (b: Browse) => b.run(() => {
+  const cell = document.querySelector<HTMLElement>('[data-testid=security-log] tbody td[data-label=Time]')
+  return { text: cell?.innerText.trim() ?? '', title: cell?.getAttribute('title') ?? '' }
+})
+/** "2026-11-01 08:47" read from the front of a time text, as UTC milliseconds. */
+const clockMs = (text: string) => Date.parse(`${text.slice(0, 10)}T${text.slice(11, 16)}:00Z`)
+const setTimeMode = async (b: Browse, mode: 'local' | 'utc') => {
+  await b.run((wanted) => document.querySelector<HTMLButtonElement>(`[data-testid=time-mode] [data-mode=${wanted}]`)?.click(), mode)
+  await b.until((wanted) => document.querySelector(`[data-testid=time-mode] [data-mode=${wanted}]`)?.getAttribute('aria-pressed') === 'true', { timeout: SHORT_WAIT_MS }, mode)
+}
+
+async function timeZones(b: Browse, base: string) {
+  await open(b, base, '/security')
+  await waitLogCount(b, PAGE_SIZE)
+  const local = await firstTime(b)
+  const zone = local.text.split(' ').at(-1) ?? ''
+  check('with the browser in Jakarta the log header names the local zone, not UTC', LOCAL_ZONE_LABEL.test(zone) && (await timeHeader(b)) === `Time (${zone})`, await timeHeader(b))
+  check('the first event is shown seven hours after its UTC time, with the zone', clockMs(local.text) - clockMs(local.title) === OWNER_OFFSET_HOURS * HOUR_MS, JSON.stringify(local))
+  check('its tooltip carries the UTC time', local.title.includes(' UTC'), local.title)
+  check('the switch starts on Local', await b.run(() => document.querySelector('[data-testid=time-mode] [data-mode=local]')?.getAttribute('aria-pressed') === 'true'))
+  await b.shot('security-time-local-desktop-light.png', true)
+  await setTimeMode(b, 'utc')
+  const utc = await firstTime(b)
+  check('the UTC switch shows UTC times and the header says Time (UTC)', (await timeHeader(b)) === 'Time (UTC)' && utc.text.endsWith(' UTC') && clockMs(utc.text) === clockMs(local.title), JSON.stringify(utc))
+  check('its tooltip still starts with the UTC time', utc.title.startsWith(utc.text), utc.title)
+  await b.shot('security-time-utc-desktop-light.png', true)
+  await setTimeMode(b, 'local')
+  check('Local brings the local times back', (await timeHeader(b)) === `Time (${zone})` && (await firstTime(b)).text === local.text)
+  const titles = await b.run(() => ({
+    blocked: [...document.querySelectorAll('[data-testid=security-blocked] tbody td[data-label=Since], [data-testid=security-blocked] tbody td[data-label=Until]')].map((cell) => cell.getAttribute('title') ?? ''),
+    reported: [...document.querySelectorAll('[data-testid=security-machines] td[data-label=Reported]')].filter((cell) => cell.textContent?.trim() !== 'never').map((cell) => cell.getAttribute('title') ?? ''),
+    axis: document.querySelector('[data-testid=chart-axis]')?.textContent ?? '',
+  }))
+  check('blocked since/until and last reported carry the UTC time in their tooltips', titles.blocked.length === 2 && titles.reported.length === 3 && [...titles.blocked, ...titles.reported].every((title) => / UTC/.test(title)), JSON.stringify(titles))
+  check('the chart axis says UTC days', titles.axis.includes('UTC days'), titles.axis)
+}
+
+async function macWording(b: Browse, base: string) {
+  await open(b, base, `/security?range=90d&machine=${MAC}&type=failed_login`)
+  await waitLogCount(b, CONNECTION_ROWS)
+  const types = await b.run(() => [...document.querySelectorAll('[data-testid=security-log] tbody tr[data-type=failed_login] .tag')].map((tag) => ({ text: tag.textContent?.trim(), title: tag.getAttribute('title'), warn: tag.classList.contains('warn') })))
+  check('a Mac connection count is typed SSH connections with the explaining tooltip, in the neutral colour', types.length === CONNECTION_ROWS && types.every((tag) => tag.text === 'SSH connections' && tag.title === CONNECTION_TOOLTIP && !tag.warn), JSON.stringify(types))
+  check('its detail says how many connections, not tries', (await pageText(b)).includes(`${CONNECTION_COUNT.toLocaleString('en-US')} connections`) && !(await pageText(b)).includes(' tries'))
+  await b.shot('security-mac-row-desktop-light.png', true)
+  await open(b, base, '/security')
+  const mac = await rowText(b, MAC)
+  check('the machines table says connections for the Mac and keeps plain numbers for Linux', mac.includes(`${CONNECTION_COUNT.toLocaleString('en-US')} connections`) && !(await rowText(b, HEALTHY)).includes('connections') && (await b.run(() => document.querySelector('[data-testid=security-machines] thead')?.textContent ?? '')).includes('Failed logins'), mac)
+  check('a note under the table explains the Mac numbers', (await b.run(() => document.querySelector('[data-testid=mac-note]')?.textContent?.trim())) === MAC_NOTE)
 }
 
 async function eventLog(b: Browse, base: string) {
@@ -165,6 +223,7 @@ async function preview(b: Browse, base: string) {
   }))
   check('the sample has the four machines, one that never reported', JSON.stringify(await b.run(() => [...document.querySelectorAll('[data-testid=security-machines] tbody tr')].map((row) => row.querySelector('td')?.textContent?.trim()))) === JSON.stringify(SAMPLE_MACHINES))
   check('the Mac Mini is Not watched, the RTX PC shows about 96,000 failed logins', (await rowText(b, 'mac-mini')).toLowerCase().includes('not watched') && /9\d,\d{3}/.test(await rowText(b, 'rtx-5090-pc')))
+  check('the sample shows a Mac row with connections and the note under the table', (await rowText(b, 'mac-studio')).includes('connections') && (await pageText(b)).includes('Mac numbers count connections'))
   check('the DGX Spark has password login on (a warning)', await b.run(() => document.querySelector('tr[data-machine=dgx-spark] [data-check=password_login]')?.getAttribute('data-state') === 'warning'))
   check('the sample log has a page of rows and page numbers', (await logCount(b)) === PAGE_SIZE && (await b.run(() => document.querySelector('[data-testid=pagination]') !== null)))
   check('the sample keeps the preview switch when the range changes', await (async () => {
@@ -203,6 +262,13 @@ async function phone(page: Page, b: Browse, base: string, standIn: SecurityStand
   await open(b, base, '/security?range=90d')
   await expectNoSideScroll(b, 'Security, real data, phone')
   await b.shot('security-real-phone-light.png', true)
+  await setTimeMode(b, 'utc')
+  await expectNoSideScroll(b, 'Security, UTC times, phone')
+  await b.shot('security-time-utc-phone-light.png', true)
+  await setTimeMode(b, 'local')
+  await open(b, base, `/security?range=90d&machine=${MAC}&type=failed_login`)
+  await expectNoSideScroll(b, 'Security, Mac connection rows, phone')
+  await b.shot('security-mac-row-phone-light.png', true)
   await open(b, base, '/security?preview=1')
   await expectNoSideScroll(b, 'Security, preview, phone')
   await b.shot('security-preview-phone-light.png', true)
@@ -227,8 +293,11 @@ try {
   const b = browse(page)
   await page.setViewport(SIZES.desktop)
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
+  await page.emulateTimezone(OWNER_ZONE)
   await sidebar(b, parent.base)
   await machinesTable(b, parent.base)
+  await timeZones(b, parent.base)
+  await macWording(b, parent.base)
   await eventLog(b, parent.base)
   await hostile(b, parent.base)
   await cardBadges(b, parent.base)

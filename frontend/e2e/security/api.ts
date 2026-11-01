@@ -11,11 +11,15 @@ export const MAX_PAGE_SIZE = 100
 export const BIG_LOG_ROWS = 5000
 const BIG_STEP_MS = 60_000
 /** Rows of each kind in the stand-in log: 130 in all, so the log needs three pages. */
-export const FAILED_ROWS_HEALTHY = 60
+export const FAILED_ROWS_HEALTHY = 57
+/** A Mac's daily SSH connection counts: stored as failed logins with no user and no address. */
+export const CONNECTION_ROWS = 3
+export const CONNECTION_DETAIL = 'SSH connections (macOS does not log who tried)'
+export const CONNECTION_COUNT = 3322
 export const FAILED_ROWS_WARNING = 50
 export const BLOCK_ROWS = 10
 export const LOGIN_ROWS = 10
-export const TOTAL_ROWS = FAILED_ROWS_HEALTHY + FAILED_ROWS_WARNING + BLOCK_ROWS + LOGIN_ROWS
+export const TOTAL_ROWS = FAILED_ROWS_HEALTHY + FAILED_ROWS_WARNING + CONNECTION_ROWS + BLOCK_ROWS + LOGIN_ROWS
 export const RANGE_DAYS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }
 /** The one address that only the warning machine sees, to search for. */
 export const NEEDLE_ADDRESS = '45.148.10.92'
@@ -49,8 +53,11 @@ function events(): Json[] {
     id: `l-${index}`, time: ago(index * 3 * HOUR_MS + 10 * 60_000), machine: index === 2 ? WARNING : MAC, type: 'login', user: index === 2 ? 'deploy' : 'kurnia',
     address: '202.72.223.27', detail: index === 2 ? 'Accepted password' : 'Accepted public key', method: index === 2 ? 'password' : 'key', count: null,
   }))
+  const connections = Array.from({ length: CONNECTION_ROWS }, (_, index): Json => ({
+    id: `c-${index}`, time: ago(index * 4 * HOUR_MS + 10 * 60_000), machine: MAC, type: 'failed_login', user: null, address: null, detail: CONNECTION_DETAIL, count: CONNECTION_COUNT - index,
+  }))
   return [
-    ...Array.from({ length: FAILED_ROWS_HEALTHY }, (_, index) => failed(HEALTHY, index)), ...Array.from({ length: FAILED_ROWS_WARNING }, (_, index) => failed(WARNING, index)), ...blocks, ...logins,
+    ...connections, ...Array.from({ length: FAILED_ROWS_HEALTHY }, (_, index) => failed(HEALTHY, index)), ...Array.from({ length: FAILED_ROWS_WARNING }, (_, index) => failed(WARNING, index)), ...blocks, ...logins,
   ].sort((a, b) => String(b.time).localeCompare(String(a.time)))
 }
 
@@ -64,7 +71,7 @@ function overview(range: string): Json {
     machines: [
       line(HEALTHY, 96_000, {}),
       line(WARNING, 33_000, { baseline: { ...baseline, password_login: true, ban_tool: 'not_running', firewall: false, pending_updates: 7 } }),
-      line(MAC, 600, { blocked: null, baseline: { ...baseline, ban_tool: 'not_available', starts_after_reboot: null } }),
+      line(MAC, CONNECTION_COUNT, { blocked: null, baseline: { ...baseline, ban_tool: 'not_available', starts_after_reboot: null } }),
     ],
     blocked_now: [{ machine: HEALTHY, address: '185.224.128.17', since: ago(2 * HOUR_MS), until: new Date(Date.now() + 22 * HOUR_MS).toISOString(), attempts: 12 }],
     top_users: [{ name: 'ubuntu', count: 31_800 }, { name: HOSTILE_NAME, count: 900 }, { name: HOSTILE_IMG, count: 400 }, { name: 'user', count: 22_400 }],
