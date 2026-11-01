@@ -82,7 +82,7 @@ pub fn unit_text(box_dir: &Path, arguments: &[String]) -> Result<String, String>
     let folder = check_box(box_dir)?;
     let words = arguments.iter().map(|word| unit_word(word)).collect::<Result<Vec<_>, _>>()?.join(" ");
     Ok(format!(
-        "[Unit]\nDescription=MetaService helper ({folder})\nAfter=network-online.target\n\n\
+        "[Unit]\nDescription=MetaService helper ({folder})\n\n\
          [Service]\nType=simple\nWorkingDirectory={folder}\nExecStart={folder}/bin/{PROGRAM} {words}\n\
          ExecStartPost=-/bin/sh -c 'echo ${{MAINPID}} > {folder}/{PID_FILE}'\n\
          Restart=on-failure\nRestartSec={RESTART_SECONDS}\n\n[Install]\nWantedBy=default.target\n"
@@ -120,7 +120,7 @@ mod tests {
     fn the_unit_text_is_exact() {
         let arguments = start_arguments(START).unwrap();
         let text = unit_text(Path::new("/home/kurnia/metaservice-box"), &arguments).unwrap();
-        let expected = "[Unit]\nDescription=MetaService helper (/home/kurnia/metaservice-box)\nAfter=network-online.target\n\n\
+        let expected = "[Unit]\nDescription=MetaService helper (/home/kurnia/metaservice-box)\n\n\
             [Service]\nType=simple\nWorkingDirectory=/home/kurnia/metaservice-box\n\
             ExecStart=/home/kurnia/metaservice-box/bin/metaservice-agent run --state-dir state --engine incus --port 9101 --bind 127.0.0.1 --chat-port 9200 --chat-bind 127.0.0.1 --heartbeat-seconds 5\n\
             ExecStartPost=-/bin/sh -c 'echo ${MAINPID} > /home/kurnia/metaservice-box/state/agent.pid'\n\
