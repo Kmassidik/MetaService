@@ -65,7 +65,14 @@ func stopOnSignal(_ supervisor: ChatSupervisor?) {
 
 nonisolated(unsafe) var signalSources: [DispatchSourceSignal] = []
 
+/// The helper writes its own pid beside the token files, so stop.sh and the update find it when launchd started it and start.sh did not.
+func writePidFile(_ config: AgentConfig) throws {
+    try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try "\(getpid())\n".write(toFile: config.stateDirectory + "/agent.pid", atomically: true, encoding: .utf8)
+}
+
 func runAgent(_ config: AgentConfig) async throws {
+    try writePidFile(config)
     let commandToken = try readToken(config.commandTokenFile)
     let probe = await SystemProbe.measure()
     let budget = SpaceBudget(ramTotalMb: probe.specs.ramTotalMb, diskTotalGb: probe.specs.diskTotalGb, ramAllowanceMb: config.ramAllowanceMb, diskAllowanceGb: config.diskAllowanceGb,
@@ -123,6 +130,10 @@ if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--export-rootf
     } catch {
         fail("\(error)")
     }
+}
+
+if CommandLine.arguments.dropFirst().first == AutostartCommand.verb {
+    exit(await AutostartCommand.run(Array(CommandLine.arguments.dropFirst(2))))
 }
 
 do {
