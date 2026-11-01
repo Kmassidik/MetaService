@@ -7,13 +7,13 @@
   import type { Pager } from '../../lib/pager.svelte.ts'
   import type { SecurityPageData } from '../../lib/securityPage.svelte.ts'
   import type { SecurityView } from '../../lib/securityRoute.ts'
-  import { EVENT_TYPE_LABELS } from '../../lib/securityTypes.ts'
-  import { eventDetailText, eventTimeText, eventTone, isPasswordLogin, nameOf, type MachineInfo } from '../../lib/securityView.ts'
+  import type { TimeFormat } from '../../lib/securityTime.ts'
+  import { eventDetailText, eventTone, eventTypeLabel, eventTypeTitle, isPasswordLogin, nameOf, type MachineInfo } from '../../lib/securityView.ts'
 
-  let { data, infos, view, text = $bindable(), pager }: { data: SecurityPageData; infos: MachineInfo[]; view: SecurityView; text: string; pager: Pager } = $props()
+  let { data, infos, view, text = $bindable(), pager, time }: { data: SecurityPageData; infos: MachineInfo[]; view: SecurityView; text: string; pager: Pager; time: TimeFormat } = $props()
 </script>
 
-<MetricCard label="Event log" hint="Failed logins are stored as one row per day, machine, user and address with a count of tries. Blocks, unblocks and successful logins are stored one by one. Times are UTC.">
+<MetricCard label="Event log" hint="Failed logins are stored as one row per day, machine, user and address with a count of tries. Blocks, unblocks and successful logins are stored one by one. Times are in your time zone; the Local | UTC switch at the top changes that. A Mac cannot say who connected, so its daily count of SSH connections is stored the same way.">
   <EventFilters {infos} {view} bind:text />
   {#if data.eventsPhase === 'loading'}
     <p class="none" role="status">Loading the log…</p>
@@ -26,13 +26,13 @@
   {:else}
     <div class="scroll" aria-busy={data.refreshing}>
       <table class="restable stack" data-testid="security-log">
-        <thead><tr><th>Time (UTC)</th><th>Machine</th><th>Type</th><th>User</th><th>Address</th><th>Detail</th></tr></thead>
+        <thead><tr><th>Time ({time.label})</th><th>Machine</th><th>Type</th><th>User</th><th>Address</th><th>Detail</th></tr></thead>
         <tbody>
           {#each data.events as event (event.id)}
             <tr data-type={event.type} data-method={event.method ?? undefined} class:pwd={isPasswordLogin(event)}>
-              <td data-label="Time" class="when" title={event.time}>{eventTimeText(event.time)}</td>
+              <td data-label="Time" class="when" title={time.title(event.time)}>{time.show(event.time)}</td>
               <td data-label="Machine">{nameOf(infos, event.machine)}</td>
-              <td data-label="Type"><span class="tag {eventTone(event)}">{EVENT_TYPE_LABELS[event.type]}</span></td>
+              <td data-label="Type"><span class="tag {eventTone(event)}" title={eventTypeTitle(event)} data-connections={eventTypeTitle(event) === undefined ? undefined : true}>{eventTypeLabel(event)}</span></td>
               <td data-label="User" class="plain">{event.user ?? '–'}</td>
               <td data-label="Address" class="plain">{event.address ?? '–'}</td>
               <td data-label="Detail" class="detail">{eventDetailText(event) || '–'}</td>

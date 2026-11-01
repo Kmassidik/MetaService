@@ -6,9 +6,12 @@
   import { machineHref } from '../../lib/routes.ts'
   import { numberText } from '../../lib/securityRules.ts'
   import { NOT_WATCHED_LABEL, NOT_WATCHED_LINE, type MachineSecurityRow } from '../../lib/securityView.ts'
+  import type { TimeFormat } from '../../lib/securityTime.ts'
+  import { CONNECTION_TOOLTIP, MAC_NOTE, isMacOs } from '../../lib/securityView.ts'
   import type { CheckState } from '../../lib/securityRules.ts'
 
-  let { rows, now }: { rows: MachineSecurityRow[]; now: number } = $props()
+  let { rows, now, time }: { rows: MachineSecurityRow[]; now: number; time: TimeFormat } = $props()
+  const showsMacNote = $derived(rows.some((row) => row.watched && isMacOs(row.os)))
   const TONES: Record<CheckState, string> = { ok: 'run', warning: 'warn', unknown: '' }
 </script>
 
@@ -20,7 +23,7 @@
         <tr data-machine={row.id} data-watched={row.watched}>
           <td data-label="Machine" class="c-name"><a href={machineHref(row.id)}>{row.name}</a></td>
           <td data-label="Status"><StatePill state={row.state} /></td>
-          <td data-label="Reported" class="muted" title={row.lastReported ?? ''}>{row.watched ? relativeTime(row.lastReported, now) : 'never'}</td>
+          <td data-label="Reported" class="muted" title={time.title(row.lastReported)}>{row.watched ? relativeTime(row.lastReported, now) : 'never'}</td>
           <td data-label="Baseline"><div class="chips">
             {#if row.watched}
               {#each row.checks as check (check.id)}
@@ -30,19 +33,25 @@
               <span class="tag warn" data-testid="not-watched">{NOT_WATCHED_LABEL}</span><span class="muted">{NOT_WATCHED_LINE}</span>
             {/if}
           </div></td>
-          <td data-label="Failed" class="nums num">{numberText(row.failed)}</td>
+          <td data-label="Failed" class="nums num">
+            {#if row.watched && isMacOs(row.os) && row.failed !== null}
+              <span title={CONNECTION_TOOLTIP} data-connections>{numberText(row.failed)} connections</span>
+            {:else}{numberText(row.failed)}{/if}
+          </td>
           <td data-label="Blocked" class="nums num">{numberText(row.blocked)}</td>
         </tr>
       {/each}
     </tbody>
   </table>
 </div>
+{#if showsMacNote}<p class="note" data-testid="mac-note">{MAC_NOTE}</p>{/if}
 
 <style>
   .scroll { overflow-x: auto; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
   .chips .tag { white-space: normal; }
   .num { text-align: right; }
+  .note { margin: 8px 0 0; font-size: 12px; color: var(--m60); }
   a { color: inherit; }
   :global(.restable.stack td) { padding: 10px 14px; }
   @media (max-width: 820px) {

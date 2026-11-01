@@ -6,9 +6,10 @@
   import { relativeTime } from '../../lib/format.ts'
   import { blockEndText, numberText } from '../../lib/securityRules.ts'
   import type { BlockedNowRow } from '../../lib/securityTypes.ts'
+  import type { TimeFormat } from '../../lib/securityTime.ts'
   import { nameOf, type MachineInfo } from '../../lib/securityView.ts'
 
-  let { rows, infos, now }: { rows: BlockedNowRow[]; infos: MachineInfo[]; now: number } = $props()
+  let { rows, infos, now, time }: { rows: BlockedNowRow[]; infos: MachineInfo[]; now: number; time: TimeFormat } = $props()
   const pager = new Pager('blocked-now')
   const shown = $derived(pager.slice(rows))
 </script>
@@ -25,8 +26,8 @@
             <tr>
               <td data-label="Address" class="addr">{row.address}</td>
               <td data-label="Machine">{nameOf(infos, row.machine)}</td>
-              <td data-label="Since" title={row.since ?? ''}>{row.since === null ? '–' : relativeTime(row.since, now)}</td>
-              <td data-label="Until" title={row.until ?? ''}>{blockEndText(row.until, now)}</td>
+              <td data-label="Since" title={time.title(row.since)}>{row.since === null ? '–' : relativeTime(row.since, now)}</td>
+              <td data-label="Until" title={time.title(row.until)}>{blockEndText(row.until, now)}</td>
               <td data-label="Attempts" class="nums num">{numberText(row.attempts)}</td>
             </tr>
           {/each}

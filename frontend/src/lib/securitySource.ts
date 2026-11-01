@@ -13,5 +13,5 @@ export async function loadSource(preview: boolean, now: number): Promise<LoadedS
   if (!preview) return { source: realSource, machines: null }
   const { mockPreview } = await import('./securityMockSource.ts')
   const sample = mockPreview(now)
-  return { source: sample.source, machines: sample.machines.map(({ id, name, state }) => ({ id, name, state })) }
+  return { source: sample.source, machines: sample.machines.map(({ id, name, state, os }) => ({ id, name, state, os })) }
 }

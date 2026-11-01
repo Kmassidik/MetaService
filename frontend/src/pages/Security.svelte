@@ -16,11 +16,16 @@
   import { SecurityPageData } from '../lib/securityPage.svelte.ts'
   import { parseSecurityView } from '../lib/securityRoute.ts'
   import { NOT_COLLECTED_BANNER, anyWatched, infoOf, machineRows } from '../lib/securityView.ts'
+  import { browserZone, makeTimeFormat, type TimeMode } from '../lib/securityTime.ts'
   import type { Machine } from '../lib/types.ts'
 
   const SEARCH_PAUSE_MS = 250
 
-  let { machines, route, now }: { machines: Machine[]; route: string; now: number } = $props()
+  /** `localZone` is the viewer's own time zone; it is a prop so a test can fix it. */
+  let { machines, route, now, localZone = browserZone() }: { machines: Machine[]; route: string; now: number; localZone?: string } = $props()
+  // Local or UTC times: kept for this visit to the page only, not stored anywhere.
+  let timeMode = $state<TimeMode>('local')
+  const time = $derived(makeTimeFormat(timeMode, localZone, now))
   const data = new SecurityPageData()
   const view = $derived(parseSecurityView(route))
   // Single values, so a change of machine or type in the address does not reload what did not change (the overview follows only the range and the preview switch).
@@ -29,7 +34,7 @@
   /** The sample's own machines in preview, the panel's machines otherwise. */
   const infos = $derived(view.preview ? (data.sampleMachines ?? []) : infoOf(machines))
   const rows = $derived(machineRows(infos, data.overviewPhase === 'ready' ? data.overview : null))
-  const watched = $derived(rows.filter((row) => row.watched).map(({ id, name, state }) => ({ id, name, state })))
+  const watched = $derived(rows.filter((row) => row.watched).map(({ id, name, state, os }) => ({ id, name, state, os })))
   const chart = $derived(chartData(data.overview?.daily ?? [], watched, view.range, now))
   const collecting = $derived(data.overviewPhase === 'ready' && anyWatched(rows))
   let typed = $state('')
@@ -65,7 +70,7 @@
 </script>
 
 {#if view.preview}<PreviewBanner {view} />{/if}
-<SecurityHeader {view} />
+<SecurityHeader {view} bind:timeMode />
 {#if data.overviewPhase === 'missing'}
   <p class="banner" role="status" data-testid="not-collected">{NOT_COLLECTED_BANNER}</p>
 {:else if data.overviewPhase === 'error'}
@@ -79,20 +84,20 @@
       {#if rows.length === 0}
         <p class="none">No machines yet. Add a machine and it will be listed here.</p>
       {:else}
-        <MachinesTable {rows} {now} />
+        <MachinesTable {rows} {now} {time} />
       {/if}
     </MetricCard>
   {/if}
   {#if collecting}
     <DailyChart {chart} />
-    <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} />
+    <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} {time} />
     <div class="pair">
       <TopList label="User names the bots try" hint="The user names failed logins used most in this time range. Attackers guess common names." rows={data.overview?.top_users ?? []} testId="top-users" />
       <TopList label="Addresses attacking most" hint="The addresses with the most failed logins in this time range." rows={data.overview?.top_addresses ?? []} testId="top-addresses" />
     </div>
   {/if}
   {#if data.overviewPhase !== 'loading'}
-    <EventLog {data} {infos} {view} {pager} bind:text={typed} />
+    <EventLog {data} {infos} {view} {pager} {time} bind:text={typed} />
   {/if}
 </div>
 

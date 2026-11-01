@@ -1,7 +1,7 @@
 // What the Security page shows, worked out from the machines the panel knows and the overview the parent gave: one table line for EVERY machine (a machine that
 // has not reported is "Not watched", never a row of zeros), the top lists, and the plain words around them. Pure functions; the components only draw what these return.
 import { baselineRows, type BaselineRow } from './securityRules.ts'
-import type { SecurityEvent, SecurityOverview, TopRow } from './securityTypes.ts'
+import { EVENT_TYPE_LABELS, type SecurityEvent, type SecurityOverview, type TopRow } from './securityTypes.ts'
 import type { Machine, MachineState } from './types.ts'
 
 /** The plain line a machine without security data gets. */
@@ -17,6 +17,8 @@ export interface MachineInfo {
   id: string
   name: string
   state: MachineState
+  /** The operating system the machine reported ("macos", "linux"). */
+  os: string
 }
 
 export interface MachineSecurityRow extends MachineInfo {
@@ -28,7 +30,7 @@ export interface MachineSecurityRow extends MachineInfo {
   blocked: number | null
 }
 
-export const infoOf = (machines: Machine[]): MachineInfo[] => machines.map(({ id, name, state }) => ({ id, name, state }))
+export const infoOf = (machines: Machine[]): MachineInfo[] => machines.map(({ id, name, state, os }) => ({ id, name, state, os }))
 
 /** One row per machine, in the order the machines came, whether or not the overview mentions them. */
 export function machineRows(infos: MachineInfo[], overview: SecurityOverview | null): MachineSecurityRow[] {
@@ -54,17 +56,32 @@ export function topShares(rows: TopRow[]): number[] {
 /** True when at least one machine is watched, so the page has something to say about the range. */
 export const anyWatched = (rows: MachineSecurityRow[]): boolean => rows.some((row) => row.watched)
 
-const MINUTES_END = 16
+/** The words the parent stores for a Mac's daily count of SSH connections (macOS does not log who connected, so it is saved as a failed login without user or address). */
+export const CONNECTION_DETAIL_PREFIX = 'SSH connections'
+export const CONNECTION_TYPE_LABEL = 'SSH connections'
+export const CONNECTION_TOOLTIP = "macOS does not record who connected. This counts every SSH connection that day, including MetaService's own tunnels and your own logins."
+export const MAC_NOTE = 'Mac numbers count connections, not failed logins: macOS does not log who connected.'
+const MAC_OS_NAMES: readonly string[] = ['macos', 'darwin']
 
-/** The time of a log row as "2026-11-01 10:00" in UTC; a dash when it cannot be read. */
-export function eventTimeText(iso: string): string {
-  const ms = Date.parse(iso)
-  return Number.isNaN(ms) ? '–' : new Date(ms).toISOString().slice(0, MINUTES_END).replace('T', ' ')
-}
+/** True for a machine that runs macOS. */
+export const isMacOs = (os: string): boolean => MAC_OS_NAMES.includes(os.trim().toLowerCase())
 
-/** The detail column: for a failed login how many tries the row stands for, then what the helper said. */
+/** True for a Mac's daily count of SSH connections: a failed login with no user, no address and the detail the parent gives it. */
+export const isConnectionCount = (event: SecurityEvent): boolean =>
+  event.type === 'failed_login' && event.user === null && event.address === null && (event.detail ?? '').startsWith(CONNECTION_DETAIL_PREFIX)
+
+/** The type column: the name of the event type, or "SSH connections" for a Mac's connection count. */
+export const eventTypeLabel = (event: SecurityEvent): string => (isConnectionCount(event) ? CONNECTION_TYPE_LABEL : EVENT_TYPE_LABELS[event.type])
+
+/** The tooltip of the type tag; only a connection count has one. */
+export const eventTypeTitle = (event: SecurityEvent): string | undefined => (isConnectionCount(event) ? CONNECTION_TOOLTIP : undefined)
+
+const countText = (count: number, one: string, many: string): string => `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`
+
+/** The detail column: for a failed login how many tries the row stands for, then what the helper said. A connection count says connections and leaves out the helper's wording. */
 export function eventDetailText(event: SecurityEvent): string {
-  const tries = event.count === null ? null : `${event.count.toLocaleString('en-US')} ${event.count === 1 ? 'try' : 'tries'}`
+  if (isConnectionCount(event)) return event.count === null ? '' : countText(event.count, 'connection', 'connections')
+  const tries = event.count === null ? null : countText(event.count, 'try', 'tries')
   return [tries, event.detail].filter((part) => part !== null).join(' · ')
 }
 
@@ -73,6 +90,7 @@ export const isPasswordLogin = (event: SecurityEvent): boolean => event.type ===
 
 /** The colour of the type tag: a password login and a block are marked, a key login is fine, the rest are plain. */
 export function eventTone(event: SecurityEvent): 'run' | 'warn' | '' {
+  if (isConnectionCount(event)) return ''
   if (isPasswordLogin(event) || event.type === 'blocked') return 'warn'
   return event.type === 'login' ? 'run' : ''
 }

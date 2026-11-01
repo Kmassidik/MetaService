@@ -15,22 +15,22 @@
   const last = $derived(chart.labels.at(-1) ?? '')
 </script>
 
-<MetricCard label="Failed logins per day" hint="One small chart for each machine, all drawn on the same scale, so a tall bar on one machine is really taller than a short bar on another. A day with no bar has no count.">
+<MetricCard label="Failed logins per day" hint="One small chart for each machine, all drawn on the same scale, so a tall bar on one machine is really taller than a short bar on another. A day with no bar has no count. Days are UTC days, as the parent stores them, so they are not converted to your time zone. A Mac counts SSH connections, because macOS does not log who tried.">
   {#if chart.series.length === 0}
     <p class="none" data-testid="chart-empty">No failed logins were counted in this time range.</p>
   {:else}
-    <p class="scale">Tallest day: {numberText(chart.tallest)}</p>
+    <p class="scale">Tallest day: {numberText(chart.tallest)} · each bar is one UTC day</p>
     <div class="multiples">
       {#each chart.series as series (series.id)}
         <figure data-testid="chart-{series.id}">
-          <figcaption><b>{series.name}</b><span class="nums">{numberText(series.total)} in total</span></figcaption>
-          <svg viewBox="0 0 {VIEW_WIDTH} {VIEW_HEIGHT}" preserveAspectRatio="none" role="img" aria-label="{series.name}: failed logins per day, {first} to {last}, tallest day of all machines {numberText(chart.tallest)}">
+          <figcaption><b>{series.name}</b><span class="nums">{numberText(series.total)} {series.connections ? 'connections ' : ''}in total</span></figcaption>
+          <svg viewBox="0 0 {VIEW_WIDTH} {VIEW_HEIGHT}" preserveAspectRatio="none" role="img" aria-label="{series.name}: {series.connections ? 'SSH connections' : 'failed logins'} per UTC day, {first} to {last}, tallest day of all machines {numberText(chart.tallest)}">
             <line x1="0" x2={VIEW_WIDTH} y1={VIEW_HEIGHT - 0.5} y2={VIEW_HEIGHT - 0.5} />
             {#each series.days as day, index (index)}
               {@const share = barShare(day, chart.tallest)}
               {#if share !== null}
                 <rect x={index * slot + (slot * BAR_GAP) / 2} y={VIEW_HEIGHT - share * VIEW_HEIGHT} width={slot * (1 - BAR_GAP)} height={share * VIEW_HEIGHT}>
-                  <title>{chart.labels[index]}: {numberText(day)} failed</title>
+                  <title>{chart.labels[index]} (UTC day): {numberText(day)} {series.connections ? 'connections' : 'failed'}</title>
                 </rect>
               {/if}
             {/each}
@@ -38,7 +38,7 @@
         </figure>
       {/each}
     </div>
-    <div class="ends"><span>{first}</span><span>{last}</span></div>
+    <div class="ends" data-testid="chart-axis"><span>{first}</span><span>UTC days</span><span>{last}</span></div>
   {/if}
 </MetricCard>
 

@@ -5,7 +5,7 @@ import type { SecurityOverview } from './securityTypes.ts'
 
 const NOW = Date.parse('2026-11-01T12:00:00Z')
 const infos: MachineInfo[] = [
-  { id: 'a', name: 'Alpha', state: 'online' }, { id: 'b', name: 'Beta', state: 'offline' }, { id: 'c', name: 'Gamma', state: 'online' },
+  { id: 'a', name: 'Alpha', state: 'online', os: 'linux' }, { id: 'b', name: 'Beta', state: 'offline', os: 'linux' }, { id: 'c', name: 'Gamma', state: 'online', os: 'macos' },
 ]
 
 function overview(extra: Partial<SecurityOverview> = {}): SecurityOverview {

@@ -8,6 +8,7 @@ export interface MockMachine {
   id: string
   name: string
   state: 'online' | 'busy' | 'offline'
+  os: 'macos' | 'linux'
   /** False for the machine that has never reported: it has no line in the overview. */
   reports: boolean
   baseline: SecurityBaseline
@@ -26,8 +27,9 @@ const RTX_FAILED = 96_000
 const RTX_ADDRESSES = 24
 const SPARK_FAILED = 33_000
 const SPARK_ADDRESSES = 38
-const STUDIO_FAILED = 640
-const STUDIO_ADDRESSES = 3
+const STUDIO_CONNECTIONS_MIN = 2_800
+const STUDIO_CONNECTIONS_SPREAD = 900
+const STUDIO_CONNECTION_DETAIL = 'SSH connections (macOS does not log who tried)'
 const BLOCK_LASTS_MS = DAY_MS
 const OWNER_ADDRESS = '202.72.223.27'
 const KEY_LOGIN_ADDRESSES = [OWNER_ADDRESS, '198.51.100.23', '203.0.113.88']
@@ -40,10 +42,10 @@ const FAVOURITE_STAYS = 0.7
 const key = { password_login: false, ban_tool: 'running', firewall: true, auto_updates: true, starts_after_reboot: true, pending_updates: 0 } as const
 
 const MACHINES: MockMachine[] = [
-  { id: 'mac-studio', name: 'Mac Studio', state: 'online', reports: true, baseline: { ...key, ban_tool: 'not_available' } },
-  { id: 'mac-mini', name: 'Mac Mini', state: 'online', reports: false, baseline: { ...key } },
-  { id: 'dgx-spark', name: 'DGX Spark', state: 'online', reports: true, baseline: { ...key, password_login: true, pending_updates: 4 } },
-  { id: 'rtx-5090-pc', name: 'RTX 5090 PC', state: 'online', reports: true, baseline: { ...key, auto_updates: false, pending_updates: 2 } },
+  { id: 'mac-studio', name: 'Mac Studio', state: 'online', os: 'macos', reports: true, baseline: { ...key, ban_tool: 'not_available' } },
+  { id: 'mac-mini', name: 'Mac Mini', state: 'online', os: 'macos', reports: false, baseline: { ...key } },
+  { id: 'dgx-spark', name: 'DGX Spark', state: 'online', os: 'linux', reports: true, baseline: { ...key, password_login: true, pending_updates: 4 } },
+  { id: 'rtx-5090-pc', name: 'RTX 5090 PC', state: 'online', os: 'linux', reports: true, baseline: { ...key, auto_updates: false, pending_updates: 2 } },
 ]
 
 /** A small repeatable random number generator: the same sample every time, so a picture and a test never drift. */
@@ -101,6 +103,17 @@ function failedRows(machine: string, total: number, addresses: string[], now: nu
   })
 }
 
+/** A Mac cannot say who connected, so the parent stores one count of SSH connections for each day, with no user and no address. */
+function connectionRows(machine: string, now: number, next: Random): SecurityEvent[] {
+  const todayStart = Math.floor(now / DAY_MS) * DAY_MS
+  return Array.from({ length: DAYS_OF_NOISE }, (_, ago) => {
+    const dayStart = todayStart - ago * DAY_MS
+    const time = dayStart + next() * Math.min(DAY_MS, now - dayStart - 1)
+    const count = STUDIO_CONNECTIONS_MIN + Math.floor(next() * STUDIO_CONNECTIONS_SPREAD)
+    return { id: `connections-${machine}-${ago}`, time: new Date(time).toISOString(), machine, type: 'failed_login' as const, user: null, address: null, detail: STUDIO_CONNECTION_DETAIL, method: null, count }
+  })
+}
+
 /** An address is blocked after failing too often and let go a day later. */
 function blockEvents(machine: string, addresses: string[], now: number, next: Random): { events: SecurityEvent[]; stillBlocked: BlockedNowRow[] } {
   const events: SecurityEvent[] = []
@@ -132,11 +145,10 @@ export function buildMockStore(now: number): MockStore {
   const next = random(SEED)
   const rtx = botAddresses(RTX_ADDRESSES, next)
   const spark = botAddresses(SPARK_ADDRESSES, next)
-  const studio = botAddresses(STUDIO_ADDRESSES, next)
   const rtxBlocks = blockEvents('rtx-5090-pc', rtx, now, next)
   const sparkBlocks = blockEvents('dgx-spark', spark, now, next)
   const events = [
-    ...failedRows('rtx-5090-pc', RTX_FAILED, rtx, now, next), ...failedRows('dgx-spark', SPARK_FAILED, spark, now, next), ...failedRows('mac-studio', STUDIO_FAILED, studio, now, next),
+    ...failedRows('rtx-5090-pc', RTX_FAILED, rtx, now, next), ...failedRows('dgx-spark', SPARK_FAILED, spark, now, next), ...connectionRows('mac-studio', now, next),
     ...rtxBlocks.events, ...sparkBlocks.events,
     ...loginEvents('mac-studio', 3, now, next), ...loginEvents('rtx-5090-pc', 1, now, next), ...loginEvents('dgx-spark', 1, now, next, true),
   ]
