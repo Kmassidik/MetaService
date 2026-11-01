@@ -22,6 +22,8 @@ struct VerifyResult: Encodable {
     let canAdd: Bool
     let isolation: [String]
     let system: String
+    /// The security baseline seen before the install; absent for a computer it cannot be read from (Windows) and in the answer of a fix.
+    var security: RemoteSecurity?
 
     struct FactsView: Encodable {
         let os: String, arch: String, version: String, chip: String, user: String, home: String, computerName: String
@@ -84,7 +86,9 @@ final class RemoteService: @unchecked Sendable {
         try ssh.trust(key.line)
         let credentials = try await ssh.credentials(request.login)
         let facts = try await Self.readFacts(ssh, target, credentials)
-        return Self.result(target.host, key.fingerprint, facts, parentURL: ssh.parentURL, builds: Set(AgentBuilds.available(config: config).keys))
+        var verified = Self.result(target.host, key.fingerprint, facts, parentURL: ssh.parentURL, builds: Set(AgentBuilds.available(config: config).keys))
+        verified.security = await RemoteSecurityRead.run(ssh, target, credentials, facts: facts)
+        return verified
     }
 
     /// The same read the installer does again just before it changes anything.
