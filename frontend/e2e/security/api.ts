@@ -14,7 +14,6 @@ const BIG_STEP_MS = 60_000
 export const FAILED_ROWS_HEALTHY = 57
 /** A Mac's daily SSH connection counts: stored as failed logins with no user and no address. */
 export const CONNECTION_ROWS = 3
-export const CONNECTION_DETAIL = 'SSH connections (macOS does not log who tried)'
 export const CONNECTION_COUNT = 3322
 export const FAILED_ROWS_WARNING = 50
 export const BLOCK_ROWS = 10
@@ -57,7 +56,7 @@ function events(): Json[] {
     address: '202.72.223.27', detail: index === 2 ? 'Accepted password' : 'Accepted public key', method: index === 2 ? 'password' : 'key', count: null,
   }))
   const connections = Array.from({ length: CONNECTION_ROWS }, (_, index): Json => ({
-    id: `c-${index}`, time: ago(index * 4 * HOUR_MS + 10 * 60_000), machine: MAC, type: 'failed_login', user: null, address: null, detail: CONNECTION_DETAIL, count: CONNECTION_COUNT - index,
+    id: `c-${index}`, time: ago(index * 4 * HOUR_MS + 10 * 60_000), machine: MAC, type: 'failed_login', user: null, address: null, detail: null, count: CONNECTION_COUNT - index,
   }))
   return [
     ...connections, ...Array.from({ length: FAILED_ROWS_HEALTHY }, (_, index) => failed(HEALTHY, index)), ...Array.from({ length: FAILED_ROWS_WARNING }, (_, index) => failed(WARNING, index)), ...blocks, ...logins,
