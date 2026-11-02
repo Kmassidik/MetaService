@@ -37,6 +37,9 @@ fn walk(env: &Environment, path: &Path, depth: usize, found: &mut Option<bool>) 
             KEYWORD => *found = found.or_else(|| yes_or_no(&value)),
             _ => {}
         }
+        if found.is_some() {
+            return Ok(());
+        }
     }
     Ok(())
 }
@@ -49,6 +52,10 @@ fn include(
 ) -> io::Result<()> {
     for pattern in patterns.split_whitespace() {
         for file in expand(env, pattern)? {
+            // First value wins in sshd, so a file after the decision (even an unreadable one) cannot change the answer.
+            if found.is_some() {
+                return Ok(());
+            }
             walk(env, &file, depth + 1, found)?;
         }
     }
@@ -278,6 +285,34 @@ mod tests {
     fn an_unreadable_or_missing_main_file_is_unknown_and_a_missing_include_folder_is_fine() {
         assert_eq!(answer(&[("/etc/hostname", "x")]), None);
         assert_eq!(answer(&[("/etc/ssh/sshd_config", INCLUDE)]), Some(true));
+    }
+
+    /// A path that is a directory cannot be read as a file, on any user including root.
+    const UNREADABLE: (&str, &str) = ("/etc/ssh/bad.conf/inside", "x");
+    const GOOD_NO: (&str, &str) = ("/etc/ssh/good.conf", "PasswordAuthentication no\n");
+    const GOOD_YES: (&str, &str) = ("/etc/ssh/good.conf", "PasswordAuthentication yes\n");
+
+    #[test]
+    fn an_unreadable_file_after_the_decision_does_not_matter() {
+        let main = "Include /etc/ssh/good.conf\nInclude /etc/ssh/bad.conf\n";
+        let files = [("/etc/ssh/sshd_config", main), GOOD_NO, UNREADABLE];
+        assert_eq!(answer(&files), Some(false));
+        let files = [("/etc/ssh/sshd_config", main), GOOD_YES, UNREADABLE];
+        assert_eq!(answer(&files), Some(true));
+        let own = "PasswordAuthentication no\nInclude /etc/ssh/bad.conf\n";
+        assert_eq!(
+            answer(&[("/etc/ssh/sshd_config", own), UNREADABLE]),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn an_unreadable_file_before_any_decision_is_unknown() {
+        let main = "Include /etc/ssh/bad.conf\nInclude /etc/ssh/good.conf\n";
+        assert_eq!(
+            answer(&[("/etc/ssh/sshd_config", main), GOOD_NO, UNREADABLE]),
+            None
+        );
     }
 
     #[test]

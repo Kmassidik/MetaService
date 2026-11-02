@@ -48,10 +48,12 @@ public enum SecurityVerifyScript {
         value=$(printf '%s' "${1:-}" | tr 'A-Z' 'a-z' | tr -d '"')
         [ "$key" != match ] || return 0
         [ "$key" != passwordauthentication ] || [ -n "$PW" ] || PW="$value"
+        [ -z "$PW" ] || return 0
         [ "$key" = include ] || continue
         for pattern in "$@"; do
           sshd_include "$pattern" "$depth" || return 1
         done
+        [ -z "$PW" ] || return 0
       done < "$file"
     }
     sshd_include() {
@@ -61,6 +63,7 @@ public enum SecurityVerifyScript {
       for found in $pattern; do
         set -f
         [ -e "$found" ] || continue
+        [ -z "$PW" ] || break
         sshd_lines "$found" $((depth + 1)) || return 1
       done
       set -f
