@@ -27,7 +27,9 @@
 <style>
   .job { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; font-family: var(--mono); font-size: 11px; color: var(--m60); max-width: 320px; }
   .job.stopped { color: var(--danger); }
-  .text { overflow-wrap: anywhere; }
+  .working { flex-wrap: nowrap; align-items: flex-start; }
+  .working .btn-spin { margin-top: 2px; flex: none; }
+  .text { overflow-wrap: anywhere; min-width: 0; }
   .center { justify-content: flex-start; max-width: none; }
   @media (max-width: 820px) { .job { justify-content: flex-start; } }
 </style>
