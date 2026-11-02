@@ -4,6 +4,7 @@
   import WhyStopped from './WhyStopped.svelte'
   import { isPlainMode, PLAIN_MODE_TEXT, type StopNote } from '../../lib/stoppedReason.ts'
   import { vmFacts } from '../../lib/vm.ts'
+  import { MACHINE_OFFLINE_REASON, isMachineOffline, stateClass } from '../../lib/machineOffline.ts'
   import { vmStateText } from '../../lib/vmList.ts'
   import type { BuildingServer } from '../../lib/building.ts'
   import type { Machine, Workload } from '../../lib/types.ts'
@@ -24,13 +25,14 @@
 
 <dl class="kv">
   {#each facts as fact (fact.label)}
-    <div><dt>{fact.label}</dt><dd>{#if fact.value === null}<span class="tag {server.cls}">{vmStateText(server.status)}</span>{:else}<span class="mono">{fact.value}</span>{/if}</dd></div>
+    <div><dt>{fact.label}</dt><dd>{#if fact.value === null}<span class="tag {stateClass(server.cls, machine.state)}">{vmStateText(server.status, machine.state)}</span>{:else}<span class="mono">{fact.value}</span>{/if}</dd></div>
   {/each}
 </dl>
 {#if note}<div class="extra"><WhyStopped {note} /></div>{/if}
 {#if isPlainMode(workload)}<p class="extra plain">{PLAIN_MODE_TEXT}</p>{/if}
 {#if workload.state === 'running'}
-  <div class="chatbar"><ActionButton variant="line" small label={workload.bundle_version ? 'Reinstall chat' : 'Install chat'} busyLabel="Installing…" doneLabel="Installed" onrun={onInstall} /></div>
+  {@const off = isMachineOffline(machine.state)}
+  <div class="chatbar"><ActionButton variant="line" small disabled={off} {...off ? { title: MACHINE_OFFLINE_REASON } : {}} label={workload.bundle_version ? 'Reinstall chat' : 'Install chat'} busyLabel="Installing…" doneLabel="Installed" onrun={onInstall} /></div>
 {/if}
 
 <style>

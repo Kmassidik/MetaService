@@ -4,6 +4,7 @@ import { readGpuMemoryGb } from './gpuBooking.ts'
 import { hasGpu } from './gpuChoice.ts'
 import { vmsMachineFromRoute } from './routes.ts'
 import { workloadCreatedByText } from './vmOrigin.ts'
+import { stateWords } from './machineOffline.ts'
 import { isPlainMode, readStoppedReason, reasonNote, type StopNote } from './stoppedReason.ts'
 import type { Machine, MachineState, Workload, WorkloadKind } from './types.ts'
 
@@ -84,14 +85,17 @@ export function vmsHeader(rows: VmRow[]): string {
   return `${plural(rows.length, 'VM', 'VMs')} on ${plural(machines, 'machine', 'machines')}`
 }
 
-/** The state words, with an in-progress delete distinguished from a VM that has already gone. */
-export const vmStateText = (state: string): string => (state === 'deleting' ? 'Deleting…' : state)
+/** The state words, with an in-progress delete distinguished from a VM that has already gone, and "(last known)" when its machine is offline. */
+export const vmStateText = (state: string, machineState?: MachineState): string => stateWords(state === 'deleting' ? 'Deleting…' : state, machineState)
 
 /** The state pill's colour for a VM state: green when running, amber while it changes, plain otherwise. */
 export function vmTone(state: string): MachineState | '' {
   if (state === 'running') return 'online'
   return IN_PROGRESS.has(state) ? 'busy' : ''
 }
+
+/** The colour of a VM row's pill: an offline machine cannot confirm a state, so nothing is green or amber. */
+export const vmRowTone = (state: string, machineState: MachineState): MachineState | '' => (machineState === 'offline' ? '' : vmTone(state))
 
 /** The machine and the VM a row was made from, so its buttons can act on them. Null only when the machines changed since the row was made. */
 export function findVm(machines: Machine[], row: Pick<VmRow, 'machineId' | 'id'>): { machine: Machine; workload: Workload } | null {

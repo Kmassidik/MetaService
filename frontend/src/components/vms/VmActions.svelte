@@ -9,6 +9,7 @@
   import { consoleTitle, terminalAccess } from '../../lib/terminalAccess.ts'
   import { deleteFailure } from '../../lib/deleteOrders.ts'
   import { openConsole } from '../../lib/terminalStore.svelte.ts'
+  import { MACHINE_OFFLINE_REASON, isMachineOffline } from '../../lib/machineOffline.ts'
   import { vmActionFacts, vmActions, type VmActionHandlers, type VmActionId } from '../../lib/vmActions.ts'
   import { VM_ICONS } from './vmIcons.ts'
   import type { Command, Machine, Workload } from '../../lib/types.ts'
@@ -61,6 +62,7 @@
     return { label: run.busy ? words.busy : label, text, icon, onclick: press, disabled: run.busy, busy: run.busy }
   }
 
+  const offline = $derived(isMachineOffline(machine.state))
   const buttons = $derived<Record<VmActionId, Button>>({
     terminal: {
       label: access.allowed ? 'Terminal' : `Terminal: ${access.text}`,
@@ -79,7 +81,7 @@
 </script>
 
 {#snippet icon(id: VmActionId)}
-  <IconButton {...buttons[id]} subject={workload.name} variant={id === 'delete' ? 'danger' : 'normal'} />
+  <IconButton {...buttons[id]} {...(offline ? { disabled: true, label: `${buttons[id].label}: ${MACHINE_OFFLINE_REASON}` } : {})} subject={workload.name} variant={id === 'delete' ? 'danger' : 'normal'} />
 {/snippet}
 
 <div class="vm-acts">
@@ -87,6 +89,7 @@
     <span class="group">{#each layout.main as id (id)}{@render icon(id)}{/each}</span>
     <span class="group apart">{#each layout.danger as id (id)}{@render icon(id)}{/each}</span>
   </div>
+  <ActionLine line={offline ? MACHINE_OFFLINE_REASON : ''} failed={false} />
   <ActionLine {line} failed={current?.status === 'failed'} />
   <ActionLine line={deleteError ?? ''} failed={deleteError !== null} />
   {#if keysOpen}<SshKeysDialog {machine} {workload} open={keysOpen} onClose={() => (keysOpen = false)} />{/if}

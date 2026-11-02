@@ -1,5 +1,6 @@
 // The only place that talks to the Root. Same-origin calls, cookie session, CSRF token kept in memory.
 import { parseErrorDetail, type ErrorDetail } from './errorBody.ts'
+import { refusalMessage } from './machineOffline.ts'
 import { parseUpdateResult } from './helperUpdate.ts'
 import { parseMachineExtras, type MachineExtras } from './machineDetail.ts'
 import { parseGpuCheck, type GpuCheckAnswer } from './gpuCheck.ts'
@@ -91,7 +92,7 @@ async function exchange(method: Method, path: string, body: unknown, signal: Abo
   }
   if (!response.ok) {
     const detail = parseErrorDetail(data)
-    const refusal = withNumbers(new ApiError(response.status, detail?.code ?? 'error', detail?.message ?? 'Request failed.'), detail)
+    const refusal = withNumbers(new ApiError(response.status, detail?.code ?? 'error', refusalMessage(detail?.code, detail?.message ?? 'Request failed.')), detail)
     refusal.body = data
     throw refusal
   }

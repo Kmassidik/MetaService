@@ -10,6 +10,7 @@
   import VmSoftware from '../components/vm/VmSoftware.svelte'
   import VmGpu from '../components/vm/VmGpu.svelte'
   import VmOrigin from '../components/vm/VmOrigin.svelte'
+  import { MACHINE_OFFLINE_REASON, isMachineOffline, stateClass } from '../lib/machineOffline.ts'
   import { hasGpu } from '../lib/gpuChoice.ts'
   import { deleteFailure } from '../lib/deleteOrders.ts'
   import { machineHref } from '../lib/routes.ts'
@@ -41,6 +42,8 @@
   const access = $derived(machine && workload ? terminalAccess(machine, workload) : null)
   /** The button is off, with the reason under its label, unless the rules say the terminal works. */
   const terminalOff = $derived(access !== null && !access.allowed ? access : null)
+  const offline = $derived(isMachineOffline(machine?.state))
+  const offlineTitle = $derived(offline ? MACHINE_OFFLINE_REASON : undefined)
   const action = $derived(workload ? headerAction(workload.state) : null)
   const note = $derived(machine && workload ? stopNote(machine.id, workload, commands) : null)
   const deleting = $derived(workload?.state === 'deleting')
@@ -59,13 +62,13 @@
 {:else}
   <div class="phead">
     <div>
-      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if hasGpu(workload)}<GpuBadge />{/if}</div>
+      <div class="titleline"><h1 class="name">{server.display}</h1><span class="tag {stateClass(server.cls, machine.state)}">{vmStateText(server.status, machine.state)}</span>{#if hasGpu(workload)}<GpuBadge />{/if}</div>
       <div class="crumb"><a href="#/">Overview</a> › <a href="#/machines">Machines</a> › <a href={machineHref(machine.id)}>{machine.name}</a> › {workload.id}</div>
     </div>
     <div class="sp">
       <button class="btn line term" type="button" disabled={terminalOff !== null} title={terminalOff ? terminalOff.title : 'Open a terminal on this VM'} aria-label="Web terminal{terminalOff ? `: ${terminalOff.text}` : ''}" onclick={() => openConsole({ machine: machine.id, workload: workload.id, name: consoleTitle(workload) })}>Web terminal{#if terminalOff}<small>{terminalOff.text}</small>{/if}</button>
-      {#if workload.bundle_version}<button class="btn line" type="button" onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
-      {#if action}<ActionButton variant="line" label={action === 'start' ? 'Start' : 'Stop'} busyLabel={action === 'start' ? 'Starting…' : 'Stopping…'} doneLabel={action === 'start' ? 'Started' : 'Stopped'} onrun={() => onAct(machine, workload, action)} />{/if}
+      {#if workload.bundle_version}<button class="btn line" type="button" disabled={offline} title={offlineTitle} onclick={() => onOpenChat(machine, workload)}>Open chat</button>{/if}
+      {#if action}<ActionButton variant="line" label={action === 'start' ? 'Start' : 'Stop'} busyLabel={action === 'start' ? 'Starting…' : 'Stopping…'} doneLabel={action === 'start' ? 'Started' : 'Stopped'} disabled={offline} {...offlineTitle ? { title: offlineTitle } : {}} onrun={() => onAct(machine, workload, action)} />{/if}
     </div>
   </div>
 
@@ -86,7 +89,7 @@
     {:else if tab === 'access'}
       <VmAccess {machine} {workload}onCopy={copy} onOpenChat={() => onOpenChat(machine, workload)} />
     {:else}
-      <VmDanger {deleting} error={deleteError} onDelete={() => onDelete(machine, workload)} />
+      <VmDanger {deleting} {offline} error={deleteError} onDelete={() => onDelete(machine, workload)} />
     {/if}
   </div>
 {/if}

@@ -10,7 +10,7 @@
   import { formatGb, formatMb } from '../../lib/format.ts'
   import { machineHref, vmHref } from '../../lib/routes.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
-  import { findVm, vmStateText, vmTone, type VmRow } from '../../lib/vmList.ts'
+  import { findVm, vmRowTone, vmStateText, type VmRow } from '../../lib/vmList.ts'
   import type { Command, Machine } from '../../lib/types.ts'
 
   let { rows, machines, commands, handlers }: { rows: VmRow[]; machines: Machine[]; commands: Command[]; handlers: VmActionHandlers } = $props()
@@ -31,7 +31,7 @@
           <td class="mono" data-label="Kind">{row.kind}{#if row.gpu}<GpuBadge />{/if}</td>
           <td data-label="State">
             <div class="state">
-              <StatePill state={vmTone(row.state)} label={vmStateText(row.state)} />
+              <StatePill state={vmRowTone(row.state, row.machineState)} label={vmStateText(row.state, row.machineState)} />
               {#if row.gpuLimitGb !== null}<GpuLimitChip gb={row.gpuLimitGb} />{/if}
               {#if row.app}<AppChip chip={row.app} />{/if}
               {#if row.note}<WhyStopped note={row.note} compact />{/if}

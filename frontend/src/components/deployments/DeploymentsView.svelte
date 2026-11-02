@@ -33,6 +33,7 @@
   import { MachineStatsStore } from '../../lib/machineStatsStore.svelte.ts'
   import { hostFor, vmServers } from '../../lib/deployments.ts'
   import { vmHref } from '../../lib/routes.ts'
+  import { stateClass } from '../../lib/machineOffline.ts'
   import { vmStateText } from '../../lib/vmList.ts'
   import { workloadCreatedByText } from '../../lib/vmOrigin.ts'
   import type { VmActionHandlers } from '../../lib/vmActions.ts'
@@ -134,7 +135,7 @@
       {@const limit = readGpuMemoryGb(workload.gpu_memory_gb)}
       <div class="card">
         <div class="ch">
-          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
+          <div class="row1"><a class="nm" href={vmHref(machine.id, server.id)}>{server.display}</a><span class="id">{server.id}</span><span class="tag {stateClass(server.cls, machine.state)}">{vmStateText(server.status, machine.state)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}</div>
           <div class="specs"><span>{server.cpu} vCPU</span><span>{formatMb(server.mem_mb)}</span><span>{formatGb(server.disk_gb)}</span><span>{workload.kind}</span></div>
           <div class="dom">{workload.address ?? 'no address yet'} · {bundleFlag(workload.bundle_version, pinned).text}</div>
           <div class="by"><span class="byl">Created by</span> <CreatedBy {workload} /></div>
@@ -159,7 +160,7 @@
           <tr>
             <td class="c-name" data-label="Name"><a href={vmHref(machine.id, server.id)}>{server.display}</a><small class="vm-id mono">{server.id}</small></td>
             <td data-label="Status">
-              <span class="tag {server.cls}">{vmStateText(server.status)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}
+              <span class="tag {stateClass(server.cls, machine.state)}">{vmStateText(server.status, machine.state)}</span>{#if server.gpu}<GpuBadge />{/if}{#if limit !== null}<GpuLimitChip gb={limit} />{/if}{#if chip}<AppChip {chip} />{/if}
               {#if note}<WhyStopped {note} compact />{/if}
               {#if isPlainMode(workload)}<small class="plain">{PLAIN_MODE_TEXT}</small>{/if}
             </td>
