@@ -77,21 +77,26 @@ const MAC_OS_NAMES: readonly string[] = ['macos', 'darwin']
 /** True for a machine that runs macOS. */
 export const isMacOs = (os: string): boolean => MAC_OS_NAMES.includes(os.trim().toLowerCase())
 
-/** True for a Mac's daily count of SSH connections: a failed login with no user, no address and the detail the parent gives it. */
-export const isConnectionCount = (event: SecurityEvent): boolean =>
-  event.type === 'failed_login' && event.user === null && event.address === null && (event.detail ?? '').startsWith(CONNECTION_DETAIL_PREFIX)
+/** True when the machine id belongs to a Mac in the list of machines. */
+export const isMacMachine = (infos: MachineInfo[], id: string): boolean => infos.some((info) => info.id === id && isMacOs(info.os))
+
+/** True for a Mac's count of SSH connections: a failed login with no user and no address, from a machine that runs macOS. The detail the parent used to add is still honoured for old data; the real parent sends none. */
+export const isConnectionCount = (event: SecurityEvent, infos: MachineInfo[]): boolean => {
+  if (event.type !== 'failed_login' || event.user !== null || event.address !== null) return false
+  return isMacMachine(infos, event.machine) || (event.detail ?? '').startsWith(CONNECTION_DETAIL_PREFIX)
+}
 
 /** The type column: the name of the event type, or "SSH connections" for a Mac's connection count. */
-export const eventTypeLabel = (event: SecurityEvent): string => (isConnectionCount(event) ? CONNECTION_TYPE_LABEL : EVENT_TYPE_LABELS[event.type])
+export const eventTypeLabel = (event: SecurityEvent, infos: MachineInfo[]): string => (isConnectionCount(event, infos) ? CONNECTION_TYPE_LABEL : EVENT_TYPE_LABELS[event.type])
 
 /** The tooltip of the type tag; only a connection count has one. */
-export const eventTypeTitle = (event: SecurityEvent): string | undefined => (isConnectionCount(event) ? CONNECTION_TOOLTIP : undefined)
+export const eventTypeTitle = (event: SecurityEvent, infos: MachineInfo[]): string | undefined => (isConnectionCount(event, infos) ? CONNECTION_TOOLTIP : undefined)
 
 const countText = (count: number, one: string, many: string): string => `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`
 
 /** The detail column: for a failed login how many tries the row stands for, then what the helper said. A connection count says connections and leaves out the helper's wording. */
-export function eventDetailText(event: SecurityEvent): string {
-  if (isConnectionCount(event)) return event.count === null ? '' : countText(event.count, 'connection', 'connections')
+export function eventDetailText(event: SecurityEvent, infos: MachineInfo[]): string {
+  if (isConnectionCount(event, infos)) return event.count === null ? '' : countText(event.count, 'connection', 'connections')
   const tries = event.count === null ? null : countText(event.count, 'try', 'tries')
   return [tries, event.detail].filter((part) => part !== null).join(' · ')
 }
@@ -100,8 +105,8 @@ export function eventDetailText(event: SecurityEvent): string {
 export const isPasswordLogin = (event: SecurityEvent): boolean => event.type === 'login' && event.method === 'password'
 
 /** The colour of the type tag: a password login and a block are marked, a key login is fine, the rest are plain. */
-export function eventTone(event: SecurityEvent): 'run' | 'warn' | '' {
-  if (isConnectionCount(event)) return ''
+export function eventTone(event: SecurityEvent, infos: MachineInfo[]): 'run' | 'warn' | '' {
+  if (isConnectionCount(event, infos)) return ''
   if (isPasswordLogin(event) || event.type === 'blocked') return 'warn'
   return event.type === 'login' ? 'run' : ''
 }

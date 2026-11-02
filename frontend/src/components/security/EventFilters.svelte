@@ -3,10 +3,12 @@
   // the search text is kept by the page and applied a moment after typing stops.
   import { securityHref, type SecurityView } from '../../lib/securityRoute.ts'
   import { EVENT_TYPES, EVENT_TYPE_LABELS, type SecurityEventType } from '../../lib/securityTypes.ts'
-  import type { MachineInfo } from '../../lib/securityView.ts'
+  import { isMacOs, type MachineInfo } from '../../lib/securityView.ts'
 
   let { infos, view, text = $bindable() }: { infos: MachineInfo[]; view: SecurityView; text: string } = $props()
 
+  const typeOption = (type: SecurityEventType): string => (type === 'failed_login' && hasMac ? `${EVENT_TYPE_LABELS[type]} (a Mac: SSH connections)` : EVENT_TYPE_LABELS[type])
+  const hasMac = $derived(infos.some((info) => isMacOs(info.os)))
   const isType = (value: string): value is SecurityEventType => EVENT_TYPES.some((type) => type === value)
 
   function pickMachine(event: Event) {
@@ -30,7 +32,7 @@
   <label>Type
     <select id="sec-type" value={view.type} onchange={pickType}>
       <option value="">All types</option>
-      {#each EVENT_TYPES as type (type)}<option value={type}>{EVENT_TYPE_LABELS[type]}</option>{/each}
+      {#each EVENT_TYPES as type (type)}<option value={type}>{typeOption(type)}</option>{/each}
     </select>
   </label>
   <label class="grow">Address or user

@@ -32,7 +32,6 @@ const SPARK_FAILED = 33_000
 const SPARK_ADDRESSES = 38
 const STUDIO_CONNECTIONS_MIN = 2_800
 const STUDIO_CONNECTIONS_SPREAD = 900
-const STUDIO_CONNECTION_DETAIL = 'SSH connections (macOS does not log who tried)'
 const BLOCK_LASTS_MS = DAY_MS
 const OWNER_ADDRESS = '202.72.223.27'
 const KEY_LOGIN_ADDRESSES = [OWNER_ADDRESS, '198.51.100.23', '203.0.113.88']
@@ -117,7 +116,7 @@ function connectionRows(machine: string, now: number, next: Random): SecurityEve
     const dayStart = todayStart - ago * DAY_MS
     const time = dayStart + next() * Math.min(DAY_MS, now - dayStart - 1)
     const count = STUDIO_CONNECTIONS_MIN + Math.floor(next() * STUDIO_CONNECTIONS_SPREAD)
-    return { id: `connections-${machine}-${ago}`, time: new Date(time).toISOString(), machine, type: 'failed_login' as const, user: null, address: null, detail: STUDIO_CONNECTION_DETAIL, method: null, count }
+    return { id: `connections-${machine}-${ago}`, time: new Date(time).toISOString(), machine, type: 'failed_login' as const, user: null, address: null, detail: null, method: null, count }
   })
 }
 

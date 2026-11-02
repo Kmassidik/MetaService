@@ -33,10 +33,10 @@
             <tr data-type={event.type} data-method={event.method ?? undefined} class:pwd={isPasswordLogin(event)}>
               <td data-label="Time" class="when" title={time.title(event.time)}>{time.show(event.time)}</td>
               <td data-label="Machine">{nameOf(infos, event.machine)}</td>
-              <td data-label="Type"><span class="tag {eventTone(event)}" title={eventTypeTitle(event)} data-connections={eventTypeTitle(event) === undefined ? undefined : true}>{eventTypeLabel(event)}</span></td>
+              <td data-label="Type"><span class="tag {eventTone(event, infos)}" title={eventTypeTitle(event, infos)} data-connections={eventTypeTitle(event, infos) === undefined ? undefined : true}>{eventTypeLabel(event, infos)}</span></td>
               <td data-label="User" class="plain">{event.user ?? '–'}</td>
               <td data-label="Address" class="plain">{event.address ?? '–'}</td>
-              <td data-label="Detail" class="detail">{eventDetailText(event) || '–'}</td>
+              <td data-label="Detail" class="detail">{eventDetailText(event, infos) || '–'}</td>
             </tr>
           {/each}
         </tbody>

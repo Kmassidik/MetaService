@@ -41,13 +41,12 @@ export function bucketRows(attackers: BucketAttackers, now: number, next: () => 
   return rows
 }
 
-const CONNECTION_DETAIL = 'SSH connections (macOS does not log who tried)'
 const FAILED_DETAIL = 'Invalid user, password refused'
 
 /** The same buckets as log rows, newest first by time, for the Event log of a short range. */
 export function bucketEvents(buckets: MockBucket[]): SecurityEvent[] {
   return buckets.map((bucket, index) => ({
     id: `bucket-${bucket.machine}-${index}`, time: new Date(Date.parse(bucket.start)).toISOString(), machine: bucket.machine, type: 'failed_login' as const,
-    user: bucket.user, address: bucket.address, detail: bucket.user === null ? CONNECTION_DETAIL : FAILED_DETAIL, method: null, count: bucket.count,
+    user: bucket.user, address: bucket.address, detail: bucket.user === null ? null : FAILED_DETAIL, method: null, count: bucket.count,
   }))
 }
