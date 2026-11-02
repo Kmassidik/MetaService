@@ -726,7 +726,7 @@ paths:
     get:
       summary: >
         Root endpoint for the panel. The newest jobs (a job is one row of the Root's commands table: create, start, stop, delete, chat install, external service change), newest first.
-        `limit` is 1 to 200 (default 30). Each row carries `step` and `stepAt` (see PanelCommand). Added fields only; old fields are unchanged.
+        `limit` is 1 to 200 (default 30). Each row carries `step` and `step_at` (see PanelCommand). Added fields only; old fields are unchanged.
       security: []
       parameters:
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 30 } }
@@ -1240,28 +1240,28 @@ components:
     PanelCommand:
       type: object
       description: >
-        One job as the panel reads it. Fields from before are unchanged: id, machine, workloadId, type, state, params, result, actor, createdAt, finishedAt.
-        New: `step` and `stepAt`, always present (null when unknown). `state` is queued, running, succeeded, failed, or one of two new end states: `timed_out` (the job ran longer than its limit;
-        `result.error` says so in plain words) and `lost_contact` (the machine stopped answering; `result.error` names the last known step). Queued and running are not final; the other four are final and have `finishedAt`.
+        One job as the panel reads it. All keys are snake_case on the wire. Fields from before are unchanged: id, machine, workload_id, type, state, params, result, actor, created_at, finished_at.
+        New: `step` and `step_at`, always present (null when unknown). `state` is queued, running, succeeded, failed, or one of two new end states: `timed_out` (the job ran longer than its limit;
+        `result.error` says so in plain words) and `lost_contact` (the machine stopped answering; `result.error` names the last known step). Queued and running are not final; the other four are final and have `finished_at`.
         `step` is one of a fixed list of plain phrases (never engine text): Checking the machine; Stopping the machine; Backing up (this can take several minutes for big disks); Deleting; Creating the machine; Done.
         It is null for a job that reported no step (a start, a stop, a chat install, or a row from before steps existed). On a failed, timed out or lost contact job it stays the last step that was reported.
-        `stepAt` is the ISO time the Root saw the step change, null when `step` is null.
+        `step_at` is the ISO time the Root saw the step change, null when `step` is null.
         Limits (one table in the Root): delete 30 minutes, create 20 minutes. Other job types have no limit table entry and keep the old give-up rule.
-      required: [id, machine, workloadId, type, state, params, result, actor, createdAt, finishedAt, step, stepAt]
+      required: [id, machine, workload_id, type, state, params, result, actor, created_at, finished_at, step, step_at]
       additionalProperties: false
       properties:
         id: { $ref: '#/components/schemas/Id' }
         machine: { type: string }
-        workloadId: { type: string, nullable: true }
+        workload_id: { type: string, nullable: true }
         type: { type: string, description: 'create, start, stop, delete, bundle_install, bundle_uninstall, or an external service change' }
         state: { type: string, enum: [queued, running, succeeded, failed, timed_out, lost_contact] }
         params: { type: object, additionalProperties: { type: string } }
         result: { type: object, nullable: true, additionalProperties: { type: string } }
         actor: { type: string }
-        createdAt: { type: string }
-        finishedAt: { type: string, nullable: true }
+        created_at: { type: string }
+        finished_at: { type: string, nullable: true }
         step: { type: string, nullable: true, maxLength: 100 }
-        stepAt: { type: string, nullable: true }
+        step_at: { type: string, nullable: true }
     PanelCommandReply:
       type: object
       required: [command]

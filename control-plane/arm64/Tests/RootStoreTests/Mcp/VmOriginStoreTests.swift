@@ -167,6 +167,6 @@ final class McpMigration30Tests: XCTestCase {
         try Migrations.migrate(database)
         try Migrations.migrate(database)
         XCTAssertEqual(try McpPeopleStore(database).list().count, 0)
-        XCTAssertEqual(Migrations.latest, 30)
+        XCTAssertGreaterThanOrEqual(Migrations.latest, 30)
     }
 }

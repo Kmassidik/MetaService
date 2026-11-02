@@ -273,6 +273,16 @@ public enum Migrations {
                 OR NEW.created_at IS NOT OLD.created_at OR NEW.backfilled IS NOT OLD.backfilled OR NEW.seal IS NOT OLD.seal
               BEGIN SELECT RAISE(ABORT, 'vm_origin is append only'); END;
             """) }),
+        // Long actions: a job says which step it is in, and the user who started it gets a notification when it ends. Old rows keep working: step is empty for them.
+        (31, { try $0.exec("""
+            ALTER TABLE commands ADD COLUMN step TEXT;
+            ALTER TABLE commands ADD COLUMN step_at INTEGER;
+            CREATE TABLE notifications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL,
+              command_id TEXT NOT NULL UNIQUE, machine_id TEXT NOT NULL, workload_id TEXT, created_at INTEGER NOT NULL, read_at INTEGER
+            );
+            CREATE INDEX notifications_by_user ON notifications (user, created_at DESC, id DESC);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

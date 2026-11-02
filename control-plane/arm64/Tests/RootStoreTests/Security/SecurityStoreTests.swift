@@ -34,7 +34,7 @@ final class SecurityStoreTests: XCTestCase {
         XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), SecurityDatabase.latest)
         XCTAssertTrue(try database.query("SELECT name FROM sqlite_master WHERE name = 'machines'").isEmpty)
         try Migrations.run(SecurityDatabase.steps, on: database)
-        XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM schema_version").first?.int("n"), 1)
+        XCTAssertEqual(try database.query("SELECT COUNT(*) AS n FROM schema_version").first?.int("n"), SecurityDatabase.latest)
     }
 
     func testFailedLoginsAreAddedToTheDayAndOthersAreStoredOneByOne() throws {

@@ -25,6 +25,7 @@ do {
     services.bundleService.start()
     services.history.start()
     services.security.start()
+    services.jobMaintenance.start()
     let operatorApp = buildOperatorApplication(services: services)
     let agentApp = buildAgentApplication(services: services)
     try await withThrowingTaskGroup(of: Void.self) { group in

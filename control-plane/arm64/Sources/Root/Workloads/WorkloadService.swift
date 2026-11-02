@@ -111,15 +111,11 @@ final class WorkloadService: @unchecked Sendable {
     }
 
     enum Action: String { case start, stop, delete }
-    private enum DeleteReservation { case existing(CommandRow), created(String) }
 
     func act(actor: String, machine: String, workload: String, action: Action) async throws -> CommandRow {
         if action == .delete {
-            switch try reserveDelete(actor: actor, machine: machine, workload: workload) {
-            case .existing(let command): return command
-            case .created(let id):
-                return try await send(id, machine: machine, method: "DELETE", path: "/v1/workloads/\(workload)", body: nil, commandId: id)
-            }
+            let id = try reserveDelete(actor: actor, machine: machine, workload: workload)
+            return try await send(id, machine: machine, method: "DELETE", path: "/v1/workloads/\(workload)", body: nil, commandId: id)
         }
         let known: MachineSummary
         do {
@@ -134,17 +130,19 @@ final class WorkloadService: @unchecked Sendable {
         return try await send(id, machine: machine, method: "POST", path: "/v1/workloads/\(workload)/\(action.rawValue)", body: nil, commandId: id)
     }
 
-    /// A retry joins the accepted delete instead of creating another row or calling the helper again.
-    private func reserveDelete(actor: String, machine: String, workload: String) throws -> DeleteReservation {
+    /// A second delete of a VM whose delete is still queued or running is refused, so nobody believes it started a new one. It writes no row and calls no helper.
+    private func reserveDelete(actor: String, machine: String, workload: String) throws -> String {
         deleting.lock()
         defer { deleting.unlock() }
-        if let existing = try commands.unfinishedDelete(machine: machine, workloadId: workload) { return .existing(existing) }
+        guard try commands.unfinishedDelete(machine: machine, workloadId: workload) == nil else { throw Self.alreadyDeleting }
         _ = try knownTarget(machine: machine, workload: workload)
         let id = Self.newCommandId()
         try commands.create(id: id, machine: machine, workloadId: workload, type: "delete", params: [:], actor: actor, now: clock.now)
         try audit.record(actor: actor, action: "workload.delete", target: machine, detail: ["workload": workload, "command": id], at: clock.now)
-        return .created(id)
+        return id
     }
+
+    static let alreadyDeleting = ApiFailure(status: .conflict, code: "already_deleting", message: "This machine is already being deleted.")
 
     /// Installs (or upgrades, or rolls back) the pinned chat bundle on a machine or one of its workloads.
     func installBundle(actor: String, machine: String, workload: String?) async throws -> CommandRow {
@@ -236,22 +234,41 @@ final class WorkloadService: @unchecked Sendable {
         return PlacementRefusal(code: detail["code"] as? String ?? "not_enough_room", message: detail["message"] as? String ?? "refused", resource: resource, needed: needed, free: free)
     }
 
+    /// Polls the helper until the job ends. The job's own limit (see `JobLimits`) and a silent machine (see `JobWatch`) both end it, so it never runs forever.
     private func follow(_ id: String, machine: String) {
         Task.detached { [self] in
             var silent = 0
-            for _ in 0..<OrderFollowing.giveUpAfterSeconds {
+            while true {
                 try? await Task.sleep(nanoseconds: UInt64(OrderFollowing.pollSeconds) * 1_000_000_000)
+                guard let row = try? commands.get(id), !JobState.isFinal(row.state) else { return }
+                guard !closedByWatch(row, silentPolls: silent) else { return }
                 guard let reply = try? await client.call(machine: machine, method: "GET", path: "/v1/commands/\(id)") else {
                     silent += 1
-                    guard silent < OrderFollowing.lostContactAfterPolls else { return lost(id, "lost contact with the machine") }
                     continue
                 }
                 silent = 0
+                guard reply.status != 404 else { return lost(id, JobState.failed, JobWatch.neverReceivedReason) }
+                noteStep(row, reply.json?["step"] as? String)
                 guard let state = reply.json?["state"] as? String, ["succeeded", "failed"].contains(state) else { continue }
                 return done(id, state, reply.json?["result"] as? [String: Any])
             }
-            lost(id, "gave up waiting")
         }
+    }
+
+    /// Closes the job as timed out or lost contact when its verdict says so. True when it did.
+    private func closedByWatch(_ row: CommandRow, silentPolls: Int) -> Bool {
+        switch JobWatch.verdict(type: row.type, createdAt: row.createdDate, now: clock.now, silentPolls: silentPolls, step: row.step) {
+        case .keepWaiting: return false
+        case .timedOut(let reason): lost(row.id, JobState.timedOut, reason)
+        case .lostContact(let reason): lost(row.id, JobState.lostContact, reason)
+        }
+        return true
+    }
+
+    /// Keeps the step the helper reports, when it is one of the fixed names and has changed.
+    private func noteStep(_ row: CommandRow, _ step: String?) {
+        guard let step, step != row.step else { return }
+        try? commands.setStep(id: row.id, step: step, now: clock.now)
     }
 
     private func done(_ id: String, _ state: String, _ result: [String: Any]?) {
@@ -297,13 +314,12 @@ final class WorkloadService: @unchecked Sendable {
         apps.created(app: app, machine: row.machine, workload: workload)
     }
 
-    private func lost(_ id: String, _ why: String) {
-        try? finish(id, state: "failed", result: ["error": why])
+    private func lost(_ id: String, _ state: String, _ why: String) {
+        try? finish(id, state: state, result: ["error": why])
     }
 
     private func finish(_ id: String, state: String, result: [String: String]) throws {
-        try commands.update(id: id, state: state, result: result, now: clock.now)
-        guard let row = try commands.get(id) else { return }
+        guard try commands.update(id: id, state: state, result: result, now: clock.now), let row = try commands.get(id) else { return }
         gpuLimit.settle(row, succeeded: state == "succeeded", workload: result["workload_id"])
         try audit.record(actor: "root", action: "workload.\(row.type)_\(state)", target: row.machine, detail: ["command": id].merging(result) { $1 }, at: clock.now)
     }
