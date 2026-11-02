@@ -42,6 +42,7 @@ public enum HelperUpdateScript {
         cd "$box" 2>/dev/null || say no_box
         grep -q '"made_by":"metaservice"' manifest.json 2>/dev/null || say not_ours
         [ -f bin/metaservice-agent ] || say no_box
+        \#(HelperUpdateOwner.lines)
         [ -n "$(sum bin/metaservice-agent)" ] || say no_checker
         rm -f bin/metaservice-agent.new
         cat > bin/metaservice-agent.new || { rm -f bin/metaservice-agent.new; say receive_failed; }
@@ -52,20 +53,20 @@ public enum HelperUpdateScript {
         cp -p bin/metaservice-agent "$keep" || { rm -f bin/metaservice-agent.new; say keep_failed; }
         for older in bin/metaservice-agent.before-*; do [ "$older" = "$keep" ] || rm -f "$older"; done
         oldpid=$(cat state/agent.pid 2>/dev/null || true)
-        [ ! -x ./stop.sh ] || sh ./stop.sh
+        halt
         waited=0
         while [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null && [ "$waited" -lt \#(stopWaitSeconds) ]; do sleep 1; waited=$((waited + 1)); done
         if [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null; then rm -f bin/metaservice-agent.new; say stop_failed; fi
         mv -f bin/metaservice-agent.new bin/metaservice-agent
-        sh ./start.sh >/dev/null 2>&1 || true
+        launch
         sleep \#(settleSeconds)
         if alive; then
           \#(HelperAutostart.updateLines)
         fi
-        [ ! -x ./stop.sh ] || sh ./stop.sh
+        halt
         sleep 1
         cp -p "$keep" bin/metaservice-agent
-        sh ./start.sh >/dev/null 2>&1 || true
+        launch
         sleep \#(settleSeconds)
         alive && say rolled_back
         say rollback_failed

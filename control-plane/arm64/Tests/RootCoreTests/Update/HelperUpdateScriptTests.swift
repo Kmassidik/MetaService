@@ -45,7 +45,7 @@ final class HelperUpdateScriptTests: XCTestCase {
     func testAutostartRunsForTheNewProgramAfterItAnsweredAndNeverBeforeOrInTheRollback() throws {
         let text = try script()
         let replaced = try XCTUnwrap(text.range(of: "mv -f bin/metaservice-agent.new bin/metaservice-agent"))
-        let started = try XCTUnwrap(text.range(of: "sh ./start.sh", range: replaced.upperBound..<text.endIndex))
+        let started = try XCTUnwrap(text.range(of: "\nlaunch\n", range: replaced.upperBound..<text.endIndex))
         let answered = try XCTUnwrap(text.range(of: "if alive; then", range: started.upperBound..<text.endIndex))
         let autostart = try XCTUnwrap(text.range(of: "./bin/metaservice-agent autostart on --box \"$box\"", range: answered.upperBound..<text.endIndex))
         let rollback = try XCTUnwrap(text.range(of: "cp -p \"$keep\" bin/metaservice-agent"))
