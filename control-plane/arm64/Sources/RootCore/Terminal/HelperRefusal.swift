@@ -1,6 +1,6 @@
 /// What a helper's refusal of the console socket (its plain HTTP answer before any upgrade) means for the person, in the words of a closed console.
 public enum HelperRefusal {
-    public static let noAgentText = "this VM has no incus agent, so the console cannot open"
+    public static let noAgentText = "this VM is not ready for the terminal yet: its guest agent is not running"
     public static let consoleOpenText = "this workload already has a console"
 
     /// `code` is the error code in the helper's answer; anything unknown is "the VM is not available".

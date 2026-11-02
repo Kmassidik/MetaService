@@ -1,5 +1,5 @@
 // The Terminal button on Linux machines: a container on a machine whose helper says it serves a terminal opens a real console and shows its echo;
-// a container on a machine whose helper does not say it is off and tells the person to update the helper; a VM on a Linux machine is off with "Containers only for now".
+// a container on a machine whose helper does not say it is off and tells the person to update the helper; a VM on a Linux machine whose helper says terminal has the button enabled too.
 import { check } from '../support/check.ts'
 import type { Browse } from '../support/page.ts'
 import { startLinuxFake, type LinuxFake } from './linux-fake.ts'
@@ -46,7 +46,7 @@ async function refusals(b: Browse): Promise<void> {
   const old = await facts(b, ROWS, OLD_CONTAINER)
   check('a container on a Linux machine without the flag is off and says "Update the helper to use the terminal"', old.found && old.disabled && /Update the helper to use the terminal/.test(old.label), JSON.stringify(old))
   const vm = await facts(b, ROWS, VM)
-  check('a VM on a Linux machine is off and says "Containers only for now"', vm.found && vm.disabled && /Containers only for now/.test(vm.label), JSON.stringify(vm))
+  check('a VM on a Linux machine whose helper says terminal has an enabled Terminal button', vm.found && !vm.disabled, JSON.stringify(vm))
   await b.shot('terminal-linux-disabled.png')
 }
 

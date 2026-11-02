@@ -1,5 +1,5 @@
 // The web terminal on Linux machines in a real browser against a real Root and the Fake Agent (agent/fake, a /bin/sh console): a container on a machine whose helper
-// says `terminal` opens and shows its echo; one whose helper does not say it is off with "Update the helper to use the terminal"; a Linux VM says "Containers only for now".
+// says `terminal` opens and shows its echo; one whose helper does not say it is off with "Update the helper to use the terminal"; a Linux VM on a flagged machine has the button enabled too.
 // Needs: the Root build, a built panel (`bun run build`), Google Chrome (or CHROME_PATH), `bun install` in frontend/, and FAKE_PYTHON (`nix develop --command which python3`).
 // Run: bun e2e/terminal-linux.e2e.ts
 import puppeteer from 'puppeteer-core'

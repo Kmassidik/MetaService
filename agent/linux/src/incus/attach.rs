@@ -3,8 +3,8 @@
 //! after it parses as a plain IPv4 address. Nothing the browser sends reaches either.
 use super::args;
 
-/// Shown in the panel when a VM cannot be entered.
-pub const NO_AGENT_MESSAGE: &str = "this VM has no incus agent, so the console cannot open";
+/// Shown in the panel when a VM cannot be entered: the guest agent is not answering (still booting, or the image has none).
+pub const NO_AGENT_MESSAGE: &str = "this VM is not ready for the terminal yet: its guest agent is not running";
 const TERMINAL_TYPE: &str = "TERM=xterm-256color";
 const LANGUAGE: &str = "LANG=C.UTF-8";
 /// A login bash if the image has one, else a login sh.

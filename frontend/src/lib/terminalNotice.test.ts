@@ -4,6 +4,7 @@ import { QUICK_END_MS, terminalNotice, type Ending } from './terminalNotice.ts'
 const refused = (code: string): Ending => ({ kind: 'refused', code })
 const closed = (reason: string, openMs: number, typed = false): Ending => ({ kind: 'closed', reason, openMs, typed })
 const STOPPED_TEXT = 'This VM has stopped, so there is nothing to connect to.'
+const NOT_READY_TEXT = 'This VM is not ready for the terminal yet: its guest agent is not running. Try again in a minute or use SSH.'
 const RIGHT_AFTER_TEXT = 'The VM stopped right after it started.'
 
 test('nothing happened, nothing to say', () => {
@@ -23,7 +24,7 @@ test('the list can be a few seconds old: a VM the parent says is not running but
 
 test('the other refusals are said in plain words, and none of them offers Start', () => {
   expect(terminalNotice(refused('not_supported'), 'running')).toEqual({ text: 'Update the helper on this machine to use the terminal.', why: false, canStart: false })
-  expect(terminalNotice(refused('no_agent'), 'running')).toEqual({ text: 'This VM has no incus agent, so the terminal cannot open.', why: false, canStart: false })
+  expect(terminalNotice(refused('no_agent'), 'running')).toEqual({ text: NOT_READY_TEXT, why: false, canStart: false })
   expect(terminalNotice(refused('unreachable'), 'running')).toEqual({ text: 'The machine is offline, so this VM cannot be reached right now.', why: false, canStart: false })
   expect(terminalNotice(refused('too_many_consoles'), 'running')).toEqual({ text: 'Too many terminals are open. Close one and try again.', why: false, canStart: false })
   expect(terminalNotice(refused('console_open'), 'running')).toEqual({ text: 'This VM already has a terminal open. Close it and try again.', why: false, canStart: false })
@@ -64,7 +65,7 @@ test('a deleted VM and a machine that went offline are said in plain words', () 
 })
 
 test('the helper refusing to open (no incus agent in the VM, a console already open) is said in plain words and never as a dead VM', () => {
-  expect(terminalNotice(closed('this VM has no incus agent, so the console cannot open', 100), 'running')).toEqual({ text: 'This VM has no incus agent, so the terminal cannot open.', why: false, canStart: false })
+  expect(terminalNotice(closed('this VM is not ready for the terminal yet: its guest agent is not running', 100), 'running')).toEqual({ text: NOT_READY_TEXT, why: false, canStart: false })
   expect(terminalNotice(closed('this workload already has a console', 100), 'running')).toEqual({ text: 'This VM already has a terminal open. Close it and try again.', why: false, canStart: false })
 })
 

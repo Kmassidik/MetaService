@@ -294,6 +294,7 @@ fn wait_for_output(seen: &Arc<Mutex<String>>, wanted: &str) {
 fn a_vm_without_the_guest_agent_is_refused_with_the_plain_reason() {
     let Err(EngineError::Failed(reason)) = incus("vm", false).attach("w-1") else { panic!("expected a refusal") };
     assert_eq!(reason, crate::incus::NO_AGENT_MESSAGE);
+    assert_eq!(reason, "this VM is not ready for the terminal yet: its guest agent is not running", "the words the parent and the panel match on");
     assert!(incus("vm", true).attach("w-1").is_ok(), "a VM that answers can be entered");
     assert!(matches!(incus("vm", true).attach("w-none"), Err(EngineError::NotFound)));
 }

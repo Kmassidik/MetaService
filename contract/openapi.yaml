@@ -136,7 +136,7 @@ paths:
         '426': { description: upgrade required (preflight without upgrade headers; every check passed) }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: 'the workload is not running (code not_running), already has a console (code console_open), or is a VM without the incus guest agent so it cannot be entered (code no_agent, with a plain reason)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the workload is not running (code not_running), already has a console (code console_open), or is a VM whose incus guest agent is not answering (still booting, or the image has none) so it cannot be entered yet (code no_agent, the reason says the VM is not ready for the terminal yet because its guest agent is not running)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /v1/workloads/{id}/gpu-check:
     post:
       summary: >

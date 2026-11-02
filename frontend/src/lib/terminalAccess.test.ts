@@ -40,8 +40,15 @@ test('an old Mac helper without the flag keeps its terminal', () => {
   expect(terminalAccess(machine({ capabilities: { ...CAPS, terminal: false } }), workload())).toEqual({ allowed: true })
 })
 
-test('a VM on a Linux machine is off with "Containers only for now", even when the helper has a console', () => {
-  expect(terminalAccess(linux(true), workload({ kind: 'vm' }))).toEqual({ allowed: false, text: 'Containers only for now', title: 'The terminal works in containers for now. A VM on a Linux machine has not been tried yet.' })
+test('a running VM on a Linux machine whose helper has a console opens, like a container', () => {
+  expect(terminalAccess(linux(true), workload({ kind: 'vm' }))).toEqual({ allowed: true })
+})
+
+test('a VM on a Linux machine keeps the order: update the helper, offline, stopped, not running', () => {
+  expect(terminalAccess(linux(false), workload({ kind: 'vm' }))).toMatchObject({ text: UPDATE_TEXT })
+  expect(terminalAccess({ ...linux(true), state: 'offline' }, workload({ kind: 'vm' }))).toMatchObject({ text: 'Machine is offline' })
+  expect(terminalAccess(linux(true), workload({ kind: 'vm', state: 'stopped' }))).toMatchObject({ text: 'VM is stopped' })
+  expect(terminalAccess(linux(true), workload({ kind: 'vm', state: 'provisioning' }))).toMatchObject({ text: 'VM is not running' })
 })
 
 test('a VM on a Mac with the flag still opens', () => {

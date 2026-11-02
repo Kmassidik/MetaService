@@ -27,12 +27,13 @@ const SHELL_ENDED = 'the shell ended'
 const VM_STOPPED = 'the VM stopped'
 const VM_DELETED = 'the VM was deleted'
 const MACHINE_OFFLINE = 'the machine is offline'
-const NO_AGENT = 'this VM has no incus agent, so the console cannot open'
+const NO_AGENT = 'this VM is not ready for the terminal yet: its guest agent is not running'
+const NOT_READY = 'This VM is not ready for the terminal yet: its guest agent is not running. Try again in a minute or use SSH.'
 const CONSOLE_OPEN = 'this workload already has a console'
 
 const REFUSALS = new Map([
   ['not_supported', 'Update the helper on this machine to use the terminal.'],
-  ['no_agent', 'This VM has no incus agent, so the terminal cannot open.'],
+  ['no_agent', NOT_READY],
   ['unreachable', 'The machine is offline, so this VM cannot be reached right now.'],
   ['too_many_consoles', 'Too many terminals are open. Close one and try again.'],
   ['console_open', 'This VM already has a terminal open. Close it and try again.'],
@@ -51,7 +52,7 @@ function refusedNotice(code: string, vmState: string | null): Notice | null {
 function closedNotice(reason: string, openMs: number, typed: boolean, vmState: string | null): Notice | null {
   if (reason === VM_DELETED) return plain('This VM was deleted.')
   if (reason === MACHINE_OFFLINE) return plain('The machine went offline, so the terminal was closed.')
-  if (reason === NO_AGENT) return plain('This VM has no incus agent, so the terminal cannot open.')
+  if (reason === NO_AGENT) return plain(NOT_READY)
   if (reason === CONSOLE_OPEN) return plain('This VM already has a terminal open. Close it and try again.')
   const vmIsDown = reason === VM_STOPPED || vmState === STOPPED_STATE
   const quick = openMs < QUICK_END_MS && !typed

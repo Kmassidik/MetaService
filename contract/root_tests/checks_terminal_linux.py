@@ -14,6 +14,7 @@ from contract.root_tests.support import Browser, expect, running
 MACHINE = "linux-box"
 UPDATE_MESSAGE = "Update the helper on this machine to use the terminal."
 LINUX_WITH_FLAG = MachineSpec(os="linux", arch="x86_64", vm=False, container=True, terminal=True)
+LINUX_VM_WITH_FLAG = MachineSpec(os="linux", arch="x86_64", vm=True, container=True, terminal=True)
 LINUX_WITHOUT_FLAG = MachineSpec(os="linux", arch="x86_64", vm=False, container=True, terminal=False)
 OLD_MAC = MachineSpec(os="macos", arch="arm64", vm=True, container=False, terminal=False)
 
@@ -61,6 +62,11 @@ def check_a_linux_machine_whose_helper_says_terminal_opens_a_console_end_to_end(
         echo_through_the_root(root, operator, workload)
 
 
+def check_a_vm_on_a_linux_machine_whose_helper_says_terminal_opens_a_console_end_to_end():
+    with machine_with_workload(LINUX_VM_WITH_FLAG, "vm") as (root, operator, workload):
+        echo_through_the_root(root, operator, workload)
+
+
 def check_a_linux_machine_without_the_flag_is_told_to_update_the_helper():
     with machine_with_workload(LINUX_WITHOUT_FLAG, "container") as (root, operator, workload):
         capabilities = operator.request("GET", f"/api/machines/{MACHINE}").body["capabilities"]
@@ -96,6 +102,7 @@ def check_the_terminal_security_rules_hold_for_a_linux_machine():
 
 
 CHECKS = [
-    check_a_linux_machine_whose_helper_says_terminal_opens_a_console_end_to_end, check_a_linux_machine_without_the_flag_is_told_to_update_the_helper,
+    check_a_linux_machine_whose_helper_says_terminal_opens_a_console_end_to_end, check_a_vm_on_a_linux_machine_whose_helper_says_terminal_opens_a_console_end_to_end,
+    check_a_linux_machine_without_the_flag_is_told_to_update_the_helper,
     check_an_old_mac_helper_without_the_flag_still_opens_a_console, check_the_terminal_security_rules_hold_for_a_linux_machine,
 ]
