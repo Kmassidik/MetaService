@@ -9,6 +9,7 @@ use crate::gpu_check::{self, GpuCheck};
 use crate::models::*;
 use crate::sandbox::Sandboxes;
 use crate::ssh_install::{self, SshdFailure};
+use crate::steps;
 use crate::ssh_keys::{Applied, SshRequest};
 use crate::validate::{BundleRequest, BundleUninstallRequest, CreateRequest};
 use rand::Rng;
@@ -226,7 +227,7 @@ impl Service {
         let external = self.external.clone();
         let target_id = id.to_string();
         let target = blocking(move || external.resolve(&target_id)).await?;
-        let mut command = Command { command_id: command_id.into(), kind: action.command_type(), state: CommandState::Running, workload_id: None, result: None };
+        let mut command = Command { command_id: command_id.into(), kind: action.command_type(), state: CommandState::Running, workload_id: None, result: None, step: None };
         self.ledger.record(command.clone());
         let external = self.external.clone();
         let outcome = blocking(move || external.execute(&target, action)).await;
@@ -266,7 +267,7 @@ impl Service {
         let id = new_workload_id();
         let planned = Workload { id: id.clone(), name: request.name.clone(), kind: request.kind, state: State::Provisioning, cpu: request.cpu, ram_mb: request.ram_mb, disk_gb: request.disk_gb, gpu_mode: request.gpu_mode, address: None, bundle_version: None, gpu_memory_gb: request.gpu_memory_gb, stopped_reason: None };
         self.flight.lock().unwrap().inflight.insert(id.clone(), planned);
-        let started = Command { command_id: request.command_id.clone(), kind: CommandType::Create, state: CommandState::Running, workload_id: Some(id.clone()), result: None };
+        let started = Command { command_id: request.command_id.clone(), kind: CommandType::Create, state: CommandState::Running, workload_id: Some(id.clone()), result: None, step: Some(steps::CREATING.into()) };
         self.ledger.record(started.clone());
         let this = self.clone();
         let echo = started.clone();
@@ -278,7 +279,10 @@ impl Service {
         let engine = self.engine.clone();
         let made = blocking({ let id = id.clone(); move || engine.create(&id, &request) }).await;
         match made {
-            Ok(_) => finish(&mut command, true, [("workload_id", id.as_str())]),
+            Ok(_) => {
+                finish(&mut command, true, [("workload_id", id.as_str())]);
+                command.step = Some(steps::DONE.into());
+            }
             Err(error) => {
                 log_failure("create", &id, &error);
                 finish(&mut command, false, [("error", "the machine could not create the workload")]);
@@ -295,7 +299,7 @@ impl Service {
         }
         self.require(id).await?;
         let kind = if running { CommandType::Start } else { CommandType::Stop };
-        let mut command = Command { command_id: command_id.into(), kind, state: CommandState::Running, workload_id: Some(id.into()), result: None };
+        let mut command = Command { command_id: command_id.into(), kind, state: CommandState::Running, workload_id: Some(id.into()), result: None, step: None };
         let engine = self.engine.clone();
         let target = id.to_string();
         match blocking(move || engine.set_running(&target, running)).await {
@@ -320,7 +324,7 @@ impl Service {
         }
         self.require(id).await?;
         let was_running = self.workloads().await?.iter().any(|workload| workload.id == id && workload.state == State::Running);
-        let started = Command { command_id: command_id.into(), kind: CommandType::Delete, state: CommandState::Running, workload_id: Some(id.into()), result: None };
+        let started = Command { command_id: command_id.into(), kind: CommandType::Delete, state: CommandState::Running, workload_id: Some(id.into()), result: None, step: Some(steps::CHECKING.into()) };
         {
             let mut flight = self.flight.lock().unwrap();
             if let Some(owner) = flight.deleting.get(id) {
@@ -350,32 +354,44 @@ impl Service {
         flight.deleting.remove(id);
     }
 
-    async fn finish_delete(self: Arc<Self>, mut command: Command, id: String, was_running: bool) {
+    /// Moves a running command to its next step, where a poll can see it at once.
+    fn enter_step(&self, command: &mut Command, step: &str) {
+        command.step = Some(step.to_string());
+        self.ledger.record(command.clone());
+    }
+
+    /// Stop (if it ran), back up, delete: each is its own step, so a failure names the step it happened in.
+    async fn delete_steps(&self, command: &mut Command, id: &str, was_running: bool) -> Result<String, EngineError> {
+        if was_running {
+            self.enter_step(command, steps::STOPPING);
+            let engine = self.engine.clone();
+            let target = id.to_string();
+            blocking(move || engine.set_running(&target, false)).await?;
+        }
+        self.enter_step(command, steps::BACKING_UP);
         let engine = self.engine.clone();
-        let target = id.clone();
-        let stopped = if was_running {
-            let engine = engine.clone();
-            let target = target.clone();
-            blocking(move || engine.set_running(&target, false)).await
-        } else {
-            Ok(())
-        };
-        let outcome = match stopped {
-            Ok(()) => {
-                let engine = engine.clone();
-                let target = target.clone();
-                blocking(move || engine.backup(&target).and_then(|backup| engine.delete(&target).map(|_| backup))).await
-            }
-            Err(error) => Err(error),
-        };
+        let target = id.to_string();
+        let backup = blocking(move || engine.backup(&target)).await?;
+        self.enter_step(command, steps::DELETING);
+        let engine = self.engine.clone();
+        let target = id.to_string();
+        blocking(move || engine.delete(&target)).await?;
+        Ok(backup)
+    }
+
+    async fn finish_delete(self: Arc<Self>, mut command: Command, id: String, was_running: bool) {
+        let outcome = self.delete_steps(&mut command, &id, was_running).await;
         match outcome {
-            Ok(backup) => finish(&mut command, true, [("backup_id", backup.as_str())]),
+            Ok(backup) => {
+                finish(&mut command, true, [("backup_id", backup.as_str())]);
+                command.step = Some(steps::DONE.into());
+            }
             Err(error) => {
                 log_failure("delete", &id, &error);
                 let mut reason = delete_failure(&error);
                 if was_running {
-                    let engine = engine.clone();
-                    let target = target.clone();
+                    let engine = self.engine.clone();
+                    let target = id.clone();
                     if let Err(restart_error) = blocking(move || engine.set_running(&target, true)).await {
                         reason = format!("{reason} (could not restart: {})", delete_failure(&restart_error));
                     }
@@ -400,7 +416,7 @@ impl Service {
                 return Err(Failure::NotFound);
             }
         }
-        let started = Command { command_id: request.command_id.clone(), kind: CommandType::BundleInstall, state: CommandState::Running, workload_id: request.workload_id.clone(), result: None };
+        let started = Command { command_id: request.command_id.clone(), kind: CommandType::BundleInstall, state: CommandState::Running, workload_id: request.workload_id.clone(), result: None, step: None };
         self.ledger.record(started.clone());
         let this = self.clone();
         let echo = started.clone();
@@ -435,7 +451,7 @@ impl Service {
                 return Err(Failure::NotFound);
             }
         }
-        let started = Command { command_id: request.command_id.clone(), kind: CommandType::BundleUninstall, state: CommandState::Running, workload_id: request.workload_id.clone(), result: None };
+        let started = Command { command_id: request.command_id.clone(), kind: CommandType::BundleUninstall, state: CommandState::Running, workload_id: request.workload_id.clone(), result: None, step: None };
         self.ledger.record(started.clone());
         let this = self.clone();
         let echo = started.clone();
@@ -587,8 +603,8 @@ mod tests {
         let listed = service.workloads().await.unwrap();
         assert_eq!(listed.iter().find(|w| w.id == "w-delete").unwrap().state, State::Deleting);
 
-        assert_eq!(service.delete("d-1", "w-delete").await.unwrap(), started);
-        assert_eq!(service.delete("d-2", "w-delete").await.unwrap(), started, "a new command id joins the in-flight delete");
+        assert_eq!(service.delete("d-1", "w-delete").await.unwrap().command_id, started.command_id);
+        assert_eq!(service.delete("d-2", "w-delete").await.unwrap().command_id, started.command_id, "a new command id joins the in-flight delete");
         assert!(service.command("d-2").is_none());
         assert_eq!(changes.load(std::sync::atomic::Ordering::SeqCst), 1, "a coalesced retry is not another state change");
         engine.release_backup();

@@ -68,7 +68,7 @@ mod tests {
     use crate::models::CommandType;
 
     fn command(id: &str, state: CommandState) -> Command {
-        Command { command_id: id.into(), kind: CommandType::Start, state, workload_id: None, result: None }
+        Command { command_id: id.into(), kind: CommandType::Start, state, workload_id: None, result: None, step: None }
     }
 
     #[test]

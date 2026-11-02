@@ -274,6 +274,9 @@ pub struct Command {
     pub workload_id: Option<String>,
     #[serde(default)]
     pub result: Option<HashMap<String, String>>,
+    /// Where a delete or create is now, one of `steps::*` (never engine text). Left out for commands that have no steps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step: Option<String>,
 }
 
 /// Why a create was refused, with the numbers behind it.
