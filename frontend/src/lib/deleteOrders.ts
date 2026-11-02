@@ -1,11 +1,11 @@
 // Delete orders keep a VM busy after the POST has answered. The accepted order gives immediate feedback;
 // the machine's own `deleting` state keeps it truthful after a reload or when the order leaves the recent list.
+import { isStoppedState, stoppedText } from './jobState.ts'
 import { cleanFailureText } from './stoppedReason.ts'
 import type { Command, Machine } from './types.ts'
 
 const ACTIVE_STATES: Record<string, true> = { queued: true, running: true }
 const DELETING_STATE = 'deleting'
-const DELETE_FAILED_TEXT = 'The VM could not be deleted.'
 
 const isActiveDelete = (order: Command): order is Command & { workload_id: string } => order.type === 'delete' && ACTIVE_STATES[order.state] === true && typeof order.workload_id === 'string'
 const key = (machine: string, workload: string): string => `${machine}\0${workload}`
@@ -37,6 +37,6 @@ function newestDelete(orders: Command[], machine: string, workload: string): Com
 /** The newest failed delete's real helper reason. A newer attempt or success clears the old failure. */
 export function deleteFailure(orders: Command[], machine: string, workload: string): string | null {
   const order = newestDelete(orders, machine, workload)
-  if (order?.state !== 'failed') return null
-  return cleanFailureText(order.result?.error ?? '').trim() || DELETE_FAILED_TEXT
+  if (order === null || !isStoppedState(order.state)) return null
+  return cleanFailureText(order.result?.error ?? '').trim() || stoppedText(order)
 }

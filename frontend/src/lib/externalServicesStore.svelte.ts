@@ -1,6 +1,7 @@
 // The external services of one machine (Docker, Incus, Apple) as something the page can read: the Building draws them as blocks, the
 // table and cards views list them, and both ask for the same read and the same Start / Stop / Restart.
 import { ApiError, externalServiceAction, getCommand, listExternalServices } from './api.ts'
+import { isOpenState } from './jobState.ts'
 import type { Command, ExternalService, ExternalServiceAction, ExternalServicesReply } from './types.ts'
 
 const COMMAND_POLL_MS = 250
@@ -9,12 +10,12 @@ const COMMAND_TIMEOUT_MS = 120_000
 async function waitForCommand(accepted: Command): Promise<void> {
   let current = accepted
   const deadline = Date.now() + COMMAND_TIMEOUT_MS
-  while (current.state !== 'succeeded' && current.state !== 'failed') {
+  while (isOpenState(current.state)) {
     if (Date.now() >= deadline) throw new ApiError(0, 'timeout', 'The machine is still working. Check the service again shortly.')
     await new Promise<void>((resolve) => setTimeout(resolve, COMMAND_POLL_MS))
     current = await getCommand(accepted.id)
   }
-  if (current.state === 'failed') throw new ApiError(0, 'command_failed', current.result?.error ?? 'The machine could not change the service.')
+  if (current.state !== 'succeeded') throw new ApiError(0, 'command_failed', current.result?.error ?? 'The machine could not change the service.')
 }
 
 export class ExternalServicesStore {

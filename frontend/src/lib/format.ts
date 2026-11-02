@@ -1,6 +1,7 @@
 // Pure helpers for showing machine data. No DOM, no network, so they are easy to test.
 import { cpuFields } from './cpuOptions.ts'
 import { imageBundle } from './images.ts'
+import { isStoppedState, stoppedText } from './jobState.ts'
 import type { Command, WorkloadForm } from './types.ts'
 
 const SECOND = 1000
@@ -132,6 +133,7 @@ export function commandName(type: string): string {
 /** One line saying how a command ended. */
 export function commandOutcome(command: Command): string {
   if (command.state === 'failed') return command.result?.error ?? 'failed'
+  if (isStoppedState(command.state)) return stoppedText(command)
   if (command.state !== 'succeeded') return 'working…'
   if (command.result?.backup_id && command.result.backup_id !== 'none') return `backup kept: ${command.result.backup_id}`
   return 'done'

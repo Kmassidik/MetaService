@@ -1,6 +1,7 @@
 <script lang="ts">
   import { relativeTime, commandName, commandOutcome } from '../lib/format.ts'
   import { COMMANDS_LIMIT } from '../lib/api.ts'
+  import { stateWords } from '../lib/jobState.ts'
   import type { Command } from '../lib/types.ts'
 
   let { commands, now }: { commands: Command[]; now: number } = $props()
@@ -16,7 +17,7 @@
       {#each commands as command (command.id)}
         <li>
           <span class="what"><strong>{commandName(command.type)}</strong> {command.params.name ?? command.workload_id ?? ''} <span class="muted">on {command.machine}</span></span>
-          <span class="state {command.state}">{command.state}</span>
+          <span class="state {command.state}">{stateWords(command.state)}</span>
           <span class="muted outcome">{commandOutcome(command)}</span>
           <span class="muted nums">{relativeTime(command.created_at, now)}</span>
         </li>
@@ -34,7 +35,7 @@
   li:first-child { border-top: 0; }
   .state { font-weight: 600; font-size: 13px; }
   .state.succeeded { color: var(--ok); }
-  .state.failed { color: var(--danger); }
+  .state.failed, .state.timed_out, .state.lost_contact { color: var(--danger); }
   .state.running, .state.queued { color: var(--warn); }
   .outcome { overflow-wrap: anywhere; }
   @media (max-width: 760px) { li { grid-template-columns: 1fr auto; } .outcome { grid-column: 1 / -1; } }

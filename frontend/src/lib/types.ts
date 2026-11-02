@@ -337,11 +337,15 @@ export interface Command {
   type: string
   machine: string
   workload_id?: string | null
-  state: 'queued' | 'running' | 'succeeded' | 'failed' | string
+  /** queued and running are open; succeeded, failed, timed_out and lost_contact are final (see jobState.ts). */
+  state: 'queued' | 'running' | 'succeeded' | 'failed' | 'timed_out' | 'lost_contact' | string
   created_at: string
   params: Record<string, unknown>
   result?: CommandResult | null
   finished_at?: string | null
+  /** The job's current step, one of the parent's fixed phrases; null or missing when unknown. Read it with stepOf(), never directly. */
+  step?: string | null
+  step_at?: string | null
 }
 
 /** One row of the AI use per machine (and per VM). */

@@ -47,7 +47,7 @@ button{font-family:inherit;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.btn-spin{animation:none;border-right-color:currentColor;border-style:dotted}}
 
 /* announce / topbar — accent band (colours in palette.css) */
-.announce{background:var(--announce-bg);color:var(--announce-text);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:8px 16px;border-bottom:1px solid var(--announce-line)}
+.announce{position:relative;background:var(--announce-bg);color:var(--announce-text);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:8px 16px;border-bottom:1px solid var(--announce-line)}
 
 /* shell + sidebar */
 .shell{display:flex;min-height:calc(100vh - 34px)}

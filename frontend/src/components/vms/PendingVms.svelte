@@ -31,6 +31,7 @@
             {/each}
           </ol>
         {/if}
+        {#if entry.step}<p class="note muted" role="status" data-testid="pending-step">{entry.step}</p>{/if}
         {#if entry.note && entry.stage !== 'failed'}<p class="note muted" role="status">{entry.note}</p>{/if}
       </li>
     {/each}

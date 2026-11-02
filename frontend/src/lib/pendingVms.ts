@@ -1,6 +1,7 @@
 // VMs that are being made. The parent answers a create at once with an order, but the machine only lists the VM on a later heartbeat, so for a while the VM is in no list.
 // These pure functions turn the orders (and the machines' lists) into the "Creating…" rows the pages show. No DOM, no network, no clock of their own.
 import { cleanFailureText } from './stoppedReason.ts'
+import { LOST_CONTACT_TEXT, STEP_MAX_CHARS, TIMED_OUT_TEXT, oneLine, stepOf } from './jobState.ts'
 import type { Command, CommandResult, Machine, Workload } from './types.ts'
 
 export type PendingStage = 'waiting' | 'creating' | 'starting' | 'failed'
@@ -17,6 +18,8 @@ export interface PendingVm {
   reason: string | null
   /** Said when the order is taking very long. Null otherwise. */
   note: string | null
+  /** What the machine is doing now ("Creating the machine"), while the order is open. Null when it does not say. */
+  step: string | null
 }
 
 const SECOND_MS = 1000
@@ -41,7 +44,8 @@ const SLOW_NOTES: Record<Exclude<PendingStage, 'failed'>, string> = {
   creating: 'This is taking longer than usual. The machine is still working on it.',
   starting: 'The machine has made it but has not reported it yet. It will show here by itself.',
 }
-const ORDER_STAGES: Record<string, PendingStage> = { queued: 'waiting', running: 'creating', succeeded: 'starting', failed: 'failed' }
+const ORDER_STAGES: Record<string, PendingStage> = { queued: 'waiting', running: 'creating', succeeded: 'starting', failed: 'failed', timed_out: 'failed', lost_contact: 'failed' }
+const STATE_REASONS: Record<string, string> = { timed_out: TIMED_OUT_TEXT, lost_contact: LOST_CONTACT_TEXT }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -61,6 +65,8 @@ export function parseCommand(answer: unknown): Command | null {
     params: isRecord(params) ? params : {},
     result: parseResult(order.result),
     finished_at: typeof order.finished_at === 'string' ? order.finished_at : null,
+    step: typeof order.step === 'string' ? oneLine(order.step, STEP_MAX_CHARS) : null,
+    step_at: typeof order.step_at === 'string' ? order.step_at : null,
   }
 }
 
@@ -80,9 +86,9 @@ export function mergeOrders(listed: Command[], local: Command[]): Command[] {
 }
 
 /** A reason as text: first letter big. A one-line reason ends with a full stop; a longer one (it holds the last lines a VM printed) is left as it came. */
-export function reasonText(result: CommandResult | null | undefined): string {
+export function reasonText(result: CommandResult | null | undefined, state = 'failed'): string {
   const text = cleanFailureText(result?.error ?? '').trim()
-  if (!text) return WITHOUT_REASON
+  if (!text) return STATE_REASONS[state] ?? WITHOUT_REASON
   const sentence = text[0]?.toUpperCase() + text.slice(1)
   const finished = sentence.includes('\n') || /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
   return cleanFailureText(finished)
@@ -132,7 +138,7 @@ function entryFor(order: Command, machines: Machine[], now: number, dismissed: R
   if (order.type !== 'create' || !stage || dismissed.has(order.id) || isStale(order, stage, now)) return null
   const on = machines.find((machine) => machine.id === order.machine)
   if (stage !== 'failed' && (!on || isListed(order, on))) return null
-  return { id: order.id, machine: order.machine, machineName: on?.name ?? order.machine, name: orderName(order), stage, reason: stage === 'failed' ? reasonText(order.result) : null, note: noteFor(order, stage, now) }
+  return { id: order.id, machine: order.machine, machineName: on?.name ?? order.machine, name: orderName(order), stage, reason: stage === 'failed' ? reasonText(order.result, order.state) : null, note: noteFor(order, stage, now), step: stage === 'failed' ? null : stepOf(order) }
 }
 
 /** The VMs that are being made or could not be made, newest first: orders to create a VM that no machine lists yet, and failed ones the person has not dismissed. */

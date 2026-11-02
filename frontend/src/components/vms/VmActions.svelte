@@ -7,7 +7,8 @@
   import { lineOf } from '../../lib/action.ts'
   import { ActionState } from '../../lib/action.svelte.ts'
   import { consoleTitle, terminalAccess } from '../../lib/terminalAccess.ts'
-  import { deleteFailure } from '../../lib/deleteOrders.ts'
+  import JobLine from './JobLine.svelte'
+  import { jobLine, type RetryType } from '../../lib/jobState.ts'
   import { openConsole } from '../../lib/terminalStore.svelte.ts'
   import { MACHINE_OFFLINE_REASON, isMachineOffline } from '../../lib/machineOffline.ts'
   import { vmActionFacts, vmActions, type VmActionHandlers, type VmActionId } from '../../lib/vmActions.ts'
@@ -49,7 +50,13 @@
   const access = $derived(terminalAccess(machine, workload))
   const installed = $derived(Boolean(workload.bundle_version))
   const deleting = $derived(workload.state === 'deleting')
-  const deleteError = $derived(deleting ? null : deleteFailure(commands, machine.id, workload.id))
+  const job = $derived(jobLine(commands, machine.id, workload.id, Date.now()))
+
+  /** Retry sends the same order again; a Delete asks to be confirmed first. */
+  async function retry(type: RetryType): Promise<void> {
+    if (type === 'delete') return handlers.onDelete(machine, workload)
+    return handlers.onAct(machine, workload, type)
+  }
 
   /** A button that runs one request at a time. */
   function guarded(id: GuardedId, label: string, text: string, icon: string, words: Words, work: () => Promise<unknown>): Button {
@@ -91,7 +98,7 @@
   </div>
   <ActionLine line={offline ? MACHINE_OFFLINE_REASON : ''} failed={false} />
   <ActionLine {line} failed={current?.status === 'failed'} />
-  <ActionLine line={deleteError ?? ''} failed={deleteError !== null} />
+  <JobLine line={job} onRetry={retry} />
   {#if keysOpen}<SshKeysDialog {machine} {workload} open={keysOpen} onClose={() => (keysOpen = false)} />{/if}
 </div>
 

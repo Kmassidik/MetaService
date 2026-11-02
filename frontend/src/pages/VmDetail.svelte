@@ -12,7 +12,8 @@
   import VmOrigin from '../components/vm/VmOrigin.svelte'
   import { MACHINE_OFFLINE_REASON, isMachineOffline, stateClass } from '../lib/machineOffline.ts'
   import { hasGpu } from '../lib/gpuChoice.ts'
-  import { deleteFailure } from '../lib/deleteOrders.ts'
+  import JobLine from '../components/vms/JobLine.svelte'
+  import { jobLine, type RetryType } from '../lib/jobState.ts'
   import { machineHref } from '../lib/routes.ts'
   import { vmStateText } from '../lib/vmList.ts'
   import { consoleTitle, terminalAccess } from '../lib/terminalAccess.ts'
@@ -47,7 +48,14 @@
   const action = $derived(workload ? headerAction(workload.state) : null)
   const note = $derived(machine && workload ? stopNote(machine.id, workload, commands) : null)
   const deleting = $derived(workload?.state === 'deleting')
-  const deleteError = $derived(machine && workload && !deleting ? deleteFailure(commands, machine.id, workload.id) : null)
+  const job = $derived(machine && workload ? jobLine(commands, machine.id, workload.id, Date.now()) : null)
+
+  /** Retry sends the same order again; a Delete asks to be confirmed first. */
+  async function retry(type: RetryType): Promise<void> {
+    if (!machine || !workload) return
+    if (type === 'delete') return onDelete(machine, workload)
+    return onAct(machine, workload, type)
+  }
 
   function copy(text: string) {
     void navigator.clipboard?.writeText(text)
@@ -72,6 +80,8 @@
     </div>
   </div>
 
+  {#if job}<div class="jobbar"><JobLine line={job} onRetry={retry} center /></div>{/if}
+
   <div class="tabs" role="tablist">
     {#each VM_TABS as id (id)}
       <button type="button" role="tab" class:on={tab === id} aria-selected={tab === id} onclick={() => (tab = id)}>{tabLabel(id)}</button>
@@ -89,7 +99,7 @@
     {:else if tab === 'access'}
       <VmAccess {machine} {workload}onCopy={copy} onOpenChat={() => onOpenChat(machine, workload)} />
     {:else}
-      <VmDanger {deleting} {offline} error={deleteError} onDelete={() => onDelete(machine, workload)} />
+      <VmDanger {deleting} {offline} onDelete={() => onDelete(machine, workload)} />
     {/if}
   </div>
 {/if}
@@ -101,9 +111,10 @@
   /* The Web terminal button keeps its size while it says why it is off, like the Terminal button of a VM row. */
   .term { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
   .term small { font-size: 9.5px; font-weight: 400; letter-spacing: 0; }
+  .jobbar { padding: 10px 28px 0; }
   .tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 28px; }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--m50); margin-bottom: -1px; }
   .tabs button.on { color: var(--text); border-bottom-color: var(--accent-mark); font-weight: 700; }
   .tabbody { padding: 24px 28px; max-width: 820px; }
-  @media (max-width: 820px) { .tabs, .tabbody { padding-left: 16px; padding-right: 16px; } }
+  @media (max-width: 820px) { .jobbar { padding: 10px 16px 0; } .tabs, .tabbody { padding-left: 16px; padding-right: 16px; } }
 </style>

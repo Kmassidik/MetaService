@@ -88,7 +88,7 @@ test('the same order from the list and from this session counts once, and the li
 })
 
 test('the pending VMs of one machine, or of all', () => {
-  const entries: PendingVm[] = [{ id: 'a', machine: 'm', machineName: 'M', name: 'a', stage: 'creating', reason: null, note: null }, { id: 'b', machine: 'n', machineName: 'N', name: 'b', stage: 'creating', reason: null, note: null }]
+  const entries: PendingVm[] = [{ id: 'a', machine: 'm', machineName: 'M', name: 'a', stage: 'creating', reason: null, note: null, step: null }, { id: 'b', machine: 'n', machineName: 'N', name: 'b', stage: 'creating', reason: null, note: null, step: null }]
   expect(pendingFor(entries, 'm').map((entry) => entry.id)).toEqual(['a'])
   expect(pendingFor(entries, null)).toHaveLength(2)
 })

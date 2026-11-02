@@ -2,6 +2,7 @@
 // Pure functions, no DOM, no network, no clock: the page asks again by itself and these read whatever the newest answers say.
 import { appLogoName, appTitle } from './appInstall.ts'
 import type { LogoName } from './logos.ts'
+import { isStoppedState } from './jobState.ts'
 import { reasonText } from './pendingVms.ts'
 import { readStoppedReason } from './stoppedReason.ts'
 import type { Command, Machine, Workload, WorkloadKind } from './types.ts'
@@ -83,7 +84,7 @@ const appOf = (order: Command | undefined, workload: Workload | null): string | 
 const waitingStep = (context: Context): Outcome => (context.order === undefined || context.order.state === 'queued' ? NOW : DONE)
 
 function creatingStep({ order }: Context): Outcome {
-  if (order?.state === 'failed') return { state: 'failed', reason: reasonText(order.result) }
+  if (order !== undefined && isStoppedState(order.state)) return { state: 'failed', reason: reasonText(order.result, order.state) }
   return order?.state === 'succeeded' ? DONE : NOW
 }
 

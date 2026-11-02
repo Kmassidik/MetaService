@@ -18,6 +18,10 @@
   import Mcp from './pages/Mcp.svelte'
   import Security from './pages/Security.svelte'
   import Health from './pages/Health.svelte'
+  import Notifications from './pages/Notifications.svelte'
+  import NotificationBell from './components/NotificationBell.svelte'
+  import { BELL_POLL_MS } from './lib/notifications.ts'
+  import { bell } from './lib/notificationsStore.svelte.ts'
   import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
@@ -102,6 +106,7 @@
       if (who) {
         username = who
         phase = 'ready'
+        bell.resume()
         await refresh()
         return
       }
@@ -166,6 +171,7 @@
   /** Back to the sign-in screen first, so no page reads data of a session that has ended. */
   async function restart() {
     phase = 'loading'
+    bell.clear()
     loaded = false
     machines = []
     await start()
@@ -253,9 +259,15 @@
     start()
     const refreshTimer = setInterval(() => !document.hidden && refresh(), LIST_POLL_MS)
     const clockTimer = setInterval(() => (now = Date.now()), CLOCK_MS)
-    const wake = () => !document.hidden && refresh()
+    const bellTimer = setInterval(() => phase === 'ready' && bell.poll(), BELL_POLL_MS)
+    const wake = () => {
+      if (document.hidden) return
+      void refresh()
+      if (phase === 'ready') bell.resume()
+    }
     document.addEventListener('visibilitychange', wake)
     return () => {
+      clearInterval(bellTimer)
       clearInterval(refreshTimer)
       clearInterval(clockTimer)
       document.removeEventListener('visibilitychange', wake)
@@ -275,7 +287,7 @@
 {:else if phase === 'signedOut'}
   <Login {configured} minLength={minPasswordLength} onDone={start} />
 {:else}
-  <div class="announce">MetaService · control panel</div>
+  <div class="announce">MetaService · control panel<NotificationBell /></div>
   <div class="shell">
     <Sidebar active={page} {route} {username} onSignOut={leave} />
     <main class="main">
@@ -300,6 +312,8 @@
         <Mcp />
       {:else if page === 'security'}
         <Security {machines} {route} {now} onChanged={refresh} />
+      {:else if page === 'notifications'}
+        <Notifications {now} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}

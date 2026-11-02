@@ -102,6 +102,9 @@ async function exchange(method: Method, path: string, body: unknown, signal: Abo
 /** One GET to the Root; the answer is the unchecked JSON body, for a caller that reads it with its own parser (securityApi.ts). */
 export const getUnchecked = (path: string): Promise<unknown> => send('GET', path)
 
+/** One POST to the Root; the answer is the unchecked JSON body, for a caller that reads it with its own parser (notificationsApi.ts). */
+export const postUnchecked = (path: string, body: unknown): Promise<unknown> => send('POST', path, body)
+
 /** A call whose answer has no body (204). */
 async function callNoBody(method: Method, path: string, body?: unknown, timeoutMs?: number): Promise<null> {
   await send(method, path, body, timeoutMs)
