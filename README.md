@@ -5,6 +5,10 @@ A machine can also run **Ruvio**, a chat, and the parent gives the chat its AI, 
 
 parent → machines → VMs
 
+## Architecture
+
+See [architecture/README.md](architecture/README.md) for the current system shape, the office network/cabling model, and the proposed AWS + Liquid Compute hybrid direction. The integration documents are proposals, not deployed features.
+
 ## Install
 
 You need an Apple Silicon Mac with Swift (from Xcode or its command-line tools) and Python 3. The parent only runs on that kind of Mac for now.
