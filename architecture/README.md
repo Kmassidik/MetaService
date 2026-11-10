@@ -1,87 +1,134 @@
-# MetaService architecture
+# MetaService, explained like a system you already use
 
-This section describes the current architecture and its hybrid-compute direction. It is safe to publish: exact host addresses, MAC addresses, wall-side credentials, and tokens remain in the private operations knowledge base.
+MetaService lets one small control panel manage real computers: create VMs, discover existing services, run agent sandboxes, and see what each machine is doing.
 
-## Documents
+It is **not a cloud provider by itself**. It is the control system for machines you already own.
 
-- [Office network and cabling](office-network.md)
-- [Hybrid AWS and Liquid Compute](hybrid-aws-liquid-compute.md)
-- [Liquid Compute integration prompt](PROMPT-liquid-compute.md)
-- **[Single-file illustrated PDF](MetaService-hybrid-architecture.pdf)** — 8 A4 pages for Kurnia and Luca
+## Start with four ideas
 
-Regenerate the PDF with native Swift/AppKit/WebKit/PDFKit (no Python or third-party packages):
+| Idea | Human explanation | Technical meaning |
+|---|---|---|
+| **Machine** | A real computer in the office or elsewhere | Mac Mini, Mac Studio, DGX Spark, RTX PC |
+| **Parent** | The coordinator that knows what every machine should do | Inventory, API, placement, commands, audit |
+| **Helper** | The local technician on each machine | Executes operations and reports real results |
+| **Workload** | Something running on a machine | VM, container, sandbox, or existing service |
 
-```sh
-swift architecture/pdf/render.swift
-```
+The parent does not need to be the fastest computer. It needs to know what is happening and make safe decisions.
 
-## Current shape
-
-MetaService is a self-hosted compute control plane. One **parent** manages multiple physical **machines**. A native **helper** on each machine executes local operations through a versioned contract.
+## What happens when you click Create VM
 
 ```mermaid
-flowchart TD
-    Operator[Operator browser] -->|HTTPS through panel tunnel| Parent[Parent on Mac Mini]
-    Program[Program with sandbox API key] -->|Sandbox API| Parent
+sequenceDiagram
+    actor You as You or an agent
+    participant Parent as Parent
+    participant Helper as Machine helper
+    participant Runtime as VM/container runtime
 
-    Parent -->|Authenticated commands over machine connection| MacHelper[macOS helpers]
-    Parent -->|Authenticated commands over machine connection| LinuxHelper[Linux helpers]
-
-    MacHelper -->|Apple Container| MacVMs[Managed VMs on Macs]
-    LinuxHelper -->|Incus| LinuxWorkloads[VMs and containers on Linux]
-
-    LinuxHelper -. read-only discovery .-> Docker[Existing Docker services]
-    MacHelper -. read-only discovery .-> ExistingApple[Existing Apple services]
-    LinuxHelper -. read-only discovery .-> ExistingIncus[Existing Incus services]
+    You->>Parent: Choose machine, size, and image
+    Parent->>Parent: Check permission and available resources
+    Parent->>Helper: Send a fixed operation and command ID
+    Helper->>Helper: Recheck the real target and capacity
+    Helper->>Runtime: Create/start the workload
+    Runtime-->>Helper: Actual state or failure
+    Helper-->>Parent: Report result
+    Parent-->>You: Show the final state
 ```
 
-## Responsibilities
+Each step has a different job:
 
-### Parent
+1. **You choose what you want.**
+2. **The parent decides whether it is allowed and where it fits.**
+3. **The helper checks the real machine again.** A machine that looked free a second ago may not be free now.
+4. **The runtime performs the action.**
+5. **The result comes back.** HTTP 202 only means the request was accepted, not that the VM is already running.
 
-- Operator panel and API
-- Machine inventory, enrollment, health, and resource budgets
-- Placement and lifecycle commands
-- Persistent command IDs, polling, retry recovery, and audit records
-- Sandbox keys, teams, expiration, and usage records
-- Machine storage maps and helper updates
+## Why helpers exist
 
-The parent coordinates work; it does not replace the runtime on each machine.
+Imagine the parent asking a machine to stop a container. It should not send a shell command such as `rm -rf ...` and hope nothing goes wrong.
 
-### Helpers
+The helper exposes a small set of safe operations:
 
-- Report real hardware, capabilities, and live readings
-- Create and manage managed workloads
-- Discover existing services without adopting or changing them
-- Revalidate targets immediately before lifecycle actions
-- Return actual, bounded errors rather than misleading success
+- List workloads
+- Create a workload with a known shape
+- Start, stop, restart, or delete a known target
+- Report real CPU, memory, disk, and GPU readings
+- Return a bounded, useful error
 
-macOS uses Swift and Apple Container. Linux uses Rust and Incus. External Docker services are discovered separately from managed workloads.
+The caller chooses an operation. The helper chooses the exact safe command arguments.
 
-## Product surfaces
+## Managed versus external services
 
-- **Live:** real machine CPU, memory, disk, network, and GPU readings
-- **Compute:** managed VMs and external services in one Building, with origin shown separately
-- **Storage:** disk maps and reclaimable-space classification
-- **Sandboxes:** Live, API keys, and Usage tabs
-- **Security:** intended to centralize machine security evidence; consult the current handover for which data paths are implemented
+Not everything on a machine was created by MetaService.
 
-## State and ownership boundaries
+| Type | Example | What MetaService may do |
+|---|---|---|
+| **Managed workload** | A VM created through the Compute page | Create, start, stop, back up, delete according to policy |
+| **External service** | A Docker container someone started earlier | Discover it and show its state; allow only explicit lifecycle controls |
+| **Sandbox** | A short-lived environment for an agent | Create with an API key, limit lifetime/resources, pause/resume/kill, record usage |
 
-- Managed workloads affect MetaService placement budgets.
-- External services do not enter managed placement accounting.
-- External discovery is read-only.
-- Explicit external start/stop/restart uses fresh target resolution and audited commands.
+External services stay separate from managed placement budgets. Their existence does not mean MetaService owns their data or may delete them.
+
+## VM, container, sandbox—without the jargon
+
+### VM
+
+A small computer running inside a real computer. It has its own kernel and operating system.
+
+### Container
+
+An isolated group of processes that usually shares the host’s kernel. It starts faster and uses less memory, but the host kernel is shared.
+
+### Sandbox
+
+The rules around running code: what files it can access, what network it can use, how much CPU/RAM/GPU/time it gets, which secrets it receives, and when it must stop.
+
+A sandbox can be implemented using a container, VM, microVM, or restricted process. **A container by itself is not automatically a safe sandbox for untrusted code.**
+
+## What you see in the product
+
+| Page | What it answers |
+|---|---|
+| **Live** | How is this machine doing right now? |
+| **Compute** | What is running here, and who owns it? |
+| **Storage** | What is using disk space? |
+| **Sandboxes** | Which agent environments exist, which keys can create them, and how much did they use? |
+| **Environment** | What is this machine, and how is it configured? |
+| **Activity** | What commands succeeded or failed? |
+
+## Three resource numbers that people often mix up
+
+1. **Real machine memory:** what the host is actually using, including external services and the OS.
+2. **Managed allocation:** what MetaService promised to its managed workloads.
+3. **Placement capacity:** what MetaService may still allocate after reserves and existing promises.
+
+A machine can show little managed allocation and still have substantial real usage from external services. That is not a bug.
+
+## Safety rules built into the model
+
+- Discovery is read-only.
 - External deletion is not offered.
-- Real host memory, managed allocation, and placement capacity are different measurements and must not be mixed.
-- An idle workload can still hold RAM, disk, or reserved GPU memory.
+- Lifecycle commands use command IDs so retries do not repeat side effects.
+- Targets are resolved again before mutation.
+- Failures return actual bounded errors instead of false success.
+- No AI provider key is placed inside an ordinary workload.
+- External-service state never changes managed resource accounting.
 
-## Current hybrid direction
+## Current versus future
 
-MetaService remains the on-prem compute and ownership layer. AWS can add cloud/container orchestration and storage; Liquid Compute is a potential market, verification, pricing, settlement, and delivery layer—not a workload runtime.
+| Area | Today | Possible later, with separate approval |
+|---|---|---|
+| On-prem Compute | Parent, helpers, managed VMs, external discovery | More machine types and provider adapters |
+| Agent sandboxes | Keys, expiration, pause/resume/kill, usage | Stronger isolation proofs and fork/cloning |
+| AWS | No deployed adapter | ECS Anywhere or EC2 burst experiments |
+| Liquid Compute | No deployed integration | Verification, delivery evidence, market/settlement integration |
+| Billing | Usage records | Pricing, statements, credits, and payment policy |
 
-See [Hybrid AWS and Liquid Compute](hybrid-aws-liquid-compute.md) for the proposed boundaries and phased plan. No AWS or Liquid Compute integration is implied by this document.
+Do not read the future column as shipped functionality.
 
-## Authoritative current-state references
+## Go deeper
 
-The repository contains design documents and history. For the current production state, use the latest private MetaService handover and the operational runbooks. The public architecture documents here deliberately omit sensitive network details.
+- [Office network and cabling](office-network.md): why a cable can be connected but the public gateway still cannot respond.
+- [Hybrid AWS and Liquid Compute](hybrid-aws-liquid-compute.md): how on-prem execution, AWS services, and a compute market could fit together.
+- [Integration prompt](PROMPT-liquid-compute.md): a copy-ready prompt for producing a careful PRD.
+
+For current production state, use the latest private MetaService handover. These public documents explain the model without exposing exact access addresses or credentials.

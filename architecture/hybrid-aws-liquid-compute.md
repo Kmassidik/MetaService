@@ -1,169 +1,192 @@
-# Hybrid AWS and Liquid Compute
+# Hybrid compute: on-prem, AWS, and Liquid Compute
 
-Status: **architecture proposal only**. No integration is built or deployed. Do not turn this proposal into infrastructure changes without a separate approved PRD.
+Status: **a design for discussion, not a deployed integration**. The goal is to add cloud capacity and a compute market without losing the thing that makes MetaService useful: clear ownership of on-prem machines and workloads.
 
-## 1. First-principles separation
+## Start with a real example
 
-The three systems solve different problems:
+Imagine a user asks for a GPU job:
 
-| System | Role |
-|---|---|
-| **MetaService** | Own on-prem machines, helpers, managed VMs, external-service inventory, sandbox API, lifecycle, usage, and audit |
-| **AWS** | Cloud compute, container orchestration, queues, object storage, identity, logging, and optional hybrid container management |
-| **Liquid Compute** | Compute market/exchange: reference pricing, verification, matching, clearing, settlement, financing, and physical delivery |
+1. MetaService finds space on an on-prem machine.
+2. A helper starts the job and records actual usage.
+3. A result or checkpoint is written to object storage.
+4. A signed usage/delivery record can later be shared with a market or customer.
 
-Liquid Compute is **not an ECS-like runtime**. Do not design it as a machine scheduler unless its official API documentation explicitly offers that capability.
+AWS can help with cloud execution and storage. Liquid Compute can help with pricing, verification, settlement, and delivery. They do not need to control the same workload.
 
-## 2. Recommended high-level model
+## The three roles
+
+| System | Simple explanation | What it should own |
+|---|---|---|
+| **MetaService** | “Run and measure work on my machines” | On-prem machines, helpers, managed VMs, external-service inventory, sandboxes, lifecycle, usage, audit |
+| **AWS** | “Run extra jobs and store results” | ECS tasks, EC2 instances, S3 objects, queues, IAM, logs |
+| **Liquid Compute** | “Price, verify, trade, and settle compute” | Market/contract data, verification, clearing, settlement, physical delivery |
+
+The most important sentence in this document:
+
+> **Liquid Compute is not an ECS-like runtime.** Do not ask it to start a VM unless its official documentation explicitly says it does that.
+
+## A safe end-to-end flow
 
 ```mermaid
 flowchart LR
-    User[User / AI agent] -->|Job or sandbox request| Meta[MetaService parent]
-    Meta -->|Local VM/container lifecycle| OnPrem[On-prem machines]
-    Meta -. optional container job adapter .-> ECS[AWS ECS / ECS Anywhere]
-    ECS --> EC2[EC2 or Fargate]
-    ECS --> External[Compatible on-prem external instances]
-
-    OnPrem -->|Usage and verified capacity| Meter[Usage and verification records]
-    EC2 -->|Usage and cost records| Meter
-
-    Meta -. signed evidence / delivery status .-> Liquid[Liquid Compute]
-    Liquid -->|Market price / contract / settlement input| Market[Compute market]
-
-    OnPrem <-->|Objects, results, checkpoints| S3[AWS S3]
-    ECS <-->|Objects, results, checkpoints| S3
+    User[User or agent] -->|Job request| Meta[MetaService]
+    Meta -->|Local lifecycle| OnPrem[On-prem machine]
+    Meta -. optional adapter .-> ECS[AWS ECS]
+    ECS --> Cloud[EC2 / Fargate]
+    ECS --> External[Compatible on-prem instance]
+    OnPrem -->|Results / checkpoints| S3[AWS S3]
+    Cloud -->|Results / checkpoints| S3
+    OnPrem -->|Usage evidence| Receipt[Delivery record]
+    Cloud -->|Usage evidence| Receipt
+    Receipt -. proposed integration .-> Liquid[Liquid Compute]
 ```
 
-Solid lines are execution. Dotted lines are proposed integration boundaries.
+Solid execution ownership stays with the controller that created the workload. Liquid Compute receives evidence only when its real API and delivery contract are known.
 
-## 3. AWS choices
+## AWS options, in plain language
 
-### ECS Anywhere — recommended first AWS hybrid experiment
+### ECS Anywhere
 
-Use it when the goal is **one ECS control plane for compatible containers in AWS and on-prem**.
+Use it when you want one ECS control plane for compatible containers in AWS and on-prem.
 
-AWS states that ECS Anywhere:
+It requires:
 
-- Runs container applications on on-prem VMs or bare metal
-- Uses the ECS agent, Systems Manager Agent, Docker, and an external-instance registration
-- Requires stable internet connectivity to the AWS control plane
-- Supports compatible Linux/Windows Server environments; it is not a macOS helper replacement
-- Can use supported GPU configurations, but our OS, CPU architecture, NVIDIA drivers, and device access still need verification
-- Allows external, EC2, and Fargate capacity in one ECS cluster
-- Keeps existing tasks running during a control-plane disconnect, but mutation/scaling stops; task credentials can expire
+- A supported external machine
+- Docker
+- AWS Systems Manager Agent
+- ECS agent
+- Registration with an ECS cluster
+- Stable internet access to AWS
 
-Current AWS FAQ price: **$0.01025 per managed external instance-hour**. Recheck pricing before budgeting.
+It does **not** replace MetaService’s macOS helper or full VM lifecycle. GPU support also needs real verification of our OS, CPU architecture, drivers, and device access.
 
-### AWS EC2 adapter — use for cloud burst VMs
+AWS’s current FAQ says existing tasks continue during a control-plane disconnect, but scaling/mutations stop and task credentials can expire. It also lists a price of **$0.01025 per managed external instance-hour**; verify that price again before budgeting.
 
-Use when MetaService needs to create/delete actual cloud VMs rather than submit containers to ECS.
+### Direct EC2 adapter
 
-The adapter would map a placement request to EC2 instance type, image, storage, network, and lifetime policy. It needs strict quota and cost ceilings. This is a separate provider adapter, not ECS Anywhere.
+Use this when MetaService needs to create and delete actual cloud VMs, not submit containers to ECS.
 
-### AWS Outposts — not the first experiment
+It needs:
 
-Outposts is for deploying AWS-managed infrastructure at a site. It does not simply reuse our existing Macs and PCs. It has a much larger procurement/operational commitment.
+- A mapping from MetaService sizes to EC2 instance types
+- Images, disks, networking, and expiration policy
+- Strict quotas and cost ceilings
+- Actual termination verification so a failed delete does not keep billing
 
-## 4. Recommended execution ownership
+### Outposts
 
-| Workload | Owner |
+Outposts brings AWS-managed infrastructure to a site. It is not a lightweight way to reuse our current Macs and PCs. It is not the first experiment.
+
+## Ownership is the main safety rule
+
+| Workload | Controller |
 |---|---|
-| Apple Container managed VM | MetaService macOS helper |
-| Incus managed VM/container | MetaService Linux helper |
+| Apple Container VM | MetaService macOS helper |
+| Incus VM/container | MetaService Linux helper |
 | Existing Docker service | Its existing owner; MetaService discovers it as external |
-| ECS Anywhere task | AWS ECS, through a future explicit adapter |
-| EC2 cloud VM | AWS provider adapter |
+| ECS Anywhere task | AWS ECS through a future adapter |
+| EC2 instance | AWS provider adapter |
 | Liquid Compute contract/delivery | Liquid Compute integration layer |
 
-**Never let two controllers mutate one workload.** If an ECS task appears as a Docker container, MetaService must identify it as AWS-managed and suppress ordinary external start/stop/restart unless an explicit ownership handoff exists.
+**Two controllers must not mutate one workload.**
 
-## 5. Data and networking
+If an ECS task appears as a Docker container, MetaService must recognize it as AWS-managed and suppress ordinary external start/stop/restart unless an explicit ownership handoff exists.
 
-Start with outbound TLS and object storage rather than a complex site-to-site network:
+## Networking and data: start simple
 
-- S3 for job inputs, results, checkpoints, and signed delivery evidence
-- SQS for queued jobs if needed
-- CloudWatch for ECS task logs and operational events
-- IAM roles with least privilege for AWS tasks
-- Existing authenticated machine connections for MetaService helpers
+Start with outbound TLS and object storage:
 
-Add AWS Site-to-Site VPN or Direct Connect only when workload traffic actually needs private VPC connectivity, predictable bandwidth, or lower transfer overhead. They are not prerequisites for every ECS Anywhere experiment.
+- **S3:** inputs, results, checkpoints, and delivery evidence
+- **SQS:** queued jobs, if needed
+- **IAM:** least-privilege task roles
+- **CloudWatch:** logs and operational events
+- **Existing MetaService connections:** helper commands and health
 
-## 6. Liquid Compute integration boundary
+Do not start with a complex private network unless the workload needs it. AWS Site-to-Site VPN or Direct Connect becomes useful when you need private VPC access, predictable bandwidth, or substantial transfer requirements.
 
-Liquid Compute's public site describes:
+## What Liquid Compute can mean for us
 
-- Liquid Compute Index reference pricing for selected data-center GPUs
-- Exchange/clearing and settlement work
+Liquid Compute’s public site describes:
+
+- Reference prices for selected data-center GPUs
+- Exchange and clearing functions
 - Physical delivery of compute
 - Verification, maintenance, monitoring, and financing
 
-Therefore, the first integration should be an **evidence and delivery adapter**, not a scheduler.
+That points to an **evidence and delivery adapter**, not a scheduler.
 
-Potential inputs:
+Possible things we could provide:
 
 - Hardware model and verified capacity
-- Availability window and reliability history
-- Benchmark/verification report
-- Metered delivery and signed receipts
-- Contract and settlement identifiers supplied by Liquid Compute
+- Availability windows and reliability history
+- Benchmark/verification reports
+- Metered delivery records and signed receipts
+- Contract identifiers supplied by Liquid Compute
 
-Unknown until official documentation/access is provided:
+Things we do **not** know yet:
 
-- Authentication and API endpoints
-- Supported hardware, including consumer GPUs and Apple Silicon
-- Delivery protocol and required network exposure
-- Verification format and signing requirements
-- Pricing units, currencies, rounding, fees, and settlement timing
+- API endpoints and authentication
+- Whether consumer GPUs or Apple Silicon are accepted
+- Required delivery/network exposure
+- Verification and signing formats
+- Pricing units, fees, rounding, and settlement timing
 - Dispute, failure, and refund behavior
 
-Do not invent these contracts.
+These are blockers until official documentation/access is provided. Do not invent answers.
 
-## 7. Phased plan
+## A phased plan that can stop safely
 
-### Phase 0 — documentation and API discovery
+### Phase 0 — Ask and document
 
-- Obtain Liquid Compute participant/API documentation.
-- Confirm which side buys, sells, verifies, and settles compute.
-- Confirm supported GPU types and whether our hardware qualifies.
-- Define ownership and evidence schemas without writing credentials into the repo.
+- Obtain Liquid Compute’s official participant/API documentation.
+- Confirm supported hardware and the buyer/seller/verifier roles.
+- Write down the real delivery and settlement contract.
+- Keep credentials outside Git.
 
-### Phase 1 — read-only AWS discovery
+**Stop if:** there is no usable API or our hardware is unsupported.
 
-- Create a non-production AWS account/OU or isolated project.
-- Estimate ECS Anywhere and data-transfer costs.
-- Verify ECS agent support for the chosen Linux machine and architecture.
-- Register one disposable external instance only after a separate approved runbook.
+### Phase 1 — Read-only AWS discovery
 
-### Phase 2 — one reversible container job
+- Use an isolated non-production AWS project.
+- Verify the chosen machine’s OS/CPU/GPU compatibility.
+- Estimate ECS Anywhere and transfer costs.
+- Produce a reversible registration runbook, but do not register yet.
 
-- Run a non-sensitive test job with no office-network access.
-- Store input/output in a dedicated S3 prefix.
-- Verify IAM, quotas, logs, disconnect behavior, and actual cost.
-- Keep existing production GPU services untouched.
+**Stop if:** the agent, GPU, or cost model does not fit.
 
-### Phase 3 — Liquid Compute evidence adapter
+### Phase 2 — One reversible test job
 
-- Export a signed, read-only verification/delivery bundle.
-- Validate it against Liquid Compute's real contract.
-- No automated selling, bidding, settlement, or payout in this phase.
+- Use a non-sensitive container job with no office-network access.
+- Use a dedicated S3 prefix and least-privilege IAM.
+- Verify logs, quotas, disconnect behavior, cleanup, and actual cost.
+- Leave existing production GPU services untouched.
 
-## 8. Non-goals for the first integration
+**Stop if:** cleanup or cost limits cannot be proven.
 
-- No migration of existing on-prem services into ECS
-- No Kubernetes control-plane replacement
-- No automatic public sale of idle capacity
-- No random Mac provider network
-- No AWS credentials or Liquid Compute credentials in Git
-- No shared workload ownership between controllers
-- No production GPU interruption for a proof of concept
+### Phase 3 — Read-only Liquid Compute evidence export
 
-## 9. Sources
+- Export a signed verification/delivery bundle.
+- Validate it against Liquid Compute’s real schema.
+- Do not automate selling, bidding, settlement, or payout.
+
+**Stop if:** the evidence cannot be validated or the required exposure is unacceptable.
+
+## Non-goals for the first experiment
+
+- No migration of existing services
+- No replacement of MetaService with Kubernetes
+- No automatic sale of idle capacity
+- No random public Mac contributor network
+- No credentials in Git
+- No shared workload ownership
+- No production GPU interruption
+
+## Sources
 
 - [Amazon ECS Anywhere FAQ](https://aws.amazon.com/ecs/anywhere/faqs/)
 - [Registering an external ECS instance](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-anywhere-registration.html)
 - [External instances for Amazon ECS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch-type-external.md)
 - [AWS hybrid HPC scenarios](https://docs.aws.amazon.com/wellarchitected/latest/high-performance-computing-lens/hybrid-scenarios.html)
-- [Liquid Compute](https://liquidcompute.com/) — product model and market stack
+- [Liquid Compute](https://liquidcompute.com/)
 
-Read the current official pages before implementation; product capabilities and pricing can change.
+Product capabilities and prices change. Re-read the official pages before implementing.
