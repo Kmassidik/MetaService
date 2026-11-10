@@ -7,7 +7,7 @@ parent → machines → VMs
 
 ## Architecture
 
-See [architecture/README.md](architecture/README.md) for the current system shape, the office network/cabling model, and the proposed AWS + Liquid Compute hybrid direction. The integration documents are proposals, not deployed features.
+The human-friendly architecture guides live in the private knowledge base at `knowledgebase/architecture/`, outside this public repository. They cover the current system shape, office network/cabling, and the proposed AWS + Liquid Compute direction. Those integration documents are proposals, not deployed features.
 
 ## Install
 
