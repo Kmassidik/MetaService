@@ -7,6 +7,13 @@ This section describes the current architecture and its hybrid-compute direction
 - [Office network and cabling](office-network.md)
 - [Hybrid AWS and Liquid Compute](hybrid-aws-liquid-compute.md)
 - [Liquid Compute integration prompt](PROMPT-liquid-compute.md)
+- **[Single-file illustrated PDF](MetaService-hybrid-architecture.pdf)** — 8 A4 pages for Kurnia and Luca
+
+Regenerate the PDF with native Swift/AppKit/WebKit/PDFKit (no Python or third-party packages):
+
+```sh
+swift architecture/pdf/render.swift
+```
 
 ## Current shape
 
