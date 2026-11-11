@@ -44,6 +44,11 @@ test('an offline machine is disabled and says offline', () => {
   expect(choice('off')).toMatchObject({ label: 'off (offline)', disabled: true, reason: 'offline' })
 })
 
+test('checking does not enable machine actions', () => {
+  const pending = machineChoices([machine({ id: 'pending', state: 'offline', state_pending: true })])
+  expect(pending[0]).toMatchObject({ disabled: true, reason: 'offline' })
+})
+
 test('a machine with problems is disabled and says it needs setup, with the first problem as the detail', () => {
   expect(choice('sick')).toMatchObject({ label: 'sick (needs setup)', disabled: true, reason: 'needs setup', detail: 'the bridge incusbr0 is not trusted' })
 })

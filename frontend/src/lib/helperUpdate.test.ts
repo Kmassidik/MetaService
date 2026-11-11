@@ -35,6 +35,12 @@ test('an offline machine cannot be updated and says why', () => {
   expect(view.note).toBe('The machine is offline.')
 })
 
+test('a pending machine cannot be updated but does not claim it is offline', () => {
+  const view = helperView(machine({ state: 'offline', state_pending: true, agent_build: OLD, update: info() }))
+  expect(view.canUpdate).toBe(false)
+  expect(view.note).toBeNull()
+})
+
 test('a machine the parent has no program for cannot be updated and shows the parent reason as text', () => {
   const reason = 'The parent has no MetaService program for this kind of computer, so its helper cannot be updated from here.'
   const view = helperView(machine({ agent_build: OLD, update: info({ available: false, newest_build: null, reason }) }))
@@ -101,4 +107,8 @@ test('the card offers the button only when an update exists and the machine is o
 
 test('an offline card with an update has no button and says the machine is offline', () => {
   expect(cardUpdate(machine({ state: 'offline', agent_build: OLD, update: info() }))).toEqual({ button: false, note: 'The machine is offline.' })
+})
+
+test('a pending card with an update has no button or offline alert', () => {
+  expect(cardUpdate(machine({ state: 'offline', state_pending: true, agent_build: OLD, update: info() }))).toEqual({ button: false, note: null })
 })

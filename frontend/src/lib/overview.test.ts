@@ -25,6 +25,12 @@ test('an offline machine and a machine problem each become one plain item', () =
   expect(attentionItems([])).toEqual([])
 })
 
+test('a pending machine is not online but needs no offline attention', () => {
+  const pending = machine({ name: 'pending', state: 'offline', state_pending: true })
+  expect(overviewCounts([pending])).toEqual({ machines: 1, online: 0, vms: 0, running: 0, needAttention: 0 })
+  expect(attentionItems([pending])).toEqual([])
+})
+
 test('usage adds up and names the VM when there is one', () => {
   const rows = [{ machine: 'a', workload: null, requests: 2, prompt_tokens: 10, completion_tokens: 5 }, { machine: 'a', workload: 'w1', requests: 1, prompt_tokens: 3, completion_tokens: 4 }]
   expect(usageTotals(rows)).toEqual({ requests: 3, promptTokens: 13, completionTokens: 9 })

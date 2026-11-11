@@ -97,6 +97,8 @@ public struct MachineSummary: Encodable, Equatable {
     public let sandbox: SandboxFacts?
     public let bundleVersion: String?
     public let state: String
+    /// True only while this parent process waits up to 45 seconds for a current heartbeat on an offline machine.
+    public let statePending: Bool
     public let lastSeen: String?
     public let workloads: [WorkloadSummary]
     /// How much of the card's memory is promised to containers; null when the machine has no NVIDIA card that can be shared or does not say its memory.
@@ -104,7 +106,7 @@ public struct MachineSummary: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, ip, os, arch, cpuCores, ramTotalMb, diskTotalGb, freeRamMb, freeDiskGb, cpuModel, hardware
-        case gpu, capabilities, settings, problems, agentVersion, agentBuild, engine, sandbox, bundleVersion, state, lastSeen, workloads, gpuBooking
+        case gpu, capabilities, settings, problems, agentVersion, agentBuild, engine, sandbox, bundleVersion, state, statePending, lastSeen, workloads, gpuBooking
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -131,6 +133,7 @@ public struct MachineSummary: Encodable, Equatable {
         try box.encode(sandbox, forKey: .sandbox)
         try box.encode(bundleVersion, forKey: .bundleVersion)
         try box.encode(state, forKey: .state)
+        try box.encode(statePending, forKey: .statePending)
         try box.encode(lastSeen, forKey: .lastSeen)
         try box.encode(workloads, forKey: .workloads)
         try box.encode(gpuBooking, forKey: .gpuBooking)

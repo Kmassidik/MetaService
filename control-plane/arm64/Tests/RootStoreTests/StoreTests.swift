@@ -118,6 +118,48 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try machines.get(id: "mini", now: now).state, "busy")
     }
 
+    func testMissingAndPreStartHeartbeatsArePendingDuringObservation() throws {
+        let machines = MachineStore(database, observingSince: now)
+        try machines.enroll(name: "silent", tokenHash: "h1", commandTokenSealed: "sealed", ip: nil, now: now)
+        try machines.enroll(name: "old", tokenHash: "h2", commandTokenSealed: "sealed", ip: nil, now: now.addingTimeInterval(-61))
+        try machines.recordHeartbeat(machineId: "old", request: try heartbeat(), ip: nil, now: now.addingTimeInterval(-60))
+        for id in ["silent", "old"] {
+            let machine = try machines.get(id: id, now: now.addingTimeInterval(1))
+            XCTAssertEqual(machine.state, "offline")
+            XCTAssertTrue(machine.statePending)
+        }
+        XCTAssertEqual(try machines.list(now: now.addingTimeInterval(1)).map(\.statePending), [true, true])
+    }
+
+    func testACurrentHeartbeatEndsPendingInTheStoreAndList() throws {
+        let machines = MachineStore(database, observingSince: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
+        XCTAssertTrue(try machines.get(id: "mini", now: now).statePending)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: nil, now: now.addingTimeInterval(1))
+        let current = try machines.get(id: "mini", now: now.addingTimeInterval(2))
+        XCTAssertEqual(current.state, "online")
+        XCTAssertFalse(current.statePending)
+        XCTAssertFalse(try XCTUnwrap(try machines.list(now: now.addingTimeInterval(2)).first).statePending)
+    }
+
+    func testTheObservationDeadlineConfirmsOffline() throws {
+        let machines = MachineStore(database, observingSince: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
+        let deadline = now.addingTimeInterval(Double(MachineStates.observationSeconds))
+        let machine = try machines.get(id: "mini", now: deadline)
+        XCTAssertEqual(machine.state, "offline")
+        XCTAssertFalse(machine.statePending)
+    }
+
+    func testAStaleCurrentHeartbeatIsOfflineNotPending() throws {
+        let machines = MachineStore(database, observingSince: now)
+        try machines.enroll(name: "mini", tokenHash: "h", commandTokenSealed: "sealed", ip: nil, now: now)
+        try machines.recordHeartbeat(machineId: "mini", request: try heartbeat(), ip: nil, now: now.addingTimeInterval(1))
+        let stale = try machines.get(id: "mini", now: now.addingTimeInterval(Double(MachineStates.observationSeconds + 2)))
+        XCTAssertEqual(stale.state, "offline")
+        XCTAssertFalse(stale.statePending)
+    }
+
     func testHostileTextIsStoredAsTextAndTablesSurvive() throws {
         let machines = MachineStore(database)
         let hostile = "x'; DROP TABLE machines; --"

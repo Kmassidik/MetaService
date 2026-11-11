@@ -21,13 +21,14 @@ export function overviewCounts(machines: Machine[]) {
     online: machines.filter((machine) => machine.state !== 'offline').length,
     vms: vms.length,
     running: vms.filter(({ workload }) => workload.state === 'running').length,
-    needAttention: machines.filter((machine) => machine.state === 'offline' || machine.problems?.length).length,
+    needAttention: machines.filter((machine) => machine.state_pending !== true && (machine.state === 'offline' || machine.problems?.length)).length,
   }
 }
 
 /** One line per thing that needs the operator: an offline machine or a machine with a problem, in plain words. */
 export function attentionItems(machines: Machine[]): AttentionItem[] {
   return machines.flatMap((machine): AttentionItem[] => {
+    if (machine.state_pending === true) return []
     if (machine.state === 'offline') return [{ machine: machine.name, kind: 'offline' as const, message: 'This machine is offline.', fix: 'Check that the computer is on and MetaService is running.' }]
     return (machine.problems ?? []).map((problem) => ({ machine: machine.name, kind: 'problem' as const, message: problem.message, fix: problem.fix }))
   })

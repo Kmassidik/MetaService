@@ -61,18 +61,20 @@ def check_cannot_invite_a_name_that_is_already_enrolled():
         expect(reply.status == 409, f"re-inviting an enrolled machine gave {reply.status}")
 
 
-def check_a_new_machine_is_offline_until_its_first_heartbeat():
+def check_a_new_machine_is_pending_until_its_first_heartbeat():
     with running() as root:
         operator = Browser(root)
         token = enrolled_machine(operator, "mini")
         machine = operator.request("GET", "/api/machines/mini").body
-        expect(machine["state"] == "offline" and machine["last_seen"] is None, f"new machine: {machine['state']}")
+        expect(machine["state"] == "offline" and machine["state_pending"] is True and machine["last_seen"] is None, f"new machine: {machine}")
+        listed = operator.request("GET", "/api/machines").body["machines"]
+        expect(len(listed) == 1 and listed[0]["state_pending"] is True, f"pending listing: {listed}")
         expect(_beat(token, good_heartbeat(), root).status == 204, "first heartbeat was refused")
         machine = operator.request("GET", "/api/machines/mini").body
-        expect(machine["state"] == "online" and machine["arch"] == "aarch64", f"after heartbeat: {machine['state']} {machine['arch']}")
+        expect(machine["state"] == "online" and machine["state_pending"] is False and machine["arch"] == "aarch64", f"after heartbeat: {machine['state']} {machine['arch']}")
         expect(machine["workloads"][0]["id"] == "wl-1" and machine["capabilities"]["gpu_in_container"] is True, "facts or workloads not stored")
         listed = operator.request("GET", "/api/machines").body["machines"]
-        expect([m["id"] for m in listed] == ["mini"], f"listing: {listed}")
+        expect([m["id"] for m in listed] == ["mini"] and listed[0]["state_pending"] is False, f"listing: {listed}")
 
 
 def check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy():
@@ -216,7 +218,7 @@ def check_the_enroll_token_is_not_written_to_the_audit_log():
 CHECKS = [
     check_invite_then_enroll_gives_a_long_token, check_an_enrollment_token_works_once_and_only_for_its_name, check_enroll_refusals_look_the_same,
     check_bad_machine_names_are_rejected_when_inviting, check_cannot_invite_a_name_that_is_already_enrolled,
-    check_a_new_machine_is_offline_until_its_first_heartbeat, check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy,
+    check_a_new_machine_is_pending_until_its_first_heartbeat, check_heartbeat_with_a_provisioning_workload_marks_the_machine_busy,
     check_a_machine_with_a_reported_problem_shows_it_and_is_refused_new_workloads_until_it_clears, check_heartbeat_rejects_every_broken_problem_list,
     check_heartbeat_rejects_every_broken_shape, check_hostile_text_in_a_heartbeat_comes_back_as_json_text, check_tokens_work_only_where_they_belong,
     check_removing_a_machine_revokes_its_token, check_hostile_ids_in_paths_are_404_not_errors,

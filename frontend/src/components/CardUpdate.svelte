@@ -5,7 +5,7 @@
   import type { Machine } from '../lib/types.ts'
 
   /** The machine card and a row of the Security page both use it: all it needs of a machine is who it is and what its helper says. */
-  let { machine, onChanged }: { machine: Pick<Machine, 'id' | 'agent_build' | 'update' | 'state'>; onChanged: () => void } = $props()
+  let { machine, onChanged }: { machine: Pick<Machine, 'id' | 'agent_build' | 'update' | 'state' | 'state_pending'>; onChanged: () => void } = $props()
   const updater = new HelperUpdater()
   const offer = $derived(cardUpdate(machine))
   const outcome = $derived(updater.outcome)

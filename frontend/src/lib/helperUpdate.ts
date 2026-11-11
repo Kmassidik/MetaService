@@ -35,16 +35,17 @@ function statusOf(machine: Pick<Machine, 'agent_build' | 'update'>): { status: H
 }
 
 /** The Helper row of the Environment tab. The button works only when the parent has a different build for this machine and the machine answers. */
-export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'state'>): HelperView {
+export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending'>): HelperView {
   const { status, label } = statusOf(machine)
   const online = machine.state !== 'offline'
+  const pending = machine.state_pending === true
   const offers = machine.update?.available === true
   return {
     build: shortBuild(machine.agent_build),
     status,
     label,
     canUpdate: offers && online,
-    note: machine.update?.reason ?? (offers && !online ? OFFLINE_NOTE : null),
+    note: machine.update?.reason ?? (offers && !online && !pending ? OFFLINE_NOTE : null),
   }
 }
 
@@ -59,7 +60,7 @@ export interface CardUpdate {
 }
 
 /** What the machine card of the Machines list offers: the button when the Environment tab's button would work, else the reason under the tag. */
-export function cardUpdate(machine: Pick<Machine, 'agent_build' | 'update' | 'state'>): CardUpdate {
+export function cardUpdate(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending'>): CardUpdate {
   const view = helperView(machine)
   const tagged = listTag(machine) !== null
   return { button: view.canUpdate, note: tagged && !view.canUpdate ? view.note : null }

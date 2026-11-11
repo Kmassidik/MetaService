@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { MACHINE_OFFLINE_REASON, MACHINE_UNREACHABLE_TEXT, isMachineOffline, refusalMessage, stateClass, stateWords } from './machineOffline.ts'
+import { MACHINE_OFFLINE_REASON, MACHINE_UNREACHABLE_TEXT, isMachineOffline, machineCardDisplay, refusalMessage, stateClass, stateWords } from './machineOffline.ts'
 import { vmRowTone, vmStateText, vmTone } from './vmList.ts'
+import { machine } from './testing.ts'
 
 describe('machine offline helpers', () => {
   test('only the offline state is offline', () => {
@@ -8,6 +9,17 @@ describe('machine offline helpers', () => {
     expect(isMachineOffline('online')).toBe(false)
     expect(isMachineOffline('busy')).toBe(false)
     expect(isMachineOffline(undefined)).toBe(false)
+  })
+
+  test('a pending card says Checking without becoming awake or shown offline', () => {
+    expect(machineCardDisplay(machine({ state: 'offline', state_pending: true }))).toEqual({ label: 'Checking…', awake: false, offline: false })
+  })
+
+  test('ordinary cards keep their labels and polling or offline presentation', () => {
+    expect(machineCardDisplay(machine())).toEqual({ label: 'Online', awake: true, offline: false })
+    expect(machineCardDisplay(machine({ state: 'busy' }))).toEqual({ label: 'Busy', awake: true, offline: false })
+    expect(machineCardDisplay(machine({ state: 'offline' }))).toEqual({ label: 'Offline', awake: false, offline: true })
+    expect(machineCardDisplay(machine({ state: 'offline', state_pending: false }))).toEqual({ label: 'Offline', awake: false, offline: true })
   })
 
   test('the reason is the short sentence', () => {

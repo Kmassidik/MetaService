@@ -19,10 +19,13 @@ public struct MachineStore: @unchecked Sendable {
 
     /// `origins`: where the creator records are read for the short `created_by` on every workload. Without it the field is null.
     private let origins: VmOriginStore?
+    /// The current parent process's start; nil for isolated stores that do not observe a restart.
+    private let observingSince: Date?
 
-    public init(_ database: Database, origins: VmOriginStore? = nil) {
+    public init(_ database: Database, origins: VmOriginStore? = nil, observingSince: Date? = nil) {
         self.database = database
         self.origins = origins
+        self.observingSince = observingSince
     }
 
     // MARK: enrolling and authenticating
@@ -138,6 +141,7 @@ public struct MachineStore: @unchecked Sendable {
         let workloads = try workloadSummaries(machineId: row.string("id"), now: now)
         let lastSeen = row.optionalInt("last_seen").map { Date(timeIntervalSince1970: TimeInterval($0)) }
         let state = MachineStates.derive(lastSeen: lastSeen, now: now, workloadStates: workloads.map(\.state))
+        let statePending = observingSince.map { MachineStates.statePending(lastSeen: lastSeen, now: now, observingSince: $0, state: state) } ?? false
         let gpu = (try? decoder.decode([GpuInfo].self, from: Data(row.string("gpu_json").utf8))) ?? []
         let capabilities = try? decoder.decode(Capabilities.self, from: Data(row.string("capabilities_json").utf8))
         return MachineSummary(
@@ -151,7 +155,7 @@ public struct MachineStore: @unchecked Sendable {
             agentVersion: row.optionalString("agent_version"), agentBuild: row.optionalString("agent_build"),
             engine: row.optionalString("engine_json").flatMap { try? decoder.decode(EngineReport.self, from: Data($0.utf8)) },
             sandbox: row.optionalString("sandbox_json").flatMap { try? decoder.decode(SandboxFacts.self, from: Data($0.utf8)) }, bundleVersion: row.optionalString("bundle_version"),
-            state: state.rawValue, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads,
+            state: state.rawValue, statePending: statePending, lastSeen: row.optionalInt("last_seen").map(Dates.iso), workloads: workloads,
             gpuBooking: try gpuBooking(machineId: row.string("id"), gpu: gpu, capabilities: capabilities))
     }
 

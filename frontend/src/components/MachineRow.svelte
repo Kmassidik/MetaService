@@ -24,6 +24,7 @@
   import { isStale, LIST_POLL_MS } from '../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../lib/statsPoll.ts'
   import { formatGb, formatMb, bundleFlag, relativeTime } from '../lib/format.ts'
+  import { machineCardDisplay } from '../lib/machineOffline.ts'
 
   import type { FactKey } from '../lib/cardFacts.ts'
   import type { Machine, MachineStats, RemoteMachineInfo } from '../lib/types.ts'
@@ -40,7 +41,7 @@
   const gpuValue = $derived(gpu === null ? null : gpuFact(gpu))
   const facts = $derived(cardFacts(machine, gpuValue))
   const vms = $derived(vmsChip(machine.workloads.length))
-  const awake = $derived(machine.state !== 'offline')
+  const display = $derived(machineCardDisplay(machine))
   const labels = $derived(machine.settings?.labels ?? [])
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
   /** The icon of each row, in the same small stroke drawing as the rest of the card. */
@@ -71,13 +72,13 @@
 
   // Asks only for a machine that is awake: coming back to the tab asks at once, and a hidden tab has no timer.
   $effect(() => {
-    if (!awake) return
+    if (!display.awake) return
     const id = machineId
     return untrack(() => startPolling(browserEnvironment(), LIST_POLL_MS, () => load(id)))
   })
 </script>
 
-<article class="card" class:offline={!awake}>
+<article class="card" class:offline={display.offline}>
   <div class="head">
     <div class="top">
       <a class="nm" href={machineHref(machine.id)} title={machine.name}>{machine.name}</a>
@@ -90,7 +91,7 @@
         {#each labels as label (label)}<span class="tag">{label}</span>{/each}
       </span>
       <span class="marks">
-        <StatePill state={machine.state} />
+        <StatePill state={machine.state} label={display.label} />
         <span class="chip" data-testid="machine-vms"><Icon path={CARD_ICONS.vms} />{vms}</span>
       </span>
     </div>

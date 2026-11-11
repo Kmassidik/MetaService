@@ -62,7 +62,7 @@ struct Services {
         self.setupGate = setupGate
         self.clock = clock
         origins = VmOriginStore(database) { secrets.signature($0, purpose: VmOriginSeal.purpose) }
-        machines = MachineStore(database, origins: origins)
+        machines = MachineStore(database, origins: origins, observingSince: clock.now)
         enrollments = EnrollmentStore(database)
         audit = AuditStore(database)
         admin = AdminStore(database)

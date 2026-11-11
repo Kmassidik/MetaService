@@ -200,6 +200,8 @@ export interface Machine {
   id: string
   name: string
   state: MachineState
+  /** True while a restarted parent waits for this process's first heartbeat; left out by an older parent. */
+  state_pending?: boolean
   os: string
   arch: string
   ip?: string

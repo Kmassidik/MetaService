@@ -1,5 +1,6 @@
 // What the panel does when the machine under a VM is offline: its buttons are off with a reason, its state is called "last known", and a refusal that says the machine did not answer is put in friendlier words.
-import type { MachineState } from './types.ts'
+import { STATE_LABELS } from './format.ts'
+import type { Machine, MachineState } from './types.ts'
 
 const OFFLINE_STATE: MachineState = 'offline'
 /** The reason shown on a button, as a tooltip and as a small line. */
@@ -13,6 +14,16 @@ const LAST_KNOWN_SUFFIX = ' (last known)'
 const OWN_WORDS_STATES = new Set(['deleting', 'Deleting…'])
 
 export const isMachineOffline = (state: MachineState | undefined): boolean => state === OFFLINE_STATE
+
+/** A pending card says Checking, but stays asleep and keeps the raw offline state for action guards. */
+export function machineCardDisplay(machine: Pick<Machine, 'state' | 'state_pending'>): { label: string; awake: boolean; offline: boolean } {
+  const pending = machine.state_pending === true
+  return {
+    label: pending ? 'Checking…' : (STATE_LABELS[machine.state] ?? 'Unknown'),
+    awake: !pending && !isMachineOffline(machine.state),
+    offline: !pending && isMachineOffline(machine.state),
+  }
+}
 
 /** The refusal's words for the screen: the friendly text when the machine did not answer, else the Root's own message. */
 export function refusalMessage(code: string | undefined, message: string): string {
