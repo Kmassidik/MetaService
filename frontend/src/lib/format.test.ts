@@ -72,6 +72,8 @@ test('source messages', () => {
   expect(sourceProblem('refused_500')).toBe('refused (500)')
   expect(sourceProblem('missing')).toBe('not installed')
   expect(sourceProblem('something-new')).toBe('did not run')
+  expect(sourceProblem('0')).toBeNull()
+  expect(sourceProblem('12')).toBeNull()
   expect(sourceName('agent_probe')).toBe('Agent check')
 })
 

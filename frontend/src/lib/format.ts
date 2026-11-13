@@ -85,9 +85,13 @@ export function sourceName(source: string): string {
   return SOURCE_LABELS[source] ?? source
 }
 
+/** The scan also stores how many hosts each source saw (a plain number); a count is never a problem. */
+const COUNT_VALUE = /^\d+$/
+
 /** A short human sentence for how one scan source went, or null when it went fine. */
 export function sourceProblem(value: string | null | undefined): string | null {
   if (value === 'ok') return null
+  if (value && COUNT_VALUE.test(value)) return null
   if (value === 'refused_401') return 'login refused (check the read-only account)'
   if (value?.startsWith('refused_')) return `refused (${value.slice('refused_'.length)})`
   return (value && SOURCE_PROBLEMS[value]) || 'did not run'
