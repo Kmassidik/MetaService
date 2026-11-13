@@ -19,6 +19,7 @@
   import Security from './pages/Security.svelte'
   import Health from './pages/Health.svelte'
   import Notifications from './pages/Notifications.svelte'
+  import NetworkView from './components/NetworkView.svelte'
   import NotificationBell from './components/NotificationBell.svelte'
   import { BELL_POLL_MS } from './lib/notifications.ts'
   import { bell } from './lib/notificationsStore.svelte.ts'
@@ -314,6 +315,8 @@
         <Security {machines} {route} {now} onChanged={refresh} />
       {:else if page === 'notifications'}
         <Notifications {now} />
+      {:else if page === 'network'}
+        <NetworkView machines={shownMachines} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
       {:else if page === 'settings'}

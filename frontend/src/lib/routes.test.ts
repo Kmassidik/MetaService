@@ -87,3 +87,8 @@ test('Security has its own address, and the machine card badge links to it with 
   expect(['/security', '/security/', '/security?preview=1'].map(pageFor)).toEqual(['security', 'security', 'security'])
   expect(securityHref({ machine: 'rtx-pc' })).toBe('#/security?machine=rtx-pc')
 })
+
+test('Network has its own address, with or without a trailing slash', () => {
+  expect(['/network', '/network/', '/network?range=24h'].map(pageFor)).toEqual(['network', 'network', 'network'])
+  expect(pageFor('/network/other')).toBe('notfound')
+})

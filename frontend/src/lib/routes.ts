@@ -3,7 +3,7 @@ import { tabFromName, type MachineTab } from './machineTabs.ts'
 
 export { securityHref } from './securityRoute.ts'
 
-export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings' | 'sandboxes' | 'share' | 'mcp' | 'security' | 'notifications' | 'notfound'
+export type Page = 'overview' | 'machines' | 'vms' | 'usage' | 'health' | 'settings' | 'sandboxes' | 'share' | 'mcp' | 'security' | 'notifications' | 'network' | 'notfound'
 
 const PAGES: Record<string, Page> = {
   '/': 'overview',
@@ -22,6 +22,7 @@ const PAGES: Record<string, Page> = {
   '/security': 'security',
   '/health': 'health',
   '/notifications': 'notifications',
+  '/network': 'network',
   '/settings': 'settings',
   '/deployments': 'machines',
   '/scan': 'machines',
