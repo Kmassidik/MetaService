@@ -12,6 +12,7 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public static let maxTextCharacters = 64
     public static let maxMountCharacters = 128
     public static let maxFsCharacters = 32
+    public static let maxInterfaceCharacters = 32
     public static let maxTimeCharacters = 32
     public static let maxAnswerBytes = 64 * 1024
     public static let maxClusters = 8
@@ -93,6 +94,17 @@ public struct MachineStats: Codable, Equatable, Sendable {
         public var errorsOutTotal: Int?
         public var dropsInTotal: Int?
         public var dropsOutTotal: Int?
+        /// Name of the card that holds the default route (the real network card). Nil when unknown or the helper is older.
+        public var primaryInterface: String? = nil
+        /// Speed of the primary card only, without bridges or virtual interfaces. Nil when unknown or the helper is older.
+        public var primaryReceivedBytesPerSecond: Double? = nil
+        public var primarySentBytesPerSecond: Double? = nil
+
+        /// Raw values are the property names; the decoder and encoder change the snake_case keys to and from them.
+        enum CodingKeys: String, CodingKey {
+            case receivedTotalBytes, sentTotalBytes, receivedBytesPerSecond, sentBytesPerSecond, errorsInTotal, errorsOutTotal, dropsInTotal, dropsOutTotal
+            case primaryInterface, primaryReceivedBytesPerSecond, primarySentBytesPerSecond
+        }
 
         public func encode(to encoder: Encoder) throws {
             var box = encoder.container(keyedBy: CodingKeys.self)
@@ -104,6 +116,9 @@ public struct MachineStats: Codable, Equatable, Sendable {
             try box.encodeIfPresent(errorsOutTotal, forKey: .errorsOutTotal)
             try box.encodeIfPresent(dropsInTotal, forKey: .dropsInTotal)
             try box.encodeIfPresent(dropsOutTotal, forKey: .dropsOutTotal)
+            try box.encodeIfPresent(primaryInterface, forKey: .primaryInterface)
+            try box.encodeIfPresent(primaryReceivedBytesPerSecond, forKey: .primaryReceivedBytesPerSecond)
+            try box.encodeIfPresent(primarySentBytesPerSecond, forKey: .primarySentBytesPerSecond)
         }
     }
 

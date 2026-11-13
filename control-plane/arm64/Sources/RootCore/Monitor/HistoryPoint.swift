@@ -53,17 +53,27 @@ extension HistoryPoint {
     /// The point for a reading. A reading with no CPU percent yet (the helper is still measuring) makes no point: a gap is truer than a 0.
     public init?(stats: MachineStats, at date: Date) {
         guard let cpu = stats.cpu.totalPercent else { return nil }
+        let speeds = Self.networkSpeeds(stats.network)
         self.init(t: Int(date.timeIntervalSince1970), cpuPercent: cpu, cpuBreakdown: stats.cpu.breakdown, load: Self.load(stats.cpu.load),
                   memUsed: stats.memory.usedBytes, memCached: stats.memory.cachedBytes, memTotal: stats.memory.totalBytes,
                   swapUsed: stats.memory.swapUsedBytes, swapTotal: stats.memory.swapTotalBytes,
                   diskRead: stats.diskIo?.readBytesPerSecond, diskWrite: stats.diskIo?.writeBytesPerSecond,
-                  netInBps: stats.network.receivedBytesPerSecond, netOutBps: stats.network.sentBytesPerSecond,
+                  netInBps: speeds.received, netOutBps: speeds.sent,
                   netDrops: Self.drops(stats.network), processesCount: stats.processCount, gpus: Self.gpuSeries(stats.gpus))
     }
 
     private static func load(_ load: MachineStats.Load) -> [Double]? {
         guard let one = load.one, let five = load.five, let fifteen = load.fifteen else { return nil }
         return [one, five, fifteen]
+    }
+
+    /// Speeds for the history: the real network card only, without bridges, when the helper gives both primary speeds.
+    /// Otherwise the old total speeds, so a helper that does not send the primary fields behaves as before.
+    private static func networkSpeeds(_ network: MachineStats.Network) -> (received: Double?, sent: Double?) {
+        guard let received = network.primaryReceivedBytesPerSecond, let sent = network.primarySentBytesPerSecond else {
+            return (network.receivedBytesPerSecond, network.sentBytesPerSecond)
+        }
+        return (received, sent)
     }
 
     private static func drops(_ network: MachineStats.Network) -> Int? {

@@ -45,6 +45,18 @@ extension MachineStats {
     static func rateOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } }
     static func rangeOrNil(_ value: Double?, _ range: ClosedRange<Double>) -> Double? { value.flatMap { $0.isFinite && range.contains($0) ? $0 : nil } }
     static func percentOrNil(_ value: Double?) -> Double? { value.flatMap { $0.isFinite && (0...100).contains($0) ? $0 : nil } }
+
+    /// A network card's name, cut to its limit. Only ASCII letters, digits, dots, underscores and dashes survive; anything else makes it unknown.
+    static func interfaceName(_ value: String?) -> String? {
+        guard let name = value.map({ Self.cut($0, Self.maxInterfaceCharacters) }), !name.isEmpty else { return nil }
+        return name.allSatisfy(isInterfaceCharacter) ? name : nil
+    }
+
+    private static let interfaceSymbols: Set<Character> = [".", "_", "-"]
+
+    private static func isInterfaceCharacter(_ character: Character) -> Bool {
+        character.isASCII && (character.isLetter || character.isNumber || interfaceSymbols.contains(character))
+    }
 }
 
 extension MachineStats.Cpu {
@@ -74,11 +86,30 @@ extension MachineStats.Disk {
 }
 
 extension MachineStats.Network {
+    /// Reads a helper's network answer. The primary-card fields are optional extras: a wrong type reads as "not said", never as a refused answer.
+    public init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        receivedTotalBytes = try box.decode(Int.self, forKey: .receivedTotalBytes)
+        sentTotalBytes = try box.decode(Int.self, forKey: .sentTotalBytes)
+        receivedBytesPerSecond = try box.decodeIfPresent(Double.self, forKey: .receivedBytesPerSecond)
+        sentBytesPerSecond = try box.decodeIfPresent(Double.self, forKey: .sentBytesPerSecond)
+        errorsInTotal = try box.decodeIfPresent(Int.self, forKey: .errorsInTotal)
+        errorsOutTotal = try box.decodeIfPresent(Int.self, forKey: .errorsOutTotal)
+        dropsInTotal = try box.decodeIfPresent(Int.self, forKey: .dropsInTotal)
+        dropsOutTotal = try box.decodeIfPresent(Int.self, forKey: .dropsOutTotal)
+        primaryInterface = try? box.decodeIfPresent(String.self, forKey: .primaryInterface)
+        primaryReceivedBytesPerSecond = try? box.decodeIfPresent(Double.self, forKey: .primaryReceivedBytesPerSecond)
+        primarySentBytesPerSecond = try? box.decodeIfPresent(Double.self, forKey: .primarySentBytesPerSecond)
+    }
+
     fileprivate func limited() -> MachineStats.Network {
         .init(receivedTotalBytes: MachineStats.bytes(receivedTotalBytes), sentTotalBytes: MachineStats.bytes(sentTotalBytes),
               receivedBytesPerSecond: MachineStats.rate(receivedBytesPerSecond), sentBytesPerSecond: MachineStats.rate(sentBytesPerSecond),
               errorsInTotal: errorsInTotal.flatMap(MachineStats.countOrNil), errorsOutTotal: errorsOutTotal.flatMap(MachineStats.countOrNil),
-              dropsInTotal: dropsInTotal.flatMap(MachineStats.countOrNil), dropsOutTotal: dropsOutTotal.flatMap(MachineStats.countOrNil))
+              dropsInTotal: dropsInTotal.flatMap(MachineStats.countOrNil), dropsOutTotal: dropsOutTotal.flatMap(MachineStats.countOrNil),
+              primaryInterface: MachineStats.interfaceName(primaryInterface),
+              primaryReceivedBytesPerSecond: MachineStats.rateOrNil(primaryReceivedBytesPerSecond),
+              primarySentBytesPerSecond: MachineStats.rateOrNil(primarySentBytesPerSecond))
     }
 }
 
