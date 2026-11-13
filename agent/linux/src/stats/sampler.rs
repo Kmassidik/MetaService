@@ -4,7 +4,7 @@ use super::cpu::{self, CpuTimes};
 use super::disks::{self, SizeOf};
 use super::diskio;
 use super::model::{Cpu, DiskIo, Network, Process, Stats, MAX_CORES};
-use super::network::{self, Counters};
+use super::network::{self, Counters, Primary};
 use super::processes::{self, Earlier, Seen};
 use super::topology::{self, Topology};
 use super::{memory, thermal};
@@ -28,6 +28,7 @@ struct Sample {
     at: Instant,
     cpu: CpuTimes,
     network: Counters,
+    primary: Option<Primary>,
     disk: Option<diskio::Counters>,
     /// None when this sample did not scan the programs: the next one has nothing to compare them with.
     processes: Option<Earlier>,
@@ -54,7 +55,10 @@ impl Sampler {
     pub fn take(&self, now: Instant, unix_seconds: u64, with_processes: bool) -> Result<Stats, String> {
         let cpu_times = cpu::parse_times(&self.read("proc/stat")?).ok_or("proc/stat has no cpu line")?;
         let memory = memory::parse(&self.read("proc/meminfo")?).ok_or("proc/meminfo has no MemTotal")?;
-        let counters = network::parse(&self.read("proc/net/dev")?);
+        let dev_text = self.read("proc/net/dev")?;
+        let counters = network::parse(&dev_text);
+        let route_text = self.read("proc/net/route").unwrap_or_default(); // unreadable: the primary interface fields are null
+        let primary = network::primary_reading(&route_text, &dev_text);
         let disk_counters = self.read("proc/diskstats").ok().and_then(|text| diskio::parse(&text, &self.environment.root));
         let seen = with_processes.then(|| processes::scan(&self.environment.root.join("proc")));
         let mut slot = self.previous.lock().map_err(|_| "the sampler lock is broken".to_string())?;
@@ -68,13 +72,13 @@ impl Sampler {
             cpu: self.cpu_section(&cpu_times, before),
             memory,
             disks: disks::read(&self.read("proc/mounts")?, self.environment.size_of),
-            network: network_section(&counters, before, seconds),
+            network: network_section(&counters, primary.as_ref(), before, seconds),
             disk_io: disk_io(disk_counters, before, seconds),
             process_count: processes::count(&self.environment.root.join("proc")),
             gpus: None,
             processes: self.listed(seen.as_deref(), before, seconds, &users),
         };
-        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, disk: disk_counters, processes: seen.as_deref().map(processes::ticks_of) });
+        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, primary, disk: disk_counters, processes: seen.as_deref().map(processes::ticks_of) });
         Ok(stats)
     }
 
@@ -102,18 +106,32 @@ impl Sampler {
     }
 }
 
-fn network_section(counters: &Counters, before: Option<&Sample>, seconds: Option<f64>) -> Network {
+/// Every network number of the answer. The primary interface's name is shown only once there is a sample to compare with, like its speeds.
+fn network_section(counters: &Counters, primary: Option<&Primary>, before: Option<&Sample>, seconds: Option<f64>) -> Network {
     let rate_of = |pick: fn(&Counters) -> u64| before.zip(seconds).and_then(|(b, s)| network::rate(pick(&b.network), pick(counters), s));
+    let primary_rate_of = |pick: fn(&Counters) -> u64| primary_rate(primary, before, seconds, pick);
     Network {
         received_total_bytes: counters.received,
         sent_total_bytes: counters.sent,
         received_bytes_per_second: rate_of(|c| c.received),
         sent_bytes_per_second: rate_of(|c| c.sent),
+        primary_interface: before.and(primary).map(|p| p.name.clone()),
+        primary_received_bytes_per_second: primary_rate_of(|c| c.received),
+        primary_sent_bytes_per_second: primary_rate_of(|c| c.sent),
         errors_in_total: counters.errors_in,
         errors_out_total: counters.errors_out,
         drops_in_total: counters.drops_in,
         drops_out_total: counters.drops_out,
     }
+}
+
+/// One speed of the primary interface. None when there is no earlier reading, or when the primary interface changed since then.
+fn primary_rate(now: Option<&Primary>, before: Option<&Sample>, seconds: Option<f64>, pick: fn(&Counters) -> u64) -> Option<f64> {
+    let (now, then, seconds) = (now?, before?.primary.as_ref()?, seconds?);
+    if now.name != then.name {
+        return None;
+    }
+    network::rate(pick(&then.counters), pick(&now.counters), seconds)
 }
 
 /// Both speeds, or nothing: no disks, nothing to compare with, or a counter that went back.

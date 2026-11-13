@@ -116,6 +116,11 @@ pub struct Network {
     pub sent_total_bytes: u64,
     pub received_bytes_per_second: Option<f64>,
     pub sent_bytes_per_second: Option<f64>,
+    /// The interface with the default route. Null while measuring, and when there is no default route.
+    pub primary_interface: Option<String>,
+    /// Speeds of the primary interface alone, so a machine with bridges and containers is not counted several times. Null like the speeds above.
+    pub primary_received_bytes_per_second: Option<f64>,
+    pub primary_sent_bytes_per_second: Option<f64>,
     pub errors_in_total: u64,
     pub errors_out_total: u64,
     pub drops_in_total: u64,

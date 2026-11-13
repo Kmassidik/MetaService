@@ -18,6 +18,7 @@ impl Tree {
         tree.put("etc/passwd", "root:x:0:0:root:/root:/bin/sh\nkurnia:x:1000:1000::/home/kurnia:/bin/sh\n");
         tree.cpu(100, 900, 100, 900);
         tree.net(1000, 500);
+        tree.route("eth0");
         tree.process(10, "busy <img src=x onerror=alert(1)>", 1000, 100, 2048);
         tree
     }
@@ -44,6 +45,17 @@ impl Tree {
 
     fn net(&self, received: u64, sent: u64) {
         self.put("proc/net/dev", &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: {received} 0 0 0 0 0 0 0 {sent} 0\n"));
+    }
+
+    /// Several interfaces at once: (name, received, sent).
+    fn devices(&self, rows: &[(&str, u64, u64)]) {
+        let body: String = rows.iter().map(|(name, received, sent)| format!("{name}: {received} 0 0 0 0 0 0 0 {sent} 0\n")).collect();
+        self.put("proc/net/dev", &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\n{body}"));
+    }
+
+    /// A route table whose default route is on `interface`.
+    fn route(&self, interface: &str) {
+        self.put("proc/net/route", &format!("Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n{interface}\t00000000\t0102A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0\n"));
     }
 
     fn process(&self, pid: u32, name: &str, ticks: u64, uid: u32, rss_kb: u64) {
@@ -117,6 +129,60 @@ fn a_network_counter_that_went_backwards_is_null() {
     let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
     assert!(stats.network.received_bytes_per_second.is_none());
     assert!(stats.network.sent_bytes_per_second.is_some());
+}
+
+#[test]
+fn the_primary_interface_speed_is_reported_next_to_the_total() {
+    let tree = Tree::new();
+    tree.route("enp5s0");
+    tree.devices(&[("enp5s0", 1000, 400), ("docker0", 5000, 4000)]);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, true).unwrap();
+    tree.devices(&[("enp5s0", 3000, 1500), ("docker0", 9000, 8000)]);
+    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    assert_eq!((stats.network.received_bytes_per_second, stats.network.sent_bytes_per_second), (Some(3000.0), Some(2550.0)), "the total still adds the bridge");
+    assert_eq!(stats.network.primary_interface.as_deref(), Some("enp5s0"));
+    assert_eq!((stats.network.primary_received_bytes_per_second, stats.network.primary_sent_bytes_per_second), (Some(1000.0), Some(550.0)));
+}
+
+#[test]
+fn the_primary_fields_are_null_in_the_json_while_measuring() {
+    let tree = Tree::new();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
+    let json = serde_json::to_value(&stats).unwrap();
+    for key in ["primary_interface", "primary_received_bytes_per_second", "primary_sent_bytes_per_second"] {
+        assert_eq!(json["network"].get(key), Some(&serde_json::Value::Null), "{key} must be present and null");
+    }
+}
+
+#[test]
+fn a_changed_primary_interface_has_no_primary_speed_for_that_reading() {
+    let tree = Tree::new();
+    tree.devices(&[("eth0", 1000, 400), ("wlan0", 200, 100)]);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, true).unwrap();
+    tree.route("wlan0");
+    tree.devices(&[("eth0", 3000, 1500), ("wlan0", 600, 300)]);
+    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    assert_eq!((stats.network.received_bytes_per_second, stats.network.sent_bytes_per_second), (Some(1200.0), Some(650.0)));
+    assert_eq!(stats.network.primary_interface.as_deref(), Some("wlan0"));
+    assert!(stats.network.primary_received_bytes_per_second.is_none() && stats.network.primary_sent_bytes_per_second.is_none());
+}
+
+#[test]
+fn without_a_default_route_only_the_primary_fields_are_null() {
+    let tree = Tree::new();
+    tree.put("proc/net/route", "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\n");
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, true).unwrap();
+    tree.net(3000, 1500);
+    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    assert_eq!(stats.network.received_bytes_per_second, Some(1000.0));
+    assert!(stats.network.primary_interface.is_none() && stats.network.primary_received_bytes_per_second.is_none());
+    assert!(stats.network.primary_sent_bytes_per_second.is_none());
 }
 
 #[test]
