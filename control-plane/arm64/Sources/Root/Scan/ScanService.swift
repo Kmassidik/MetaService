@@ -27,6 +27,10 @@ final class ScanService: @unchecked Sendable {
     private static let mdnsGroup = "224.0.0.251"
     private static let mdnsPort = "5353"
     private static let nmapSearch = ["/opt/homebrew/bin/nmap", "/usr/local/bin/nmap", "/usr/bin/nmap", "/run/current-system/sw/bin/nmap"]
+    private static let routerEntriesKey = "router_entries"
+    private static let nmapHostsKey = "nmap_hosts"
+    private static let arpEntriesKey = "arp_entries"
+    private static let mergedKey = "merged"
 
     init(config: RootConfig, clock: Clock, store: ScanStore, audit: AuditStore) {
         self.config = config
@@ -78,6 +82,10 @@ final class ScanService: @unchecked Sendable {
             + live.subtracting(swept.map(\.ip)).filter(withAgent.contains).map { NmapHost(ip: $0, mac: nil, vendor: nil, hostname: nil, agentPortOpen: true) }
         let arp = await readArp(&sources)
         let found = await addNames(to: ScanMerge.merge(router: fromRouter, nmap: hosts, arp: arp, subnet: subnet))
+        sources[Self.routerEntriesKey] = String(fromRouter.count)
+        sources[Self.nmapHostsKey] = String(swept.count)
+        sources[Self.arpEntriesKey] = String(arp.count)
+        sources[Self.mergedKey] = String(found.count)
         await record(runId: runId, actor: actor, found: found, sources: sources)
     }
 
