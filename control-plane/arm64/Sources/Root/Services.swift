@@ -38,6 +38,7 @@ struct Services {
     let apps: AppService
     let stats: StatsService
     let history: HistoryService
+    let latency: LatencyService
     let storage: StorageService
     let gpuCheck: GpuCheckService
     let images: ImagesService
@@ -105,6 +106,7 @@ struct Services {
         security = SecurityService(machines: machines, store: SecurityStore(securityDatabase), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
                                    pollSeconds: config.securityPollSeconds)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
+        latency = LatencyService(machines: machines, store: LatencyStore(database), clock: clock)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))

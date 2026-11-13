@@ -24,6 +24,7 @@ do {
     services.externalServices.resume()
     services.bundleService.start()
     services.history.start()
+    services.latency.start()
     services.security.start()
     services.jobMaintenance.start()
     let operatorApp = buildOperatorApplication(services: services)

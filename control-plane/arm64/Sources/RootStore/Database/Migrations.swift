@@ -283,6 +283,14 @@ public enum Migrations {
             );
             CREATE INDEX notifications_by_user ON notifications (user, created_at DESC, id DESC);
             """) }),
+        // How fast the parent reaches each machine's helper port: one row per machine per probe. Millis is empty when the connection failed or timed out.
+        (32, { try $0.exec("""
+            CREATE TABLE latency_samples (
+              machine_id TEXT NOT NULL, at INTEGER NOT NULL, millis INTEGER,
+              PRIMARY KEY (machine_id, at)
+            );
+            CREATE INDEX latency_samples_by_time ON latency_samples (at);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
