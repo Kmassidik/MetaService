@@ -25,6 +25,7 @@ do {
     services.bundleService.start()
     services.history.start()
     services.latency.start()
+    services.netUsage.start()
     services.security.start()
     services.jobMaintenance.start()
     let operatorApp = buildOperatorApplication(services: services)

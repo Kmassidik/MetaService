@@ -39,6 +39,7 @@ struct Services {
     let stats: StatsService
     let history: HistoryService
     let latency: LatencyService
+    let netUsage: NetUsageService
     let storage: StorageService
     let gpuCheck: GpuCheckService
     let images: ImagesService
@@ -105,7 +106,8 @@ struct Services {
         jobMaintenance = JobMaintenance(commands: commands, notifications: notifications, clock: clock)
         security = SecurityService(machines: machines, store: SecurityStore(securityDatabase), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
                                    pollSeconds: config.securityPollSeconds)
-        history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds)
+        netUsage = NetUsageService(machines: machines, store: NetMinuteStore(database), clock: clock)
+        history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds, usage: netUsage.collector)
         latency = LatencyService(machines: machines, store: LatencyStore(database), clock: clock)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)

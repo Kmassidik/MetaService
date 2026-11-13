@@ -11,11 +11,12 @@ final class HistoryService: Sendable {
     private let intervalSeconds: Int
     private let sampler: HistorySampler
 
-    init(machines: MachineStore, stats: StatsService, clock: Clock, intervalSeconds: Int) {
+    init(machines: MachineStore, stats: StatsService, clock: Clock, intervalSeconds: Int, usage: NetUsageCollector) {
         self.machines = machines
         self.clock = clock
         self.intervalSeconds = intervalSeconds
-        sampler = HistorySampler(source: ServiceSource(machines: machines, stats: stats, clock: clock), clock: clock, intervalSeconds: intervalSeconds)
+        sampler = HistorySampler(source: ServiceSource(machines: machines, stats: stats, clock: clock), clock: clock, intervalSeconds: intervalSeconds,
+                                 onRecord: { id, point in await usage.ingest(machineId: id, point: point) })
     }
 
     /// Starts the one loop that samples every online machine. It runs for as long as the parent does.

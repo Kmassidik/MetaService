@@ -28,13 +28,17 @@ public actor HistorySampler {
     private var schedule: HistorySchedule
     private var history: StatsHistory
     private let passSeconds: TimeInterval
+    /// Called for every point the history keeps, with the machine's id. Nil when nothing needs the points.
+    private let onRecord: (@Sendable (String, HistoryPoint) async -> Void)?
 
-    public init(source: HistorySource, clock: Clock, intervalSeconds: Int = StatsHistory.intervalSeconds, history: StatsHistory = StatsHistory()) {
+    public init(source: HistorySource, clock: Clock, intervalSeconds: Int = StatsHistory.intervalSeconds, history: StatsHistory = StatsHistory(),
+                onRecord: (@Sendable (String, HistoryPoint) async -> Void)? = nil) {
         self.source = source
         self.clock = clock
         self.schedule = HistorySchedule(intervalSeconds: intervalSeconds)
         self.history = history
         self.passSeconds = min(max(TimeInterval(intervalSeconds) / 4, Self.shortestPassSeconds), Self.longestPassSeconds)
+        self.onRecord = onRecord
     }
 
     static let shortestPassSeconds: TimeInterval = 0.25
@@ -67,6 +71,9 @@ public actor HistorySampler {
             }
             return await group.reduce(into: []) { $0.append($1) }
         }
-        for case let (id, point?) in answers { history.record(id, point) }
+        for case let (id, point?) in answers {
+            guard history.record(id, point) else { continue }
+            await onRecord?(id, point)
+        }
     }
 }

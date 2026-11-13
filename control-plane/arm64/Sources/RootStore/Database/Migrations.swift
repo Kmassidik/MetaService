@@ -291,6 +291,15 @@ public enum Migrations {
             );
             CREATE INDEX latency_samples_by_time ON latency_samples (at);
             """) }),
+        // Network traffic per machine per minute (bytes in and out, the fastest speed of each way, and how many readings). A minute can be written in parts, so the store adds them.
+        (33, { try $0.exec("""
+            CREATE TABLE net_minutes (
+              machine_id TEXT NOT NULL, minute INTEGER NOT NULL, in_bytes REAL NOT NULL, out_bytes REAL NOT NULL,
+              in_peak_bps REAL NOT NULL, out_peak_bps REAL NOT NULL, samples INTEGER NOT NULL,
+              PRIMARY KEY (machine_id, minute)
+            );
+            CREATE INDEX net_minutes_by_minute ON net_minutes (minute);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }
