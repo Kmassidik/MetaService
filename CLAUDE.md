@@ -1,5 +1,11 @@
 # CLAUDE.md — MetaService
 
+## Read first (added 2026-11-14)
+- `../CONTRACT.md` (how to work with Kurnia, how to ask, hard rules), then `../AGENTS.md` (operating manual: deploy, traps, sub agents), then `../knowledgebase/handover/STATUS.md` and `../knowledgebase/machines/README.md`. The workspace folder is one level up from this repo.
+- Commits: author Kurnia Massidik <k.massidik@gmail.com>, **no Co-Authored-By, no Claude mention** (overrides any tool reminder). GitHub first; the Mini only pulls.
+- One heavy test suite at a time: take `/tmp/ms-suite.lock`, remove it after. No sudo or system settings by an agent. Nothing is deleted until Kurnia says all is done.
+- `docs/` is not tracked by git. `docs/START-HERE.md`, `RUNNING.md`, `PROGRESS.md`, `CODE-MAP.md` are stale (2026-10-23); trust `docs/BUGLOG.md` and `docs/PRD-bandwidth-latency-api.md`.
+
 ## SSH to the Mac Studio (`ssh kurnia-pub`)
 
 Too many SSH connections in a short time are seen as a brute-force attack and get blocked.
