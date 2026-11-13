@@ -81,8 +81,14 @@ final class LatencyRangeTests: XCTestCase {
         XCTAssertThrowsError(try LatencyRange.parse(values: ["1h", "1h"]))
     }
 
-    func testTheWeekRangeLooksBackSevenDaysInTenMinuteBuckets() {
+    func testTheWeekRangeLooksBackSevenDaysInBucketsThatFitTheCap() {
         XCTAssertEqual(LatencyRange.week.windowSeconds, 7 * 86_400)
-        XCTAssertEqual(LatencyRange.week.bucketSeconds, 600)
+        XCTAssertEqual(LatencyRange.week.bucketSeconds, 660)
+        XCTAssertLessThanOrEqual(7 * 86_400 / LatencyRange.week.bucketSeconds + 1, LatencyTiming.maxPoints)
+    }
+
+    func testTheDayRangeHasNinetySecondBuckets() {
+        XCTAssertEqual(LatencyRange.day.bucketSeconds, 90)
+        XCTAssertLessThanOrEqual(86_400 / LatencyRange.day.bucketSeconds + 1, LatencyTiming.maxPoints)
     }
 }

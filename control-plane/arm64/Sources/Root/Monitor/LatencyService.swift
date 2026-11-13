@@ -23,10 +23,23 @@ final class LatencyService: Sendable {
         Task.detached { await prober.run() }
     }
 
-    /// The summary and chart points of one machine for a range. Throws `MachineError.notFound` for a machine that does not exist.
+    /// The summary and chart points of one machine for a range. The summary always covers the whole window.
+    /// Throws `MachineError.notFound` for a machine that does not exist.
     func reply(for id: String, range: LatencyRange) throws -> LatencyReply {
         _ = try machines.get(id: id, now: clock.now)
         let since = Int(clock.now.timeIntervalSince1970) - range.windowSeconds
-        return LatencyReply.make(range: range, samples: try store.samples(machineId: id, since: since))
+        let summary = try store.summary(machineId: id, since: since)
+        let points = try chartPoints(for: id, range: range, since: since)
+        return LatencyReply.make(range: range, summary: summary, points: points)
+    }
+
+    /// The hour is drawn from its raw samples; a day and a week from buckets the database makes over the whole window.
+    private func chartPoints(for id: String, range: LatencyRange, since: Int) throws -> [LatencyPoint] {
+        switch range {
+        case .hour:
+            return LatencyBuckets.points(try store.samples(machineId: id, since: since), bucketSeconds: range.bucketSeconds)
+        case .day, .week:
+            return try store.buckets(machineId: id, since: since, bucketSeconds: range.bucketSeconds, limit: LatencyTiming.maxPoints)
+        }
     }
 }

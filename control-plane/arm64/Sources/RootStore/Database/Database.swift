@@ -36,6 +36,12 @@ public struct Row {
         guard case .int(let number)? = values[column] else { return nil }
         return number
     }
+
+    /// A REAL column, such as the result of AVG. Nil when the column is NULL.
+    public func optionalDouble(_ column: String) -> Double? {
+        guard case .real(let number)? = values[column] else { return nil }
+        return number
+    }
 }
 
 /// One SQLite connection. SQL text must be a string literal (StaticString), so a query can never be

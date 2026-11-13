@@ -43,15 +43,16 @@ public struct LatencySummary: Equatable, Sendable {
     /// The last time is the newest sample's time, so it is nil when the newest probe failed.
     public static func summarize(_ samples: [LatencySample]) -> LatencySummary {
         let working = samples.compactMap(\.millis)
-        let failed = samples.count - working.count
         let newest = samples.max { $0.at < $1.at }
-        return LatencySummary(
-            count: samples.count,
-            failed: failed,
-            averageMs: working.isEmpty ? nil : Double(working.reduce(0, +)) / Double(working.count),
-            maxMs: working.max(),
-            lastMs: newest?.millis,
-            percentFailed: samples.isEmpty ? 0 : Double(failed) * LatencyTiming.percentScale / Double(samples.count))
+        return make(count: samples.count, failed: samples.count - working.count,
+                    averageMs: working.isEmpty ? nil : Double(working.reduce(0, +)) / Double(working.count),
+                    maxMs: working.max(), lastMs: newest?.millis)
+    }
+
+    /// Builds the summary from counts, for example counts the database computed over a whole window. Percent failed is worked out here, once, for every caller.
+    public static func make(count: Int, failed: Int, averageMs: Double?, maxMs: Int?, lastMs: Int?) -> LatencySummary {
+        LatencySummary(count: count, failed: failed, averageMs: averageMs, maxMs: maxMs, lastMs: lastMs,
+                       percentFailed: count == 0 ? 0 : Double(failed) * LatencyTiming.percentScale / Double(count))
     }
 
     public init(count: Int, failed: Int, averageMs: Double?, maxMs: Int?, lastMs: Int?, percentFailed: Double) {
@@ -127,6 +128,12 @@ public enum LatencyRange: String, Equatable, Sendable, CaseIterable {
 
     public static let parameter = "range"
     static let hourSeconds = 3_600
+    /// One hour keeps each probe as its own point (360 points).
+    static let hourBucketSeconds = LatencyTiming.intervalSeconds
+    /// A day in 90-second buckets: 960 points, under the 1000 cap.
+    static let dayBucketSeconds = 90
+    /// A week in 660-second buckets: 916 points, under the 1000 cap.
+    static let weekBucketSeconds = 660
 
     /// Only these texts are accepted. A missing parameter means `1h`.
     public struct Refused: Error, Equatable, Sendable {
@@ -149,12 +156,12 @@ public enum LatencyRange: String, Equatable, Sendable, CaseIterable {
         }
     }
 
-    /// The width of one chart point, in seconds. One hour keeps each probe as its own point.
+    /// The width of one chart point, in seconds.
     public var bucketSeconds: Int {
         switch self {
-        case .hour: return LatencyTiming.intervalSeconds
-        case .day: return 60
-        case .week: return 600
+        case .hour: return Self.hourBucketSeconds
+        case .day: return Self.dayBucketSeconds
+        case .week: return Self.weekBucketSeconds
         }
     }
 }
@@ -166,10 +173,9 @@ public struct LatencyReply: Encodable, Equatable, Sendable {
     public let summary: LatencySummary
     public let points: [LatencyPoint]
 
-    /// The summary covers every sample read; the points are the chart for the range.
-    public static func make(range: LatencyRange, samples: [LatencySample]) -> LatencyReply {
-        LatencyReply(range: range.rawValue, intervalSeconds: LatencyTiming.intervalSeconds, summary: LatencySummary.summarize(samples),
-                     points: LatencyBuckets.points(samples, bucketSeconds: range.bucketSeconds))
+    /// The summary covers the whole window (computed by the database); the points are the chart for the range.
+    public static func make(range: LatencyRange, summary: LatencySummary, points: [LatencyPoint]) -> LatencyReply {
+        LatencyReply(range: range.rawValue, intervalSeconds: LatencyTiming.intervalSeconds, summary: summary, points: points)
     }
 
     public init(range: String, intervalSeconds: Int, summary: LatencySummary, points: [LatencyPoint]) {
