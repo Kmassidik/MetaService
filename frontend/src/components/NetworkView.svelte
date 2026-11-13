@@ -6,6 +6,7 @@
   import { latencyState, RANGES, type Latency, type LatencyRange, type LatencyState } from '../lib/latencyParse.ts'
   import type { Machine } from '../lib/types.ts'
   import LatencySparkline from './LatencySparkline.svelte'
+  import NetworkUsage from './NetworkUsage.svelte'
   import Owl from './Owl.svelte'
 
   const POLL_MS = 10_000
@@ -125,6 +126,8 @@
       {/each}
     </div>
   {/if}
+
+  <NetworkUsage />
 </section>
 
 <style>
