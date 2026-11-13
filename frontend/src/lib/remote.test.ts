@@ -7,11 +7,16 @@ import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
 
-test('a good address and port have no problem, a bad one says what to type', () => {
+test('a private address, a name and a public address are all sent to the server, whether or not they are on the scanned network', () => {
   expect(whereProblem(form())).toBe(null)
   expect(whereProblem(form({ host: 'office-mini.local' }))).toBe(null)
-  for (const host of ['', ' ', 'a b', '-oProxyCommand=x', 'a;b', 'a/b']) expect(whereProblem(form({ host })) ?? '').toMatch(/address/)
-  for (const port of ['', '0', '65536', 'ssh', '22.5']) expect(whereProblem(form({ port })) ?? '').toMatch(/port/)
+  expect(whereProblem(form({ host: '10.20.30.40' }))).toBe(null)
+  expect(whereProblem(form({ host: '202.51.196.202', port: '1004' }))).toBe(null)
+})
+
+test('only a bad shape, the "any" or broadcast address, loopback, or a port out of range is refused here', () => {
+  for (const host of ['', ' ', 'a b', '-oProxyCommand=x', 'a;b', 'a/b', '0.0.0.0', '255.255.255.255', '127.0.0.1']) expect(whereProblem(form({ host })) ?? '').toMatch(/address/)
+  for (const port of ['', '0', '65536', '70000', 'ssh', '22.5']) expect(whereProblem(form({ port })) ?? '').toMatch(/port/)
 })
 
 test('a user name with a space is warned about while typing, an empty or good one is not', () => {

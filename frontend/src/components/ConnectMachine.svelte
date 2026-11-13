@@ -115,7 +115,7 @@
       <input id="connect-host" bind:value={form.host} autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="192.168.100.40" aria-invalid={whereWrong ? 'true' : 'false'} />
       <label for="connect-port">SSH port</label>
       <input id="connect-port" bind:value={form.port} inputmode="numeric" autocomplete="off" />
-      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'It needs SSH on (Remote Login on a Mac). Only addresses on this network work.'}</p>
+      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'It needs SSH on (Remote Login on a Mac). Addresses on this network work. Another address works only if the owner allowed it in the server settings.'}</p>
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
       <div class="row">
         <button class="btn line" type="button" onclick={onClose}>Cancel</button>

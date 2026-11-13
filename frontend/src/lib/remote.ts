@@ -3,6 +3,10 @@ import { relativeTime } from './format.ts'
 import type { ConnectForm, InstallOffer, RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/
+const UNSPECIFIED_ADDRESS = '0.0.0.0'
+const BROADCAST_ADDRESS = '255.255.255.255'
+const LOOPBACK_FIRST_OCTET = '127'
 const USER = /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/
 const SSH_PORT = 22
 const LONGEST_PASSWORD = 256
@@ -14,9 +18,20 @@ export function portOf(form: ConnectForm): number | null {
   return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null
 }
 
-/** What is wrong with the computer's address, or null. Same rules as the control panel's, so a bad one never leaves the page. */
+/** True for an address that can never point at another computer: "any", broadcast, and loopback (127.x, this computer). */
+const isNotAnotherComputer = (host: string): boolean => {
+  if (host === UNSPECIFIED_ADDRESS || host === BROADCAST_ADDRESS) return true
+  return IPV4.test(host) && host.split('.')[0] === LOOPBACK_FIRST_OCTET
+}
+
+/**
+ * What is wrong with the computer's address, or null. Only shapes are refused here: any valid address or name is sent, and the server decides
+ * which addresses are allowed (it answers a plain refusal when one is not).
+ */
 export function whereProblem(form: ConnectForm): string | null {
-  if (!HOST.test(form.host.trim())) return 'Type the computer\'s address (for example 192.168.100.40) or its name.'
+  const host = form.host.trim()
+  if (!HOST.test(host)) return 'Type the computer\'s address (for example 192.168.100.40) or its name.'
+  if (isNotAnotherComputer(host)) return 'That address points at this computer or nowhere. Type the other computer\'s address.'
   if (portOf(form) === null) return 'The SSH port is a number from 1 to 65535 (usually 22).'
   return null
 }
