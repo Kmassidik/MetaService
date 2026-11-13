@@ -3,7 +3,7 @@
   import { ApiError, latestScan, scanSetup, startScan } from '../lib/api.ts'
   import Owl from './Owl.svelte'
   import { relativeTime, sourceName, sourceProblem } from '../lib/format.ts'
-  import { rowStatus } from '../lib/scanRows.ts'
+  import { rowStatus, withKnownMachines } from '../lib/scanRows.ts'
   import type { Machine, Scan, ScanSetup } from '../lib/types.ts'
 
   const POLL_MS = 1500
@@ -14,6 +14,8 @@
   let failure = $state('')
   let timer: ReturnType<typeof setTimeout> | undefined
   const running = $derived(scan?.state === 'running')
+  // Registered machines are always listed, even when the scan did not see them.
+  const rows = $derived(withKnownMachines(scan?.results ?? [], machines))
   // "Router not set up" is normal (the router is optional) and the missing network scan is explained above the table, so neither is repeated here.
   const EXPLAINED = new Set(['not_configured', 'missing'])
   const sourceNotes = $derived(
@@ -102,16 +104,11 @@
 
   {#if scan?.state === 'failed'}
     <p class="note bad">The scan could not use any source. Check the notes above.</p>
-  {:else if !scan && setup?.subnet}
-    <div class="none"><Owl name="emptyMachines" /><p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p></div>
-  {:else if scan && scan.state === 'done' && scan.results.length === 0}
-    <div class="none"><Owl name="emptyMachines" /><p class="muted">The scan found nothing on this network.</p></div>
-  {:else if running}
-    <div class="none"><Owl name="loading" /><p class="muted">Looking at the network…</p></div>
-  {:else if scan?.results?.length}
+  {/if}
+  {#if rows.length}
     <div class="table" role="table" aria-label="Devices found">
       <div class="head" role="row"><span>Address</span><span>Name</span><span>MAC address</span><span>Status</span></div>
-      {#each scan.results as row (row.id)}
+      {#each rows as row (row.id)}
         {@const status = rowStatus(row, machines, { gateway: isGateway(row.ip) })}
         <div class="row" role="row">
           <span class="mono" data-label="Address">{row.ip}</span>
@@ -129,6 +126,12 @@
         </div>
       {/each}
     </div>
+  {:else if running}
+    <div class="none"><Owl name="loading" /><p class="muted">Looking at the network…</p></div>
+  {:else if scan?.state === 'done'}
+    <div class="none"><Owl name="emptyMachines" /><p class="muted">The scan found nothing on this network.</p></div>
+  {:else if !scan && setup?.subnet}
+    <div class="none"><Owl name="emptyMachines" /><p class="muted">Nothing scanned yet. Press Scan now to look at the network.</p></div>
   {/if}
 </section>
 
