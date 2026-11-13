@@ -17,6 +17,7 @@
   import CardFix from './CardFix.svelte'
   import { listTag } from '../lib/helperUpdate.ts'
   import { securityOf } from '../lib/security.ts'
+  import { networkTag } from '../lib/networkTag.ts'
   import { securityBadge } from '../lib/securityRules.ts'
   import { cardFacts, vmsChip } from '../lib/cardFacts.ts'
   import { gpuFact, gpuTitle, readGpuLive } from '../lib/gpuLive.ts'
@@ -33,6 +34,7 @@
   /** The machine the control panel runs on enrolls over its own loopback address. It is the parent, and machine 1. */
   const isParent = $derived(machine.ip === '127.0.0.1')
   const updateTag = $derived(listTag(machine))
+  const where = $derived(isParent ? null : networkTag(machine.ip))
   const badge = $derived(securityBadge(securityOf(machine)))
   /** The card's name for the route; a new machine object with the same id must not restart the polling. */
   const machineId = $derived(machine.id)
@@ -84,6 +86,7 @@
       <a class="nm" href={machineHref(machine.id)} title={machine.name}>{machine.name}</a>
       <span class="tags">
         {#if isParent}<span class="tag run">Parent</span>{/if}
+        {#if where}<span class="tag" data-network-tag title="How this machine reaches the parent">{where}</span>{/if}
         {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
         {#if badge}<a class="tag" class:warn={badge.warning} data-security-badge href={securityHref({ machine: machine.id })} title="Failed logins blocked in the last 7 days. Open Security.">{badge.text}</a>{/if}
         {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
