@@ -35,9 +35,11 @@ public struct RemoteTarget: Equatable, Sendable {
 
     public var isAddress: Bool { IPv4.isValid(host) }
 
-    /// Whether this address may be a target: a private address, and loopback only when the operator turned that on (the tests and demos do).
-    public static func allowed(address: String, allowLoopback: Bool, subnet: Subnet?) -> Bool {
+    /// Whether this address may be a target: loopback only when the operator turned that on (the tests and demos do), an exact address the owner listed,
+    /// or a private address on the parent's network.
+    public static func allowed(address: String, allowLoopback: Bool, subnet: Subnet?, extra: Set<String> = []) -> Bool {
         if IPv4.isLoopback(address) { return allowLoopback }
+        if extra.contains(address) { return true }
         guard IPv4.isPrivate(address) else { return false }
         return subnet?.contains(address) ?? true
     }

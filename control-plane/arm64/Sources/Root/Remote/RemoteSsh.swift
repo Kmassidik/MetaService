@@ -40,7 +40,7 @@ final class RemoteSsh: @unchecked Sendable {
 
     func allowedAddress(_ target: RemoteTarget) throws -> String {
         guard let address = HostResolver.ipv4(target.host) else { throw RemoteFailure.unreachable }
-        guard RemoteTarget.allowed(address: address, allowLoopback: parts.config.remoteAllowLoopback, subnet: parts.config.scanSubnet) else { throw RemoteFailure.notAllowed }
+        guard RemoteTarget.allowed(address: address, allowLoopback: parts.config.remoteAllowLoopback, subnet: parts.config.scanSubnet, extra: parts.config.remoteExtraAddresses) else { throw RemoteFailure.notAllowed }
         return address
     }
 

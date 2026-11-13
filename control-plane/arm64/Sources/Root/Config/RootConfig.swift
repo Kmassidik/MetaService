@@ -33,6 +33,8 @@ struct RootConfig {
     var agentBinary = "../../agent/macos/.build/debug/metaservice-agent"
     /// Connecting to other computers: loopback is a legal target only when this is on (tests and demos), and the Agent builds for other systems may sit in one folder.
     var remoteAllowLoopback = false
+    /// Exact addresses the owner allows Add machine to reach besides the parent's network (a computer reachable only through a public address). Empty by default.
+    var remoteExtraAddresses: Set<String> = []
     /// Where the programs for other systems are looked for (metaservice-agent-linux-x86_64 and so on). Without a setting it is state/agent-builds, so a build only needs to be put there.
     var agentBuildsDirectory: String? = "state/agent-builds"
     /// Which engine an Agent installed on another computer is started with. Empty means the right one for its system (apple on a Mac, incus on Linux); tests and demos use "simulated".
@@ -98,7 +100,7 @@ enum ConfigLoader {
         var index = 0
         while index < arguments.count {
             let name = arguments[index]
-            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--public-url", "--ui-dir", "--bundle-dir", "--remote-allow-loopback", "--agent-builds-dir", "--remote-engine", "--remote-tries", "--history-interval"].contains(name), index + 1 < arguments.count else {
+            guard ["--env-file", "--db", "--port", "--bind", "--agent-port", "--agent-bind", "--agent-binary", "--public-url", "--ui-dir", "--bundle-dir", "--remote-allow-loopback", "--remote-extra-addresses", "--agent-builds-dir", "--remote-engine", "--remote-tries", "--history-interval"].contains(name), index + 1 < arguments.count else {
                 throw ConfigError(description: "unknown or incomplete option \(name)")
             }
             result[name] = arguments[index + 1]
@@ -126,6 +128,7 @@ enum ConfigLoader {
         config.uiDirectory = options["--ui-dir"] ?? config.uiDirectory
         config.bundleDirectory = options["--bundle-dir"] ?? config.bundleDirectory
         config.remoteAllowLoopback = options["--remote-allow-loopback"].map { ["yes", "true", "1"].contains($0.lowercased()) } ?? config.remoteAllowLoopback
+        config.remoteExtraAddresses = options["--remote-extra-addresses"].map(RemoteExtraAddresses.parse) ?? config.remoteExtraAddresses
         config.agentBuildsDirectory = options["--agent-builds-dir"] ?? config.agentBuildsDirectory
         config.remoteEngine = options["--remote-engine"] ?? config.remoteEngine
         config.remoteTriesPerMinute = try number(options["--remote-tries"], named: "--remote-tries", in: 1...60, default: config.remoteTriesPerMinute)
@@ -159,6 +162,7 @@ enum ConfigLoader {
         config.agentBinary = env["AGENT_BINARY"] ?? config.agentBinary
         config.agentBuildsDirectory = env["AGENT_BUILDS_DIR"] ?? config.agentBuildsDirectory
         config.remoteAllowLoopback = env["ROOT_REMOTE_ALLOW_LOOPBACK"].map { ["yes", "true", "1"].contains($0.lowercased()) } ?? config.remoteAllowLoopback
+        config.remoteExtraAddresses = env["ROOT_REMOTE_EXTRA_ADDRESSES"].map(RemoteExtraAddresses.parse) ?? config.remoteExtraAddresses
         if let text = env["ROOT_AGENT_PORT"] {
             guard let port = Int(text), (1...65535).contains(port) else { throw ConfigError(description: "bad ROOT_AGENT_PORT") }
             config.agentListenPort = port
