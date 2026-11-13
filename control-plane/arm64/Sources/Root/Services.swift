@@ -108,7 +108,7 @@ struct Services {
                                    pollSeconds: config.securityPollSeconds)
         netUsage = NetUsageService(machines: machines, store: NetMinuteStore(database), clock: clock)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds, usage: netUsage.collector)
-        latency = LatencyService(machines: machines, store: LatencyStore(database), clock: clock)
+        latency = LatencyService(machines: machines, store: LatencyStore(database), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))

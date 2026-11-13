@@ -10,11 +10,11 @@ final class LatencyService: Sendable {
     private let clock: Clock
     private let prober: LatencyProber
 
-    init(machines: MachineStore, store: LatencyStore, clock: Clock) {
+    init(machines: MachineStore, store: LatencyStore, client: AgentClient, clock: Clock) {
         self.machines = machines
         self.store = store
         self.clock = clock
-        prober = LatencyProber(machines: machines, store: store, connector: TcpLatencyConnector(), clock: clock)
+        prober = LatencyProber(machines: machines, store: store, connector: AgentHealthConnector(client: client), clock: clock)
     }
 
     /// Starts the one loop that probes every registered machine. It runs for as long as the parent does.

@@ -2,10 +2,10 @@ import XCTest
 import RootCore
 @testable import RootStore
 
-/// Answers 5 ms for the host "a" and nothing (a failed probe) for any other host.
+/// Answers 7 ms for the machine "a" and nothing (a failed probe) for any other machine.
 private struct FakeConnector: LatencyConnector {
-    func connectMillis(host: String, port: Int, timeout: TimeInterval) async -> Int? {
-        host == "a" ? 5 : nil
+    func answerMillis(for target: LatencyTarget, timeout: TimeInterval) async -> Int? {
+        target.machineId == "a" ? 7 : nil
     }
 }
 
@@ -56,7 +56,7 @@ final class LatencyStoreTests: XCTestCase {
         let targets = [LatencyTarget(machineId: "a", host: "a", port: 9101), LatencyTarget(machineId: "b", host: "b", port: 9101)]
         let samples = await LatencyRound.run(targets, at: 1_800_000_000, connector: FakeConnector(), timeout: 3)
         try store.record(samples)
-        XCTAssertEqual(try store.samples(machineId: "a", since: 0), [sample("a", 1_800_000_000, 5)])
+        XCTAssertEqual(try store.samples(machineId: "a", since: 0), [sample("a", 1_800_000_000, 7)])
         XCTAssertEqual(try store.samples(machineId: "b", since: 0), [sample("b", 1_800_000_000, nil)])
     }
 }

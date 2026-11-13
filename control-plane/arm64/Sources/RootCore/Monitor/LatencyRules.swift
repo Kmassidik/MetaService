@@ -1,9 +1,9 @@
 import Foundation
 
-/// The fixed timing of the latency probe: how often it runs, how long one connection may take, and how long the samples are kept.
+/// The fixed timing of the latency probe: how often it runs, how long one health call may take, and how long the samples are kept.
 public enum LatencyTiming {
     public static let intervalSeconds = 10
-    public static let connectTimeoutSeconds: TimeInterval = 3
+    public static let answerTimeoutSeconds: TimeInterval = 3
     public static let keepDays = 7
     /// The old samples are deleted once an hour, not on every pass.
     public static let pruneEverySeconds = 3_600
@@ -16,7 +16,7 @@ public enum LatencyTiming {
     public static let nanosecondsPerMillisecond: UInt64 = 1_000_000
 }
 
-/// One probe of one machine: when it ran (epoch seconds) and how many milliseconds the connection took, or nil when it failed or timed out.
+/// One probe of one machine: when it ran (epoch seconds) and how many milliseconds the health call took, or nil when it failed or timed out.
 public struct LatencySample: Equatable, Sendable {
     public let machineId: String
     public let at: Int
@@ -186,7 +186,7 @@ public struct LatencyReply: Encodable, Equatable, Sendable {
     }
 }
 
-/// A machine to probe: its id, and the address and helper port to connect to.
+/// A machine to probe: its id, and the address and helper port it reported. The probe calls the helper by id, not by address.
 public struct LatencyTarget: Equatable, Sendable {
     public let machineId: String
     public let host: String
@@ -199,9 +199,9 @@ public struct LatencyTarget: Equatable, Sendable {
     }
 }
 
-/// Opens one TCP connection and reports how many milliseconds it took to be ready, or nil when it failed or timed out. Sends no data.
+/// Times one health call to a machine's helper and reports the milliseconds it took, or nil when it failed or timed out.
 public protocol LatencyConnector: Sendable {
-    func connectMillis(host: String, port: Int, timeout: TimeInterval) async -> Int?
+    func answerMillis(for target: LatencyTarget, timeout: TimeInterval) async -> Int?
 }
 
 /// One pass of the probe: every target is probed at the same time, and each result becomes one sample at the same time.
@@ -210,7 +210,7 @@ public enum LatencyRound {
         await withTaskGroup(of: LatencySample.self) { group in
             for target in targets {
                 group.addTask {
-                    let millis = await connector.connectMillis(host: target.host, port: target.port, timeout: timeout)
+                    let millis = await connector.answerMillis(for: target, timeout: timeout)
                     return LatencySample(machineId: target.machineId, at: seconds, millis: millis)
                 }
             }

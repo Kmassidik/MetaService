@@ -1,60 +1,35 @@
 import Foundation
 import MSCore
-import Network
 import RootCore
 import RootStore
 
-/// The real connector: a TCP connection through Network.framework, timed from the start until the connection is ready. It is closed at once and sends no data.
-struct TcpLatencyConnector: LatencyConnector {
-    private static let queue = DispatchQueue(label: "metaservice.latency.connect")
-    private static let minimumMillis = 1
+/// The real connector: times one `GET /v1/health` call to the machine's helper through `AgentClient`, the same path the other helper calls use.
+/// A reply that is not a success, or a call that throws, gives nil; the error is reported on stderr.
+struct AgentHealthConnector: LatencyConnector {
+    let client: AgentClient
 
-    func connectMillis(host: String, port: Int, timeout: TimeInterval) async -> Int? {
-        guard (1...Int(UInt16.max)).contains(port), let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return nil }
+    static let healthMethod = "GET"
+    static let healthPath = "/v1/health"
+    private static let minimumMillis = 1
+    private static let successStatuses = 200..<300
+
+    func answerMillis(for target: LatencyTarget, timeout: TimeInterval) async -> Int? {
         let started = DispatchTime.now().uptimeNanoseconds
-        return await withCheckedContinuation { (continuation: CheckedContinuation<Int?, Never>) in
-            let once = OnceResult(continuation)
-            let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
-            connection.stateUpdateHandler = { [weak connection] state in
-                switch state {
-                case .ready:
-                    once.finish(Self.millis(since: started))
-                    connection?.cancel()
-                case .failed, .cancelled:
-                    once.finish(nil)
-                default:
-                    break
-                }
-            }
-            connection.start(queue: Self.queue)
-            Self.queue.asyncAfter(deadline: .now() + timeout) {
-                connection.cancel()
-                once.finish(nil)
-            }
+        do {
+            let reply = try await client.call(machine: target.machineId, method: Self.healthMethod, path: Self.healthPath, timeout: timeout)
+            guard Self.successStatuses.contains(reply.status) else { return nil }
+            return Self.millis(since: started)
+        } catch {
+            FileHandle.standardError.write(Data("metaservice-root: latency probe of \(target.machineId) failed: \(error)\n".utf8))
+            return nil
         }
     }
 
-    /// Elapsed milliseconds, rounded up, and never less than one so a fast connection is not reported as zero.
+    /// Elapsed milliseconds, rounded up, and never less than one so a fast call is not reported as zero.
     private static func millis(since started: UInt64) -> Int {
         let elapsed = DispatchTime.now().uptimeNanoseconds - started
         let rounded = (elapsed + LatencyTiming.nanosecondsPerMillisecond - 1) / LatencyTiming.nanosecondsPerMillisecond
         return max(Int(rounded), minimumMillis)
-    }
-}
-
-/// Hands back the connect result exactly once, whichever comes first: the ready state, a failure, or the timeout.
-private final class OnceResult: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Int?, Never>?
-
-    init(_ continuation: CheckedContinuation<Int?, Never>) { self.continuation = continuation }
-
-    func finish(_ millis: Int?) {
-        lock.lock()
-        let pending = continuation
-        continuation = nil
-        lock.unlock()
-        pending?.resume(returning: millis)
     }
 }
 
@@ -68,7 +43,7 @@ enum LatencyTargets {
     }
 }
 
-/// Probes every registered machine's helper port every ten seconds and stores one sample per machine. One loop for all machines; it stops when the task is cancelled.
+/// Times a health call to every registered machine's helper every ten seconds and stores one sample per machine. One loop for all machines; it stops when the task is cancelled.
 /// Old samples are deleted once an hour. The clock and the connector are passed in, so a test can fake them.
 actor LatencyProber {
     private let machines: MachineStore
@@ -101,7 +76,7 @@ actor LatencyProber {
         let now = Int(clock.now.timeIntervalSince1970)
         do {
             let targets = try LatencyTargets.current(machines, now: clock.now)
-            let samples = await LatencyRound.run(targets, at: now, connector: connector, timeout: LatencyTiming.connectTimeoutSeconds)
+            let samples = await LatencyRound.run(targets, at: now, connector: connector, timeout: LatencyTiming.answerTimeoutSeconds)
             try store.record(samples)
             try pruneIfDue(now)
         } catch {
