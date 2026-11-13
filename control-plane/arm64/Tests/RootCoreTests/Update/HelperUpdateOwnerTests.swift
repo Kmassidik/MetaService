@@ -33,7 +33,9 @@ final class HelperUpdateOwnerTests: XCTestCase {
         #!/bin/sh
         echo "launchctl $*" >> calls.log
         case "$1" in
-          print) [ "$FAKE_LAUNCHD" = 1 ] ;;
+          print) [ "$FAKE_LAUNCHD" = 1 ] && [ ! -f launchd.unloaded ] ;;
+          bootout) touch launchd.unloaded; [ ! -f state/agent.pid ] || kill "$(cat state/agent.pid)" 2>/dev/null ;;
+          bootstrap|load) rm -f launchd.unloaded; \(spawn) ;;
           kickstart) [ ! -f state/agent.pid ] || kill "$(cat state/agent.pid)" 2>/dev/null; \(spawn) ;;
         esac
         """, executable: true)
@@ -82,7 +84,10 @@ final class HelperUpdateOwnerTests: XCTestCase {
         return try runShell("shasum -a 256 '\(file.path)' | cut -d' ' -f1", environment: [:], input: nil).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func update(newText: String, os: String, launchd: Bool = false) throws -> String {
+    private func update(newText: String, os: String, launchd: Bool = false, plist: Bool = true) throws -> String {
+        let agents = root.appendingPathComponent("Library/LaunchAgents")
+        try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
+        if launchd && plist { try "<plist/>".write(to: agents.appendingPathComponent("io.metaservice.agent.plist"), atomically: true, encoding: .utf8) }
         let script = try HelperUpdateScript.make(box: box.path, agentPort: 9, expectedBuild: try checksum(newText))
         let output = try runShell(script, environment: ["FAKE_OS": os, "FAKE_LAUNCHD": launchd ? "1" : "0"], input: newText)
         return HelperUpdateScript.code(in: output)
@@ -132,9 +137,25 @@ final class HelperUpdateOwnerTests: XCTestCase {
 
     func testOnAMacWithItsLaunchAgentLoadedLaunchdRestartsTheHelper() throws {
         XCTAssertEqual(try update(newText: program("NEW"), os: "Darwin", launchd: true), "updated")
-        XCTAssertTrue(calls().contains { $0.hasPrefix("launchctl kickstart -k gui/") && $0.hasSuffix("/io.metaservice.agent") }, "\(calls())")
+        XCTAssertTrue(calls().contains { $0.hasPrefix("launchctl bootout gui/") && $0.hasSuffix("/io.metaservice.agent") }, "\(calls())")
+        XCTAssertTrue(calls().contains { $0.hasPrefix("launchctl bootstrap gui/") && $0.hasSuffix("/Library/LaunchAgents/io.metaservice.agent.plist") }, "\(calls())")
+        XCTAssertFalse(calls().contains { $0.hasPrefix("launchctl kickstart") }, "never kickstart a replaced Mac build: \(calls())")
         XCTAssertFalse(calls().contains("start.sh"), "\(calls())")
         XCTAssertEqual(try liveHelpers(), 1)
+    }
+
+    func testARolledBackMacBuildIsLoadedAgainThroughLaunchdToo() throws {
+        XCTAssertEqual(try update(newText: program("BROKEN"), os: "Darwin", launchd: true), "rolled_back")
+        XCTAssertEqual(calls().filter { $0.hasPrefix("launchctl bootstrap gui/") }.count, 2, "\(calls())")
+        XCTAssertFalse(calls().contains { $0.hasPrefix("launchctl kickstart") }, "\(calls())")
+        XCTAssertTrue(try installedProgram().contains("OLD"))
+        XCTAssertEqual(try liveHelpers(), 1)
+    }
+
+    func testAMacWhoseLaunchAgentFileIsMissingFallsBackToKickstart() throws {
+        XCTAssertEqual(try update(newText: program("NEW"), os: "Darwin", launchd: true, plist: false), "updated")
+        XCTAssertTrue(calls().contains { $0.hasPrefix("launchctl kickstart -k gui/") }, "\(calls())")
+        XCTAssertFalse(calls().contains { $0.hasPrefix("launchctl bootstrap") }, "\(calls())")
     }
 
     func testOnAMacWithoutTheLaunchAgentTheStartScriptStays() throws {
