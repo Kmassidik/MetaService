@@ -1,9 +1,14 @@
 import Darwin
 import Foundation
+import AgentCore
 
-/// Bytes in and out, failed packets and packets dropped on the way in, since boot, all running interfaces except loopback added together.
+/// Bytes in and out, failed packets and packets dropped on the way in, since boot, all running interfaces except loopback added together. Also the bytes of each interface by name.
 enum DarwinNetwork {
-    struct Totals { var received: UInt64 = 0, sent: UInt64 = 0, errorsIn: UInt64 = 0, errorsOut: UInt64 = 0, dropsIn: UInt64 = 0 }
+    struct Totals {
+        var received: UInt64 = 0, sent: UInt64 = 0, errorsIn: UInt64 = 0, errorsOut: UInt64 = 0, dropsIn: UInt64 = 0
+        /// Bytes of each running interface, keyed by its name (for the primary interface).
+        var byInterface: [String: InterfaceCounters] = [:]
+    }
 
     static func totals() -> Totals {
         var list: UnsafeMutablePointer<ifaddrs>?
@@ -17,6 +22,8 @@ enum DarwinNetwork {
             totals.errorsIn += UInt64(counters.ifi_ierrors)
             totals.errorsOut += UInt64(counters.ifi_oerrors)
             totals.dropsIn += UInt64(counters.ifi_iqdrops)
+            let name = String(cString: entry.pointee.ifa_name)
+            totals.byInterface[name] = InterfaceCounters(name: name, receivedBytes: UInt64(counters.ifi_ibytes), sentBytes: UInt64(counters.ifi_obytes))
         }
         return totals
     }

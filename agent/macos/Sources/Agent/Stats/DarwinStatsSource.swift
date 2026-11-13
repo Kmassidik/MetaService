@@ -7,18 +7,25 @@ enum StatsReadError: Error { case cpu, memory, boot }
 /// Reads this Mac's real numbers. No root needed, nothing is installed, nothing is written.
 final class DarwinStatsSource: StatsSource {
     private let processes = DarwinProcesses()
+    private let defaultRoute = DarwinDefaultRoute()
 
     func read(includeProcesses: Bool) throws -> StatsSnapshot {
         let network = DarwinNetwork.totals()
         let (cores, states) = try Self.cpuTimes()
         let extras = StatsExtras(cpuStates: states, topology: topology, networkIssues: NetworkIssues(errorsIn: network.errorsIn, errorsOut: network.errorsOut, dropsIn: network.dropsIn),
-                                 diskTotals: DarwinDiskTotals.read(), processCount: processes.count(), gpus: DarwinGpus.read())
+                                 diskTotals: DarwinDiskTotals.read(), processCount: processes.count(), gpus: DarwinGpus.read(), primaryInterface: primaryCounters(in: network))
         return StatsSnapshot(takenAt: Date(), uptimeSeconds: try Self.uptimeSeconds(), cores: cores, load: Self.load(), memory: try DarwinMemory.read(),
                              disks: DarwinDisks.read(), receivedTotalBytes: network.received, sentTotalBytes: network.sent, processes: includeProcesses ? processes.list() : nil, extras: extras)
     }
 
     /// The core layout does not change while the helper runs: read once.
     private let topology = DarwinTopology.read()
+
+    /// The counters of the interface that holds the default route; nil when its name or its counters are not known.
+    private func primaryCounters(in network: DarwinNetwork.Totals) -> InterfaceCounters? {
+        guard let name = defaultRoute.name() else { return nil }
+        return network.byInterface[name]
+    }
 
     private static func cpuTimes() throws -> (cores: [CoreTicks], states: CpuStateTicks) {
         var count: natural_t = 0, info: processor_info_array_t?, infoCount: mach_msg_type_number_t = 0

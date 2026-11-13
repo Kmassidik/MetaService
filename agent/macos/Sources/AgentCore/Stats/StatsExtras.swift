@@ -31,6 +31,13 @@ public struct DiskTotals: Equatable {
     public init(readBytes: UInt64, writtenBytes: UInt64) { self.readBytes = readBytes; self.writtenBytes = writtenBytes }
 }
 
+/// Received and sent bytes of ONE network interface, since boot.
+public struct InterfaceCounters: Equatable {
+    public let name: String
+    public let receivedBytes, sentBytes: UInt64
+    public init(name: String, receivedBytes: UInt64, sentBytes: UInt64) { self.name = name; self.receivedBytes = receivedBytes; self.sentBytes = sentBytes }
+}
+
 /// The optional numbers of a snapshot. Each one is nil where the system does not give it without root.
 public struct StatsExtras: Equatable {
     public var cpuStates: CpuStateTicks?
@@ -41,7 +48,11 @@ public struct StatsExtras: Equatable {
     public var processCount: Int?
     /// The graphics chips the registry shows. Empty when it shows none.
     public var gpus: [GpuReading]
-    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil, gpus: [GpuReading] = []) {
+    /// The interface that holds the default route, with its own counters. Nil when its name or counters are not known.
+    public var primaryInterface: InterfaceCounters?
+    public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil, gpus: [GpuReading] = [],
+                primaryInterface: InterfaceCounters? = nil) {
         self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount; self.gpus = gpus
+        self.primaryInterface = primaryInterface
     }
 }

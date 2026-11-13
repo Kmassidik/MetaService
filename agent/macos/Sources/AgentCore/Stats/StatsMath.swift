@@ -61,9 +61,18 @@ enum StatsMath {
     }
 
     private static func network(_ now: StatsSnapshot, _ old: StatsSnapshot?, _ seconds: Double?) -> MachineStats.Network {
-        .init(receivedTotalBytes: now.receivedTotalBytes, sentTotalBytes: now.sentTotalBytes,
-              receivedBytesPerSecond: rate(now.receivedTotalBytes, old?.receivedTotalBytes, seconds), sentBytesPerSecond: rate(now.sentTotalBytes, old?.sentTotalBytes, seconds),
-              errorsInTotal: now.extras.networkIssues?.errorsIn, errorsOutTotal: now.extras.networkIssues?.errorsOut, dropsInTotal: now.extras.networkIssues?.dropsIn)
+        let primary = primarySpeeds(now, old, seconds)
+        return .init(receivedTotalBytes: now.receivedTotalBytes, sentTotalBytes: now.sentTotalBytes,
+                     receivedBytesPerSecond: rate(now.receivedTotalBytes, old?.receivedTotalBytes, seconds), sentBytesPerSecond: rate(now.sentTotalBytes, old?.sentTotalBytes, seconds),
+                     errorsInTotal: now.extras.networkIssues?.errorsIn, errorsOutTotal: now.extras.networkIssues?.errorsOut, dropsInTotal: now.extras.networkIssues?.dropsIn,
+                     primaryInterface: now.extras.primaryInterface?.name,
+                     primaryReceivedBytesPerSecond: primary.received, primarySentBytesPerSecond: primary.sent)
+    }
+
+    /// Speed of the primary interface between the two samples. Unknown when no name is known now, or the name differs from the earlier sample's.
+    private static func primarySpeeds(_ now: StatsSnapshot, _ old: StatsSnapshot?, _ seconds: Double?) -> (received: Double?, sent: Double?) {
+        guard let current = now.extras.primaryInterface, let earlier = old?.extras.primaryInterface, earlier.name == current.name else { return (nil, nil) }
+        return (rate(current.receivedBytes, earlier.receivedBytes, seconds), rate(current.sentBytes, earlier.sentBytes, seconds))
     }
 
     /// Bytes per second between two counters; a counter that went backwards (wrap, interface gone) is unknown, not negative.

@@ -25,6 +25,10 @@ public struct MachineStats: Equatable {
         public let receivedTotalBytes, sentTotalBytes: UInt64
         public let receivedBytesPerSecond, sentBytesPerSecond: Double?
         public var errorsInTotal, errorsOutTotal, dropsInTotal: UInt64?
+        /// Name of the interface that holds the default route. Null when unknown.
+        public var primaryInterface: String?
+        /// Speeds of that one interface alone (the speeds above add up every interface). Null while measuring or when a counter went backwards.
+        public var primaryReceivedBytesPerSecond, primarySentBytesPerSecond: Double?
     }
     public struct Gpu: Equatable {
         public let name: String
@@ -72,13 +76,18 @@ extension MachineStats.Cpu: Encodable {
 }
 
 extension MachineStats.Network: Encodable {
-    private enum Keys: String, CodingKey { case receivedTotalBytes, sentTotalBytes, receivedBytesPerSecond, sentBytesPerSecond, errorsInTotal, errorsOutTotal, dropsInTotal }
+    private enum Keys: String, CodingKey {
+        case receivedTotalBytes, sentTotalBytes, receivedBytesPerSecond, sentBytesPerSecond, errorsInTotal, errorsOutTotal, dropsInTotal
+        case primaryInterface, primaryReceivedBytesPerSecond, primarySentBytesPerSecond
+    }
     public func encode(to encoder: Encoder) throws {
         var box = encoder.container(keyedBy: Keys.self)
         try box.encode(receivedTotalBytes, forKey: .receivedTotalBytes); try box.encode(sentTotalBytes, forKey: .sentTotalBytes)
         try box.encode(receivedBytesPerSecond, forKey: .receivedBytesPerSecond); try box.encode(sentBytesPerSecond, forKey: .sentBytesPerSecond)
         try box.encodeIfPresent(errorsInTotal, forKey: .errorsInTotal); try box.encodeIfPresent(errorsOutTotal, forKey: .errorsOutTotal)
         try box.encodeIfPresent(dropsInTotal, forKey: .dropsInTotal)
+        try box.encode(primaryInterface, forKey: .primaryInterface)
+        try box.encode(primaryReceivedBytesPerSecond, forKey: .primaryReceivedBytesPerSecond); try box.encode(primarySentBytesPerSecond, forKey: .primarySentBytesPerSecond)
     }
 }
 
