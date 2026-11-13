@@ -63,7 +63,7 @@ final class NetUsageStoreTests: XCTestCase {
     }
 
     func testNetUsageSchemaIsAtVersion33() throws {
-        XCTAssertEqual(Migrations.latest, 33)
-        XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), 33)
+        XCTAssertEqual(Migrations.latest, 34)
+        XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), 34)
     }
 }

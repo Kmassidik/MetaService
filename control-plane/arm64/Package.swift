@@ -26,5 +26,7 @@ let package = Package(
         ),
         .testTarget(name: "RootCoreTests", dependencies: ["RootCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "RootStoreTests", dependencies: ["RootStore", "RootCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
+        // The Root executable's own pieces (the office sampler and its routes' service), tested through `@testable import Root`.
+        .testTarget(name: "RootTests", dependencies: ["Root", "RootCore", "RootStore", .product(name: "MSCore", package: "metaservice-shared")], swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )

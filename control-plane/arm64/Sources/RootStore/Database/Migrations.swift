@@ -300,6 +300,15 @@ public enum Migrations {
             );
             CREATE INDEX net_minutes_by_minute ON net_minutes (minute);
             """) }),
+        // Office bandwidth per WAN interface per minute, read from the router with SNMP. Same counting rules as net_minutes.
+        (34, { try $0.exec("""
+            CREATE TABLE office_minutes (
+              wan_index INTEGER NOT NULL, minute INTEGER NOT NULL, in_bytes REAL NOT NULL, out_bytes REAL NOT NULL,
+              in_peak_bps REAL NOT NULL, out_peak_bps REAL NOT NULL, samples INTEGER NOT NULL,
+              PRIMARY KEY (wan_index, minute)
+            );
+            CREATE INDEX office_minutes_by_minute ON office_minutes (minute);
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

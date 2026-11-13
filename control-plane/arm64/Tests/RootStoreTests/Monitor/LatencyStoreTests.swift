@@ -47,8 +47,8 @@ final class LatencyStoreTests: XCTestCase {
     }
 
     func testTheSchemaIsAtVersion32() throws {
-        XCTAssertEqual(Migrations.latest, 33)
-        XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), 33)
+        XCTAssertEqual(Migrations.latest, 34)
+        XCTAssertEqual(try database.query("SELECT MAX(version) AS v FROM schema_version").first?.int("v"), 34)
     }
 
     /// One pass of the prober: every machine gets one sample at the same time, and the store keeps them.

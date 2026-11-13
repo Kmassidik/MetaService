@@ -55,6 +55,8 @@ struct RootConfig {
     /// The join-share hub's admin listener and the file holding its key (Share a PC page). Without the address the feature is off.
     var joinShareAdminURL: String?
     var joinShareAdminKeyFile: String?
+    /// The router that is read for office bandwidth (SNMP). Not configured unless host, community and a WAN index are all set.
+    var officeSnmp = OfficeSnmpSettings.disabled
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
@@ -171,6 +173,7 @@ enum ConfigLoader {
         try applyBrain(env, to: &config)
         try applySandboxes(env, to: &config)
         try applyJoinShare(env, to: &config)
+        try applyOffice(env, to: &config)
         if let token = env["ROOT_SETUP_TOKEN"] {
             guard token.count >= SetupGate.minLength else { throw ConfigError(description: "ROOT_SETUP_TOKEN must be at least \(SetupGate.minLength) characters") }
             config.setupToken = token
@@ -200,6 +203,15 @@ enum ConfigLoader {
         guard let keyFile = env["JOIN_SHARE_ADMIN_KEY_FILE"] else { throw ConfigError(description: "JOIN_SHARE_ADMIN_URL needs JOIN_SHARE_ADMIN_KEY_FILE as well") }
         config.joinShareAdminURL = url.hasSuffix("/") ? String(url.dropLast()) : url
         config.joinShareAdminKeyFile = absolutePath((keyFile as NSString).expandingTildeInPath)
+    }
+
+    /// The office router's SNMP settings. Only the interval can be refused; the community is never copied into an error message.
+    static func applyOffice(_ env: [String: String], to config: inout RootConfig) throws {
+        do {
+            config.officeSnmp = try OfficeSnmpSettings.parse(env)
+        } catch let refused as OfficeSnmpSettings.Refused {
+            throw ConfigError(description: refused.message)
+        }
     }
 
     /// The sandbox domain, as a host name: lowercase letters, digits, dots and dashes. It is never a URL (the SDK adds

@@ -40,6 +40,7 @@ struct Services {
     let history: HistoryService
     let latency: LatencyService
     let netUsage: NetUsageService
+    let officeBandwidth: OfficeBandwidthService
     let storage: StorageService
     let gpuCheck: GpuCheckService
     let images: ImagesService
@@ -107,6 +108,7 @@ struct Services {
         security = SecurityService(machines: machines, store: SecurityStore(securityDatabase), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
                                    pollSeconds: config.securityPollSeconds)
         netUsage = NetUsageService(machines: machines, store: NetMinuteStore(database), clock: clock)
+        officeBandwidth = OfficeBandwidthService(settings: config.officeSnmp, store: OfficeMinuteStore(database), clock: clock)
         history = HistoryService(machines: machines, stats: stats, clock: clock, intervalSeconds: config.historyIntervalSeconds, usage: netUsage.collector)
         latency = LatencyService(machines: machines, store: LatencyStore(database), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
