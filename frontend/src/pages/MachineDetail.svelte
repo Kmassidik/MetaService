@@ -9,6 +9,7 @@
   import EnvironmentTab from '../components/environment/EnvironmentTab.svelte'
   import MachineAlerts from '../components/environment/MachineAlerts.svelte'
   import Monitor from '../components/monitor/Monitor.svelte'
+  import NetworkTab from '../components/monitor/NetworkTab.svelte'
   import PendingVms from '../components/vms/PendingVms.svelte'
   import StorageTab from '../components/storage/StorageTab.svelte'
   import { machineTabs, nextTab, pollsLive, type MachineTab } from '../lib/machineTabs.ts'
@@ -108,6 +109,9 @@
 
   <div class="tabbody" role="tabpanel" id={panelId('live')} aria-labelledby={tabId('live')} hidden={tab !== 'live'}>
     {#key machine.id}<Monitor {machine} {now} active={pollsLive(tab)} />{/key}
+  </div>
+  <div class="tabbody" role="tabpanel" id={panelId('network')} aria-labelledby={tabId('network')} hidden={tab !== 'network'}>
+    {#if tab === 'network'}{#key machine.id}<NetworkTab {machine} />{/key}{/if}
   </div>
   <div class="tabbody" role="tabpanel" id={panelId('vms')} aria-labelledby={tabId('vms')} hidden={tab !== 'vms'}>
     {#if tab === 'vms'}

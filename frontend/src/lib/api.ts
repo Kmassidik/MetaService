@@ -23,6 +23,7 @@ import type { PersonBody, TokenBody } from './mcpDraft.ts'
 import { parseOrigin, type VmOrigin } from './vmOrigin.ts'
 import { parseHistoryReply } from './statsHistoryParse.ts'
 import { parseLatency, type Latency, type LatencyRange } from './latencyParse.ts'
+import { parseNetSeries, type NetSeries, type NetSeriesRange } from './netSeriesParse.ts'
 import { parseUsage, parseUsageDaily, type DayCount, type UsageDay, type UsageRange, type UsageReply } from './usageParse.ts'
 import { parseTicket } from './terminal.ts'
 import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
@@ -288,6 +289,9 @@ export const getMachineStorage = async (id: string): Promise<MachineStorageReply
 export const scanMachineStorage = async (id: string): Promise<MachineStorageReply> => parseStorageReply(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/storage/scan`))
 
 export const getMachineHistory = async (id: string): Promise<StatsHistoryReply> => parseHistoryReply(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/stats/history`))
+
+/** One machine's network speed over 24 hours, 7 days or 30 days, in buckets (a missing bucket has no point). */
+export const machineNetworkSeries = async (id: string, range: NetSeriesRange): Promise<NetSeries> => parseNetSeries(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/network/series?range=${range}`))
 
 /** How fast the parent reaches one machine, for a range (1h, 24h or 7d): the summary and the probes. */
 export const machineLatency = async (id: string, range: LatencyRange): Promise<Latency> => parseLatency(await call<unknown>('GET', `/api/machines/${encodeURIComponent(id)}/latency?range=${range}`))

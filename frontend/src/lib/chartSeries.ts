@@ -29,6 +29,8 @@ export interface ChartModel {
   ceiling: number
   ticks: number[]
   axisLabel: (value: number) => string
+  /** Times to mark on the time axis in red (a failed probe); none when missing. */
+  marks?: number[]
 }
 
 const TICK_COUNT = 4
@@ -96,16 +98,16 @@ export function memoryChart(points: readonly LivePoint[]): ChartModel {
   return { times: times(points), series: layers, stacked: true, ceiling: ticks[ticks.length - 1] ?? 1, ticks, axisLabel: formatBytes }
 }
 
-function rateChart(points: readonly LivePoint[], lines: SeriesSpec[]): ChartModel {
+function rateChart(chartTimes: number[], lines: SeriesSpec[]): ChartModel {
   const top = Math.max(RATE_FLOOR_BYTES, ...lines.flatMap((one) => one.values.filter((value): value is number => value !== null)))
   const { ticks } = niceBytesTicks(top, TICK_COUNT)
-  return { times: times(points), series: lines, stacked: false, ceiling: ticks[ticks.length - 1] ?? RATE_FLOOR_BYTES, ticks, axisLabel: rate }
+  return { times: chartTimes, series: lines, stacked: false, ceiling: ticks[ticks.length - 1] ?? RATE_FLOOR_BYTES, ticks, axisLabel: rate }
 }
 
 /** Disk read and write speed. Null when the helper gives none (the card says so). */
 export function diskChart(points: readonly LivePoint[]): ChartModel | null {
   if (!points.some((point) => point.diskRead !== null || point.diskWrite !== null)) return null
-  return rateChart(points, [
+  return rateChart(times(points), [
     series('read', 'reads', 'teal', 'solid', column(points, (point) => point.diskRead), rate),
     series('write', 'writes', 'orange', 'dashed', column(points, (point) => point.diskWrite), rate),
   ])
@@ -113,8 +115,51 @@ export function diskChart(points: readonly LivePoint[]): ChartModel | null {
 
 /** Network speed in and out, on an axis that fits what was seen. */
 export function networkChart(points: readonly LivePoint[]): ChartModel {
-  return rateChart(points, [
+  return rateChart(times(points), [
     series('in', 'in', 'blue', 'solid', column(points, (point) => point.netIn), rate),
     series('out', 'out', 'orange', 'dashed', column(points, (point) => point.netOut), rate),
   ])
+}
+
+/** A speed point of the Network tab: bytes per second, a null is a gap. */
+export interface SpeedPoint {
+  t: number
+  inBps: number | null
+  outBps: number | null
+}
+
+/** Download and upload speed of the Network tab, in the Live network chart's style. A gap stays a gap. */
+export function speedChart(points: readonly SpeedPoint[]): ChartModel {
+  return rateChart(points.map((point) => point.t), [
+    series('download', 'download', 'blue', 'solid', points.map((point) => point.inBps), rate),
+    series('upload', 'upload', 'orange', 'dashed', points.map((point) => point.outBps), rate),
+  ])
+}
+
+const LATENCY_FLOOR_MS = 10
+const MS_DECIMALS = 0
+
+/** A milliseconds count, rounded: "12 ms". */
+const millis = (value: number): string => `${value.toFixed(MS_DECIMALS)} ms`
+
+/** One probe of the latency route: `ms` is null when the probe failed. */
+export interface ProbePoint {
+  t: number
+  ms: number | null
+}
+
+/** Ping time of the control server to a machine, as a line; a failed probe is a gap and a red mark on the time axis. */
+export function latencyChart(points: readonly ProbePoint[]): ChartModel {
+  const values = points.map((point) => point.ms)
+  const top = Math.max(LATENCY_FLOOR_MS, ...values.filter((value): value is number => value !== null))
+  const ticks = niceTicks(top, TICK_COUNT)
+  return {
+    times: points.map((point) => point.t),
+    series: [series('latency', 'latency', 'blue', 'solid', values, millis)],
+    stacked: false,
+    ceiling: ticks[ticks.length - 1] ?? LATENCY_FLOOR_MS,
+    ticks,
+    axisLabel: millis,
+    marks: points.filter((point) => point.ms === null).map((point) => point.t),
+  }
 }

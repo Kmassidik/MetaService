@@ -11,7 +11,10 @@ const NICE_STEPS = [1, 2, 2.5, 5, 10]
 const KIB = 1024
 const MAX_BYTE_UNIT_POWER = 5
 const SECONDS_PER_MINUTE = 60
-const MINUTE_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 360, 720]
+const DAY_MINUTES = 1440
+/** Minute steps for the time axis: up to 12 hours they label the clock, from a day up they label the day. */
+const MINUTE_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 360, 720, DAY_MINUTES, 2 * DAY_MINUTES, 3 * DAY_MINUTES, 7 * DAY_MINUTES, 14 * DAY_MINUTES, 30 * DAY_MINUTES]
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DECIMALS = 2
 const TWO_DIGITS = 2
 const MIN_AREA_POINTS = 2
@@ -176,14 +179,21 @@ export function formatClockSeconds(seconds: number, offsetMinutes?: number): str
   return `${formatClock(seconds, offsetMinutes)}:${twoDigits(((Math.floor(seconds) % SECONDS_PER_MINUTE) + SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE)}`
 }
 
-/** Axis labels on round minutes inside [from, to], with the smallest step that gives at most `count` of them. */
+/** "14 Nov", the day of a time, for the axis of a window of days. */
+export function formatDay(seconds: number, offsetMinutes: number = new Date(seconds * 1000).getTimezoneOffset()): string {
+  const local = new Date((seconds - offsetMinutes * SECONDS_PER_MINUTE) * 1000)
+  return `${local.getUTCDate()} ${MONTH_NAMES[local.getUTCMonth()] ?? ''}`
+}
+
+/** Axis labels on round minutes inside [from, to], with the smallest step that gives at most `count` of them. Steps of a day or more label the day. */
 export function timeTicks(from: number, to: number, count: number, offsetMinutes?: number): { t: number; label: string }[] {
   if (!(to > from)) return []
   const wanted = MINUTE_STEPS.find((minutes) => (to - from) / (minutes * SECONDS_PER_MINUTE) <= count) ?? MINUTE_STEPS[MINUTE_STEPS.length - 1] ?? 1
   const step = wanted * SECONDS_PER_MINUTE
+  const label = wanted >= DAY_MINUTES ? formatDay : formatClock
   const shift = (offsetMinutes ?? new Date(from * 1000).getTimezoneOffset()) * SECONDS_PER_MINUTE
   const ticks: { t: number; label: string }[] = []
-  for (let t = Math.ceil((from - shift) / step) * step + shift; t <= to; t += step) ticks.push({ t, label: formatClock(t, offsetMinutes) })
+  for (let t = Math.ceil((from - shift) / step) * step + shift; t <= to; t += step) ticks.push({ t, label: label(t, offsetMinutes) })
   return ticks
 }
 

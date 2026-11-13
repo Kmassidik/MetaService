@@ -1,5 +1,5 @@
 // The tabs of a machine's page (Storage: what fills the disk, drawn like disktree): which there are, what they are called, which old names still work, and which key moves where. Pure functions, no DOM.
-export type MachineTab = 'live' | 'vms' | 'storage' | 'environment' | 'activity'
+export type MachineTab = 'live' | 'network' | 'vms' | 'storage' | 'environment' | 'activity'
 
 export interface TabInfo {
   id: MachineTab
@@ -8,8 +8,8 @@ export interface TabInfo {
 
 export const DEFAULT_TAB: MachineTab = 'live'
 
-const ORDER: readonly MachineTab[] = ['live', 'vms', 'storage', 'environment', 'activity']
-const LABELS: Record<MachineTab, string> = { live: 'Live', vms: 'Compute', storage: 'Storage', environment: 'Environment', activity: 'Activity' }
+const ORDER: readonly MachineTab[] = ['live', 'network', 'vms', 'storage', 'environment', 'activity']
+const LABELS: Record<MachineTab, string> = { live: 'Live', network: 'Network', vms: 'Compute', storage: 'Storage', environment: 'Environment', activity: 'Activity' }
 
 /** Names that older links and older versions of the page used. */
 const OLD_NAMES: Record<string, MachineTab> = { overview: 'environment', deployments: 'vms', compute: 'vms' }

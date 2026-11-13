@@ -8,14 +8,16 @@
 
   const HEIGHT = 190
   const DEFAULT_WIDTH = 520
-  const WINDOW_SECONDS = 3600
+  const HOUR_SECONDS = 3600
+  const MARK_RADIUS = 2.5
   const TICK_SPACING_PX = 90
   const MIN_TICKS = 2
   const MIN_POINTS_TO_DRAW = 2
   const DASHES: Record<SeriesSpec['dash'], string> = { solid: '', dashed: '6 3', dotted: '1.5 3' }
   const AREA_OPACITY = 0.78
 
-  let { model, label, intervalSeconds }: { model: ChartModel; label: string; intervalSeconds: number } = $props()
+  /** `windowSeconds` and `windowName` say how long the chart spans and what the caption calls it; the Live tab shows the last hour. */
+  let { model, label, intervalSeconds, windowSeconds = HOUR_SECONDS, windowName = 'last hour' }: { model: ChartModel; label: string; intervalSeconds: number; windowSeconds?: number; windowName?: string } = $props()
   let width = $state(DEFAULT_WIDTH)
   /** The point the pointer or the keys point at, as an index into the model's times; null shows the newest. */
   let picked = $state<number | null>(null)
@@ -23,7 +25,8 @@
   const area = $derived(plotArea(width, HEIGHT, model.ticks.map(model.axisLabel)))
   const last = $derived(model.times.length - 1)
   const tEnd = $derived(model.times[last] ?? 0)
-  const tStart = $derived(tEnd - WINDOW_SECONDS)
+  const tStart = $derived(tEnd - windowSeconds)
+  const marks = $derived(model.marks ?? [])
   const x = $derived(linearScale(tStart, tEnd, area.left, area.left + area.width))
   const y = $derived(linearScale(0, model.ceiling, area.top + area.height, area.top))
   const drawn = $derived(model.series.filter((one) => one.drawn))
@@ -50,7 +53,7 @@
 
   function pick(clientX: number, box: DOMRect) {
     const px = (clientX - box.left) * (width / Math.max(1, box.width))
-    const seconds = tStart + ((px - area.left) / area.width) * WINDOW_SECONDS
+    const seconds = tStart + ((px - area.left) / area.width) * windowSeconds
     const found = nearestIndex(model.times, seconds)
     picked = found < 0 ? null : found
   }
@@ -90,17 +93,18 @@
           {#each shape.areas as path, part (part)}<path class="area" d={path} fill="var(--chart-{shape.colour})" fill-opacity={AREA_OPACITY} />{/each}
           <path class="line" d={shape.line} stroke="var(--chart-{shape.colour})" stroke-dasharray={shape.dash} />
         {/each}
+        {#each marks as mark (mark)}<circle class="mark" cx={x(mark)} cy={area.top + area.height} r={MARK_RADIUS} />{/each}
         {#if markerX !== null}<line class="marker" x1={markerX} x2={markerX} y1={area.top} y2={area.top + area.height} />{/if}
       </svg>
-      <input class="keys" type="range" min="0" max={Math.max(0, last)} step="1" value={reading} aria-label="{label}: move through the last hour with the arrow keys" aria-valuetext={spoken} oninput={onSlide} onblur={() => (picked = null)} />
+      <input class="keys" type="range" min="0" max={Math.max(0, last)} step="1" value={reading} aria-label="{label}: move through the {windowName} with the arrow keys" aria-valuetext={spoken} oninput={onSlide} onblur={() => (picked = null)} />
       {#if !hasData}<p class="empty" role="status">Collecting numbers… the chart fills in as readings come.</p>{/if}
     </div>
     <ChartLegend series={model.series} index={reading} {when} />
   </div>
-  <p class="caption nums">per {intervalSeconds} seconds · last hour</p>
+  <p class="caption nums">per {intervalSeconds} seconds · {windowName}</p>
   <div class="sr-only">
   <table>
-    <caption>{label}: newest, lowest, highest and average over the last hour</caption>
+    <caption>{label}: newest, lowest, highest and average over the {windowName}</caption>
     <thead><tr><th scope="col">Series</th><th scope="col">Newest</th><th scope="col">Lowest</th><th scope="col">Highest</th><th scope="col">Average</th></tr></thead>
     <tbody>
       {#each model.series as one (one.key)}
@@ -128,6 +132,7 @@
   .line { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
   .area { stroke: none; }
   .marker { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
+  .mark { fill: var(--chart-red); }
   .empty { position: absolute; inset: 0 0 22px 0; margin: 0; display: grid; place-items: center; text-align: center; padding: 0 16px; font-size: 12px; color: var(--m60); }
   .caption { margin: 0; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--m60); }
   @container (max-width: 520px) { .body { grid-template-columns: minmax(0, 1fr); } }
