@@ -17,12 +17,15 @@ struct DarwinStorageWalker {
     private struct Link: Hashable { let device, inode: UInt64 }
 
     private final class Open {
-        let reader: UnsafeMutablePointer<DIR>
+        let reader: Int32
         let path: String
         let entry, rest: StorageEntry
         let depth: Int
+        var batch: [DarwinBulkItem] = []
+        var next = 0
+        var drained = false
 
-        init(reader: UnsafeMutablePointer<DIR>, path: String, entry: StorageEntry, depth: Int) {
+        init(reader: Int32, path: String, entry: StorageEntry, depth: Int) {
             self.reader = reader
             self.path = path
             self.entry = entry
@@ -43,7 +46,8 @@ struct DarwinStorageWalker {
     func walk(floor: UInt64, keepDepth: Int = 24) throws -> DarwinStorageWalked {
         var meta = Darwin.stat()
         guard Darwin.lstat(root, &meta) == 0 else { throw posixFailure("the disk could not be read") }
-        guard let reader = Darwin.opendir(root) else { throw posixFailure("the disk could not be read") }
+        let reader = Darwin.open(root, O_RDONLY | O_DIRECTORY)
+        guard reader >= 0 else { throw posixFailure("the disk could not be read") }
         let rootEntry = folder(name: rootName, meta: meta)
         var stack = [Open(reader: reader, path: root, entry: rootEntry, depth: 0)]
         var devices = allowedDevices
@@ -52,33 +56,28 @@ struct DarwinStorageWalker {
         var entries: UInt64 = 0
         var unreadable: UInt64 = 0
 
+        let buffer = DarwinBulkBuffer()
         while let top = stack.last {
-            errno = 0
-            let found = Darwin.readdir(top.reader)
-            guard let found else {
-                let readError = errno
-                Darwin.closedir(top.reader)
+            guard let item = try nextItem(of: top, buffer: buffer, unreadable: &unreadable) else {
+                Darwin.close(top.reader)
                 let done = stack.removeLast().finish()
-                if readError != 0 { unreadable += 1 }
                 guard let parent = stack.last else { return DarwinStorageWalked(root: done, entries: entries, unreadable: unreadable) }
                 parent.attach(done, floor: floor, keepDepth: keepDepth)
                 continue
             }
-            let name = fileName(found)
-            if name == "." || name == ".." { continue }
+            let name = item.name
             entries += 1
             top.entry.noteChild(named: name)
-            let path = join(top.path, name)
-            var childMeta = Darwin.stat()
-            // A file vanishing after its directory was listed needs no error and contributes nothing.
-            guard Darwin.lstat(path, &childMeta) == 0 else { counters.addEntry(); continue }
-            guard isDirectory(childMeta) else {
-                attachFile(top, name: name, meta: childMeta, linked: &linked, floor: floor, keepDepth: keepDepth)
+            guard item.isDirectory else {
+                attachFile(top, item: item, linked: &linked, floor: floor, keepDepth: keepDepth)
                 continue
             }
-            let device = Self.device(childMeta)
-            if !devices.contains(device) || skip.contains(path) { counters.addEntry(); continue }
-            guard let childReader = Darwin.opendir(path) else {
+            let path = join(top.path, name)
+            var childMeta = Darwin.stat()
+            guard Darwin.lstat(path, &childMeta) == 0 else { counters.addEntry(); continue }
+            if !devices.contains(Self.device(childMeta)) || skip.contains(path) { counters.addEntry(); continue }
+            let childReader = Darwin.open(path, O_RDONLY | O_DIRECTORY)
+            guard childReader >= 0 else {
                 unreadable += 1
                 counters.addEntry()
                 top.attach(folder(name: name, meta: childMeta), floor: floor, keepDepth: keepDepth)
@@ -90,13 +89,27 @@ struct DarwinStorageWalker {
         throw StorageScanFailure("the disk walk ended unexpectedly")
     }
 
-    private func attachFile(_ top: Open, name: String, meta: Darwin.stat, linked: inout Set<Link>, floor: UInt64, keepDepth: Int) {
-        let link = Link(device: Self.device(meta), inode: UInt64(meta.st_ino))
-        let counted = meta.st_nlink <= 1 || linked.insert(link).inserted
-        let bytes = counted ? Self.allocated(meta) : 0
+    private func attachFile(_ top: Open, item: DarwinBulkItem, linked: inout Set<Link>, floor: UInt64, keepDepth: Int) {
+        let link = Link(device: item.device, inode: item.inode)
+        let counted = item.links <= 1 || linked.insert(link).inserted
+        let bytes = counted ? item.allocated : 0
         counters.addEntry(bytes: bytes)
-        let file = StorageEntry(name: name, type: .file, bytes: bytes, files: 1, modified: Int64(meta.st_mtimespec.tv_sec))
+        let file = StorageEntry(name: item.name, type: .file, bytes: bytes, files: 1, modified: item.modified)
         top.attach(file, floor: floor, keepDepth: keepDepth)
+    }
+
+    /// One bulk read returns many names with their sizes, so a file needs no lstat of its own.
+    private func nextItem(of top: Open, buffer: DarwinBulkBuffer, unreadable: inout UInt64) throws -> DarwinBulkItem? {
+        while top.next >= top.batch.count {
+            if top.drained { return nil }
+            let read = buffer.read(from: top.reader)
+            guard read.failed == false else { unreadable += 1; top.drained = true; return nil }
+            top.batch = read.items
+            top.next = 0
+            if read.items.isEmpty { top.drained = true }
+        }
+        defer { top.next += 1 }
+        return top.batch[top.next]
     }
 
     private var rootName: String { root == "/" ? "/" : URL(fileURLWithPath: root).lastPathComponent }

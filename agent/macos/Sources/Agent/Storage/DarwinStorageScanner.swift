@@ -41,9 +41,9 @@ struct DarwinStorageScanner: Sendable {
 enum DarwinStorageExecution {
     /// Background QoS lowers this worker thread's CPU and I/O priority without nicing the whole helper process.
     static func start(scanner: DarwinStorageScanner, completion: @escaping StorageState.Completion) {
-        DispatchQueue.global(qos: .background).async {
+        DispatchQueue.global(qos: .utility).async {
             // A refused priority hint must not prevent the read-only map (same rule as the Linux scanner).
-            _ = pthread_set_qos_class_self_np(QOS_CLASS_BACKGROUND, 0)
+            _ = pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0)
             do {
                 completion(.success(try scanner.scan()))
             } catch let failure as StorageScanFailure {
