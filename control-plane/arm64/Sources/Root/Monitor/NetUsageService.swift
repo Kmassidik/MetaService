@@ -42,4 +42,15 @@ final class NetUsageService: Sendable {
                                          offsetMinutes: NetUsageRules.officeUtcOffsetMinutes)
         return NetUsageDailyReply(days: rows)
     }
+
+    /// The speed of one machine over a range, one point per bucket, from the stored minutes. Throws `MachineError.notFound` for a machine that does not exist.
+    func seriesReply(machineId: String, range: NetSeriesRange) throws -> NetSeriesReply {
+        _ = try machines.get(id: machineId, now: clock.now)
+        let now = Int(clock.now.timeIntervalSince1970)
+        let since = range.start(now: now)
+        let points = try store.series(machineId: machineId, sinceMinute: since / NetUsageRules.secondsPerMinute,
+                                      untilMinute: now / NetUsageRules.secondsPerMinute + 1,
+                                      bucketSeconds: range.bucketSeconds, limit: NetSeriesRange.maxPoints)
+        return NetSeriesReply(range: range.rawValue, bucketSeconds: range.bucketSeconds, points: points)
+    }
 }

@@ -27,6 +27,7 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     AppRoutes(services: services, guards: guards).register(on: router.group())
     StatsRoutes(services: services, guards: guards).register(on: router.group())
     LatencyRoutes(services: services, guards: guards).register(on: router.group())
+    NetSeriesRoutes(services: services, guards: guards).register(on: router.group())
     NetUsageRoutes(services: services, guards: guards).register(on: router.group())
     OfficeRoutes(services: services, guards: guards).register(on: router.group())
     SecurityRoutes(services: services, guards: guards).register(on: router.group())

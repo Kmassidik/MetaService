@@ -54,6 +54,22 @@ public struct NetMinuteStore {
         }
     }
 
+    /// One point per bucket of `bucketSeconds` for one machine, for the minutes in [`sinceMinute`, `untilMinute`). A bucket starts at a multiple of its width.
+    /// Only buckets with a stored minute give a point. Oldest first; when there are more than `limit`, the newest are kept.
+    public func series(machineId: String, sinceMinute: Int, untilMinute: Int, bucketSeconds: Int, limit: Int) throws -> [NetSeriesPoint] {
+        let rows = try database.query("""
+            SELECT (minute * ?) / ? AS slot, SUM(in_bytes) AS in_bytes, SUM(out_bytes) AS out_bytes,
+                   MAX(in_peak_bps) AS in_peak, MAX(out_peak_bps) AS out_peak
+            FROM net_minutes WHERE machine_id = ? AND minute >= ? AND minute < ?
+            GROUP BY slot ORDER BY slot DESC LIMIT ?
+            """, [.int(NetUsageRules.secondsPerMinute), .int(bucketSeconds), .text(machineId), .int(sinceMinute), .int(untilMinute), .int(limit)])
+        return rows.reversed().map { row in
+            NetSeriesPoint.fromBucket(start: row.int("slot") * bucketSeconds, inBytes: row.optionalDouble("in_bytes") ?? 0,
+                                      outBytes: row.optionalDouble("out_bytes") ?? 0, inPeakBps: row.optionalDouble("in_peak") ?? 0,
+                                      outPeakBps: row.optionalDouble("out_peak") ?? 0, bucketSeconds: bucketSeconds)
+        }
+    }
+
     /// Deletes every minute that starts before `minute` (a minute index: epoch seconds divided by 60), for every machine.
     public func deleteOlderThan(minute: Int) throws {
         _ = try database.execute("DELETE FROM net_minutes WHERE minute < ?", [.int(minute)])
