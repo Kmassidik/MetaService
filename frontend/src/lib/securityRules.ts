@@ -58,7 +58,7 @@ export function baselineRows(base: SecurityBaseline): BaselineRow[] {
   return [
     passwordRow(base),
     banToolRow(base),
-    onOffRow('firewall', 'Firewall', base.firewall, { yes: 'on', no: 'off' }, 'On.', 'The firewall is off, so every open port is reachable.', 'Turn on the firewall'),
+    onOffRow('firewall', 'Firewall', base.firewall, { yes: 'on', no: 'off' }, 'On.', 'The firewall is off. A firewall is the gatekeeper for incoming connections: with it off, every program on this computer that listens for connections can be reached from the network. Turning it on blocks the connections nobody allowed. Allow SSH first, or you can lock yourself out of a remote computer.', 'Turn on the firewall'),
     onOffRow('auto_updates', 'Auto updates', base.auto_updates, { yes: 'on', no: 'off' }, 'On. Fixes install by themselves.', 'Security fixes wait for someone to install them.', 'Turn on automatic security updates'),
     onOffRow('starts_after_reboot', 'Starts after reboot', base.starts_after_reboot, { yes: 'yes', no: 'no' }, 'Yes. The machine comes back by itself.', 'After a reboot the helper stays off until someone starts it.', 'Make the helper start after a reboot'),
     pendingRow(base),
