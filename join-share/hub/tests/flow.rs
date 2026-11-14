@@ -307,7 +307,7 @@ async fn supported_table_lists_states() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(table[0]["cpus"][0], json!({"cpu": "arm64", "state": "ready"}));
     assert_eq!(table[0]["cpus"][1]["state"], "missing");
-    assert_eq!(table[1]["cpus"][0]["state"], "untested");
+    assert_eq!(table[1]["cpus"][0]["state"], "ready");
     assert_eq!(table[1]["cpus"][1]["state"], "ready");
     assert_eq!(table[2]["cpus"][0]["state"], "soon");
 }

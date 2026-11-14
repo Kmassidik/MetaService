@@ -91,8 +91,10 @@
       </p>
       {#if scan?.finished_at && !running}<p class="muted">Last scan {relativeTime(scan.finished_at)}. A computer's address changed? Scan again.</p>{/if}
     </div>
-    <button class="btn" type="button" data-add-by-address onclick={() => onConnect()} title="For a computer that is not on this network: type its address and SSH port.">Add by address</button>
-    <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : scan ? 'Scan again' : 'Scan now'}</button>
+    <div class="actions">
+      <button class="btn" type="button" data-add-by-address onclick={() => onConnect()} title="For a computer that is not on this network: type its address and SSH port.">Add by address</button>
+      <button class="btn green" type="button" onclick={begin} disabled={running || !setup?.subnet}>{running ? 'Scanning…' : scan ? 'Scan again' : 'Scan now'}</button>
+    </div>
   </div>
 
   {#if setup && !setup.nmap_available}
@@ -139,6 +141,7 @@
 <style>
   .scan { display: grid; gap: 16px; }
   .none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; min-height: calc(100svh - 300px); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
   h2 { font-size: 20px; }
   .note { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }

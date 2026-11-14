@@ -170,7 +170,7 @@
   {:else if scanning}
     <div class="first" role="status">
       <b>Mapping this disk for the first time.</b>
-      <span>The helper walks the whole disk at the lowest priority, so VMs on this machine are not slowed. A big disk can take a few minutes.</span>
+      <span>The helper walks the whole disk at a low priority, so VMs on this machine are not slowed. A big disk can take a few minutes.</span>
       <span class="sweep" aria-hidden="true"><i></i></span>
     </div>
   {/if}

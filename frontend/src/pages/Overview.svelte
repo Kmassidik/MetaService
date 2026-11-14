@@ -3,9 +3,9 @@
   import Owl from '../components/Owl.svelte'
   import { attentionItems, overviewCounts } from '../lib/overview.ts'
 
-  import type { BrainStatus, BundleOverview, Machine } from '../lib/types.ts'
+  import type { Machine } from '../lib/types.ts'
 
-  let { machines, brain, bundles }: { machines: Machine[]; brain: BrainStatus | null; bundles: BundleOverview | null } = $props()
+  let { machines }: { machines: Machine[] } = $props()
   const counts = $derived(overviewCounts(machines))
   const items = $derived(attentionItems(machines))
   const cards = $derived([['Machines', counts.machines], ['Online', counts.online], ['VMs', counts.vms], ['Running', counts.running], ['Need attention', counts.needAttention]])
@@ -18,14 +18,6 @@
 <h2 class="op-subhead">Services</h2>
 <section class="op-health" aria-label="Services">
   <div class="op-service"><span class="tag run">healthy</span><b>Control panel</b><span class="muted">Answering you now.</span></div>
-  <div class="op-service">
-    <span class="tag {brain?.configured ? 'run' : 'warn'}">{brain?.configured ? 'connected' : 'not set up'}</span><b>AI provider</b>
-    <span class="muted">{brain?.configured ? `${brain.model} at ${brain.host}` : 'Ruvio answers with a plain message until a provider is set.'}</span>
-  </div>
-  <div class="op-service">
-    <span class="tag {bundles?.pinned ? 'run' : 'warn'}">{bundles?.pinned ? 'pinned' : 'no version pinned'}</span><b>Ruvio chat bundle</b>
-    <span class="muted">{bundles?.pinned ? `Version ${bundles.pinned}` : 'Pin a version in Settings before installing the chat.'}</span>
-  </div>
 </section>
 <h2 class="op-subhead">Needs attention</h2>
 {#if items.length === 0 && machines.length === 0}

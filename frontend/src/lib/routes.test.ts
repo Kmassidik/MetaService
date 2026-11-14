@@ -11,16 +11,16 @@ test('a machine address can name a tab (&tab=); old names and missing names land
 })
 
 test('each address leads to its page', () => {
-  expect(['/', '/machines', '/machines/find', '/usage', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'machines', 'machines', 'usage', 'health', 'settings'])
+  expect(['/', '/machines', '/machines/find', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'machines', 'machines', 'health', 'mcp'])
 })
 
 test('older addresses still lead to their new pages', () => {
   expect(['/mcp'].map(pageFor)).toEqual(['mcp'])
-  expect(['/deployments', '/scan', '/activity', '/bundle', '/ai'].map(pageFor)).toEqual(['machines', 'machines', 'health', 'settings', 'settings'])
+  expect(['/deployments', '/scan', '/activity', '/bundle', '/ai'].map(pageFor)).toEqual(['machines', 'machines', 'health', 'mcp', 'mcp'])
 })
 
 test('the empty address is Overview, and the pages with a detail or a window still lead to their page', () => {
-  expect(['', '/', '/?x=1', '/machines/details', '/machines/details?id=xyz', '/vms/create', '/machines/find', '/usage', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'overview', 'overview', 'machines', 'machines', 'vms', 'machines', 'usage', 'health', 'settings'])
+  expect(['', '/', '/?x=1', '/machines/details', '/machines/details?id=xyz', '/vms/create', '/machines/find', '/health', '/settings'].map(pageFor)).toEqual(['overview', 'overview', 'overview', 'machines', 'machines', 'vms', 'machines', 'health', 'mcp'])
 })
 
 test('a trailing slash and a query string do not change the page', () => {

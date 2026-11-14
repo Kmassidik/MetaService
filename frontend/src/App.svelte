@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ApiError, authStatus, brainStatus, bundleOverview, chatLink, installBundle, pinBundle, rollbackBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, testBrain, uninstallBundle, workloadAction } from './lib/api.ts'
+  import { ApiError, authStatus, bundleOverview, chatLink, installBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, uninstallBundle, workloadAction } from './lib/api.ts'
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
   import { machineFromRoute, machineHref, machinesView, pageFor, vmFromRoute, vmsHref, createVmOpen } from './lib/routes.ts'
@@ -12,7 +12,6 @@
   import MachineDetail from './pages/MachineDetail.svelte'
   import VmDetail from './pages/VmDetail.svelte'
   import VmsList from './pages/VmsList.svelte'
-    import TokenLedger from './pages/TokenLedger.svelte'
   import SandboxesShell from './pages/SandboxesShell.svelte'
   import Share from './pages/Share.svelte'
   import Mcp from './pages/Mcp.svelte'
@@ -23,7 +22,6 @@
   import NotificationBell from './components/NotificationBell.svelte'
   import { BELL_POLL_MS } from './lib/notifications.ts'
   import { bell } from './lib/notificationsStore.svelte.ts'
-  import Settings from './pages/Settings.svelte'
   import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
   import RecheckMachine from './components/RecheckMachine.svelte'
@@ -42,7 +40,7 @@
   import { progressView } from './lib/createProgress.ts'
   import { deleteFailure, hasDeleteInProgress, withDeleting } from './lib/deleteOrders.ts'
   import { mergeOrders, parseCommand, pendingVms } from './lib/pendingVms.ts'
-  import type { BrainStatus, BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
+  import type { BundleOverview, Command, Machine, RemoteMachineInfo, Workload } from './lib/types.ts'
 
   const CLOCK_MS = 5_000
   /** While a VM is being made or deleted the lists are read this often, so progress and the real outcome show promptly. */
@@ -66,7 +64,6 @@
   let connectHost = $state('')
   let commands = $state<Command[]>([])
   let bundles = $state<BundleOverview | null>(null)
-  let brain = $state<BrainStatus | null>(null)
   /** False until the first answer from the Root, so an empty list is never shown while the data is still on its way. */
   let loaded = $state(false)
   let openLink = $state<string | null>(null)
@@ -124,7 +121,7 @@
   async function refresh() {
     if (phase !== 'ready') return
     try {
-      ;[machines, commands, bundles, brain, remoteInfos] = await Promise.all([listMachines(), listCommands(), bundleOverview(), brainStatus(), remoteMachines()])
+      ;[machines, commands, bundles, remoteInfos] = await Promise.all([listMachines(), listCommands(), bundleOverview(), remoteMachines()])
       reconcileDeleteOrders(commands)
       banner = ''
       loaded = true
@@ -178,11 +175,6 @@
     await start()
   }
 
-  async function testProvider() {
-    await testBrain()
-    await refresh()
-  }
-
   /** Start or stop a workload; the result shows up in the activity list. A refusal is thrown: the button that asked shows it next to itself. */
   async function act(machine: Machine, workload: Workload, action: 'start' | 'stop') {
     await workloadAction(machine.id, workload.id, action)
@@ -196,16 +188,6 @@
   }
 
   // The chat bundle calls below throw a refusal (for example "no chat is built on the parent"): the control that asked shows it next to itself.
-  async function pin(version: string) {
-    await pinBundle(version)
-    await refresh()
-  }
-
-  async function rollback() {
-    await rollbackBundle()
-    await refresh()
-  }
-
   async function install(machine: Machine, workload: Workload | null) {
     await installBundle(machine.id, workload?.id)
     await refresh()
@@ -303,8 +285,6 @@
         <Machines machines={shownMachines} remotes={remoteInfos} {now} pinned={bundles?.pinned} {banner} view={machinesView(route)} onRemove={(machine) => (removing = machine)} onRename={(machine) => (renaming = machine)} onAdd={goFind} onConnect={startConnect} onChanged={refresh} onCheck={(machine) => (rechecking = machine)} />
       {:else if page === 'vms'}
         <VmsList machines={shownMachines} {route} {banner} {pending} {commands} handlers={vmHandlers} />
-      {:else if page === 'usage'}
-        <TokenLedger {brain} />
       {:else if page === 'sandboxes'}
         <SandboxesShell {route} />
       {:else if page === 'share'}
@@ -319,12 +299,10 @@
         <NetworkView machines={shownMachines} />
       {:else if page === 'health'}
         <Health {machines} {commands} {now} />
-      {:else if page === 'settings'}
-        <Settings {brain} {bundles} onTest={testProvider} onPin={pin} onRollback={rollback} />
       {:else if page === 'notfound'}
         <NotFound {route} />
       {:else}
-        <Overview {machines} {brain} {bundles} />
+        <Overview {machines} />
       {/if}
       {/if}
     </main>

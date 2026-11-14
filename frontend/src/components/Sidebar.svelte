@@ -15,7 +15,7 @@
   let settingsOpen = $state(false)
   // Share a PC is one of the Machines pages, so the dropdown opens and the Machines row is marked there too.
   const inMachines = $derived(active === 'machines' || active === 'share')
-  const inSettings = $derived(active === 'settings' || active === 'mcp')
+  const inSettings = $derived(active === 'mcp')
   $effect(() => { if (inMachines) machinesOpen = true })
   $effect(() => { if (inSettings) settingsOpen = true })
   const isOn = (page: NavPage) => (page.id === 'machines' ? inMachines : page.id === 'settings' ? inSettings : active === page.id)
@@ -26,8 +26,7 @@
   // The same groups and names as the MAAS panel. The pages behind them show what MetaService has: machines of any kind, and their VMs.
   const operator: NavPage[] = [
     { id: 'overview', label: 'Overview', href: '#/', icon: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
-    { id: 'usage', label: 'Token ledger', href: '#/usage', icon: 'M5 3h14v18H5z M8 7h8 M8 11h8 M8 15h5' },
-    { id: 'settings', label: 'Settings', href: '#/settings', icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M4.9 19.1 7 17 M17 7l2.1-2.1' },
+    { id: 'settings', label: 'Settings', href: '#/mcp', icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M4.9 19.1 7 17 M17 7l2.1-2.1' },
     { id: 'health', label: 'Health & alerts', href: '#/health', icon: 'M2 12h5l3-8 4 16 3-8h5' },
   ]
   const infrastructure: NavPage[] = [

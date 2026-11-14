@@ -24,7 +24,6 @@ export function machinesMenu(route: string): MenuItem[] {
 export function settingsMenu(route: string): MenuItem[] {
   const page = pageFor(route)
   return [
-    { key: 'general', label: 'General', href: '#/settings', on: page === 'settings' },
     { key: 'mcp', label: 'AI access (MCP)', href: '#/mcp', on: page === 'mcp' },
   ]
 }

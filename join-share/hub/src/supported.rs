@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 pub const OSES: [&str; 3] = ["mac", "linux", "windows"];
 pub const CPUS: [&str; 2] = ["arm64", "x86_64"];
 /// Pairs proven end to end so far; a build for any other pair is "untested".
-const PROVEN: [(&str, &str); 2] = [("mac", "arm64"), ("linux", "x86_64")];
+const PROVEN: [(&str, &str); 3] = [("mac", "arm64"), ("linux", "x86_64"), ("linux", "arm64")];
 const EXECUTABLE_BITS: u32 = 0o111;
 
 #[derive(Debug, Clone)]
@@ -150,7 +150,7 @@ mod tests {
         let (dir, builds) = builds_with(&["darwin-arm64", "linux-arm64", "linux-x86_64"]);
         assert_eq!(state_of(&builds, "mac", "arm64"), State::Ready);
         assert_eq!(state_of(&builds, "linux", "x86_64"), State::Ready);
-        assert_eq!(state_of(&builds, "linux", "arm64"), State::Untested);
+        assert_eq!(state_of(&builds, "linux", "arm64"), State::Ready);
         assert_eq!(state_of(&builds, "mac", "x86_64"), State::Missing);
         assert_eq!(state_of(&builds, "windows", "x86_64"), State::Soon);
         testkit::cleanup(&dir);
