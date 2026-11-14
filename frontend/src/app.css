@@ -25,6 +25,10 @@ button{font-family:inherit;cursor:pointer}
 .btn.green{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .btn.line{background:transparent;color:var(--text);border-color:var(--line)}
 .btn.sm{padding:7px 11px;font-size:11px}
+/* "Update available": the warning tint of the Update available tag, so the button reads as the next step without shouting. */
+.btn.update{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.btn.update::before{content:"\2191";margin-right:6px;font-weight:700}
+.btn.update:hover:not(:disabled){border-color:var(--warn)}
 .btn.danger{background:transparent;color:var(--danger);border-color:var(--danger-line)}
 .btn.danger:hover{background:var(--danger);color:var(--inverse-text);border-color:var(--danger)}
 .btn.danger.solid{background:var(--danger);color:var(--inverse-text);border-color:var(--danger)}

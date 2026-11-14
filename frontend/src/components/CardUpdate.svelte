@@ -18,7 +18,7 @@
 
 {#if offer.button || updater.updating}
   <div class="cu" data-card-update>
-    <button class="btn line sm" type="button" disabled={updater.updating} aria-busy={updater.updating} title={UPDATE_EXPLANATION} onclick={update}>{updater.updating ? UPDATING_TEXT : UPDATE_BUTTON}</button>
+    <button class="btn update sm" type="button" disabled={updater.updating} aria-busy={updater.updating} title={UPDATE_EXPLANATION} onclick={update}>{updater.updating ? UPDATING_TEXT : UPDATE_BUTTON}</button>
   </div>
 {/if}
 {#if offer.note}<p class="cu-note">{offer.note}</p>{/if}

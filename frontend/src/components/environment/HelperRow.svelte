@@ -12,7 +12,7 @@
   <dd>
     <span class="build" aria-label="Helper build">{helper.build}</span>
     <span class={TAGS[helper.status]} data-helper-status={helper.status}>{helper.label}</span>
-    <button class="btn line sm" type="button" disabled={!helper.canUpdate || updating} aria-busy={updating} onclick={onUpdate}>{updating ? UPDATING_TEXT : UPDATE_BUTTON}</button>
+    <button class="btn sm" class:update={helper.canUpdate} class:line={!helper.canUpdate} type="button" disabled={!helper.canUpdate || updating} aria-busy={updating} onclick={onUpdate}>{updating ? UPDATING_TEXT : UPDATE_BUTTON}</button>
   </dd>
   <p class="explain">{UPDATE_EXPLANATION}</p>
   {#if helper.note}<p class="note">{helper.note}</p>{/if}
