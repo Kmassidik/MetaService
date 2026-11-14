@@ -115,13 +115,15 @@
       <input id="connect-host" bind:value={form.host} autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="192.168.100.40" aria-invalid={whereWrong ? 'true' : 'false'} />
       <label for="connect-port">SSH port</label>
       <input id="connect-port" bind:value={form.port} inputmode="numeric" autocomplete="off" />
-      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'The computer needs SSH switched on (on a Mac: System Settings › General › Sharing › Remote Login).'}</p>
+      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'The computer needs SSH switched on. Mac: System Settings › General › Sharing › Remote Login. Linux or VPS: it is usually on already (check with: systemctl status ssh, or sshd).'}</p>
       <details class="why" open>
         <summary>Which address and port do I type?</summary>
         <ol class="how" aria-label="Which address and port">
           <li><b>1</b><div><strong>Same office or home network.</strong> Type the computer's own address, it starts with <span class="mono">192.168.</span> or <span class="mono">10.</span>, and port <span class="mono">22</span>. This is what Find machines lists.</div></li>
-          <li><b>2</b><div><strong>A computer in another place</strong> (another office, a rented server). Type the public internet address of the network it sits in, and the port that network forwards to that computer.<p class="muted">The public address is what a search for "what is my IP" shows when run on that network. The port comes from the router's "port forwarding" list (for example 22 to one computer, 1004 to another). Two computers behind the same public address have different ports.</p></div></li>
-          <li><b>3</b><div><strong>"Not allowed" message?</strong> A public address must first be allowed by the person who runs this MetaService server (the setting is called ROOT_REMOTE_EXTRA_ADDRESSES). Send them the address and ask.</div></li>
+          <li><b>2</b><div><strong>A VPS or rented server</strong> (Hetzner, DigitalOcean, AWS, Vast.ai and so on). Type the server's own public IP from the provider's page, and port <span class="mono">22</span> (or the SSH port the provider gave). No router is involved.<p class="muted">If it does not answer, the provider's firewall (often called security group) must allow that SSH port. Log in as the user the provider gave you, often <span class="mono">root</span> or <span class="mono">ubuntu</span>, with an SSH key.</p></div></li>
+          <li><b>3</b><div><strong>A computer in another office or home</strong> behind a router. Type the public IP of that network and the port its router forwards to the computer.<p class="muted">The public IP is what "what is my IP" shows when run on that network. The port comes from the router's "port forwarding" list (for example 22 to one computer, 1004 to another). Two computers behind one public IP have different ports.</p></div></li>
+          <li><b>4</b><div><strong>No public IP, no router access</strong> (a laptop at home, a friend's PC). Do not use this dialog: use <strong>Share a PC</strong> in the sidebar instead.</div></li>
+          <li><b>5</b><div><strong>"Not allowed" message?</strong> A public address must first be allowed by the person who runs this MetaService server (the setting is called ROOT_REMOTE_EXTRA_ADDRESSES). Send them the address and ask.</div></li>
         </ol>
       </details>
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
