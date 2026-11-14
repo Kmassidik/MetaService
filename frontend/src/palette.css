@@ -17,6 +17,7 @@
   --ok: #2a6026; --ok-bg: #e3f0dc; --ok-note-bg: #f1f7ec; --ok-note-line: #c9debf; --ok-note-text: #2b3a22; --ok-note-title: #2a6026;
   --warn: #8a5a00; --warn-bg: #fff1cc; --warn-line: #b77700; --warn-note-bg: #fff8e4; --warn-note-line: #ebd5a0; --warn-note-title: #5e3f00;
   --off: #6b655f; --reserve-bg: #d9d9d6; --reserve-line: #8a8a8a;
+  --info: #1f5f8b; --info-bg: #e3eef7; --info-line: #a9c6dd; --violet: #5b3f8f; --violet-bg: #eee8f7; --violet-line: #c6b8e0;
   --danger: #b3261e; --danger-bg: #fbe9e6; --danger-line: #e3b2ab; --danger-d: #8f1d17; --danger-ink: #8f1d17; --danger-bright: #b3261e;
   --danger-note-bg: #fdf1ef; --danger-note-line: #ebc3bd; --danger-note-bar: #a52019; --danger-note-text: #8f1d17; --danger-hatch: #e8a89f;
   /* chart series (stacked areas and lines on a card): each at least 3:1 against the card, far enough apart to tell apart, and every chart also names its series in a legend and gives lines different patterns */

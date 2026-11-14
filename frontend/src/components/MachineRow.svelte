@@ -38,6 +38,7 @@
   const where = $derived(isParent ? null : networkTag(machine.ip))
   const badge = $derived(securityBadge(securityOf(machine)))
   const NETWORK_ICON = { Shared: BADGE_ICONS.shared, 'Same network': BADGE_ICONS.sameNetwork, 'Other network': BADGE_ICONS.otherNetwork } as const
+  const NETWORK_TONE = { Shared: 'violet', 'Same network': 'green', 'Other network': 'blue' } as const
   const NETWORK_LABEL = { Shared: 'Shared: joined through Share a PC', 'Same network': 'Same network as the parent', 'Other network': 'Other network: reached over the internet' } as const
   /** The card's name for the route; a new machine object with the same id must not restart the polling. */
   const machineId = $derived(machine.id)
@@ -88,11 +89,11 @@
     <div class="top">
       <a class="nm" href={machineHref(machine.id)} title={machine.name}>{machine.name}</a>
       <span class="tags">
-        {#if isParent}<IconBadge path={BADGE_ICONS.parent} label="Parent: the computer MetaService runs on" tone="run" />{/if}
-        {#if where}<IconBadge path={NETWORK_ICON[where]} label={NETWORK_LABEL[where]} data-network-tag />{/if}
-        {#if machine.problems?.length}<IconBadge path={BADGE_ICONS.needsSetup} label="Needs setup: open Fix to see what is missing" tone="warn" />{/if}
+        {#if isParent}<IconBadge path={BADGE_ICONS.parent} label="Parent: the computer MetaService runs on" tone="dark" />{/if}
+        {#if where}<IconBadge path={NETWORK_ICON[where]} label={NETWORK_LABEL[where]} tone={NETWORK_TONE[where]} data-network-tag />{/if}
+        {#if machine.problems?.length}<IconBadge path={BADGE_ICONS.needsSetup} label="Needs setup: open Fix to see what is missing" tone="red" />{/if}
         {#if badge}<a class="tag" class:warn={badge.warning} data-security-badge href={securityHref({ machine: machine.id })} title="Failed logins blocked in the last 7 days. Open Security.">{badge.text}</a>{/if}
-        {#if updateTag}<IconBadge path={BADGE_ICONS.update} label={updateTag} tone="warn" data-update-tag />{/if}
+        {#if updateTag}<IconBadge path={BADGE_ICONS.update} label={updateTag} tone="amber" data-update-tag />{/if}
         {#if machine.bundle_version}<span class="tag" class:stale={flag.stale}>{flag.text}</span>{/if}
         {#each labels as label (label)}<span class="tag">{label}</span>{/each}
       </span>
@@ -149,7 +150,7 @@
   .card.offline { opacity: 0.7; }
   .head { padding: 15px 16px 12px; border-bottom: 1px solid var(--line); }
   .top { display: flex; align-items: center; gap: 8px; min-height: 22px; overflow: hidden; }
-  .nm { flex: 0 1 auto; min-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 15px; }
+  .nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 15px; }
   /* The chips that come and go share one slot: when the header has no room left, they are clipped, never the name, the state or the VMs. */
   .tags { display: flex; flex: 0 1 auto; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
   .marks { display: inline-flex; flex: none; align-items: center; gap: 6px; margin-left: auto; }
