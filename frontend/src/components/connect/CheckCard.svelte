@@ -4,13 +4,13 @@
   import type { CheckCard } from '../../lib/checkRows.ts'
   import type { ConnectForm, VerifyResult } from '../../lib/types.ts'
 
-  let { card, form, fingerprint, onChecked }: { card: CheckCard; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
+  let { card, form, fingerprint, os = '', onChecked }: { card: CheckCard; form: ConnectForm; fingerprint: string; os?: string; onChecked: (result: VerifyResult) => void } = $props()
 </script>
 
 <section class="cx-card" class:has-bad={card.hasBlocking} aria-label={card.title}>
   <h4>{card.title}</h4>
   <ul class="checks">
-    {#each card.rows as row (row.id)}<CheckRow {row} {form} {fingerprint} {onChecked} />{/each}
+    {#each card.rows as row (row.id)}<CheckRow {row} {form} {fingerprint} {os} {onChecked} />{/each}
   </ul>
 </section>
 

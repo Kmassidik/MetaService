@@ -27,7 +27,7 @@
 
 <CheckHead {result} {rows} {added} />
 <div class="cards">
-  {#each cards as card (card.id)}<CheckCard {card} {form} fingerprint={result.fingerprint} {onChecked} />{/each}
+  {#each cards as card (card.id)}<CheckCard {card} {form} fingerprint={result.fingerprint} os={result.facts.os} {onChecked} />{/each}
 </div>
 {#if result.security}<SecurityBaseline security={result.security} os={result.facts.os} />{/if}
 {#if stoppedEarly(rows)}<p class="note">We stopped here, so nothing else was checked.</p>{/if}

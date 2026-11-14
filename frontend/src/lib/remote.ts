@@ -85,7 +85,12 @@ const FIX_BUTTON: Record<string, string> = {
 /** The label of the button under a cross. The toolkit's says it adds a package source from NVIDIA, so the person knows before pressing. */
 export const fixButtonLabel = (offer: InstallOffer): string => FIX_BUTTON[offer.part] ?? 'Install it for me'
 
-export const fixWhat = (offer: InstallOffer): string => FIX_WHAT[offer.part] ?? 'Installs it with apt.'
+/** What the Mac does for a part that Linux installs with apt: Apple's own container tool comes from Apple's signed installer, not a package manager. */
+const FIX_WHAT_MAC: Record<string, string> = {
+  vm_tool: "Downloads Apple's container installer from github.com, checks that Apple signed it, installs it, then restarts this Mac's helper so it can make VMs. Nothing else on the Mac changes.",
+}
+
+export const fixWhat = (offer: InstallOffer, os = ''): string => (os === 'Darwin' || os === 'macOS' ? FIX_WHAT_MAC[offer.part] : undefined) ?? FIX_WHAT[offer.part] ?? 'Installs it with apt.'
 
 /**
  * The "Install it for me" request: the login of Connect, which part, and the password. With a password login the one typed password is both the login and sudo;

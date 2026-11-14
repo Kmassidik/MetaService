@@ -10,7 +10,7 @@
   import { LONG_REQUEST_TIMEOUT_MS } from '../../lib/timeouts.ts'
   import type { ConnectForm, InstallOffer, VerifyResult } from '../../lib/types.ts'
 
-  let { offer, form, fingerprint, onChecked }: { offer: InstallOffer; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
+  let { offer, form, fingerprint, os = '', onChecked }: { offer: InstallOffer; form: ConnectForm; fingerprint: string; os?: string; onChecked: (result: VerifyResult) => void } = $props()
   let open = $state(false)
   let password = $state('')
   const installAction = new ActionState({ timeoutMs: LONG_REQUEST_TIMEOUT_MS })
@@ -42,7 +42,7 @@
   <span class="act"><button class="offer" type="button" onclick={() => (open = true)}>{fixButtonLabel(offer)}</button></span>
 {:else}
   <form class="fix wide" onsubmit={install} novalidate>
-    <p class="what">{fixWhat(offer)}</p>
+    <p class="what">{fixWhat(offer, os)}</p>
     {#if needsPassword}
       <SecretField label={fixPasswordLabel(form)} name="sudo-password" bind:value={password} />
       <p class="hint">Typed once, never saved. It is used for this one install, then forgotten.</p>

@@ -6,7 +6,7 @@
   import type { CheckRow } from '../../lib/checkRows.ts'
   import type { ConnectForm, VerifyResult } from '../../lib/types.ts'
 
-  let { row, form, fingerprint, onChecked }: { row: CheckRow; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
+  let { row, form, fingerprint, os = '', onChecked }: { row: CheckRow; form: ConnectForm; fingerprint: string; os?: string; onChecked: (result: VerifyResult) => void } = $props()
 </script>
 
 <li class="cx-row" data-check={row.id} data-state={row.state}>
@@ -17,7 +17,7 @@
     {#if row.manual}<ManualSteps steps={row.manual} />{/if}
   </div>
   {#if row.value}<span class="val">{row.value}</span>{/if}
-  {#if row.install}<InstallItForMe offer={row.install} {form} {fingerprint} {onChecked} />{/if}
+  {#if row.install}<InstallItForMe offer={row.install} {form} {fingerprint} {os} {onChecked} />{/if}
 </li>
 
 <style>

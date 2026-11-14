@@ -148,6 +148,8 @@ test('Install it for me asks for a password with a password login, and with a ke
   expect(fixNeedsPassword(form({ useKey: true }), offer(false))).toBe(false)
   expect(fixPasswordLabel(form())).toBe('Password of kurnia on that computer')
   expect(fixWhat(offer(true))).toMatch(/Incus/)
+  expect(fixWhat(offer(true), 'Darwin')).toMatch(/Apple's container installer/)
+  expect(fixWhat(offer(true), 'Darwin')).not.toMatch(/Incus|apt/)
   expect(fixWhat({ part: 'python', needs_password: true })).toMatch(/Python/)
 })
 
