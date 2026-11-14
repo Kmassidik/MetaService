@@ -14,8 +14,10 @@ public enum RemoteVerify {
     public static let minimumRamMb = 4096
     public static let agentPort = 9101
     /// Rows whose cross does not stop the computer from being added: the computer works without them, only one feature does not.
-    static let optionalRows: Set<String> = [gpuToolkitRow, Autostart.rowId]
+    static let optionalRows: Set<String> = [gpuToolkitRow, Autostart.rowId, vmToolRow]
     static let gpuToolkitRow = "gpu_toolkit"
+    /// The tool that makes VMs (Apple container, Incus) is only needed to create VMs: the computer can be added and monitored without it.
+    static let vmToolRow = "vm_tool"
 
     /// `parentURL` is where an Agent there will find the parent: its own loopback, through the SSH connection (see ParentUrl).
     public static func run(facts: RemoteFacts, fingerprint: String, agentBuilds: Set<String>, parentURL: String) -> RemoteVerification {
@@ -93,7 +95,7 @@ public enum RemoteVerify {
         let tool = facts.isMac ? "container" : "incus"
         let label = facts.isMac ? "Apple's container tool (makes the VMs)" : "Incus (makes the VMs)"
         let found = facts.tools.contains(tool)
-        return Requirement(id: "vm_tool", label: label, ok: found, detail: found ? "Installed. It is used as it is; nothing about it is changed." : "Not installed. MetaService needs it to make VMs.",
+        return Requirement(id: vmToolRow, label: label, ok: found, detail: found ? "Installed. It is used as it is; nothing about it is changed." : "Not installed. It is only needed to make VMs: you can add the computer now and install it later.",
                            fix: ManualFixes.vmTool(facts), install: InstallOffers.offer(for: .vmTool, facts: facts))
     }
 

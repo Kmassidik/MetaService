@@ -72,7 +72,7 @@ final class RemoteVerifyTests: XCTestCase {
     func testALinuxComputerWithoutIncusIsToldHowToInstallItAndNothingMentionsATickBox() {
         let noIncus = linux.replacingOccurrences(of: "tool=incus\n", with: "tool=python3\n")
         let result = RemoteVerify.run(facts: facts(noIncus), fingerprint: "SHA256:abc", agentBuilds: ["linux-x86_64"], parentURL: "http://x:9102")
-        XCTAssertFalse(result.canAdd)
+        XCTAssertTrue(result.canAdd, "the VM tool is only needed to make VMs, the computer can be added without it")
         XCTAssertFalse(row(result, "vm_tool").ok)
         XCTAssertTrue(row(result, "vm_tool").fix!.contains("incus"))
         XCTAssertFalse(row(result, "vm_tool").detail.contains("tick"))
@@ -120,5 +120,14 @@ final class RemoteVerifyTests: XCTestCase {
         let intel = RemoteVerify.run(facts: facts("os=Darwin\narch=x86_64\nuser=u\nport_9101=free\n"), fingerprint: "SHA256:abc", agentBuilds: ["darwin-x86_64"], parentURL: "http://x:9102")
         XCTAssertFalse(row(intel, "vm_support").ok)
         XCTAssertTrue(row(intel, "vm_support").detail.contains("Apple Silicon"))
+    }
+}
+
+final class RemoteVerifyVmToolOptionalTests: XCTestCase {
+    func testAMacWithoutAppleContainerCanStillBeAddedAndTheRowStaysACross() {
+        let mac = "os=Darwin\narch=arm64\nuser=u\nversion=macOS 27\nchip=Apple M5\nram_mb=36864\ndisk_free_gb=396\ntool=python3\nsudo=password\nport_9101=free\n"
+        let result = RemoteVerify.run(facts: RemoteProbe.parse(mac)!, fingerprint: "SHA256:abc", agentBuilds: ["darwin-arm64"], parentURL: "http://x:9102")
+        XCTAssertTrue(result.canAdd)
+        XCTAssertFalse(result.requirements.first { $0.id == "vm_tool" }?.ok ?? true)
     }
 }
