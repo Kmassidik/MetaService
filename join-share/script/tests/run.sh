@@ -75,6 +75,7 @@ $PACKAGE_STUB"
 case "$1 $2" in
   "storage list") [ -f "$INCUS_CONF" ] && echo "default,dir,,1"; exit 0 ;;
   "admin init") : > "$INCUS_CONF" ;;
+  "network list") echo "incusbr0,bridge,YES,10.1.1.1/24,none,,1,CREATED"; exit 0 ;;
 esac'
   stub usermod 'echo "usermod $*" >> "$CALLS"'
   stub sg 'echo "sg $*" >> "$CALLS"; shift 2; exec sh -c "$1"'
@@ -254,11 +255,17 @@ finish_world
 
 echo "== linux: Incus is needed"
 new_world Linux x86_64; install_tools_already; rm -f "$BIN/incus" "$INCUS_CONF" "$INCUS_GROUP"; start_hub
+stub firewall-cmd 'echo "firewall-cmd $*" >> "$CALLS"
+case "$1" in
+  --state) echo running ;;
+  --get-zone-of-interface=*) echo "no zone" ;;
+esac'
 join approve-incus linux x86_64 y
 J="$T/home/.metaservice-join"
 ok "check list says [missing] Incus" has "$T/out" '\[missing\] *Incus$'
 ok "incus installed once, by dnf, in the first sudo block, before it is set up" sh -c "[ $CODE = 0 ] && [ \$(grep -c '^dnf install -y incus' '$CALLS') = 1 ] && [ \$(grep -c '^sudo sh -c' '$CALLS') = 2 ] && [ \$(grep -n '^dnf install -y incus' '$CALLS' | cut -d: -f1) -lt \$(grep -n '^incus admin init' '$CALLS' | cut -d: -f1) ]"
 ok "incus is started, set up once, and the user joins incus-admin" sh -c "[ \$(grep -c '^incus admin init --minimal' '$CALLS') = 1 ] && grep -q '^usermod -aG incus-admin' '$CALLS'"
+ok "firewalld is running: the VM bridge goes in the trusted zone, then the firewall reloads, after Incus is set up" sh -c "grep -q '^firewall-cmd --permanent --zone=trusted --add-interface=incusbr0' '$CALLS' && [ \$(grep -n '^firewall-cmd --reload' '$CALLS' | head -1 | cut -d: -f1) -gt \$(grep -n '^firewall-cmd --permanent' '$CALLS' | head -1 | cut -d: -f1) ] && [ \$(grep -n '^incus admin init' '$CALLS' | cut -d: -f1) -lt \$(grep -n '^firewall-cmd --permanent' '$CALLS' | head -1 | cut -d: -f1) ]"
 ok "the plan printed the incus steps before the question" sh -c "grep -n 'incus admin init --minimal\|Continue?' '$T/out' | head -1 | grep -q 'incus admin init'"
 ok "the helper starts through sg so the new group works without a login" has "$T/home/.config/systemd/user/io.metaservice.join.service" "ExecStart=.*sg incus-admin -c '.*metaservice-agent run .*--engine incus"
 finish_world

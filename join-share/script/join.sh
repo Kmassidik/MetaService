@@ -233,7 +233,21 @@ plan_incus_steps() {
   [ "$NEED_INCUS" != yes ] || ! system_systemd_usable || BLOCK_INCUS="systemctl enable --now incus"
   incus_is_configured || BLOCK_INCUS=$(append_block "$BLOCK_INCUS" '[ -n "$(incus storage list --format csv 2>/dev/null)" ] || incus admin init --minimal')
   [ "$ADD_GROUP" != yes ] || BLOCK_INCUS=$(append_block "$BLOCK_INCUS" "usermod -aG incus-admin $(shq "$(id -un)")")
+  ! trust_bridge_needed || BLOCK_INCUS=$(append_block "$BLOCK_INCUS" "$TRUST_BRIDGE")
 }
+
+# True when firewalld is running and Incus's bridge is not trusted yet (or Incus has no bridge yet, so the root block has to look again). Reading this needs no root.
+trust_bridge_needed() {
+  have firewall-cmd && [ "$(firewall-cmd --state 2>/dev/null)" = running ] || return 1
+  have incus || return 0
+  bridge=$(incus network list --format csv 2>/dev/null | awk -F, '$2=="bridge" && $3=="YES" {print $1; exit}')
+  [ -n "$bridge" ] || return 0
+  [ "$(firewall-cmd --get-zone-of-interface="$bridge" 2>/dev/null)" != trusted ]
+}
+
+# With firewalld running, Incus's VM bridge goes in the trusted zone, or the host drops the VMs' DHCP requests and they never get an IPv4 address
+# (the same step as `metaservice-agent setup`). Nothing happens without a running firewalld, or when the bridge is already trusted, so it is safe to repeat.
+TRUST_BRIDGE='if command -v firewall-cmd >/dev/null 2>&1 && [ "$(firewall-cmd --state 2>/dev/null)" = running ]; then bridge=$(incus network list --format csv 2>/dev/null | awk -F, '"'"'$2=="bridge" && $3=="YES" {print $1; exit}'"'"'); [ -z "$bridge" ] || [ "$(firewall-cmd --get-zone-of-interface="$bridge" 2>/dev/null)" = trusted ] || { firewall-cmd --permanent --zone=trusted --add-interface="$bridge" && firewall-cmd --reload; }; fi'
 
 plan_linux_block() {
   plan_incus_steps
