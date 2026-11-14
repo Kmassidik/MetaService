@@ -183,3 +183,40 @@ final class AppleContainerRestartTests: XCTestCase {
         XCTAssertFalse(AppleContainerScript.script(user: "luca", box: "/x; rm -rf ~").contains("start.sh"))
     }
 }
+
+final class FirewallFixTests: XCTestCase {
+    private let linux = "os=Linux\narch=x86_64\nuser=u\nram_mb=16384\ndisk_free_gb=100\ntool=incus\ntool=python3\npkg=apt\nsudo=password\nport_9101=free\n"
+
+    func testTheFirewallIsOfferedOnlyWhenItIsOffAndSudoIsAllowed() throws {
+        var off = RemoteSecurity(); off.firewall = false
+        var on = RemoteSecurity(); on.firewall = true
+        let facts = try XCTUnwrap(RemoteProbe.parse(linux))
+        XCTAssertEqual(SecurityFixes.offers(security: off, facts: facts).map(\.part), ["firewall"])
+        XCTAssertTrue(SecurityFixes.offers(security: on, facts: facts).isEmpty)
+        XCTAssertTrue(SecurityFixes.offers(security: nil, facts: facts).isEmpty)
+        let noSudo = try XCTUnwrap(RemoteProbe.parse(linux.replacingOccurrences(of: "sudo=password", with: "sudo=none")))
+        XCTAssertTrue(SecurityFixes.offers(security: off, facts: noSudo).isEmpty)
+    }
+
+    func testTheLinuxScriptAllowsTheSshPortBeforeItTurnsTheFirewallOn() {
+        let script = FirewallScript.script(mac: false, sshPort: 2222)
+        let allow = script.range(of: "ufw allow 2222/tcp")
+        let enable = script.range(of: "ufw --force enable")
+        XCTAssertNotNil(allow)
+        XCTAssertNotNil(enable)
+        XCTAssertLessThan(allow!.lowerBound, enable!.lowerBound)
+        XCTAssertTrue(script.contains(InstallMissingScripts.doneMarker))
+    }
+
+    func testTheMacScriptUsesAppleToolAndChecksTheResult() {
+        let script = FirewallScript.script(mac: true, sshPort: 22)
+        XCTAssertTrue(script.contains("socketfilterfw --setglobalstate on"))
+        XCTAssertTrue(script.contains("--getglobalstate"))
+        XCTAssertFalse(script.contains("ufw"))
+    }
+
+    func testABadPortIsClampedAndThePartDispatchesToTheFirewallScript() {
+        XCTAssertTrue(FirewallScript.script(mac: false, sshPort: 999_999).contains("ufw allow 65535/tcp"))
+        XCTAssertTrue(InstallMissingScripts.script(for: .firewall, user: "u", box: "b", mac: true, sshPort: 22).contains("socketfilterfw"))
+    }
+}

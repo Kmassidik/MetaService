@@ -150,6 +150,9 @@ test('Install it for me asks for a password with a password login, and with a ke
   expect(fixWhat(offer(true))).toMatch(/Incus/)
   expect(fixWhat(offer(true), 'Darwin')).toMatch(/Apple's container installer/)
   expect(fixWhat(offer(true), 'Darwin')).not.toMatch(/Incus|apt/)
+  expect(fixWhat({ part: 'firewall', needs_password: true }, 'Darwin')).toMatch(/Mac's built-in firewall/)
+  expect(fixWhat({ part: 'firewall', needs_password: true })).toMatch(/SSH connection/)
+  expect(fixButtonLabel({ part: 'firewall', needs_password: true })).toBe('Turn on the firewall for me')
   expect(fixWhat({ part: 'python', needs_password: true })).toMatch(/Python/)
 })
 

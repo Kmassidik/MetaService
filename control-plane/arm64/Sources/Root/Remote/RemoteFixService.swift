@@ -49,8 +49,12 @@ final class RemoteFixService: @unchecked Sendable {
         let before = try await RemoteService.readFacts(ssh, target, credentials)
         if alreadyThere(part, before) { return result(target, key.fingerprint, before) }
         guard InstallOffers.offer(for: part, facts: before) != nil else { throw RemoteFailure.fixUnavailable }
-        try await runInstall(part: part, mac: before.isMac, sudoPassword: sudoPassword, user: before.user, box: before.box, target: target, credentials: credentials)
-        return result(target, key.fingerprint, try await RemoteService.readFacts(ssh, target, credentials))
+        try await runInstall(part: part, mac: before.isMac, sshPort: target.port, sudoPassword: sudoPassword, user: before.user, box: before.box, target: target, credentials: credentials)
+        let after = try await RemoteService.readFacts(ssh, target, credentials)
+        var answer = result(target, key.fingerprint, after)
+        answer.security = await RemoteSecurityRead.run(ssh, target, credentials, facts: after)
+        answer.securityFixes = SecurityFixes.offers(security: answer.security, facts: after)
+        return answer
     }
 
     private func alreadyThere(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
@@ -60,11 +64,12 @@ final class RemoteFixService: @unchecked Sendable {
         case .gpuToolkit: return facts.hasGpuToolkit
         case .vmPackages: return facts.kvm == true && facts.qemu == true
         case .autostart: return facts.autostart == true
+        case .firewall: return false
         }
     }
 
-    private func runInstall(part: MissingPart, mac: Bool, sudoPassword: SudoPassword, user: String, box: String, target: RemoteTarget, credentials: SshCredentials) async throws {
-        let script = InstallMissingScripts.script(for: part, user: user, box: box, mac: mac)
+    private func runInstall(part: MissingPart, mac: Bool, sshPort: Int, sudoPassword: SudoPassword, user: String, box: String, target: RemoteTarget, credentials: SshCredentials) async throws {
+        let script = InstallMissingScripts.script(for: part, user: user, box: box, mac: mac, sshPort: sshPort)
         let command = InstallMissingScripts.sudoCommand(script: script, withPassword: !sudoPassword.isEmpty)
         let sent = try await ssh.run(command: command, input: sudoPassword.standardInput(), on: target, with: credentials, timeout: Self.installSeconds)
         if sent.status == Self.sshFailureStatus { throw RemoteFailure.fromSsh(sudoPassword.redacted(sent.errors), status: sent.status, auth: credentials.auth) }

@@ -2,13 +2,15 @@
   // The security baseline of the computer, in the Check step: one row per check (ok, warning or unknown) and a plain line each. A warning never stops the install.
   // Everything here came from the other computer through the parent as fixed values; it is drawn as plain text only.
   import HardenBox from './HardenBox.svelte'
+  import InstallItForMe from './InstallItForMe.svelte'
   import StatusMark from './StatusMark.svelte'
   import type { MarkKind } from './StatusMark.svelte'
   import { BASELINE_TITLE, INSTALL_ANYWAY, NO_KEY_LINE, lacksKey, verifyRows, warningTotal } from '../../lib/verifySecurity.ts'
   import type { CheckState } from '../../lib/securityRules.ts'
-  import type { VerifySecurity } from '../../lib/types.ts'
+  import type { ConnectForm, InstallOffer, VerifyResult, VerifySecurity } from '../../lib/types.ts'
 
-  let { security, os }: { security: VerifySecurity; os: string } = $props()
+  let { security, os, fixes = [], form, fingerprint, onChecked }: { security: VerifySecurity; os: string; fixes?: InstallOffer[]; form: ConnectForm; fingerprint: string; onChecked: (result: VerifyResult) => void } = $props()
+  const fixFor = (rowId: string): InstallOffer | undefined => fixes.find((offer) => offer.part === rowId)
   const MARK_OF: Record<CheckState, MarkKind> = { ok: 'ready', warning: 'optional', unknown: 'waiting' }
   const WORD_OF: Record<CheckState, string> = { ok: 'Fine', warning: 'Needs a look', unknown: 'Not known' }
   const rows = $derived(verifyRows(security))
@@ -26,6 +28,7 @@
           <div class="det">{row.line}</div>
         </div>
         <span class="val">{row.short}</span>
+        {#if row.state === 'warning'}{@const offer = fixFor(row.id)}{#if offer}<InstallItForMe {offer} {form} {fingerprint} {os} {onChecked} />{/if}{/if}
       </li>
     {/each}
   </ul>

@@ -15,7 +15,7 @@ public struct RemoteFixRequest {
         let object = try StrictObject(data: body, allowed: RemoteLoginRequest.fields.union([RemoteLoginTarget.machineField, "fix", "sudo_password"]))
         target = try RemoteLoginTarget.parse(object)
         login = try RemoteLoginRequest.login(object)
-        guard let chosen = MissingPart(rawValue: try object.string("fix", maxLength: 20, minLength: 1)) else { throw InputError("fix must be vm_tool, python or gpu_toolkit") }
+        guard let chosen = MissingPart(rawValue: try object.string("fix", maxLength: 20, minLength: 1)) else { throw InputError("fix must be vm_tool, python, gpu_toolkit, vm_packages, autostart or firewall") }
         part = chosen
         sudoPassword = SudoPassword(try object.optionalString("sudo_password", maxLength: Self.longestPassword) ?? "")
     }

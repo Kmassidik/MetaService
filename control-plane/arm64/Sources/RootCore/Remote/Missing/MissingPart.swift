@@ -10,6 +10,8 @@ public enum MissingPart: String, CaseIterable, Sendable {
     case vmPackages = "vm_packages"
     /// The registration that makes this computer's helper start again by itself at boot, so it is not offline after a restart until somebody runs `start.sh`.
     case autostart
+    /// Turns the firewall on (a Mac: Apple's tool; Linux: ufw, with the SSH port allowed first). Offered under the security row, not under a cross.
+    case firewall
 }
 
 public enum PackageManager: String, Sendable {
@@ -26,6 +28,7 @@ public enum InstallOffers {
     /// "Starts at boot" is not a package: it is one file the system's own boot service reads, so a Mac with sudo is allowed as well as a Linux computer with apt.
     /// Everything else stays where the whole install is known and verified (see docs/PLAN-install-missing.md).
     public static func offer(for part: MissingPart, facts: RemoteFacts) -> InstallOffer? {
+        if part == .firewall { return facts.sudo == .none ? nil : InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password) }
         guard needed(part, facts), canInstall(part, facts) else { return nil }
         return InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password)
     }
@@ -49,6 +52,7 @@ public enum InstallOffers {
         /// The check only answers this on a computer whose box it found, and the box has to be a path this parent can write a file for. A Mac installs Apple's
         /// container tool from a release, so it has no package manager: the fact there alone decides.
         case .autostart: return facts.autostart == false && RemoteInstallOptions.isPlainPath(facts.box)
+        case .firewall: return true
         }
     }
 }

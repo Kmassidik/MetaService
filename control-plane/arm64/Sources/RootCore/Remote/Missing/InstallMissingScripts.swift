@@ -15,7 +15,8 @@ public enum InstallMissingScripts {
         "LC_ALL=C LANGUAGE=C sudo \(withPassword ? "-S" : "-n") -p '' -- sh -c \(Shell.quote(script))"
     }
 
-    public static func script(for part: MissingPart, user: String, box: String, mac: Bool = false) -> String {
+    public static func script(for part: MissingPart, user: String, box: String, mac: Bool = false, sshPort: Int = 22) -> String {
+        if part == .firewall { return FirewallScript.script(mac: mac, sshPort: sshPort) }
         if mac && part == .vmTool { return AppleContainerScript.script(user: user, box: box) }
         guard let steps = aptSteps(for: part, user: user) else { return AutostartScript.script(box: box, user: user) }
         return prelude + steps + "echo \(doneMarker)\n"
@@ -29,7 +30,7 @@ public enum InstallMissingScripts {
         case .python: return python
         case .gpuToolkit: return GpuToolkitScript.body
         case .vmPackages: return VmPackagesScript.body
-        case .autostart: return nil
+        case .autostart, .firewall: return nil
         }
     }
 

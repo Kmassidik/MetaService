@@ -24,6 +24,8 @@ struct VerifyResult: Encodable {
     let system: String
     /// The security baseline seen before the install; absent for a computer it cannot be read from (Windows) and in the answer of a fix.
     var security: RemoteSecurity?
+    /// What the panel can fix for the person under a security warning (the firewall); empty when nothing can be done or sudo is not available.
+    var securityFixes: [InstallOffer] = []
 
     struct FactsView: Encodable {
         let os: String, arch: String, version: String, chip: String, user: String, home: String, computerName: String
@@ -88,6 +90,7 @@ final class RemoteService: @unchecked Sendable {
         let facts = try await Self.readFacts(ssh, target, credentials)
         var verified = Self.result(target.host, key.fingerprint, facts, parentURL: ssh.parentURL, builds: Set(AgentBuilds.available(config: config).keys))
         verified.security = await RemoteSecurityRead.run(ssh, target, credentials, facts: facts)
+        verified.securityFixes = SecurityFixes.offers(security: verified.security, facts: facts)
         return verified
     }
 

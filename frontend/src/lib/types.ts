@@ -524,6 +524,8 @@ export interface VerifyResult {
   system: string
   /** The security baseline seen before the install; left out for a computer it cannot be read from (Windows). Each field is null when it could not be told. */
   security?: VerifySecurity
+  /** What the panel can fix under a security warning (the firewall). Left out or empty when nothing can be done. */
+  security_fixes?: InstallOffer[]
 }
 
 /** What the read-only security look found: the Security page's checks except the one that needs the helper, plus whether the login user has an SSH key. */

@@ -75,10 +75,12 @@ const FIX_WHAT: Record<string, string> = {
   python: 'Installs Python 3 with apt.',
   gpu_toolkit: "Adds NVIDIA's own package source and signing key to this computer (a source that is not part of the system), then installs NVIDIA's container toolkit from it with apt, so containers can use the GPU.",
   vm_packages: 'Installs qemu and its firmware with apt, and loads the KVM module, so this computer can run full VMs instead of only containers.',
+  firewall: 'Turns the firewall on. The SSH connection this panel uses stays allowed, and your other computers are not touched.',
   autostart: "Registers this computer's helper with the boot service of the system (launchd on a Mac, systemd on Linux), so it is online again by itself after a restart.",
 }
 
 const FIX_BUTTON: Record<string, string> = {
+  firewall: 'Turn on the firewall for me',
   gpu_toolkit: "Install it for me (adds NVIDIA's package source)",
 }
 
@@ -87,6 +89,7 @@ export const fixButtonLabel = (offer: InstallOffer): string => FIX_BUTTON[offer.
 
 /** What the Mac does for a part that Linux installs with apt: Apple's own container tool comes from Apple's signed installer, not a package manager. */
 const FIX_WHAT_MAC: Record<string, string> = {
+  firewall: "Turns on the Mac's built-in firewall with Apple's own tool. Remote Login (SSH) keeps working and nothing else on the Mac changes.",
   vm_tool: "Downloads Apple's container installer from github.com, checks that Apple signed it, installs it, then restarts this Mac's helper so it can make VMs. Nothing else on the Mac changes.",
 }
 
