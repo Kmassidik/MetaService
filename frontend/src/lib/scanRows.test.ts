@@ -53,6 +53,15 @@ test('the scan rows and every registered machine the scan missed show, sorted by
   ])
 })
 
+test('two machines behind the same public address each get a row (the new Studio and Mini share one address, different ports)', () => {
+  const rows = withKnownMachines([], [
+    machine({ id: 'studio', name: 'lucas-mac-studio', ip: '202.51.196.202' }),
+    machine({ id: 'mini', name: 'lucas-mac-mini', ip: '202.51.196.202' }),
+  ])
+  expect(rows).toHaveLength(2)
+  expect(rows.map((row) => rowStatus(row, [], notRouter))).toEqual([{ kind: 'added', name: 'lucas-mac-studio' }, { kind: 'added', name: 'lucas-mac-mini' }])
+})
+
 test('a machine whose address the scan already lists is not shown twice', () => {
   const rows = withKnownMachines([device('192.168.0.40', { hostname: 'mini' })], [machine({ id: 'mini', name: 'mini', ip: '192.168.0.40' })])
   expect(rows).toHaveLength(1)

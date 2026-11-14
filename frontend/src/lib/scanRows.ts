@@ -37,13 +37,13 @@ function knownMachineRow(machine: Machine & { ip: string }): Device {
   return { id: `${KNOWN_ROW_PREFIX}${machine.id}`, ip: machine.ip, hostname: machine.name, mac: null, vendor: null, agent_port_open: false, machine: machine.name }
 }
 
-/** The scan rows plus one row for each registered machine whose address the scan did not list, sorted by address. */
+/** The scan rows plus one row for each registered machine whose address the scan did not list (machines that share an address each get a row), sorted by address. */
 export function withKnownMachines(rows: Device[], machines: Machine[]): Device[] {
-  const listed = new Set(rows.map((row) => row.ip))
+  const scanned = new Set(rows.map((row) => row.ip))
   const extra: Device[] = []
+  // Only the scan decides what is already listed: two machines can share one public address (different SSH ports), and each keeps its own row.
   for (const machine of machines) {
-    if (!machine.ip || listed.has(machine.ip)) continue
-    listed.add(machine.ip)
+    if (!machine.ip || scanned.has(machine.ip)) continue
     extra.push(knownMachineRow({ ...machine, ip: machine.ip }))
   }
   return [...rows, ...extra].sort((left, right) => compareIp(left.ip, right.ip))
