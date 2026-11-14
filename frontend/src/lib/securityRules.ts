@@ -35,7 +35,7 @@ function passwordRow({ password_login }: SecurityBaseline): BaselineRow {
 function banToolRow({ ban_tool }: SecurityBaseline): BaselineRow {
   const label = 'Ban tool'
   if (ban_tool === null) return unknown('ban_tool', label)
-  if (ban_tool === 'not_available') return { ...unknown('ban_tool', label, 'Not available on this kind of computer. Failed logins are counted, but nobody is blocked.'), short: 'n/a' }
+  if (ban_tool === 'not_available') return { ...unknown('ban_tool', label, 'A ban tool blocks an address that keeps failing to log in (Linux uses fail2ban). A Mac has no such tool, so MetaService only counts the failed logins and nobody is blocked. This is safe while password login is off: with only keys allowed, guessing cannot get in.'), short: 'n/a' }
   if (ban_tool === 'running') return ok('ban_tool', label, 'running', 'Running. Addresses that keep failing are blocked for a while.')
   return warn('ban_tool', label, 'stopped', 'No ban tool is running, so nobody is blocked automatically.', 'Install and start a ban tool (fail2ban)')
 }

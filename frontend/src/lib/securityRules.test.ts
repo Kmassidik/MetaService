@@ -27,7 +27,7 @@ test('no ban tool on Linux is a warning, but "not available" on a Mac is only un
   expect(baselineRows(report({ ban_tool: 'not_running' }).baseline)[1]?.state).toBe('warning')
   const mac = baselineRows(report({ ban_tool: 'not_available' }).baseline)[1]
   expect(mac?.state).toBe('unknown')
-  expect(mac?.line).toContain('Not available')
+  expect(mac?.line).toContain('A Mac has no such tool')
   expect(mac?.todo).toBeNull()
 })
 
