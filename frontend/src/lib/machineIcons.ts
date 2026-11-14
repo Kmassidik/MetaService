@@ -30,6 +30,22 @@ export const CARD_ICONS = {
   clock: 'M12 3a9 9 0 100 18 9 9 0 000-18 M12 7.5V12l3.5 2',
 } as const
 
+// The header badges of a machine card: the same drawing style, one icon per thing the card says about a machine.
+export const BADGE_ICONS = {
+  /** A house: a machine on the same network as the parent (the office). */
+  sameNetwork: 'M3 11l9-7 9 7 M5 10v10h14V10 M10 20v-6h4v6',
+  /** The globe: a machine reached from another network. */
+  otherNetwork: CARD_ICONS.network,
+  /** Two chain links: a machine that joined through Share a PC. */
+  shared: 'M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1 M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1',
+  /** A star: the computer MetaService itself runs on. */
+  parent: 'M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8l-5.3 2.8 1.1-6L3.4 9.4l6-.8z',
+  /** A triangle with a mark: the machine needs something before it is fully set up. */
+  needsSetup: 'M12 3l10 18H2z M12 10v5 M12 18h.01',
+  /** An arrow up in a circle: its helper can be updated. */
+  update: 'M12 3a9 9 0 100 18 9 9 0 000-18 M12 16V8 M8.5 11.5L12 8l3.5 3.5',
+} as const
+
 export const RENAME_LABEL = 'Rename machine'
 export const OPEN_LABEL = 'Open machine'
 export const REMOVE_LABEL = 'Remove'

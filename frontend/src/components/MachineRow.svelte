@@ -9,7 +9,8 @@
   import StatePill from './StatePill.svelte'
   import Icon from './Icon.svelte'
   import IconButton from './IconButton.svelte'
-  import { CARD_ICONS, MACHINE_ICONS, OPEN_LABEL, REMOVE_LABEL, RENAME_LABEL } from '../lib/machineIcons.ts'
+  import IconBadge from './IconBadge.svelte'
+  import { BADGE_ICONS, CARD_ICONS, MACHINE_ICONS, OPEN_LABEL, REMOVE_LABEL, RENAME_LABEL } from '../lib/machineIcons.ts'
   import Meter from './Meter.svelte'
   import LiveLine from './monitor/LiveLine.svelte'
   import { machineHref, securityHref } from '../lib/routes.ts'
@@ -36,6 +37,8 @@
   const updateTag = $derived(listTag(machine))
   const where = $derived(isParent ? null : networkTag(machine.ip))
   const badge = $derived(securityBadge(securityOf(machine)))
+  const NETWORK_ICON = { Shared: BADGE_ICONS.shared, 'Same network': BADGE_ICONS.sameNetwork, 'Other network': BADGE_ICONS.otherNetwork } as const
+  const NETWORK_LABEL = { Shared: 'Shared: joined through Share a PC', 'Same network': 'Same network as the parent', 'Other network': 'Other network: reached over the internet' } as const
   /** The card's name for the route; a new machine object with the same id must not restart the polling. */
   const machineId = $derived(machine.id)
   let stats = $state<MachineStats | null>(null)
@@ -85,11 +88,11 @@
     <div class="top">
       <a class="nm" href={machineHref(machine.id)} title={machine.name}>{machine.name}</a>
       <span class="tags">
-        {#if isParent}<span class="tag run">Parent</span>{/if}
-        {#if where}<span class="tag" data-network-tag title="How this machine reaches the parent">{where}</span>{/if}
-        {#if machine.problems?.length}<span class="tag warn">Needs setup</span>{/if}
+        {#if isParent}<IconBadge path={BADGE_ICONS.parent} label="Parent: the computer MetaService runs on" tone="run" />{/if}
+        {#if where}<IconBadge path={NETWORK_ICON[where]} label={NETWORK_LABEL[where]} data-network-tag />{/if}
+        {#if machine.problems?.length}<IconBadge path={BADGE_ICONS.needsSetup} label="Needs setup: open Fix to see what is missing" tone="warn" />{/if}
         {#if badge}<a class="tag" class:warn={badge.warning} data-security-badge href={securityHref({ machine: machine.id })} title="Failed logins blocked in the last 7 days. Open Security.">{badge.text}</a>{/if}
-        {#if updateTag}<span class="tag warn" data-update-tag>{updateTag}</span>{/if}
+        {#if updateTag}<IconBadge path={BADGE_ICONS.update} label={updateTag} tone="warn" data-update-tag />{/if}
         {#if machine.bundle_version}<span class="tag" class:stale={flag.stale}>{flag.text}</span>{/if}
         {#each labels as label (label)}<span class="tag">{label}</span>{/each}
       </span>

@@ -81,7 +81,7 @@ async function listTag(page: Page, b: Browse) {
     await page.setViewport(SIZES.desktop)
     await page.goto(`${parent.base}/#/machines`, { waitUntil: 'networkidle0' })
     await b.until(() => document.querySelectorAll('article.card').length === 2, { timeout: SHORT_WAIT_MS })
-    const tags = await b.run(() => [...document.querySelectorAll('article.card')].map((card) => ({ name: card.querySelector('.nm')?.textContent ?? '', tag: card.querySelector('[data-update-tag]')?.textContent ?? null })))
+    const tags = await b.run(() => [...document.querySelectorAll('article.card')].map((card) => ({ name: card.querySelector('.nm')?.textContent ?? '', tag: card.querySelector('[data-update-tag]')?.getAttribute('aria-label') ?? null })))
     check('the Machines list tags only the machine that has an update', JSON.stringify(tags.sort((a, c) => a.name.localeCompare(c.name))) === JSON.stringify([{ name: 'mac-mini', tag: null }, { name: 'mac-studio', tag: 'Update available' }]), JSON.stringify(tags))
     await b.shot('helper-list-tag-desktop-light.png', true)
     await page.setViewport(SIZES.phone)
