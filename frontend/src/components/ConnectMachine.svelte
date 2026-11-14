@@ -110,12 +110,20 @@
 
   {#if step === 'where'}
     <form onsubmit={look} novalidate>
-      <p class="muted">Another computer on this network. This only looks: nothing is installed or changed on it.</p>
+      <p class="muted">Add a computer by its address. This step only looks: nothing is installed or changed on it.</p>
       <label for="connect-host">Address or name</label>
       <input id="connect-host" bind:value={form.host} autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="192.168.100.40" aria-invalid={whereWrong ? 'true' : 'false'} />
       <label for="connect-port">SSH port</label>
       <input id="connect-port" bind:value={form.port} inputmode="numeric" autocomplete="off" />
-      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'It needs SSH on (Remote Login on a Mac). Addresses on this network work. Another address works only if the owner allowed it in the server settings.'}</p>
+      <p class="hint {whereWrong ? 'bad' : 'muted'}">{whereWrong ?? 'The computer needs SSH switched on (on a Mac: System Settings › General › Sharing › Remote Login).'}</p>
+      <details class="why" open>
+        <summary>Which address and port do I type?</summary>
+        <ol class="how" aria-label="Which address and port">
+          <li><b>1</b><div><strong>Same office or home network.</strong> Type the computer's own address, it starts with <span class="mono">192.168.</span> or <span class="mono">10.</span>, and port <span class="mono">22</span>. This is what Find machines lists.</div></li>
+          <li><b>2</b><div><strong>A computer in another place</strong> (another office, a rented server). Type the public internet address of the network it sits in, and the port that network forwards to that computer.<p class="muted">The public address is what a search for "what is my IP" shows when run on that network. The port comes from the router's "port forwarding" list (for example 22 to one computer, 1004 to another). Two computers behind the same public address have different ports.</p></div></li>
+          <li><b>3</b><div><strong>"Not allowed" message?</strong> A public address must first be allowed by the person who runs this MetaService server (the setting is called ROOT_REMOTE_EXTRA_ADDRESSES). Send them the address and ask.</div></li>
+        </ol>
+      </details>
       {#if failure}<p class="bad" role="alert">{failure}</p>{/if}
       <div class="row">
         <button class="btn line" type="button" onclick={onClose}>Cancel</button>
