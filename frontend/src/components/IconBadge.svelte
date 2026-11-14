@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A small square badge for a machine card: one line icon, coloured by what it says, and its word in a tip on hover or keyboard focus. The tip is positioned on the screen
+  // A small square badge for a machine card: one line icon, coloured by what it says, and its word in a tip on hover. The tip is positioned on the screen
   // (not inside the card), so the card's clipping can never hide it. Screen readers read the label.
   import Icon from './Icon.svelte'
 
@@ -22,14 +22,13 @@
   const hide = () => (tip = null)
 </script>
 
-<span class="ib {tone}" role="img" aria-label={label} tabindex="0" onmouseenter={show} onmouseleave={hide} onfocus={show} onblur={hide} {...rest}>
+<span class="ib {tone}" role="img" aria-label={label} onmouseenter={show} onmouseleave={hide} {...rest}>
   <Icon {path} />
   {#if tip}<span class="tip" aria-hidden="true" bind:this={tipBox}>{label}</span>{/if}
 </span>
 
 <style>
   .ib { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 22px; border: 1px solid; cursor: default; }
-  .ib:focus-visible { outline: 2px solid var(--accent-mark); outline-offset: 1px; }
   .green { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-note-line); }
   .blue { color: var(--info); background: var(--info-bg); border-color: var(--info-line); }
   .violet { color: var(--violet); background: var(--violet-bg); border-color: var(--violet-line); }
