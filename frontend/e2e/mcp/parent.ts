@@ -159,7 +159,6 @@ export async function startParent(): Promise<Parent> {
     if (path === '/api/machines') return send(response, 200, { machines: [] })
     if (path === '/api/commands') return send(response, 200, { commands: [] })
     if (path === '/api/bundles') return send(response, 200, { pinned: null, bundles: [] })
-    if (path === '/api/brain') return send(response, 200, { configured: true, usage: [] })
     if (path === '/api/remote/machines') return send(response, 200, { machines: [] })
     return send(response, 404, { error: { code: 'not_found', message: path } })
   })

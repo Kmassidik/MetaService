@@ -93,6 +93,14 @@ const FIX_WHAT_MAC: Record<string, string> = {
   vm_tool: "Downloads Apple's container installer from github.com, checks that Apple signed it, installs it, then restarts this Mac's helper so it can make VMs. Nothing else on the Mac changes.",
 }
 
+/** The line the owner can paste on the computer when the panel cannot run the fix itself (a login without sudo): a Mac turns Apple's firewall on, Linux allows SSH first. */
+export function firewallCommand(os: string, sshPort: string | number): string {
+  if (os === 'Darwin' || os === 'macOS') return 'sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on'
+  const port = Number(sshPort)
+  const safe = Number.isInteger(port) && port >= 1 && port <= 65535 ? port : 22
+  return `sudo ufw allow ${safe}/tcp && sudo ufw --force enable`
+}
+
 export const fixWhat = (offer: InstallOffer, os = ''): string => (os === 'Darwin' || os === 'macOS' ? FIX_WHAT_MAC[offer.part] : undefined) ?? FIX_WHAT[offer.part] ?? 'Installs it with apt.'
 
 /**

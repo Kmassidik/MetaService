@@ -341,7 +341,6 @@ export async function startStandIn(): Promise<StandIn> {
     if (command) return send(response, 200, { command })
     if (path === '/api/commands') return send(response, 200, { commands: script.order ? [script.order] : [] })
     if (path === '/api/bundles') return send(response, 200, bundles.overview())
-    if (path === '/api/brain') return send(response, 200, { configured: true, usage: [] })
     if (path === '/api/remote/machines') return send(response, 200, { machines: [] })
     send(response, 404, { error: { code: 'not_found', message: path } })
   }

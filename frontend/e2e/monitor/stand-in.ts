@@ -168,7 +168,6 @@ export function startStandIn(dist: string, processCount = PROCESS_COUNT): StandI
     if (path.endsWith('/stats')) return stats(id, search)
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })
-    if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [] })
     const found = machines.find((entry) => entry.id === id)
     return found ? reply({ ...found, state: stateOf(found), box: null, agent_port: null, ruvio: null }) : reply({ error: { code: 'not_found', message: 'no such thing' } }, 404)

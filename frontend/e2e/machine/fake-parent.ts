@@ -145,7 +145,6 @@ export function startFakeParent(options: FakeParentOptions): FakeParent {
     if (path.endsWith('/bundle/uninstall')) return runCommand('uninstall')
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles, pinned: bundles.length ? CHAT_VERSION : null })
-    if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [{ machine: 'mac-studio', host: '192.168.1.20', ssh_port: 22, ssh_user: 'kurnia', level: 'user', box: '~/metaservice-box', agent_port: 8447, engine: 'apple', has_key: true, tunnel: { state: 'connected', since: new Date(Date.now() - TUNNEL_SINCE_MS).toISOString(), local_port: 41000, failures: 0 } }] })
     const found = machines.find((entry) => entry.id === machineId)
     return found ? reply(detail(found)) : refuse(404, 'not_found', 'no such machine')

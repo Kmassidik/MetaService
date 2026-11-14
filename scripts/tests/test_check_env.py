@@ -17,7 +17,7 @@ def problems(text, mode=0o600):
 
 class CheckEnvTest(unittest.TestCase):
     def test_an_empty_example_file_is_fine(self):
-        self.assertEqual(problems("# comment\nROOT_SETUP_TOKEN=\nAI_API_KEY=\nROOT_PORT=\n"), [])
+        self.assertEqual(problems("# comment\nROOT_SETUP_TOKEN=\nROOT_PORT=\n"), [])
 
     def test_a_token_one_character_short_is_refused_and_the_exact_length_passes(self):
         self.assertEqual(len(problems("ROOT_SETUP_TOKEN=" + GOOD_TOKEN[:-1])), 1)
@@ -37,18 +37,13 @@ class CheckEnvTest(unittest.TestCase):
         for good in ("1", "9102", "65535"):
             self.assertEqual(problems("ROOT_PORT=" + good), [], good)
 
-    def test_half_filled_ai_settings_are_refused_and_all_or_none_pass(self):
-        self.assertIn("AI_API_KEY", problems("AI_BASE_URL=https://x\nAI_DEFAULT_MODEL=m")[0])
-        self.assertEqual(len(problems("AI_API_KEY=k")), 1)
-        self.assertEqual(problems("AI_BASE_URL=https://x\nAI_API_KEY=k\nAI_DEFAULT_MODEL=m"), [])
-
     def test_a_file_other_users_can_read_is_refused(self):
         self.assertEqual(len(problems("", mode=0o644)), 1)
         self.assertEqual(len(problems("", mode=0o640)), 1)
         self.assertEqual(problems("", mode=0o600), [])
 
     def test_all_problems_are_listed_at_once(self):
-        self.assertEqual(len(problems("ROOT_SETUP_TOKEN=x\nROOT_PORT=0\nAI_API_KEY=k", mode=0o644)), 4)
+        self.assertEqual(len(problems("ROOT_SETUP_TOKEN=x\nROOT_PORT=0", mode=0o644)), 3)
 
 
 class CheckEnvCommandTest(unittest.TestCase):

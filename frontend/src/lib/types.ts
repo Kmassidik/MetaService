@@ -467,14 +467,6 @@ export interface ScanSetup {
   own_addresses?: string[]
 }
 
-export interface BrainStatus {
-  configured: boolean
-  model?: string
-  host?: string
-  max_tokens?: number
-  usage: UsageRow[]
-}
-
 /** A number typed into a form: a number, the text of one, or empty. */
 export type FormNumber = number | string | null | undefined
 

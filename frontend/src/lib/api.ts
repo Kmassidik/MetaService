@@ -26,7 +26,7 @@ import { parseLatency, type Latency, type LatencyRange } from './latencyParse.ts
 import { parseNetSeries, type NetSeries, type NetSeriesRange } from './netSeriesParse.ts'
 import { parseUsage, parseUsageDaily, type DayCount, type UsageDay, type UsageRange, type UsageReply } from './usageParse.ts'
 import { parseTicket } from './terminal.ts'
-import type { AuthStatus, BrainStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
+import type { AuthStatus, BundleOverview, Command, ExternalServiceAction, ExternalServicesReply, HelperUpdateResult, InstallJob, Machine, MachineSettingsPatch, MachineStatsReply, MachineStorageReply, PlanPreview, StatsHistoryReply, ProbeResult, RefusalNumbers, RemoteMachineInfo, SandboxKey, SandboxKeyMade, SandboxLive, SandboxUsageReply, Scan, ScanSetup, Session, SshKeyList, VerifyResult, WorkloadAction } from './types.ts'
 
 let csrfToken: string | null = null
 
@@ -250,8 +250,6 @@ export const uninstallBundle = (machine: string, workload?: string) =>
 export const chatLink = async (machine: string, workload?: string) =>
   (await call<{ url: string }>('GET', `/api/chat-link?machine=${encodeURIComponent(machine)}${workload ? `&workload=${encodeURIComponent(workload)}` : ''}`)).url
 
-export const brainStatus = () => call<BrainStatus>('GET', '/api/brain')
-export const testBrain = () => call<unknown>('POST', '/api/brain/test')
 
 // Long on purpose: these four log in to the other computer over SSH (the Root waits up to 40 s to log in; a fix installs for minutes).
 export const remoteProbe = (body: { host: string; port?: number }) => call<ProbeResult>('POST', '/api/remote/probe', body, LONG_REQUEST_TIMEOUT_MS)

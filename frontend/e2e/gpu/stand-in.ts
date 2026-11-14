@@ -85,7 +85,6 @@ export function startGpuStandIn(dist: string): GpuStandIn {
     if (path.endsWith('/stats')) return reply({ state: 'old_helper', last_seen: new Date().toISOString(), fetched_at: null, stats: null })
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })
-    if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [] })
     const found = MACHINES.find((entry) => entry.id === (/^\/api\/machines\/([a-z0-9-]+)/.exec(path)?.[1] ?? ''))
     return found ? reply({ ...found, box: null, agent_port: null, ruvio: null }) : missing()

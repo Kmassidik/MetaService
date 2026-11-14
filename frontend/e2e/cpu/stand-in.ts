@@ -101,7 +101,6 @@ export function startCpuStandIn(dist: string): CpuStandIn {
     if (path.endsWith('/images')) return reply(IMAGES)
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })
-    if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [] })
     const found = find(/^\/api\/machines\/([a-z0-9-]+)/.exec(path)?.[1] ?? '')
     return found ? reply({ ...found, box: null, agent_port: null, ruvio: null }) : missing()

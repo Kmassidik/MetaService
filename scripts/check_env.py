@@ -13,7 +13,6 @@ from urllib.parse import urlparse
 
 MIN_TOKEN_LENGTH = 16
 PORTS = ("ROOT_PORT", "ROOT_AGENT_PORT", "AGENT_PORT")
-AI_SETTINGS = ("AI_BASE_URL", "AI_API_KEY", "AI_DEFAULT_MODEL")
 CLOUDFLARE_SETTINGS = ("CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID")
 CLOUDFLARE_ID = re.compile(r"^[0-9a-f]{32}$")
 
@@ -47,10 +46,6 @@ def problems_in(values, mode):
     for name in PORTS:
         if name in values and not is_port(values[name]):
             found.append(f"{name} must be a whole number from 1 to 65535.")
-    given = [name for name in AI_SETTINGS if name in values]
-    if given and len(given) != len(AI_SETTINGS):
-        missing = [name for name in AI_SETTINGS if name not in values]
-        found.append(f"The AI settings are half filled: {', '.join(missing)} is missing. Set all three, or none of them.")
     return found + remote_access_problems(values)
 
 

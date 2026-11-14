@@ -18,7 +18,6 @@ func buildOperatorApplication(services: Services) -> some ApplicationProtocol {
     WorkloadRoutes(services: services, guards: guards).register(on: router.group())
     ExternalServiceRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).registerOperator(on: router.group())
-    BrainRoutes(services: services, guards: guards).registerOperator(on: router.group())
     ScanRoutes(services: services, guards: guards).register(on: router.group())
     RemoteRoutes(services: services, guards: guards).register(on: router.group())
     RemoteInstallRoutes(services: services, guards: guards).register(on: router.group())
@@ -67,7 +66,6 @@ func buildAgentApplication(services: Services) -> some ApplicationProtocol {
     let guards = Guards(services: services)
     AgentRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).registerAgent(on: router.group())
-    BrainRoutes(services: services, guards: guards).registerAgent(on: router.group())
     return Application(router: router, configuration: .init(address: .hostname(services.config.agentListenBind, port: services.config.agentListenPort)))
 }
 

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect } from 'bun:test'
-import { fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
+import { firewallCommand, fixBody, fixButtonLabel, fixNeedsPassword, fixPasswordLabel, fixWhat, keyCommand, passwordAccepted, addBody, advancedProblem, connectionText, defaultAddChoices, emptyConnectForm, groupedFingerprint, isolationText, loginProblem, nameWrong, planBody, portOf, probeBody, removeBody, suggestMachineName, userWarning, verifyBody, whereProblem } from './remote.ts'
 import type { RemoteMachineInfo, VerifyResult } from './types.ts'
 
 const form = (extra = {}) => ({ ...emptyConnectForm('192.168.100.40'), user: 'kurnia', password: 'secret', ...extra })
@@ -152,6 +152,9 @@ test('Install it for me asks for a password with a password login, and with a ke
   expect(fixWhat(offer(true), 'Darwin')).not.toMatch(/Incus|apt/)
   expect(fixWhat({ part: 'firewall', needs_password: true }, 'Darwin')).toMatch(/Mac's built-in firewall/)
   expect(fixWhat({ part: 'firewall', needs_password: true })).toMatch(/SSH connection/)
+  expect(firewallCommand('Darwin', 22)).toBe('sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on')
+  expect(firewallCommand('Linux', '2222')).toBe('sudo ufw allow 2222/tcp && sudo ufw --force enable')
+  expect(firewallCommand('Linux', 'x; rm')).toBe('sudo ufw allow 22/tcp && sudo ufw --force enable')
   expect(fixButtonLabel({ part: 'firewall', needs_password: true })).toBe('Turn on the firewall for me')
   expect(fixWhat({ part: 'python', needs_password: true })).toMatch(/Python/)
 })

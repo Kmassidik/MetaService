@@ -139,7 +139,7 @@ def check_operator_endpoints_need_a_session():
     with running() as root:
         fresh(root).request("POST", "/api/auth/setup", setup_body(root))
         browser = fresh(root)
-        for method, path in (("GET", "/api/session"), ("GET", "/api/machines"), ("GET", "/api/audit"), ("GET", "/api/bundles"), ("GET", "/api/brain"),
+        for method, path in (("GET", "/api/session"), ("GET", "/api/machines"), ("GET", "/api/audit"), ("GET", "/api/bundles"),
                              ("POST", "/api/enrollments"), ("POST", "/api/workloads"), ("POST", "/api/scans"), ("DELETE", "/api/machines/mini")):
             reply = browser.request(method, path, body={} if method == "POST" else None)
             expect(reply.status == 401, f"{method} {path} without a session gave {reply.status}")

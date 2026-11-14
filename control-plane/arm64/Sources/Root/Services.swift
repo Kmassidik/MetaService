@@ -19,8 +19,6 @@ struct Services {
     let chatAccess: ChatAccessStore
     let bundleService: BundleService
     let machineDetails: MachineDetails
-    let brain: BrainStore
-    let brainService: BrainService
     let throttle: Throttle
     let admin: AdminStore
     let setupGate: SetupGate
@@ -77,8 +75,6 @@ struct Services {
         commands = CommandStore(database)
         bundles = BundleStore(database, directory: config.bundleDirectory ?? (config.databasePath as NSString).deletingLastPathComponent + "/bundles")
         chatAccess = ChatAccessStore(database)
-        brain = BrainStore(database)
-        brainService = BrainService(config: config)
         let sshKeyStore = SshKeyStore(database)
         let autoPin = BundleAutoPin(bundles: bundles, audit: audit, clock: clock)
         images = ImagesService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)

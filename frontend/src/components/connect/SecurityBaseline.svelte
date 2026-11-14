@@ -2,7 +2,9 @@
   // The security baseline of the computer, in the Check step: one row per check (ok, warning or unknown) and a plain line each. A warning never stops the install.
   // Everything here came from the other computer through the parent as fixed values; it is drawn as plain text only.
   import HardenBox from './HardenBox.svelte'
+  import CopyButton from './CopyButton.svelte'
   import InstallItForMe from './InstallItForMe.svelte'
+  import { firewallCommand } from '../../lib/remote.ts'
   import StatusMark from './StatusMark.svelte'
   import type { MarkKind } from './StatusMark.svelte'
   import { BASELINE_TITLE, INSTALL_ANYWAY, NO_KEY_LINE, lacksKey, verifyRows, warningTotal } from '../../lib/verifySecurity.ts'
@@ -28,7 +30,7 @@
           <div class="det">{row.line}</div>
         </div>
         <span class="val">{row.short}</span>
-        {#if row.state === 'warning'}{@const offer = fixFor(row.id)}{#if offer}<InstallItForMe {offer} {form} {fingerprint} {os} {onChecked} />{/if}{/if}
+        {#if row.state === 'warning'}{@const offer = fixFor(row.id)}{#if offer}<InstallItForMe {offer} {form} {fingerprint} {os} {onChecked} />{:else if row.id === 'firewall'}{@const command = firewallCommand(os, form.port)}<div class="manual"><p>The panel cannot turn it on for you here (this login has no sudo). Paste this on that computer:</p><div class="codebox"><code>{command}</code><CopyButton text={command} describe="the firewall command" /></div></div>{/if}{/if}
       </li>
     {/each}
   </ul>
@@ -49,5 +51,9 @@
   .det { color: var(--m70); font-size: 13px; }
   .val { color: var(--m70); font-size: 13px; text-align: right; padding-top: 1px; }
   .nokey { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--danger); border-left-width: 4px; background: var(--surface); color: var(--danger-bright); font-weight: 600; overflow-wrap: anywhere; }
+  .manual { grid-column: 2 / -1; margin-top: 8px; font-size: 13px; color: var(--m70); }
+  .manual p { margin: 0 0 4px; }
+  .codebox { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); }
+  .codebox code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
   .later { margin: 8px 0 0; font-size: 13px; color: var(--m70); }
 </style>

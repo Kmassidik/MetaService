@@ -63,7 +63,6 @@ export function startFakeParent(dist: string, plan: StoragePlan = { scanned: fal
     if (path === '/api/machines') return reply({ machines })
     if (path === '/api/commands') return reply({ commands: [] })
     if (path === '/api/bundles') return reply({ bundles: [], pinned: null })
-    if (path === '/api/brain') return reply({ configured: false, usage: [] })
     if (path === '/api/remote/machines') return reply({ machines: [] })
     if (path.endsWith('/storage') || path.endsWith('/storage/scan')) {
       if (id === 'legacy-mac') return reply({ state: 'old_helper', storage: null }, request.method === 'POST' ? 202 : 200)

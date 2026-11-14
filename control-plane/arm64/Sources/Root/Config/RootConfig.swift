@@ -46,11 +46,6 @@ struct RootConfig {
     /// Seconds between two rounds of asking the helpers for their security events. A minute in real use; a test shortens it.
     var securityPollSeconds = 60
     var envFile = RootConfig.defaultEnvFile
-    var aiBaseURL: String?
-    var aiApiKey: String?
-    var aiModel: String?
-    var aiMaxTokens = BrainRules.defaultMaxTokens
-    var capabilitySeconds = BrainRules.defaultCapabilitySeconds
     /// The sandbox domain: the API is `api.<domain>` and everything inside a sandbox is `<port>-<id>.<domain>` (see
     /// sandbox/README.md). Set once per deployment, because E2B's SDKs build every address from it; never in a route.
     var sandboxDomain = RootConfig.defaultSandboxDomain
@@ -62,7 +57,6 @@ struct RootConfig {
 
     var cookiesAreSecure: Bool { publicBaseURL.hasPrefix("https://") }
     var sessionCookieName: String { cookiesAreSecure ? "__Host-ms_session" : "ms_session" }
-    var aiConfigured: Bool { [aiBaseURL, aiApiKey, aiModel].allSatisfy { $0?.isEmpty == false } }
 
     /// As in the MAAS panel: the env file and the data sit with the control plane, in the folder it is started from (control-plane/arm64).
     static let defaultEnvFile = ".env"
@@ -174,7 +168,6 @@ enum ConfigLoader {
         config.historyIntervalSeconds = try number(env["HISTORY_INTERVAL_SECONDS"], named: "HISTORY_INTERVAL_SECONDS", in: historyIntervalRange, default: config.historyIntervalSeconds)
         config.securityPollSeconds = try number(env["SECURITY_POLL_SECONDS"], named: "SECURITY_POLL_SECONDS", in: securityPollRange, default: config.securityPollSeconds)
         try applyScan(env, to: &config)
-        try applyBrain(env, to: &config)
         try applySandboxes(env, to: &config)
         try applyJoinShare(env, to: &config)
         try applyOffice(env, to: &config)
@@ -182,19 +175,6 @@ enum ConfigLoader {
             guard token.count >= SetupGate.minLength else { throw ConfigError(description: "ROOT_SETUP_TOKEN must be at least \(SetupGate.minLength) characters") }
             config.setupToken = token
         }
-    }
-
-    /// The AI provider. The key lives only in this file; a half-filled set of settings is refused so a typo is not mistaken for "not configured".
-    static func applyBrain(_ env: [String: String], to config: inout RootConfig) throws {
-        config.aiBaseURL = env["AI_BASE_URL"].flatMap { $0.isEmpty ? nil : $0 }
-        config.aiApiKey = env["AI_API_KEY"].flatMap { $0.isEmpty ? nil : $0 }
-        config.aiModel = env["AI_DEFAULT_MODEL"].flatMap { $0.isEmpty ? nil : $0 }
-        config.aiMaxTokens = try number(env["AI_MAX_TOKENS"], named: "AI_MAX_TOKENS", in: BrainRules.maxTokensRange, default: config.aiMaxTokens)
-        config.capabilitySeconds = try number(env["AI_CAPABILITY_SECONDS"], named: "AI_CAPABILITY_SECONDS", in: BrainRules.capabilitySecondsRange, default: config.capabilitySeconds)
-        let given = [config.aiBaseURL, config.aiApiKey, config.aiModel].compactMap { $0 }
-        guard !given.isEmpty else { return }
-        guard given.count == 3 else { throw ConfigError(description: "AI_BASE_URL, AI_API_KEY and AI_DEFAULT_MODEL must all be set, or none of them") }
-        guard BrainRules.isAcceptableBaseURL(config.aiBaseURL!) else { throw ConfigError(description: "AI_BASE_URL must be https (or http to a private address) with no credentials in it") }
     }
 
     /// The join-share hub. Off when the address is not set; set, it needs the key file too (a half-filled pair is refused so a typo is not mistaken for "off").

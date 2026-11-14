@@ -45,7 +45,6 @@ const server = createServer(async (request, response) => {
   if (path === '/api/machines') return send(response, 200, { machines: [] })
   if (path === '/api/commands') return send(response, 200, { commands: [] })
   if (path === '/api/bundles') return send(response, 200, { pinned: null, bundles: [] })
-  if (path === '/api/brain') return send(response, 200, { configured: true, usage: [] })
   if (path === '/api/remote/machines') return send(response, 200, { machines: [] })
   if (path === '/api/sandboxes/keys') {
     if (request.method === 'GET') return send(response, 200, { keys })

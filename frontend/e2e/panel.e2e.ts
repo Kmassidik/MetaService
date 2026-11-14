@@ -8,7 +8,6 @@ import { loginIsOneCentered } from './support/loginLayout.ts'
 import { noSideScroll, owlShown } from './support/owls.ts'
 import { chromePath } from './support/paths.ts'
 import { browse } from './support/page.ts'
-import { brainScenario } from './panel/brain.ts'
 import { bundleScenario } from './panel/bundles.ts'
 import { firstRun } from './panel/first-run.ts'
 import { hostileTextIsShownAsText, machinesList, overviewAndSidebar, removeAMachine, signInWithAWrongThenTheRightPassword } from './panel/machines.ts'
@@ -43,7 +42,6 @@ try {
   await removeAMachine(b)
   await workloadScenario(b, world)
   await bundleScenario(b, world)
-  await brainScenario(b, world)
   await scanScenario(b)
   await notFoundScreens(b)
   await loadingThenErrorScreens(b)

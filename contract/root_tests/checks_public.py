@@ -80,10 +80,10 @@ def check_each_listener_serves_only_its_own_routes():
     with running() as root:
         browser = Browser(root)
         on_operator = lambda method, path, **kw: browser.request(method, path, headers={"Host": f"localhost:{root.port}"}, **kw)
-        for method, path in (("POST", "/v1/agents/enroll"), ("POST", "/v1/agents/heartbeat"), ("GET", "/v1/bundles/0.1.0/noarch"), ("POST", "/v1/brain/chat"), ("POST", "/v1/brain/capability")):
+        for method, path in (("POST", "/v1/agents/enroll"), ("POST", "/v1/agents/heartbeat"), ("GET", "/v1/bundles/0.1.0/noarch")):
             reply = _on_port(root.port, method, path)
             expect(reply == 404, f"the operator listener answered {method} {path} with {reply}")
-        for method, path in (("GET", "/api/machines"), ("GET", "/api/session"), ("GET", "/api/brain"), ("GET", "/api/bundles"), ("POST", "/api/workloads"), ("GET", "/")):
+        for method, path in (("GET", "/api/machines"), ("GET", "/api/session"), ("GET", "/api/bundles"), ("POST", "/api/workloads"), ("GET", "/")):
             reply = _on_port(root.agent_port, method, path)
             expect(reply == 404, f"the Agent listener answered {method} {path} with {reply}")
         expect(on_operator("GET", "/health").body == {"status": "ok"} and _on_port(root.agent_port, "GET", "/health") == 200, "both listeners answer /health")
