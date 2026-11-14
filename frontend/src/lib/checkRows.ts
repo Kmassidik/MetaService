@@ -42,7 +42,7 @@ const HOST_KEY_TAIL = 8
 const HOST_KEY_SHORT_MAX = 20
 const SYSTEM_ID = 'system'
 /** The rows whose cross does not stop the computer from being added. The parent decides this too (`optionalRows`); the panel only needs it to draw the cross calmly. */
-const OPTIONAL_IDS: ReadonlySet<string> = new Set(['gpu_toolkit', 'autostart'])
+const OPTIONAL_IDS: ReadonlySet<string> = new Set(['gpu_toolkit', 'autostart', 'vm_tool'])
 
 const GROUPS: { id: CheckGroup; title: string }[] = [
   { id: 'computer', title: 'This computer' },

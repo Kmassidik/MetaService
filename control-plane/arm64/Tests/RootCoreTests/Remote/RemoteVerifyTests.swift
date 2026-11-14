@@ -131,3 +131,55 @@ final class RemoteVerifyVmToolOptionalTests: XCTestCase {
         XCTAssertFalse(result.requirements.first { $0.id == "vm_tool" }?.ok ?? true)
     }
 }
+
+final class AppleContainerInstallTests: XCTestCase {
+    private let mac = "os=Darwin\narch=arm64\nuser=u\nversion=macOS 27\nchip=Apple M5\nram_mb=36864\ndisk_free_gb=396\ntool=python3\nsudo=password\nport_9101=free\n"
+
+    func testAMacWithoutTheContainerToolIsOfferedAnInstallThatAsksForThePassword() throws {
+        let facts = try XCTUnwrap(RemoteProbe.parse(mac))
+        let offer = try XCTUnwrap(InstallOffers.offer(for: .vmTool, facts: facts))
+        XCTAssertTrue(offer.needsPassword)
+    }
+
+    func testNothingIsOfferedWhenTheToolIsThereOrTheLoginHasNoSudo() throws {
+        let there = try XCTUnwrap(RemoteProbe.parse(mac + "tool=container\n"))
+        XCTAssertNil(InstallOffers.offer(for: .vmTool, facts: there))
+        let noSudo = try XCTUnwrap(RemoteProbe.parse(mac.replacingOccurrences(of: "sudo=password", with: "sudo=none")))
+        XCTAssertNil(InstallOffers.offer(for: .vmTool, facts: noSudo))
+    }
+
+    func testAnIntelMacIsNotOffered() throws {
+        let intel = try XCTUnwrap(RemoteProbe.parse(mac.replacingOccurrences(of: "arch=arm64", with: "arch=x86_64")))
+        XCTAssertNil(InstallOffers.offer(for: .vmTool, facts: intel))
+    }
+
+    func testTheMacScriptChecksTheSignatureBeforeInstallingAndTouchesNothingElse() {
+        let script = InstallMissingScripts.script(for: .vmTool, user: "u", box: "/Users/u/metaservice-box", mac: true)
+        let check = script.range(of: "pkgutil --check-signature")
+        let install = script.range(of: "installer -pkg")
+        XCTAssertNotNil(check)
+        XCTAssertNotNil(install)
+        XCTAssertLessThan(check!.lowerBound, install!.lowerBound)
+        XCTAssertTrue(script.contains(AppleContainerScript.packageURL))
+        XCTAssertTrue(script.contains(InstallMissingScripts.doneMarker))
+        XCTAssertFalse(script.contains("apt-get"))
+        XCTAssertFalse(script.contains("rm -rf /"))
+    }
+
+    func testALinuxComputerStillGetsTheIncusScript() {
+        let script = InstallMissingScripts.script(for: .vmTool, user: "u", box: "/home/u/box", mac: false)
+        XCTAssertTrue(script.contains("incus"))
+        XCTAssertFalse(script.contains("pkgutil"))
+    }
+}
+
+final class AppleContainerRestartTests: XCTestCase {
+    func testTheHelperInTheBoxIsRestartedAsItsUserAfterTheInstall() {
+        let script = AppleContainerScript.script(user: "luca", box: "/Users/luca/metaservice-box")
+        XCTAssertTrue(script.contains("sudo -u 'luca' sh '/Users/luca/metaservice-box/start.sh'") || script.contains("sudo -u luca sh /Users/luca/metaservice-box/start.sh"))
+    }
+
+    func testNoRestartIsAttemptedForAnOddBoxPath() {
+        XCTAssertFalse(AppleContainerScript.script(user: "luca", box: "/x; rm -rf ~").contains("start.sh"))
+    }
+}

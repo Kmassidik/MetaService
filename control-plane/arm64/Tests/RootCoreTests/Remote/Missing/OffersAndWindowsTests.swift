@@ -28,7 +28,7 @@ final class OffersAndWindowsTests: XCTestCase {
         XCTAssertNil(rows(head + "pkg=dnf\nsudo=password\n")["vm_tool"]?.install, "dnf is not built")
         XCTAssertNil(rows(head + "sudo=password\n")["vm_tool"]?.install, "unknown package manager")
         let mac = rows("os=Darwin\narch=arm64\nuser=m\nram_mb=16384\ndisk_free_gb=100\nsudo=password\nport_9101=free\n")
-        XCTAssertNil(mac["vm_tool"]?.install)
+        XCTAssertNotNil(mac["vm_tool"]?.install, "a Mac gets Apple's container tool installed for it")
         XCTAssertNil(mac["python"]?.install)
     }
 

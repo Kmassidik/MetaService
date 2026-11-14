@@ -23,7 +23,7 @@ func makeEngine(_ config: AgentConfig, records: RecordStore? = nil) throws -> En
     guard config.engineName == "apple" else { return SimulatedEngine() }
     guard let path = ProcessContainerCLI.locate(config.containerPath) else {
         return UnavailableEngine(name: AppleContainerEngine.engineName, problem: HostProblem(code: "container_tool_missing", message: "Apple's container tool is not installed on this Mac, so it can't create VMs yet.",
-                                                      fix: "Install it from github.com/apple/container, then stop and start MetaService again (./install.sh)."))
+                                                      fix: "Press Fix on this machine's card and type the Mac's password once: MetaService installs the tool and restarts its helper."))
     }
     try FileManager.default.createDirectory(atPath: config.stateDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     return AppleContainerEngine(cli: ProcessContainerCLI(path: path), records: records ?? RecordStore(path: config.stateDirectory + "/workloads.json"),

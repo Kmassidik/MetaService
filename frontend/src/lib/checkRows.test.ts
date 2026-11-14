@@ -57,10 +57,10 @@ test('the NVIDIA toolkit row goes in the software card, counts, and never blocks
   expect(checkCards(checkRows(reqs)).some((card) => card.hasBlocking)).toBe(false)
 })
 
-test('a missing Incus or Python is a blocking cross', () => {
+test('a missing VM tool (Incus, Apple container) does not block adding, a missing Python does', () => {
   const reqs = swap(linux(), cross('vm_tool', 'Incus (makes the VMs)', 'Not installed.'))
-  expect(byId(reqs, 'vm_tool')?.state).toBe('blocking')
-  expect(isBlocking(need(reqs, 'vm_tool'))).toBe(true)
+  expect(byId(reqs, 'vm_tool')?.state).toBe('optional')
+  expect(isBlocking(need(reqs, 'vm_tool'))).toBe(false)
 })
 
 test('"Starts at boot" sits with the computer, says yes in a word, and warns without blocking', () => {
@@ -201,7 +201,7 @@ test('the verdict counts what must be fixed and what is only missing', () => {
   expect(verdict(checkRows(linux()))).toEqual({ tone: 'ready', text: 'All 11 checks passed. This computer can be added.' })
   const one = swap(linux(), cross('python', 'Python (runs the chat)', 'Not installed.'))
   expect(verdict(checkRows(one))).toEqual({ tone: 'blocking', text: '1 thing to fix before this computer can be added.' })
-  const two = swap(one, cross('vm_tool', 'Incus (makes the VMs)', 'Not installed.'))
+  const two = swap(one, cross('memory', 'Memory', '1024 MB; VMs need at least 4 GB.'))
   expect(verdict(checkRows(two)).text).toBe('2 things to fix before this computer can be added.')
   const extra = [...linux(), cross('gpu_toolkit', 'NVIDIA container toolkit', 'Not installed.')]
   expect(verdict(checkRows(extra))).toEqual({ tone: 'optional', text: 'Ready to add. One extra is missing, and it does not block adding.' })

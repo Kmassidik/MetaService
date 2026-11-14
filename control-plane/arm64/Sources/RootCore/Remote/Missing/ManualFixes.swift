@@ -8,7 +8,7 @@ enum ManualFixes {
     private static let afterIncus = "Then add the login user to the `incus-admin` group, run `sudo incus admin init --minimal`, and check again."
 
     static func vmTool(_ facts: RemoteFacts) -> String {
-        if facts.isMac { return "Install Apple's container tool from https://github.com/apple/container/releases, then check again." }
+        if facts.isMac { return "Press Install it for me and type the Mac's password once, or download Apple's container installer from https://github.com/apple/container/releases and open it on that Mac. Then check again." }
         switch facts.packageManager {
         case .apt: return "Run `sudo apt install incus`. That works on Debian 13 and Ubuntu 24.04 or newer; an older one needs \(zabbly). \(afterIncus)"
         case .dnf: return "Run `sudo dnf install incus`. \(afterIncus)"

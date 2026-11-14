@@ -49,13 +49,13 @@ final class RemoteFixService: @unchecked Sendable {
         let before = try await RemoteService.readFacts(ssh, target, credentials)
         if alreadyThere(part, before) { return result(target, key.fingerprint, before) }
         guard InstallOffers.offer(for: part, facts: before) != nil else { throw RemoteFailure.fixUnavailable }
-        try await runInstall(part: part, sudoPassword: sudoPassword, user: before.user, box: before.box, target: target, credentials: credentials)
+        try await runInstall(part: part, mac: before.isMac, sudoPassword: sudoPassword, user: before.user, box: before.box, target: target, credentials: credentials)
         return result(target, key.fingerprint, try await RemoteService.readFacts(ssh, target, credentials))
     }
 
     private func alreadyThere(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
         switch part {
-        case .vmTool: return facts.tools.contains("incus")
+        case .vmTool: return facts.tools.contains(facts.isMac ? "container" : "incus")
         case .python: return facts.tools.contains("python3")
         case .gpuToolkit: return facts.hasGpuToolkit
         case .vmPackages: return facts.kvm == true && facts.qemu == true
@@ -63,8 +63,8 @@ final class RemoteFixService: @unchecked Sendable {
         }
     }
 
-    private func runInstall(part: MissingPart, sudoPassword: SudoPassword, user: String, box: String, target: RemoteTarget, credentials: SshCredentials) async throws {
-        let script = InstallMissingScripts.script(for: part, user: user, box: box)
+    private func runInstall(part: MissingPart, mac: Bool, sudoPassword: SudoPassword, user: String, box: String, target: RemoteTarget, credentials: SshCredentials) async throws {
+        let script = InstallMissingScripts.script(for: part, user: user, box: box, mac: mac)
         let command = InstallMissingScripts.sudoCommand(script: script, withPassword: !sudoPassword.isEmpty)
         let sent = try await ssh.run(command: command, input: sudoPassword.standardInput(), on: target, with: credentials, timeout: Self.installSeconds)
         if sent.status == Self.sshFailureStatus { throw RemoteFailure.fromSsh(sudoPassword.redacted(sent.errors), status: sent.status, auth: credentials.auth) }

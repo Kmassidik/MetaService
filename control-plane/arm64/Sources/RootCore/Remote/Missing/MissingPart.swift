@@ -35,13 +35,14 @@ public enum InstallOffers {
     private static func canInstall(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
         guard facts.sudo != .none else { return false }
         if part == .autostart, facts.isMac { return true }
+        if part == .vmTool, facts.isMac { return AppleContainerScript.supports(facts) }
         return facts.isLinux && facts.packageManager == .apt
     }
 
     /// True when that part really is missing on this computer: nothing is offered for a part that is already there.
     static func needed(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
         switch part {
-        case .vmTool: return !facts.tools.contains("incus")
+        case .vmTool: return !facts.tools.contains(facts.isMac ? "container" : "incus")
         case .python: return !facts.tools.contains("python3")
         case .gpuToolkit: return facts.nvidiaGpu != nil && !facts.hasGpuToolkit
         case .vmPackages: return facts.kvm == false || facts.qemu == false
