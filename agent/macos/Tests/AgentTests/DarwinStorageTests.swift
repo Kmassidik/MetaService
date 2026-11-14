@@ -163,3 +163,27 @@ final class DarwinStorageTests: XCTestCase {
         XCTAssertFalse(plan.skip.contains("/Users"), "firmlink targets are traversed once, not skipped as mounts")
     }
 }
+
+final class DarwinGuardedOpenTests: XCTestCase {
+    func testAFolderThatNeverAnswersIsSkippedAfterTheLimit() {
+        let started = Date()
+        let result = DarwinGuardedOpen.directory("/Users/x/Pictures/Photos Library.photoslibrary", guarded: true, limit: 0.2) { _ in
+            Thread.sleep(forTimeInterval: 1)
+            return -1
+        }
+        XCTAssertEqual(result, -1)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.8)
+    }
+
+    func testAGuardedFolderThatAnswersInTimeIsOpened() throws {
+        let result = DarwinGuardedOpen.directory(NSTemporaryDirectory(), guarded: true)
+        XCTAssertGreaterThanOrEqual(result, 0)
+        Darwin.close(result)
+    }
+
+    func testOnlyUserFoldersNearTheTopAreGuarded() {
+        XCTAssertTrue(DarwinGuardedOpen.shouldGuard(path: "/Users/lora/Pictures/Photos Library.photoslibrary", depth: 4))
+        XCTAssertFalse(DarwinGuardedOpen.shouldGuard(path: "/Applications/Xcode.app", depth: 2))
+        XCTAssertFalse(DarwinGuardedOpen.shouldGuard(path: "/Users/lora/a/b/c/d/e/f", depth: 7))
+    }
+}

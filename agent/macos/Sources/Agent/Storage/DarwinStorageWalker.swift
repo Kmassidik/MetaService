@@ -76,7 +76,7 @@ struct DarwinStorageWalker {
             var childMeta = Darwin.stat()
             guard Darwin.lstat(path, &childMeta) == 0 else { counters.addEntry(); continue }
             if !devices.contains(Self.device(childMeta)) || skip.contains(path) { counters.addEntry(); continue }
-            let childReader = Darwin.open(path, O_RDONLY | O_DIRECTORY)
+            let childReader = DarwinGuardedOpen.directory(path, guarded: DarwinGuardedOpen.shouldGuard(path: path, depth: top.depth + 1))
             guard childReader >= 0 else {
                 unreadable += 1
                 counters.addEntry()
