@@ -318,7 +318,7 @@ trust_bridge_needed() {
 
 # With firewalld running, Incus's VM bridge goes in the trusted zone, or the host drops the VMs' DHCP requests and they never get an IPv4 address
 # (the same step as `metaservice-agent setup`). Nothing happens without a running firewalld, or when the bridge is already trusted, so it is safe to repeat.
-ENSURE_IDMAP='for f in /etc/subuid /etc/subgid; do grep -q "^root:" "$f" 2>/dev/null || echo "root:1000000:1000000000" >> "$f"; done'
+ENSURE_IDMAP='changed=0; for f in /etc/subuid /etc/subgid; do grep -q "^root:" "$f" 2>/dev/null || { echo "root:1000000:1000000000" >> "$f"; changed=1; }; done; if [ "$changed" = 1 ] && command -v systemctl >/dev/null 2>&1 && systemctl is-active incus >/dev/null 2>&1; then systemctl restart incus; fi'
 TRUST_BRIDGE='if command -v firewall-cmd >/dev/null 2>&1 && [ "$(firewall-cmd --state 2>/dev/null)" = running ]; then bridge=$(incus network list --format csv 2>/dev/null | awk -F, '"'"'$2=="bridge" && $3=="YES" {print $1; exit}'"'"'); [ -z "$bridge" ] || [ "$(firewall-cmd --get-zone-of-interface="$bridge" 2>/dev/null)" = trusted ] || { firewall-cmd --permanent --zone=trusted --add-interface="$bridge" && firewall-cmd --reload; }; fi'
 
 plan_linux_block() {
