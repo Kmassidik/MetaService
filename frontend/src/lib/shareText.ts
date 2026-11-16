@@ -69,10 +69,16 @@ export function saneName(hostname: string): string {
   return name || FALLBACK_NAME
 }
 
+/** The line that undoes a join on the computer itself. It asks for sudo once there, stops the helper and WireGuard, removes the boot entries and deletes the join folder. */
+export const LEAVE_COMMAND = 'sh ~/.metaservice-join/leave.sh'
+
+/** What Remove here does not do: the other computer is not touched, so its helper and WireGuard keep running until someone there runs the leave command. */
+export const LEAVE_NOTE = `Removing it here does not change that computer: its helper and WireGuard keep running there until someone on it runs ${LEAVE_COMMAND} (it asks for sudo once, stops the services and deletes the join folder).`
+
 export const removePeerCopy = (peer: Pick<JoinedMachine, 'name'>): ConfirmCopy => ({
   title: 'Remove this machine?',
   what: `${peer.name} will be taken out of the shared network.`,
-  consequence: 'Its address is freed and it can no longer reach the parent. The person can join again with a new command.',
+  consequence: `Its address is freed and it can no longer reach the parent. ${LEAVE_NOTE} The person can join again with a new command.`,
   confirmLabel: 'Remove machine',
   busyLabel: 'Removing…',
   doneLabel: 'Removed',

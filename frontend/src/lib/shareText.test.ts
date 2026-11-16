@@ -47,6 +47,7 @@ test('the remove question names the machine and what is lost', () => {
   const copy = removePeerCopy({ name: 'far-mac' })
   expect(copy.what).toContain('far-mac')
   expect(copy.confirmLabel).toBe('Remove machine')
+  expect(copy.consequence).toContain('sh ~/.metaservice-join/leave.sh')
 })
 
 test('every system of the page has a logo that is bundled', async () => {

@@ -2,7 +2,7 @@
   import ConfirmDialog from '../ConfirmDialog.svelte'
   import { shareRemovePeer } from '../../lib/api.ts'
   import type { JoinedMachine } from '../../lib/share.ts'
-  import { handshakeText, OS_NAMES, removePeerCopy } from '../../lib/shareText.ts'
+  import { handshakeText, LEAVE_COMMAND, OS_NAMES, removePeerCopy } from '../../lib/shareText.ts'
 
   let { peers, onChanged }: { peers: JoinedMachine[]; onChanged: () => Promise<void> } = $props()
   let removing = $state<JoinedMachine | null>(null)
@@ -36,12 +36,15 @@
     </table>
   </div>
 {/if}
+{#if peers.length > 0}<p class="leave">To take a machine out completely: press Remove here, then run <code>{LEAVE_COMMAND}</code> on that machine. Remove alone does not stop anything on it.</p>{/if}
 
 <ConfirmDialog open={removing !== null} {...copy} onconfirm={remove} onClose={() => (removing = null)} />
 
 <style>
   .none { margin: 0; padding: 16px 28px; color: var(--m50); font-size: 13px; }
+  .leave { margin: 0; padding: 12px 28px; color: var(--m60); font-size: 13px; }
+  .leave code { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
   .small { font-family: var(--mono); font-size: 11px; color: var(--m50); overflow-wrap: anywhere; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  @media (max-width: 820px) { .none { padding: 16px; } }
+  @media (max-width: 820px) { .none, .leave { padding: 12px 16px; } }
 </style>

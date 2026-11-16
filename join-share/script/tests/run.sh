@@ -283,6 +283,32 @@ join approve-incus3 linux x86_64 y
 ok "no install; init once, only because nothing is configured" sh -c "[ $CODE = 0 ] && ! grep -q '^dnf' '$CALLS' && [ \$(grep -c '^incus admin init --minimal' '$CALLS') = 1 ]"
 finish_world
 
+echo "== linux: an NVIDIA card without the container toolkit (asked first, installed from NVIDIA's source)"
+new_world Linux x86_64; install_tools_already; start_hub
+stub nvidia-smi 'echo "NVIDIA GeForce RTX 3050 Laptop GPU"'
+join approve-nv linux x86_64 y
+ok "the check list names the missing toolkit and the card" has "$T/out" '\[missing\] *NVIDIA container toolkit (lets containers use the NVIDIA GeForce RTX 3050 Laptop GPU)'
+ok "it asks before the plan is printed, and says it adds NVIDIA's package source" sh -c "grep -n 'Install it so containers can use the GPU\|Continue?' '$T/out' | head -1 | grep -q 'GPU' && grep -q \"NVIDIA's own package source\" '$T/out'"
+ok "after a yes the plan shows NVIDIA's repo file and the dnf install in the root block" sh -c "grep -q 'nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo' '$T/out' && grep -q 'dnf install -y nvidia-container-toolkit' '$T/out'"
+finish_world
+
+new_world Linux x86_64; install_tools_already; start_hub
+stub nvidia-smi 'echo "NVIDIA GeForce RTX 3050 Laptop GPU"'
+JOIN_NVIDIA_TOOLKIT=no; export JOIN_NVIDIA_TOOLKIT; join approve-nv2 linux x86_64 y; unset JOIN_NVIDIA_TOOLKIT
+ok "JOIN_NVIDIA_TOOLKIT=no: not asked, nothing about NVIDIA is installed, the join goes on" sh -c "[ $CODE = 0 ] && ! grep -q 'Install it so containers' '$T/out' && ! grep -q '^dnf install -y nvidia' '$CALLS' && ! grep -q 'nvidia.github.io' '$T/out.plan' 2>/dev/null"
+finish_world
+
+new_world Linux x86_64; install_tools_already; start_hub
+join approve-nv3 linux x86_64 y
+ok "no NVIDIA card: no row, no question" sh -c "! grep -qi 'nvidia' '$T/out'"
+finish_world
+
+new_world Linux x86_64; install_tools_already; start_hub
+stub nvidia-smi 'echo "NVIDIA GeForce RTX 3050 Laptop GPU"'; stub nvidia-ctk 'exit 0'
+join approve-nv4 linux x86_64 y
+ok "the toolkit is already there: found, no question" sh -c "grep -q '\[found\] *NVIDIA container toolkit' '$T/out' && ! grep -q 'Install it so containers' '$T/out'"
+finish_world
+
 echo "== linux: the package manager has no incus package"
 new_world Linux x86_64; install_tools_already; rm -f "$BIN/incus" "$INCUS_CONF"; : > "$NO_INCUS_PKG"; start_hub
 join approve-incus4 linux x86_64 y

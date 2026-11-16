@@ -1,4 +1,5 @@
 // The words of each red confirm dialog, in one place: what exactly goes, what is lost, and the verb on the red button. Pure, so the wording is tested.
+import { LEAVE_NOTE } from './shareText.ts'
 import type { Machine, RemoteMachineInfo, Workload } from './types.ts'
 
 export interface ConfirmCopy {
@@ -35,11 +36,14 @@ export function removeSshKeyCopy(workload: Pick<Workload, 'name'>): ConfirmCopy 
   }
 }
 
-export function removeMachineCopy(machine: Pick<Machine, 'name'>): ConfirmCopy {
+const SHARE_PREFIX = '10.77.0.'
+
+export function removeMachineCopy(machine: Pick<Machine, 'name'> & { ip?: string }): ConfirmCopy {
+  const joined = machine.ip?.startsWith(SHARE_PREFIX) === true
   return {
     title: 'Remove this machine?',
     what: `${machine.name} will disappear from MetaService and its token stops working.`,
-    consequence: 'Its VMs keep running on the machine. To manage it again it must enroll with a new token.',
+    consequence: `Its VMs keep running on the machine. To manage it again it must enroll with a new token.${joined ? ` ${LEAVE_NOTE}` : ''}`,
     confirmLabel: 'Remove machine',
     busyLabel: 'Removing…',
     doneLabel: 'Removed',

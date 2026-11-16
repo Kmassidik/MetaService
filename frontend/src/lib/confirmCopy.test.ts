@@ -11,6 +11,8 @@ describe('confirm dialog words', () => {
   })
 
   test('Remove machine names the machine and says its VMs keep running', () => {
+    expect(removeMachineCopy({ name: 'fedora', ip: '10.77.0.2' }).consequence).toContain('leave.sh')
+    expect(removeMachineCopy({ name: 'mac-mini', ip: '192.168.0.40' }).consequence).not.toContain('leave.sh')
     const copy = removeMachineCopy({ name: 'mac-mini' })
     expect(copy.what).toContain('mac-mini')
     expect(copy.consequence).toContain('VMs keep running')

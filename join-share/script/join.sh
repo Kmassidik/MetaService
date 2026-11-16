@@ -163,6 +163,56 @@ check_machine() {
   check_platform_items
 }
 
+# An NVIDIA card whose driver works (nvidia-smi answers) but without NVIDIA's container toolkit: containers cannot use the card, so the join offers to install it.
+# Only asked when Incus makes the VMs. Without a working driver nothing is offered, because the toolkit alone would not help.
+nvidia_card_name() { have nvidia-smi && nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1; }
+nvidia_toolkit_ready() { have nvidia-ctk || have nvidia-container-cli; }
+check_nvidia_toolkit() {
+  NEED_NVIDIA=no
+  [ "$ENGINE" = incus ] || return 0
+  NVIDIA_CARD=$(nvidia_card_name || true)
+  [ -n "$NVIDIA_CARD" ] || return 0
+  LABEL="NVIDIA container toolkit (lets containers use the $NVIDIA_CARD)"
+  report nvidia_toolkit_ready || NEED_NVIDIA=yes
+}
+
+# The one optional question: NVIDIA's package source is a third party's, so it is installed only after a yes. JOIN_SHARE_YES=1 (not asked) counts as yes.
+ask_nvidia_toolkit() {
+  INSTALL_NVIDIA=no
+  [ "$NEED_NVIDIA" = yes ] || return 0
+  have dnf || have apt-get || { say "NVIDIA's container toolkit is not offered for this package manager. Install it yourself if containers should use the GPU."; return 0; }
+  case "${JOIN_NVIDIA_TOOLKIT:-}" in
+    yes) INSTALL_NVIDIA=yes; return 0 ;;
+    no) say "NVIDIA container toolkit: skipped (JOIN_NVIDIA_TOOLKIT=no, not asked)."; return 0 ;;
+  esac
+  if [ "${JOIN_SHARE_YES:-}" = 1 ]; then INSTALL_NVIDIA=yes; return 0; fi
+  say ""
+  say "This computer has an NVIDIA GPU ($NVIDIA_CARD), but containers cannot use it without NVIDIA's container toolkit."
+  say "Installing it adds NVIDIA's own package source to this computer, then installs the package nvidia-container-toolkit."
+  printf 'Install it so containers can use the GPU? [y/N] '
+  answer=n
+  IFS= read -r answer < "$JOIN_TTY" || answer=n
+  case "$answer" in
+    y | Y) INSTALL_NVIDIA=yes ;;
+    *) say "Skipped. The panel will keep a note on this machine until the toolkit is installed." ;;
+  esac
+}
+
+# NVIDIA's documented install (docs.nvidia.com, container toolkit install guide): their package source, then the package.
+plan_nvidia_steps() {
+  BLOCK_NVIDIA=""
+  [ "$INSTALL_NVIDIA" = yes ] || return 0
+  if have dnf; then
+    BLOCK_NVIDIA="curl -fsSL https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo -o /etc/yum.repos.d/nvidia-container-toolkit.repo &&
+dnf install -y nvidia-container-toolkit"
+  else
+    BLOCK_NVIDIA="curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg &&
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' > /etc/apt/sources.list.d/nvidia-container-toolkit.list &&
+apt-get update &&
+apt-get install -y nvidia-container-toolkit"
+  fi
+}
+
 check_platform_items() {
   if [ "$MY_OS" = mac ]; then
     LABEL="wireguard-go"; report have wireguard-go || MISSING_WG=yes
@@ -172,6 +222,7 @@ check_platform_items() {
   fi
   check_linux_wireguard
   LABEL="Incus"; [ "$ENGINE" != incus ] || report have incus || NEED_INCUS=yes
+  check_nvidia_toolkit
   LABEL="start-at-boot for your user (linger)"; report linger_is_on || NEED_LINGER=yes
 }
 
@@ -252,6 +303,8 @@ TRUST_BRIDGE='if command -v firewall-cmd >/dev/null 2>&1 && [ "$(firewall-cmd --
 plan_linux_block() {
   plan_incus_steps
   BLOCK_PACKAGES=$(append_block "$BLOCK_PACKAGES" "$BLOCK_INCUS")
+  plan_nvidia_steps
+  BLOCK_PACKAGES=$(append_block "$BLOCK_PACKAGES" "$BLOCK_NVIDIA")
   BOOT_COMMANDS="wg-quick down $(shq "$WG_CONF") 2>/dev/null || true
 wg-quick up $(shq "$WG_CONF")"
   WG_BOOT=none
@@ -538,7 +591,10 @@ main() {
   NEED_LINGER=no
   NEED_GO=no
   NEED_INCUS=no
+  NEED_NVIDIA=no
+  INSTALL_NVIDIA=no
   check_machine
+  ask_nvidia_toolkit
   plan_packages
   plan_root_blocks
   print_plan
