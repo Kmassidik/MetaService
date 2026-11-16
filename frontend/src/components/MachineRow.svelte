@@ -21,6 +21,7 @@
   import { networkTag } from '../lib/networkTag.ts'
   import { securityBadge } from '../lib/securityRules.ts'
   import { cardFacts, vmsChip } from '../lib/cardFacts.ts'
+  import { liveDisk, liveMemory, vmRoom } from '../lib/cardSpace.ts'
   import { gpuFact, gpuTitle, readGpuLive } from '../lib/gpuLive.ts'
   import { getMachineStats } from '../lib/api.ts'
   import { isStale, LIST_POLL_MS } from '../lib/stats.ts'
@@ -47,6 +48,9 @@
   const gpuValue = $derived(gpu === null ? null : gpuFact(gpu))
   const facts = $derived(cardFacts(machine, gpuValue))
   const vms = $derived(vmsChip(machine.workloads.length))
+  const memorySpace = $derived(liveMemory(stats) ?? { free: machine.free_ram_mb, total: machine.ram_total_mb })
+  const diskSpace = $derived(liveDisk(stats) ?? { free: machine.free_disk_gb, total: machine.disk_total_gb })
+  const room = $derived(vmRoom(machine))
   const display = $derived(machineCardDisplay(machine))
   const labels = $derived(machine.settings?.labels ?? [])
   const flag = $derived(bundleFlag(machine.bundle_version, pinned))
@@ -119,9 +123,10 @@
   <LiveLine {stats} />
 
   <div class="meters">
-    <Meter label="Memory" free={machine.free_ram_mb} total={machine.ram_total_mb} format={formatMb} icon={CARD_ICONS.memory} />
-    <Meter label="Disk" free={machine.free_disk_gb} total={machine.disk_total_gb} format={formatGb} icon={CARD_ICONS.disk} />
+    <Meter label="Memory" free={memorySpace.free} total={memorySpace.total} format={formatMb} icon={CARD_ICONS.memory} />
+    <Meter label="Disk" free={diskSpace.free} total={diskSpace.total} format={formatGb} icon={CARD_ICONS.disk} />
   </div>
+  {#if room}<p class="room" data-testid="vm-room" title="What this machine can still give to new VMs: its share, minus the host's own reserve, minus what VMs already hold.">{room}</p>{/if}
 
   {#if machine.problems?.length}
     <div class="problems" role="alert">
@@ -153,6 +158,7 @@
   .nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 15px; }
   /* The chips that come and go share one slot: when the header has no room left, they are clipped, never the name, the state or the VMs. */
   .tags { display: flex; flex: 0 1 auto; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .room { margin: -6px 16px 10px; font-family: var(--mono); font-size: 10px; color: var(--m50); }
   .marks { display: inline-flex; flex: none; align-items: center; gap: 6px; margin-left: auto; }
   /* The one word of the header's chip, in the words the card uses: "No VMs", "2 VMs". */
   .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--line); font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--m60); white-space: nowrap; }
