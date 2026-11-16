@@ -1,16 +1,12 @@
 // What the machine page says about the helper program on a machine and the "Update helper" button. Pure functions, no DOM, no network.
 // Text that comes from the parent (a reason, a result sentence) is only ever returned as text.
 import { isFields, optionalText, UnreadableAnswer } from './unreadable.ts'
-import { SHARED_PREFIX } from './networkTag.ts'
 import type { HelperUpdateInfo, HelperUpdateResult, Machine } from './types.ts'
 
 const SHORT_BUILD_LENGTH = 8
 const NOT_REPORTED = 'not reported'
 const OFFLINE_NOTE = 'The machine is offline.'
-/** A machine that joined through Share a PC has no SSH login for the panel, which is how Update helper reaches a machine. It gets the newest helper when it joins again. */
-export const SHARED_NOTE = 'This computer joined through Share a PC, so the panel cannot replace its helper from here. Remove it (it can clean itself) and join again to get the newest helper.'
-const isShared = (machine: Pick<Machine, 'ip'>): boolean => machine.ip?.startsWith(SHARED_PREFIX) === true
-const RESULT_NAMES: ReadonlyArray<HelperUpdateResult['result']> = ['updated', 'rolled_back', 'failed']
+const RESULT_NAMES: ReadonlyArray<HelperUpdateResult['result']> = ['updated', 'started', 'rolled_back', 'failed']
 
 export const UPDATING_TEXT = 'Updating…'
 export const UPDATE_EXPLANATION = 'Replaces the MetaService program on this computer with the newest one. Your VMs keep running.'
@@ -39,7 +35,7 @@ function statusOf(machine: Pick<Machine, 'agent_build' | 'update'>): { status: H
 }
 
 /** The Helper row of the Environment tab. The button works only when the parent has a different build for this machine and the machine answers. */
-export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending' | 'ip'>): HelperView {
+export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending'>): HelperView {
   const { status, label } = statusOf(machine)
   const online = machine.state !== 'offline'
   const pending = machine.state_pending === true
@@ -48,8 +44,8 @@ export function helperView(machine: Pick<Machine, 'agent_build' | 'update' | 'st
     build: shortBuild(machine.agent_build),
     status,
     label,
-    canUpdate: offers && online && !isShared(machine),
-    note: machine.update?.reason ?? (offers && isShared(machine) ? SHARED_NOTE : offers && !online && !pending ? OFFLINE_NOTE : null),
+    canUpdate: offers && online,
+    note: machine.update?.reason ?? (offers && !online && !pending ? OFFLINE_NOTE : null),
   }
 }
 
@@ -64,7 +60,7 @@ export interface CardUpdate {
 }
 
 /** What the machine card of the Machines list offers: the button when the Environment tab's button would work, else the reason under the tag. */
-export function cardUpdate(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending' | 'ip'>): CardUpdate {
+export function cardUpdate(machine: Pick<Machine, 'agent_build' | 'update' | 'state' | 'state_pending'>): CardUpdate {
   const view = helperView(machine)
   const tagged = listTag(machine) !== null
   return { button: view.canUpdate, note: tagged && !view.canUpdate ? view.note : null }
@@ -95,6 +91,7 @@ export interface OutcomeView {
 
 const OUTCOMES: Record<HelperUpdateResult['result'], { tone: Tone; title: string }> = {
   updated: { tone: 'ok', title: 'Updated' },
+  started: { tone: 'ok', title: 'Update started' },
   rolled_back: { tone: 'warn', title: 'Rolled back' },
   failed: { tone: 'bad', title: 'Update failed' },
 }
@@ -103,7 +100,8 @@ export const outcomeView = (result: HelperUpdateResult): OutcomeView => ({ ...OU
 
 const REFUSALS: Record<string, { tone: Tone; title: string }> = {
   login_needed: { tone: 'warn', title: 'Login needed' },
-  joined_through_share: { tone: 'warn', title: 'Joined through Share a PC' },
+  old_helper: { tone: 'warn', title: 'Too old to update itself' },
+  update_failed: { tone: 'warn', title: 'Not updated' },
   machine_busy: { tone: 'warn', title: 'Not now' },
   up_to_date: { tone: 'ok', title: 'Already up to date' },
 }

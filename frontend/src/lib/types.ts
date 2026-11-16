@@ -192,7 +192,7 @@ export interface HelperUpdateInfo {
 
 /** The answer of POST /api/machines/{id}/update-helper. */
 export interface HelperUpdateResult {
-  result: 'updated' | 'rolled_back' | 'failed'
+  result: 'updated' | 'started' | 'rolled_back' | 'failed'
   message: string
 }
 

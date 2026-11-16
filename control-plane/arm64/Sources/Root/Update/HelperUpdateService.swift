@@ -15,6 +15,7 @@ final class HelperUpdateService: @unchecked Sendable {
         let audit: AuditStore
         let updates: HelperUpdates
         let throttle: Throttle
+        let client: AgentClient
     }
 
     static let updatesPerMinute = 2
@@ -35,6 +36,11 @@ final class HelperUpdateService: @unchecked Sendable {
         do { machine = try parts.machines.get(id: id, now: parts.clock.now) } catch MachineError.notFound { throw ApiFailure.notFound }
         do {
             guard parts.throttle.allow("helper-update:" + id, limit: Self.updatesPerMinute, seconds: Self.rateWindow) else { throw HelperUpdateFailure.tooManyTries }
+            if try parts.remoteMachines.get(machine.id) == nil, machine.ip?.hasPrefix(Self.sharedPrefix) == true {
+                let answer = try await pushThroughHelper(machine)
+                record(actor, id, result: answer.result)
+                return answer
+            }
             let result = try await perform(machine)
             record(actor, id, result: HelperUpdateScript.code(in: result.output))
             return result.answer
@@ -47,12 +53,44 @@ final class HelperUpdateService: @unchecked Sendable {
     /// Machines that joined through Share a PC have addresses on this network; the panel has no SSH login on them.
     static let sharedPrefix = "10.77.0."
 
+    static let helperPushSeconds: TimeInterval = 180
+    static let startedResult = "started"
+
+    /// A machine that joined through Share a PC has no SSH login: its own helper downloads the build from this parent, checks it, swaps itself and restarts (see the helper's
+    /// `self_update`). The answer is "started": the card shows the new build when the helper reports it a few seconds later.
+    private func pushThroughHelper(_ machine: MachineSummary) async throws -> HelperUpdateResult {
+        let offers = parts.updates.offers()
+        let decision = parts.updates.status(of: machine, offers: offers)
+        guard let system = HelperUpdateRules.system(os: machine.os, arch: machine.arch), let offer = offers[system] else { throw HelperUpdateFailure.noBuild(decision.reason ?? HelperUpdateRules.noBuildReason) }
+        guard decision.available else { throw HelperUpdateFailure.upToDate }
+        guard try !parts.commands.hasUnfinishedOrder(machine: machine.id) else { throw HelperUpdateFailure.busy }
+        try begin(machine.id)
+        defer { end(machine.id) }
+        let reply = try? await parts.client.call(machine: machine.id, method: "POST", path: "/v1/update", body: ["build": offer.build], timeout: Self.helperPushSeconds)
+        let error = reply?.json?["error"] as? [String: Any]
+        switch Self.pushOutcome(status: reply?.status ?? 0, errorCode: error?["code"] as? String, message: error?["message"] as? String) {
+        case .success(let answer): return answer
+        case .failure(let failure): throw failure
+        }
+    }
+
+    /// What the helper's answer means. A pure function, so the wording is tested.
+    static func pushOutcome(status: Int, errorCode: String?, message: String?) -> Result<HelperUpdateResult, ApiFailure> {
+        switch (status, errorCode) {
+        case (200, _): return .success(HelperUpdateResult(result: startedResult, message: "The new helper was downloaded and checked. It restarts now and reports its new build within a minute; if it does not come up, the old one is put back."))
+        case (409, "update_failed"): return .failure(ApiFailure(status: .conflict, code: "update_failed", message: message ?? "the helper could not update itself"))
+        case (404, "not_joined"): return .failure(HelperUpdateFailure.loginNeeded.api)
+        case (404, _): return .failure(HelperUpdateFailure.oldHelperCannotSelfUpdate.api)
+        default: return .failure(ApiFailure(status: .badGateway, code: "unreachable", message: "the computer did not answer, so nothing was changed"))
+        }
+    }
+
     private func perform(_ machine: MachineSummary) async throws -> (answer: HelperUpdateResult, output: String) {
         let offers = parts.updates.offers()
         let decision = parts.updates.status(of: machine, offers: offers)
         guard let system = HelperUpdateRules.system(os: machine.os, arch: machine.arch), let offer = offers[system] else { throw HelperUpdateFailure.noBuild(decision.reason ?? HelperUpdateRules.noBuildReason) }
         guard decision.available else { throw HelperUpdateFailure.upToDate }
-        guard let record = try parts.remoteMachines.get(machine.id) else { throw machine.ip?.hasPrefix(Self.sharedPrefix) == true ? HelperUpdateFailure.joinedThroughShare : HelperUpdateFailure.loginNeeded }
+        guard let record = try parts.remoteMachines.get(machine.id) else { throw HelperUpdateFailure.loginNeeded }
         guard try !parts.commands.hasUnfinishedOrder(machine: machine.id) else { throw HelperUpdateFailure.busy }
         try begin(machine.id)
         defer { end(machine.id) }

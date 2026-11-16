@@ -67,6 +67,7 @@ func buildAgentApplication(services: Services) -> some ApplicationProtocol {
     let guards = Guards(services: services)
     AgentRoutes(services: services, guards: guards).register(on: router.group())
     BundleRoutes(services: services, guards: guards).registerAgent(on: router.group())
+    HelperBuildRoutes(services: services, guards: guards).registerAgent(on: router.group())
     return Application(router: router, configuration: .init(address: .hostname(services.config.agentListenBind, port: services.config.agentListenPort)))
 }
 

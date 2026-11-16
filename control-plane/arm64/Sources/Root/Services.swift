@@ -109,7 +109,7 @@ struct Services {
         latency = LatencyService(machines: machines, store: LatencyStore(database), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         storage = StorageService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
         gpuCheck = GpuCheckService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), throttle: throttle, clock: clock)
-        helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle))
+        helperUpdate = HelperUpdateService(parts: .init(clock: clock, ssh: remoteSsh, machines: machines, remoteMachines: remoteMachines, commands: commands, audit: audit, updates: helperUpdates, throttle: throttle, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts)))
         teams = TeamStore(database)
         apiKeys = ApiKeyStore(database)
         sandboxes = SandboxStore(database)

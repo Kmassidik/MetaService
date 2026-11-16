@@ -41,13 +41,19 @@ pub struct App {
     storage: Storage,
     /// The helper's state folder (where `agent.token` lives), when it has one: the join folder is its parent.
     state_dir: Option<PathBuf>,
+    /// Where the parent is and the token this helper reports with: what "Update helper" downloads the new build with.
+    parent: Mutex<Option<(String, String)>>,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32, storage_cache: Option<PathBuf>) -> Arc<App> {
         let sandboxes = service.sandboxes();
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), security: Arc::new(crate::security::Security::system()), state_dir: storage_cache.as_ref().and_then(|file| file.parent()).map(PathBuf::from), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), security: Arc::new(crate::security::Security::system()), state_dir: storage_cache.as_ref().and_then(|file| file.parent()).map(PathBuf::from), parent: Mutex::new(None), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
+    }
+
+    pub fn set_parent(&self, root: String, token: String) {
+        *self.parent.lock().unwrap() = Some((root, token));
     }
 
     pub fn start_storage_if_needed(&self) {
@@ -87,6 +93,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/app", put(app_install))
         .route("/v1/workloads/:id", delete(remove))
         .route("/v1/leave", post(leave))
+        .route("/v1/update", post(update))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
         .route("/v1/external-services", get(external_services))
@@ -347,6 +354,26 @@ async fn install(State(app): State<Arc<App>>, request: Request) -> Response {
     match BundleRequest::parse(&body) {
         Ok(parsed) => app.service.install_bundle(parsed).await.map(|c| accepted(&c)).unwrap_or_else(failure),
         Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
+    }
+}
+
+/// "Update helper" for a computer that joined through Share a PC: downloads the build the panel names from the parent, checks it, swaps itself and restarts. See `self_update.rs`.
+async fn update(State(app): State<Arc<App>>, request: Request) -> Response {
+    let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
+    let wanted = serde_json::from_slice::<serde_json::Value>(&body).ok().and_then(|v| v.get("build").and_then(|b| b.as_str().map(str::to_string))).unwrap_or_default();
+    if !crate::self_update::valid_build(&wanted) {
+        return error(StatusCode::BAD_REQUEST, "invalid_input", "the build is not acceptable");
+    }
+    let Some(state_dir) = app.state_dir.as_deref() else { return error(StatusCode::NOT_FOUND, "not_joined", "this computer did not join through the join script") };
+    let Some(home) = crate::leave::join_home(state_dir) else { return error(StatusCode::NOT_FOUND, "not_joined", "this computer did not join through the join script") };
+    let Ok(own) = std::env::current_exe() else { return error(StatusCode::CONFLICT, "update_failed", "this helper cannot find its own file") };
+    let source = app.parent.lock().unwrap().clone();
+    let current = crate::build::running();
+    match crate::self_update::run(&home, source, &wanted, &own, current.as_deref(), crate::self_update::has_systemd_run()).await {
+        crate::self_update::Outcome::Started => ok(json!({"started": true})),
+        crate::self_update::Outcome::Current => ok(json!({"started": false, "current": true})),
+        crate::self_update::Outcome::NotJoined => error(StatusCode::NOT_FOUND, "not_joined", "this computer did not join through the join script, so it is updated over SSH"),
+        crate::self_update::Outcome::Failed(why) => error(StatusCode::CONFLICT, "update_failed", &why),
     }
 }
 

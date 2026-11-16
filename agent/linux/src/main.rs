@@ -32,6 +32,7 @@ mod models;
 mod preflight;
 mod sandbox;
 mod security;
+mod self_update;
 mod service;
 mod setup;
 mod ssh_install;
@@ -198,13 +199,14 @@ fn run(config: Config) -> Result<(), String> {
     let external = external_services::ExternalServices::system(find_incus(&config).ok());
     let service = Arc::new(service::Service::new(engine, budget, specs, VERSION, ledger, installer, facts::read_machine).with_build(build::running()).with_sandboxes(sandboxes).with_external_services(external));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
-    if let (Some(root), Some(token)) = (root, machine_token) {
+    if let (Some(root), Some(token)) = (root.clone(), machine_token.clone()) {
         let heartbeat = heartbeat::Heartbeat::new(root, token, config.port, config.heartbeat_seconds);
         let nudge = heartbeat.clone();
         service.set_on_change(Arc::new(move || nudge.beat_soon()));
         heartbeat.spawn(service.clone(), runtime.handle().clone());
     }
     let app = http::App::new(service, command_token, config.bad_token_limit, Some(config.state_dir.join("storage.json")));
+    if let (Some(root), Some(token)) = (&root, &machine_token) { app.set_parent(root.clone(), token.clone()); }
     app.start_storage_if_needed();
     runtime.block_on(serve(app, &config, supervisor))
 }

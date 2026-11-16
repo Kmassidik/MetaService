@@ -8,6 +8,11 @@ public enum HelperUpdateScriptError: Error, Equatable {
 public struct HelperUpdateResult: Encodable, Equatable {
     public let result: String
     public let message: String
+
+    public init(result: String, message: String) {
+        self.result = result
+        self.message = message
+    }
 }
 
 /// The one script that replaces a helper program inside its box, and the reading of what it answers. The new program arrives on the script's standard input.
