@@ -1,5 +1,5 @@
 //! Taking this computer out of MetaService when the admin removes it in the panel and asks for it to be cleaned ("Clean the computer too").
-//! The clean-up is `join-share/script/leave-from-panel.sh`, built into this helper, run from the join's own `joined.env`, so it also works for a computer
+//! The clean-up is `leave-from-panel.sh` (next to this file, the one copy; the Mac helper's `LeaveScript.swift` mirrors it and a test compares them), built into this helper, run from the join's own `joined.env`, so it also works for a computer
 //! that joined with an older script. The sudo password comes in the request, goes to the script's standard input once, and is neither logged nor kept.
 //! The script does the root step first and prints one marker line; only after `root-ok` does it delete anything, so a wrong password changes nothing.
 
@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
-const SCRIPT: &str = include_str!("../../../join-share/script/leave-from-panel.sh");
+const SCRIPT: &str = include_str!("leave-from-panel.sh");
 const MARKER: &str = "ms-leave: ";
 /// The root step is one sudo call; this is only the bound for a stuck one.
 const ROOT_STEP_SECONDS: u64 = 60;

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The clean-up the helper runs when the admin removes this computer in the panel and asks for it to be cleaned. It is `join-share/script/leave-from-panel.sh`, copied
+/// The clean-up the helper runs when the admin removes this computer in the panel and asks for it to be cleaned. It is `agent/linux/src/leave-from-panel.sh`, copied
 /// here because a Swift package cannot embed a file from outside it; a test compares the two, so they cannot drift apart.
 enum LeaveScript {
     static let text = #"""

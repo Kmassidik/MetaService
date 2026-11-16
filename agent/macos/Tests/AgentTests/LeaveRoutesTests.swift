@@ -26,9 +26,9 @@ final class LeaveRoutesTests: XCTestCase {
     }
 
     func testTheCopyInTheHelperIsTheScriptInTheJoinFolder() throws {
-        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("join-share/script/leave-from-panel.sh")
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("agent/linux/src/leave-from-panel.sh")
         let original = try String(contentsOf: file, encoding: .utf8)
-        XCTAssertEqual(LeaveScript.text + "\n", original, "regenerate LeaveScript.swift from join-share/script/leave-from-panel.sh")
+        XCTAssertEqual(LeaveScript.text + "\n", original, "regenerate LeaveScript.swift from agent/linux/src/leave-from-panel.sh")
     }
 
     func testAWrongPasswordChangesNothing() async throws {
