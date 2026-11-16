@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { cardUpdate, failureView, helperView, listTag, outcomeView, parseHelperUpdate, parseUpdateResult, shortBuild, UPDATING_TEXT } from './helperUpdate.ts'
+import { cardUpdate, failureView, helperView, listTag, outcomeView, parseHelperUpdate, parseUpdateResult, shortBuild, SHARED_NOTE, UPDATING_TEXT } from './helperUpdate.ts'
 import { UnreadableAnswer } from './machineDetail.ts'
 import { machine } from './testing.ts'
 
@@ -111,4 +111,13 @@ test('an offline card with an update has no button and says the machine is offli
 
 test('a pending card with an update has no button or offline alert', () => {
   expect(cardUpdate(machine({ state: 'offline', state_pending: true, agent_build: OLD, update: info() }))).toEqual({ button: false, note: null })
+})
+
+test('a machine that joined through Share a PC gets no Update helper button, and the card says what to do instead', () => {
+  const update = { available: true, current_build: 'aaaaaaaa', newest_build: 'bbbbbbbb', reason: null }
+  const shared = machine({ agent_build: 'aaaaaaaa', update, state: 'online', ip: '10.77.0.2' })
+  expect(helperView(shared).canUpdate).toBe(false)
+  expect(helperView(shared).note).toContain('join again')
+  expect(cardUpdate(shared)).toEqual({ button: false, note: SHARED_NOTE })
+  expect(helperView({ ...shared, ip: '192.168.0.40' }).canUpdate).toBe(true)
 })

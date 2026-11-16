@@ -44,12 +44,15 @@ final class HelperUpdateService: @unchecked Sendable {
         }
     }
 
+    /// Machines that joined through Share a PC have addresses on this network; the panel has no SSH login on them.
+    static let sharedPrefix = "10.77.0."
+
     private func perform(_ machine: MachineSummary) async throws -> (answer: HelperUpdateResult, output: String) {
         let offers = parts.updates.offers()
         let decision = parts.updates.status(of: machine, offers: offers)
         guard let system = HelperUpdateRules.system(os: machine.os, arch: machine.arch), let offer = offers[system] else { throw HelperUpdateFailure.noBuild(decision.reason ?? HelperUpdateRules.noBuildReason) }
         guard decision.available else { throw HelperUpdateFailure.upToDate }
-        guard let record = try parts.remoteMachines.get(machine.id) else { throw HelperUpdateFailure.loginNeeded }
+        guard let record = try parts.remoteMachines.get(machine.id) else { throw machine.ip?.hasPrefix(Self.sharedPrefix) == true ? HelperUpdateFailure.joinedThroughShare : HelperUpdateFailure.loginNeeded }
         guard try !parts.commands.hasUnfinishedOrder(machine: machine.id) else { throw HelperUpdateFailure.busy }
         try begin(machine.id)
         defer { end(machine.id) }
