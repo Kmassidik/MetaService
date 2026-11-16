@@ -83,7 +83,7 @@ struct AgentRoutes {
         return sent
     }
 
-    private static func body(_ request: Request) async throws -> Data {
+    static func body(_ request: Request) async throws -> Data {
         if let declared = request.headers[.contentLength].flatMap({ Int($0) }), declared > AgentContext.maxBodyBytes { throw HTTPError(.contentTooLarge) }
         let buffer = try await request.body.collect(upTo: AgentContext.maxBodyBytes)
         return Data(buffer.readableBytesView)

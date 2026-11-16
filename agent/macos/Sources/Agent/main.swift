@@ -108,6 +108,7 @@ func runAgent(_ config: AgentConfig) async throws {
     }
     _ = storage.startIfNeeded()
     StorageRoutes(state: storage).register(on: router)
+    LeaveRoutes(stateDirectory: config.stateDirectory).register(on: router)
     ImagesRoutes().register(on: router)
     SecurityRoutes(service: SecurityHost.makeService()).register(on: router)
     let terminal = TerminalRoutes(service: service, consoles: service.consoles, token: commandToken)

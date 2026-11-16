@@ -75,10 +75,12 @@ export const LEAVE_COMMAND = 'sh ~/.metaservice-join/leave.sh'
 /** What Remove here does not do: the other computer is not touched, so its helper and WireGuard keep running until someone there runs the leave command. */
 export const LEAVE_NOTE = `Removing it here does not change that computer: its helper and WireGuard keep running there until someone on it runs ${LEAVE_COMMAND} (it asks for sudo once, stops the services and deletes the join folder).`
 
-export const removePeerCopy = (peer: Pick<JoinedMachine, 'name'>): ConfirmCopy => ({
+export const removePeerCopy = (peer: Pick<JoinedMachine, 'name'>, cleaning = false): ConfirmCopy => ({
   title: 'Remove this machine?',
   what: `${peer.name} will be taken out of the shared network.`,
-  consequence: `Its address is freed and it can no longer reach the parent. ${LEAVE_NOTE} The person can join again with a new command.`,
+  consequence: cleaning
+    ? 'The computer is cleaned first (its helper, WireGuard, boot entries and join folder), then its address is freed and it is taken out of the list. The person can join again with a new command.'
+    : `Its address is freed and it can no longer reach the parent. ${LEAVE_NOTE} The person can join again with a new command.`,
   confirmLabel: 'Remove machine',
   busyLabel: 'Removing…',
   doneLabel: 'Removed',

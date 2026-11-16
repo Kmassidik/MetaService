@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { removeSharedMachine } from './lib/leave.ts'
   import { ApiError, authStatus, bundleOverview, chatLink, installBundle, getSession, listCommands, listMachines, removeMachine, remoteMachines, remoteRemove, signOut, uninstallBundle, workloadAction } from './lib/api.ts'
   import { LIST_POLL_MS } from './lib/stats.ts'
   import { newestVersion } from './lib/environment.ts'
@@ -229,7 +230,8 @@
 
   /** Removes a machine; `body` is the SSH login choice for a machine installed over SSH. A refusal is thrown: the dialog shows it and stays. */
   async function confirmRemove(machine: Machine, body: Record<string, unknown> | null) {
-    await (body ? remoteRemove(machine.id, body) : removeMachine(machine.id))
+    if (body?.shared === true) await removeSharedMachine({ id: machine.id, clean: body.clean === true, sudoPassword: String(body.sudo_password ?? '') })
+    else await (body ? remoteRemove(machine.id, body) : removeMachine(machine.id))
     await refresh()
   }
 

@@ -1,16 +1,28 @@
 <script lang="ts">
   import ConfirmDialog from '../ConfirmDialog.svelte'
-  import { shareRemovePeer } from '../../lib/api.ts'
+  import SecretField from '../SecretField.svelte'
+  import { cleanReady, removeSharedMachine } from '../../lib/leave.ts'
   import type { JoinedMachine } from '../../lib/share.ts'
   import { handshakeText, LEAVE_COMMAND, OS_NAMES, removePeerCopy } from '../../lib/shareText.ts'
 
   let { peers, onChanged }: { peers: JoinedMachine[]; onChanged: () => Promise<void> } = $props()
   let removing = $state<JoinedMachine | null>(null)
-  const copy = $derived(removing ? removePeerCopy(removing) : removePeerCopy({ name: '' }))
+  let clean = $state(true)
+  let sudoPassword = $state('')
+  const copy = $derived(removing ? removePeerCopy(removing, clean) : removePeerCopy({ name: '' }))
 
+  $effect(() => {
+    if (removing) return
+    clean = true
+    sudoPassword = ''
+  })
+
+  /** The clean-up comes first, so a wrong password stops here with the machine still listed; the password is cleared as the request starts. */
   async function remove() {
     if (!removing) return
-    await shareRemovePeer(removing.name)
+    const password = sudoPassword
+    sudoPassword = ''
+    await removeSharedMachine({ id: removing.name, clean, sudoPassword: password })
     await onChanged()
   }
 </script>
@@ -36,12 +48,21 @@
     </table>
   </div>
 {/if}
-{#if peers.length > 0}<p class="leave">To take a machine out completely: press Remove here, then run <code>{LEAVE_COMMAND}</code> on that machine. Remove alone does not stop anything on it.</p>{/if}
+{#if peers.length > 0}<p class="leave">Remove cleans the computer too when you type its sudo password: it stops its helper and WireGuard and deletes its join folder. If you untick that, run <code>{LEAVE_COMMAND}</code> on it yourself.</p>{/if}
 
-<ConfirmDialog open={removing !== null} {...copy} onconfirm={remove} onClose={() => (removing = null)} />
+<ConfirmDialog open={removing !== null} {...copy} ready={cleanReady(clean, sudoPassword)} onconfirm={remove} onClose={() => (removing = null)}>
+  <label class="check"><input type="checkbox" bind:checked={clean} /> Also clean the computer: stop its helper and WireGuard, remove its boot entries and delete its join folder (recommended)</label>
+  {#if clean}
+    <SecretField label={`Sudo password of ${removing?.name ?? 'that computer'}`} name="sudo-password" bind:value={sudoPassword} />
+    <p class="hint">Typed once, sent to that computer's helper, used for this one clean-up and never saved. A wrong password changes nothing and the machine stays listed.</p>
+  {/if}
+</ConfirmDialog>
 
 <style>
   .none { margin: 0; padding: 16px 28px; color: var(--m50); font-size: 13px; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 10px; }
+  .check input { margin: 0; }
+  .hint { margin: 4px 0 0; font-size: 12px; color: var(--m50); }
   .leave { margin: 0; padding: 12px 28px; color: var(--m60); font-size: 13px; }
   .leave code { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
   .small { font-family: var(--mono); font-size: 11px; color: var(--m50); overflow-wrap: anywhere; }

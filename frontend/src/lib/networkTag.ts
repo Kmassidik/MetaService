@@ -1,5 +1,5 @@
 /** Machines that joined through Share a PC reach the parent from this network (same prefix as the parent's McpShared). */
-const SHARED_PREFIX = '10.77.0.'
+export const SHARED_PREFIX = '10.77.0.'
 const PRIVATE_PREFIXES = ['192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.2', '172.30.', '172.31.']
 
 export type NetworkTag = 'Shared' | 'Same network' | 'Other network'

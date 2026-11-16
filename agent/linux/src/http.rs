@@ -39,13 +39,15 @@ pub struct App {
     pub(crate) security: Arc<crate::security::Security>,
     /// The map of what fills the disk (the panel's Storage tab), scanned at startup and on request.
     storage: Storage,
+    /// The helper's state folder (where `agent.token` lives), when it has one: the join folder is its parent.
+    state_dir: Option<PathBuf>,
     bad: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
 
 impl App {
     pub fn new(service: Arc<Service>, token: String, bad_token_limit: u32, storage_cache: Option<PathBuf>) -> Arc<App> {
         let sandboxes = service.sandboxes();
-        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), security: Arc::new(crate::security::Security::system()), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
+        Arc::new(App { service, token, bad_token_limit, consoles: Default::default(), sandboxes, stats: Monitor::system(crate::facts::find_nvidia_smi()), security: Arc::new(crate::security::Security::system()), state_dir: storage_cache.as_ref().and_then(|file| file.parent()).map(PathBuf::from), storage: Storage::system(storage_cache), bad: Mutex::new(HashMap::new()) })
     }
 
     pub fn start_storage_if_needed(&self) {
@@ -84,6 +86,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/ssh-keys", put(ssh_keys))
         .route("/v1/workloads/:id/app", put(app_install))
         .route("/v1/workloads/:id", delete(remove))
+        .route("/v1/leave", post(leave))
         .route("/v1/bundle/install", post(install))
         .route("/v1/bundle/uninstall", post(uninstall))
         .route("/v1/external-services", get(external_services))
@@ -344,6 +347,21 @@ async fn install(State(app): State<Arc<App>>, request: Request) -> Response {
     match BundleRequest::parse(&body) {
         Ok(parsed) => app.service.install_bundle(parsed).await.map(|c| accepted(&c)).unwrap_or_else(failure),
         Err(message) => error(StatusCode::BAD_REQUEST, "invalid_input", &message),
+    }
+}
+
+/// "Clean the computer too": the admin removed this computer in the panel and typed its sudo password. See `leave.rs`; the password is used once and never kept.
+async fn leave(State(app): State<Arc<App>>, request: Request) -> Response {
+    let body = match small_body(request).await { Ok(body) => body, Err(reply) => return reply };
+    let password = serde_json::from_slice::<serde_json::Value>(&body).ok().and_then(|v| v.get("sudo_password").and_then(|p| p.as_str().map(str::to_string))).unwrap_or_default();
+    if password.len() > crate::leave::LONGEST_PASSWORD || password.contains('\n') {
+        return error(StatusCode::BAD_REQUEST, "invalid_input", "the password is not acceptable");
+    }
+    let Some(state_dir) = app.state_dir.as_deref() else { return error(StatusCode::NOT_FOUND, "not_joined", "this computer did not join through the join script") };
+    match crate::leave::run(state_dir, &password, None).await {
+        crate::leave::Outcome::Leaving => ok(json!({"leaving": true})),
+        crate::leave::Outcome::NotJoined => error(StatusCode::NOT_FOUND, "not_joined", "this computer did not join through the join script, so there is nothing to clean"),
+        crate::leave::Outcome::Failed(why) => error(StatusCode::CONFLICT, "leave_failed", &why),
     }
 }
 

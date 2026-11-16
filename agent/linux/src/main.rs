@@ -24,6 +24,7 @@ mod gpu_service_tests;
 mod heartbeat;
 mod http;
 mod images;
+mod leave;
 mod incus;
 mod ledger;
 mod live_space;

@@ -167,6 +167,7 @@ export const machineExtras = async (id: string): Promise<MachineExtras> => parse
 // Long: the Root sends the program over SSH and waits for the old one to stop (its own limit is 7 minutes).
 export const updateHelper = async (id: string): Promise<HelperUpdateResult> => parseUpdateResult(await call<unknown>('POST', `/api/machines/${encodeURIComponent(id)}/update-helper`, undefined, LONG_REQUEST_TIMEOUT_MS))
 export const updateMachineSettings = (id: string, patch: MachineSettingsPatch) => call<unknown>('PATCH', `/api/machines/${encodeURIComponent(id)}/settings`, patch)
+export const machineLeave = (id: string, sudoPassword: string) => callNoBody('POST', `/api/machines/${encodeURIComponent(id)}/leave`, { sudo_password: sudoPassword }, LONG_REQUEST_TIMEOUT_MS)
 export const removeMachine = (id: string) => callNoBody('DELETE', `/api/machines/${encodeURIComponent(id)}`)
 
 export const scanSetup = () => call<ScanSetup>('GET', '/api/scan/setup')
