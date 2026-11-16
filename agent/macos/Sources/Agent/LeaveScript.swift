@@ -26,13 +26,21 @@ case "$MS_OS-$MS_BOOT" in
   *) ROOT="wg-quick down '$MS_CONF' || true; rm -f '$MS_CONF'" ;;
 esac
 
+# The WireGuard interface is this conversation's road home: taking it down also kills the answer the
+# panel is waiting for. The sudo front (verify the password) runs in the foreground; the teardown itself
+# is backgrounded so the helper can answer over the still-alive tunnel first. Wrong password still
+# changes nothing: a refused password fails before any backgrounding.
+DELAY_BEFORE_TEARDOWN=12
+
 # The root step. As root already nothing is asked; otherwise sudo reads the password from this pipe (-S, empty prompt) or never asks (-n) when none was given.
 if [ "${MS_UID:-1}" = 0 ]; then
-  sh -c "$ROOT" >/dev/null 2>&1 || fail "root-failed: the WireGuard clean-up did not work"
+  sh -c "sleep $DELAY_BEFORE_TEARDOWN; $ROOT" >/dev/null 2>&1 & 
+  sleep 1
+  kill -0 $! 2>/dev/null || fail "root-failed: the WireGuard clean-up did not work"
 elif [ -n "$PW" ]; then
-  printf '%s\n' "$PW" | "$SUDO_BIN" -S -p '' sh -c "PATH='$PATH'; export PATH; $ROOT" >/dev/null 2>&1 || fail "root-failed: sudo did not accept the password, or this login may not use sudo"
+  printf '%s\n' "$PW" | "$SUDO_BIN" -S -p '' -b sh -c "sleep $DELAY_BEFORE_TEARDOWN; PATH='$PATH'; export PATH; $ROOT" >/dev/null 2>&1 || fail "root-failed: sudo did not accept the password, or this login may not use sudo"
 else
-  "$SUDO_BIN" -n sh -c "PATH='$PATH'; export PATH; $ROOT" >/dev/null 2>&1 || fail "root-failed: sudo needs a password and none was typed"
+  "$SUDO_BIN" -n -b sh -c "sleep $DELAY_BEFORE_TEARDOWN; PATH='$PATH'; export PATH; $ROOT" >/dev/null 2>&1 || fail "root-failed: sudo needs a password and none was typed"
 fi
 PW=""
 echo "ms-leave: root-ok"
