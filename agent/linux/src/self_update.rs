@@ -62,11 +62,22 @@ fn verified(bytes: &[u8], wanted: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Reads one `KEY=value` line. The join script writes values shell-quoted (`shq`), because `leave.sh`
+/// sources this file, so surrounding single quotes are part of the file but not of the value.
+fn env_value(env_text: &str, key: &str) -> Option<String> {
+    let raw = env_text.lines().find_map(|line| line.strip_prefix(key).and_then(|rest| rest.strip_prefix('='))).unwrap_or("").trim().to_string();
+    let unquoted = match (raw.chars().next(), raw.chars().rev().next()) {
+        (Some('\''), Some('\'')) if raw.len() >= 2 => raw[1..raw.len() - 1].to_string(),
+        _ => raw,
+    };
+    Some(unquoted)
+}
+
 /// Runs the update. `source` is `(root, token)`, or None for a helper with no parent to download from. `own` is this program's file, `current` its build.
 pub async fn run(join_home: &Path, source: Option<(String, String)>, wanted: &str, own: &Path, current: Option<&str>, systemd_run: bool) -> Outcome {
     let env = join_home.join("joined.env");
     let Ok(env_text) = std::fs::read_to_string(&env) else { return Outcome::NotJoined };
-    let label = env_text.lines().find_map(|line| line.strip_prefix("MS_LABEL=")).unwrap_or("").trim().to_string();
+    let label = env_value(&env_text, "MS_LABEL").unwrap_or_default();
     if label.is_empty() || !label.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_')) {
         return Outcome::NotJoined;
     }
@@ -167,6 +178,22 @@ mod tests {
     async fn a_helper_that_already_is_that_build_does_nothing() {
         let dir = world("current", "MS_LABEL=io.metaservice.join\n");
         assert_eq!(run(&dir, None, "deadbeef", &dir.join("agent"), Some("deadbeefcafe"), false).await, Outcome::Current);
+    }
+
+    #[tokio::test]
+    async fn the_quoted_env_file_the_join_script_writes_is_accepted() {
+        // Regression 2026-11-16: join.sh writes every value shell-quoted for leave.sh to source,
+        // so MS_LABEL arrives as 'io.metaservice.join' with literal quotes. The reader refused it,
+        // every self-update answered not_joined and the panel said "Login needed". This is the
+        // laptop's real joined.env line.
+        let dir = world("quoted", "MS_OS='linux'\nMS_LABEL='io.metaservice.join'\nMS_UID='1000'\n");
+        assert_eq!(run(&dir, None, "deadbeef", &dir.join("agent"), Some("deadbeefcafe"), false).await, Outcome::Current);
+    }
+
+    #[tokio::test]
+    async fn a_quoted_label_with_odd_characters_inside_is_still_refused() {
+        let dir = world("quotedbad", "MS_LABEL='bad label;rm -rf'\n");
+        assert_eq!(run(&dir, None, "deadbeef", &dir.join("agent"), None, false).await, Outcome::NotJoined);
     }
 
     #[tokio::test]
