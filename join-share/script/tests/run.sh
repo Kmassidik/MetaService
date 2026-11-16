@@ -145,11 +145,16 @@ ok "private key file is mode 600" sh -c "[ \"\$(stat -f %Lp '$J/wg.key' 2>/dev/n
 
 echo "== re-run on the joined machine changes nothing"
 snapshot > "$T/before"
-join approve-again mac arm64 y
+join approve-again mac arm64 n
 snapshot > "$T/after"
 ok "exit 0 and it says already joined" sh -c "[ $CODE = 0 ] && grep -q 'already joined' '$T/out'"
 ok "no file and no command changed" cmp "$T/before" "$T/after"
 ok "the new link was not used" count_is "$T/hub/hub.log" 'register' 1
+
+echo "== re-run on the joined machine, answer yes: the old join is left first, then it joins again"
+join approve-rejoin mac arm64 y
+ok "it says it left the old join, and joined again" sh -c "[ $CODE = 0 ] && grep -q 'Leaving the old join first' '$T/out' && grep -q 'Old join removed' '$T/out' && [ -f '$J/joined.env' ]"
+ok "the second link was used" count_is "$T/hub/hub.log" 'register' 2
 
 echo "== leave.sh removes what was made"
 HOME="$T/home" PATH="$BIN:$SYSTEM_PATH" CALLS="$CALLS" sh "$J/leave.sh" > "$T/leave.out" 2>&1

@@ -119,11 +119,27 @@ detect_machine() {
   esac
 }
 
+# An earlier join is still here (for example the machine was removed in the panel but never cleaned). The same command can clean it first, so nobody has to run a second script:
+# one question, then the old join's own leave script (sudo asks on this terminal, as for the rest) and the join goes on. Anything but a yes changes nothing.
 stop_if_joined() {
   [ -f "$JOIN_HOME/joined.env" ] || return 0
-  say "This computer is already joined (state in $JOIN_HOME). Nothing was changed."
-  say "To leave: sh $JOIN_HOME/leave.sh"
-  exit 0
+  say "This computer is already joined (state in $JOIN_HOME)."
+  printf 'Leave that join first, then join again? [y/N] '
+  answer=n
+  IFS= read -r answer < "$JOIN_TTY" || answer=n
+  case "$answer" in
+    y | Y)
+      say "Leaving the old join first:"
+      sh "$JOIN_HOME/leave.sh" || fail "the old join could not be left. Nothing new was joined."
+      [ ! -f "$JOIN_HOME/joined.env" ] || fail "the old join is still here after leaving it."
+      say "Old join removed. Joining again:"
+      ;;
+    *)
+      say "Nothing was changed."
+      say "To leave without joining again: sh $JOIN_HOME/leave.sh"
+      exit 0
+      ;;
+  esac
 }
 
 half() {

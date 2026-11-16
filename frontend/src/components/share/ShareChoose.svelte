@@ -74,6 +74,7 @@
         <span class="small" role="status">{copyNote}</span>
       </div>
       <p class="note">Run it once on the {os ? OS_NAMES[os] : ''} computer. {timeLeft(made.expiresAt, now)}.</p>
+      <p class="note">It asks before it changes anything: what it will install (and, if the computer has an NVIDIA card, whether to add the GPU toolkit), then your sudo password once. If this computer was joined before and never cleaned, it offers to leave the old join first, so nothing else needs to be run.</p>
     </div>
   {/if}
 </section>
