@@ -43,4 +43,17 @@ final class SelfUpdateTests: XCTestCase {
         let outcome = await update.run(wanted: "deadbeef")
         XCTAssertEqual(outcome, .current)
     }
+
+    func testTheQuotedEnvFileTheJoinScriptWritesIsAccepted() async throws {
+        // Regression 2026-11-16: join.sh writes every value shell-quoted for leave.sh to source, so the
+        // reader saw 'io.metaservice.join' with literal quotes, refused the label and answered not_joined.
+        // This is the real file content a Mac join writes today.
+        let dir = NSTemporaryDirectory() + "ms-selfup-" + UUID().uuidString
+        try FileManager.default.createDirectory(atPath: dir + "/.metaservice-join/state", withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try Data("MS_OS='mac'\nMS_LABEL='io.metaservice.join'\nMS_UNIT='/tmp/x.plist'\nMS_UID='501'\n".utf8).write(to: URL(fileURLWithPath: dir + "/.metaservice-join/joined.env"))
+        let update = SelfUpdate(stateDirectory: dir + "/.metaservice-join/state", root: nil, machineToken: nil, ownPath: "/nonexistent", currentBuild: "deadbeefcafe")
+        let outcome = await update.run(wanted: "deadbeef")
+        XCTAssertEqual(outcome, .current)
+    }
 }

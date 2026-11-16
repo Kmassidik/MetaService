@@ -41,13 +41,18 @@ struct SelfUpdate {
         return seen.hasPrefix(wanted) ? nil : "the downloaded helper is not the build the panel asked for, so it was not installed"
     }
 
-    /// `joined.env` values, only the ones this needs.
+    /// `joined.env` values, only the ones this needs. The join script writes every value shell-quoted
+    /// (`shq`) because `leave.sh` sources the file, so surrounding single quotes are stripped here.
     static func joinSettings(_ text: String) -> [String: String] {
         var found: [String: String] = [:]
         for line in text.split(separator: "\n") {
             guard let equals = line.firstIndex(of: "=") else { continue }
             let key = String(line[..<equals])
-            if ["MS_LABEL", "MS_UNIT", "MS_UID"].contains(key) { found[key] = String(line[line.index(after: equals)...]).trimmingCharacters(in: .whitespaces) }
+            if ["MS_LABEL", "MS_UNIT", "MS_UID"].contains(key) {
+                var value = String(line[line.index(after: equals)...]).trimmingCharacters(in: .whitespaces)
+                if value.count >= 2, value.first == "'", value.last == "'" { value = String(value.dropFirst().dropLast()) }
+                found[key] = value
+            }
         }
         return found
     }
