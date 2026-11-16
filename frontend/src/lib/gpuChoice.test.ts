@@ -56,7 +56,11 @@ test('the machine page note appears only for a card the containers cannot use ye
   expect(toolkitNote(mac)).toBeNull()
   const note = toolkitNote(noToolkit)
   expect(note?.title).toContain('RTX 5090')
-  expect(note?.fix).toContain('apt-get install -y nvidia-container-toolkit')
+  expect(note?.fix).toContain('press Fix')
+  expect(note?.fix).toContain('NVIDIA')
+  const shared = toolkitNote({ ...noToolkit, ip: '10.77.0.2' })
+  expect(shared?.fix).toContain('join again')
+  expect(shared?.fix).not.toContain('press Fix')
 })
 
 test('the GPU select lists No GPU, the container, the shared partition and the planned passthrough, in that order', () => {

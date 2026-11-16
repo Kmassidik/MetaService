@@ -195,11 +195,23 @@ export function gpuModeToSend(offer: GpuOffer, chosen: string | undefined, shari
 /** True when a workload was given the GPU (shown as a small badge). */
 export const hasGpu = (workload: Pick<Workload, 'gpu_mode'>): boolean => workload.gpu_mode !== undefined && workload.gpu_mode !== 'none'
 
+const SHARE_PREFIX = '10.77.0.'
+const NVIDIA_GUIDE = 'https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html'
+
+/** What to do, by how the machine joined: a Share a PC machine has no SSH login for the panel, so it joins again (the join asks and installs the toolkit); an SSH machine on Debian or Ubuntu can press Fix. */
+function toolkitFix(machine: Machine | undefined): string {
+  const guide = `Or install it by hand with NVIDIA's guide: ${NVIDIA_GUIDE}. The panel notices by itself.`
+  if (machine?.ip?.startsWith(SHARE_PREFIX)) {
+    return `Easiest: remove this machine here, run the leave command on it, then join again. The join command now finds the NVIDIA card, asks, and installs the toolkit for you. ${guide}`
+  }
+  return `On a Debian or Ubuntu machine, press Fix on its card: MetaService installs it (the sudo password is typed once). ${guide}`
+}
+
 /** The note on a machine's page when it has a card the containers cannot use yet; null when there is nothing to say. */
 export function toolkitNote(machine: Machine | undefined): { title: string; fix: string } | null {
   if (!needsToolkit(machine)) return null
   return {
     title: `This machine has an NVIDIA GPU (${nvidiaCard(machine)}), but containers cannot use it yet. They need NVIDIA's container toolkit (the small program that lets a container reach the GPU).`,
-    fix: "On the machine, follow NVIDIA's install guide: add NVIDIA's package source, then run `sudo apt-get install -y nvidia-container-toolkit` (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). The panel notices by itself.",
+    fix: toolkitFix(machine),
   }
 }
