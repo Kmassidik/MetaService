@@ -30,9 +30,37 @@ async function ignoreGone(step: () => Promise<unknown>): Promise<void> {
   }
 }
 
-/** Cleans the computer when asked (a refusal is thrown, nothing else was touched), then frees its address and removes the machine. */
-export async function removeSharedMachine(removal: SharedRemoval): Promise<void> {
-  if (removal.clean) await machineLeave(removal.id, removal.sudoPassword)
+/** A helper built before the clean-up existed answers 404 (`old_helper`), and a computer that never joined through the script says `not_joined`: neither can clean itself. */
+const CANNOT_CLEAN_CODES: ReadonlySet<string> = new Set(['old_helper', 'not_joined'])
+
+export const isCannotClean = (failure: unknown): boolean => failure instanceof ApiError && CANNOT_CLEAN_CODES.has(failure.code)
+
+/** What the person is told when the machine was removed but the computer itself could not be cleaned. */
+export const notCleanedNote = (name: string): string =>
+  `${name} was removed here, but its computer was not cleaned: its helper is too old to clean itself. Join again with the web command from Share a PC and answer y to "Leave that join first": that cleans the old join.`
+
+export interface RemovalResult {
+  /** True when the computer itself was cleaned. */
+  cleaned: boolean
+  /** What to tell the person when it was not (and they asked for it to be), else null. */
+  note: string | null
+}
+
+/**
+ * Cleans the computer when asked, then frees its address and removes the machine. A wrong password is thrown with nothing changed. A helper too old to clean itself is not a dead end:
+ * the machine is removed anyway, and the result says the computer was not cleaned and how to finish.
+ */
+export async function removeSharedMachine(removal: SharedRemoval): Promise<RemovalResult> {
+  let cleaned = removal.clean
+  if (removal.clean) {
+    try {
+      await machineLeave(removal.id, removal.sudoPassword)
+    } catch (failure) {
+      if (!isCannotClean(failure)) throw failure
+      cleaned = false
+    }
+  }
   await ignoreGone(() => shareRemovePeer(removal.id))
   await ignoreGone(() => removeMachine(removal.id))
+  return { cleaned, note: removal.clean && !cleaned ? notCleanedNote(removal.id) : null }
 }

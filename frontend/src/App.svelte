@@ -233,9 +233,10 @@
 
   /** Removes a machine; `body` is the SSH login choice for a machine installed over SSH. A refusal is thrown: the dialog shows it and stays. */
   async function confirmRemove(machine: Machine, body: Record<string, unknown> | null) {
-    if (body?.shared === true) await removeSharedMachine({ id: machine.id, clean: body.clean === true, sudoPassword: String(body.sudo_password ?? '') })
-    else await (body ? remoteRemove(machine.id, body) : removeMachine(machine.id))
+    const result = body?.shared === true ? await removeSharedMachine({ id: machine.id, clean: body.clean === true, sudoPassword: String(body.sudo_password ?? '') }) : null
+    if (!result) await (body ? remoteRemove(machine.id, body) : removeMachine(machine.id))
     await refresh()
+    if (result?.note) banner = result.note
   }
 
   onMount(() => {

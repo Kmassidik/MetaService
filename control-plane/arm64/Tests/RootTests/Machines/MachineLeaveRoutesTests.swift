@@ -24,7 +24,7 @@ final class MachineLeaveRoutesTests: XCTestCase {
     func testAnOldHelperIsToldToUpdateFirst() {
         let old = failure(MachineLeaveRoutes.outcome(status: 404, errorCode: "not_found", message: nil))
         XCTAssertEqual(old?.code, "old_helper")
-        XCTAssertTrue(old?.message.contains("Update helper") ?? false)
+        XCTAssertTrue(old?.message.contains("too old") ?? false)
         XCTAssertEqual(failure(MachineLeaveRoutes.outcome(status: 404, errorCode: nil, message: nil))?.code, "old_helper")
     }
 

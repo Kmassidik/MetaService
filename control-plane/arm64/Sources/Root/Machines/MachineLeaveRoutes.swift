@@ -27,7 +27,7 @@ struct MachineLeaveRoutes {
         case (200, _): return .success(())
         case (409, "leave_failed"): return .failure(ApiFailure(status: .conflict, code: "leave_failed", message: message ?? "the computer could not be cleaned"))
         case (404, "not_joined"): return .failure(ApiFailure(status: .conflict, code: "not_joined", message: "this computer was not added through Share a PC, so there is nothing to clean on it"))
-        case (404, _): return .failure(ApiFailure(status: .conflict, code: "old_helper", message: "this computer's helper is too old to clean itself: press Update helper on its card first, or run the leave command on it"))
+        case (404, _): return .failure(ApiFailure(status: .conflict, code: "old_helper", message: "this computer's helper is too old to clean itself"))
         default: return .failure(ApiFailure(status: .badGateway, code: "unreachable", message: "the computer did not answer, so nothing was cleaned"))
         }
     }

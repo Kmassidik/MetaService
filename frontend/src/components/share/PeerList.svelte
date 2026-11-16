@@ -9,6 +9,8 @@
   let removing = $state<JoinedMachine | null>(null)
   let clean = $state(true)
   let sudoPassword = $state('')
+  /** Said under the list after a removal that could not clean the computer. */
+  let notice = $state('')
   const copy = $derived(removing ? removePeerCopy(removing, clean) : removePeerCopy({ name: '' }))
 
   $effect(() => {
@@ -22,7 +24,8 @@
     if (!removing) return
     const password = sudoPassword
     sudoPassword = ''
-    await removeSharedMachine({ id: removing.name, clean, sudoPassword: password })
+    const result = await removeSharedMachine({ id: removing.name, clean, sudoPassword: password })
+    notice = result.note ?? ''
     await onChanged()
   }
 </script>
@@ -48,6 +51,7 @@
     </table>
   </div>
 {/if}
+{#if notice}<p class="leave notice" role="status">{notice}</p>{/if}
 {#if peers.length > 0}<p class="leave">Remove cleans the computer too when you type its sudo password: it stops its helper and WireGuard and deletes its join folder. If you untick that, run <code>{LEAVE_COMMAND}</code> on it yourself.</p>{/if}
 
 <ConfirmDialog open={removing !== null} {...copy} ready={cleanReady(clean, sudoPassword)} onconfirm={remove} onClose={() => (removing = null)}>
@@ -64,6 +68,7 @@
   .check input { margin: 0; }
   .hint { margin: 4px 0 0; font-size: 12px; color: var(--m50); }
   .leave { margin: 0; padding: 12px 28px; color: var(--m60); font-size: 13px; }
+  .notice { color: var(--warn); font-weight: 600; }
   .leave code { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
   .small { font-family: var(--mono); font-size: 11px; color: var(--m50); overflow-wrap: anywhere; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
