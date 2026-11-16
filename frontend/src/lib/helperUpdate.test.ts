@@ -83,6 +83,7 @@ test('a refusal is told in plain words', () => {
   expect(failureView('login_needed', 'cannot log in')).toEqual({ tone: 'warn', title: 'Login needed', detail: 'cannot log in' })
   expect(failureView('machine_busy', 'busy')).toMatchObject({ tone: 'warn', title: 'Not now' })
   expect(failureView('up_to_date', 'newest')).toMatchObject({ tone: 'ok', title: 'Already up to date' })
+  expect(failureView('joined_through_share', 'join again')).toMatchObject({ tone: 'warn', title: 'Joined through Share a PC', detail: 'join again' })
   expect(failureView('unreachable', 'down')).toEqual({ tone: 'bad', title: 'Update failed', detail: 'down' })
 })
 

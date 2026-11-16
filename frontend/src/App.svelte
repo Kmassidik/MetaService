@@ -22,6 +22,7 @@
   import NetworkView from './components/NetworkView.svelte'
   import NotificationBell from './components/NotificationBell.svelte'
   import { BELL_POLL_MS } from './lib/notifications.ts'
+  import { BUILD_CHECK_MS, buildOf, isOutdated, latestBuild, OUTDATED_TEXT } from './lib/buildWatch.ts'
   import { bell } from './lib/notificationsStore.svelte.ts'
   import NotFound from './pages/NotFound.svelte'
   import ConnectMachine from './components/ConnectMachine.svelte'
@@ -61,6 +62,8 @@
   let creatingOnId = $state<string | null>(null)
   const creatingOn = $derived(machines.find((machine) => machine.id === creatingOnId) ?? null)
   let banner = $state('')
+  let outdated = $state(false)
+  const runningBuild = typeof document === 'undefined' ? null : buildOf(document.documentElement.innerHTML)
   let connecting = $state(false)
   let connectHost = $state('')
   let commands = $state<Command[]>([])
@@ -245,6 +248,7 @@
     const refreshTimer = setInterval(() => !document.hidden && refresh(), LIST_POLL_MS)
     const clockTimer = setInterval(() => (now = Date.now()), CLOCK_MS)
     const bellTimer = setInterval(() => phase === 'ready' && bell.poll(), BELL_POLL_MS)
+    const buildTimer = setInterval(async () => { if (!document.hidden && !outdated) outdated = isOutdated(runningBuild, await latestBuild()) }, BUILD_CHECK_MS)
     const wake = () => {
       if (document.hidden) return
       void refresh()
@@ -255,6 +259,7 @@
       clearInterval(bellTimer)
       clearInterval(refreshTimer)
       clearInterval(clockTimer)
+      clearInterval(buildTimer)
       document.removeEventListener('visibilitychange', wake)
       removeEventListener('hashchange', onRoute)
     }
@@ -273,6 +278,7 @@
   <Login {configured} minLength={minPasswordLength} onDone={start} />
 {:else}
   <div class="announce">MetaService · control panel<NotificationBell /></div>
+  {#if outdated}<div class="stale" role="status"><span>{OUTDATED_TEXT}</span><button class="btn sm" type="button" onclick={() => location.reload()}>Reload</button></div>{/if}
   <div class="shell">
     <Sidebar active={page} {route} {username} onSignOut={leave} />
     <main class="main">
@@ -321,5 +327,6 @@
 {/if}
 
 <style>
+  .stale { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px; background: var(--warn-bg); color: var(--warn); border-bottom: 1px solid var(--warn-line); font-size: 13px; font-weight: 600; }
   .center { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; }
 </style>
