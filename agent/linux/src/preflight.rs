@@ -79,7 +79,9 @@ impl HostProbe for NoHostChecks {
 pub fn incus_host(incus: &dyn Runner, probe: &dyn HostProbe) -> Vec<Problem> {
     let args = ["network", "list", "--format", "csv"].map(String::from);
     let Ok(networks) = incus.run(&args, QUICK) else { return vec![incus_unreachable()] };
-    managed_bridge(&networks).and_then(|bridge| firewall_problem(&bridge, probe)).into_iter().collect()
+    let mut problems = managed_bridge(&networks).and_then(|bridge| firewall_problem(&bridge, probe)).into_iter().collect::<Vec<_>>();
+    if let Some(problem) = idmap_problem(probe) { problems.push(problem); }
+    problems
 }
 
 fn incus_unreachable() -> Problem {
@@ -88,6 +90,20 @@ fn incus_unreachable() -> Problem {
         message: "The Agent cannot use Incus. It may be missing, stopped, or this user is not in the incus-admin group.".into(),
         fix: SETUP_FIX.into(),
     }
+}
+
+/// Incus maps container user and group ids through root's subordinate ranges in `/etc/subuid` and `/etc/subgid`.
+/// Without them every create fails late with "System doesn't have a functional idmap setup", so this is checked up front.
+/// Either missing file or a file with no `root:` line counts as broken; a file that cannot be read at all is not evidence.
+fn idmap_problem(probe: &dyn HostProbe) -> Option<Problem> {
+    let broken = ["/etc/subuid", "/etc/subgid"].iter().any(|path| {
+        probe.run("cat", &[path]).is_some_and(|answer| answer.success && !answer.stdout.lines().any(|l| l.starts_with("root:")))
+    });
+    broken.then(|| Problem {
+        code: "incus_idmap_broken".into(),
+        message: "VMs cannot be created: Incus has no user-id map. The /etc/subuid or /etc/subgid file has no root line, so every instance fails with \"System doesn't have a functional idmap setup\".".into(),
+        fix: SETUP_FIX.into(),
+    })
 }
 
 /// The first Incus-managed bridge, by the csv of `incus network list` (name,type,managed,...). Names that are not plain interface names are ignored.
@@ -156,12 +172,25 @@ mod tests {
         incus_host(&FakeIncus(networks.map(String::from)), &FakeHost::with(host))
     }
 
+    const SUBUID_OK: &str = "cat /etc/subuid";
+    const SUBGID_OK: &str = "cat /etc/subgid";
+    const GOOD_SUBUID: &str = "kurnia:524288:65536\nroot:1000000:1000000000\n";
+    /// The real Fedora laptop: useradd added its own line, no root line, so Incus cannot map ids.
+    const LAPTOP_SUBUID: &str = "kurnia:524288:65536\n";
+
+    /// The idmap check reads both files; these answers keep it green so firewall tests stay one-problem.
+    fn idmap_ok() -> [(&'static str, bool, &'static str, &'static str); 2] {
+        [(SUBUID_OK, true, GOOD_SUBUID, ""), (SUBGID_OK, true, GOOD_SUBUID, "")]
+    }
+
     #[test]
     fn a_bridge_outside_the_trusted_zone_is_reported_with_the_fix() {
         let in_wrong_zone = [(ZONE, true, "FedoraWorkstation", ""), (ZONE, true, "public", "")];
         let in_no_zone = [(ZONE, false, "", "no zone")];
         for answer in in_wrong_zone.iter().chain(&in_no_zone) {
-            let found = check(Ok(NETWORKS), &[*answer]);
+            let mut host = vec![*answer];
+            host.extend(idmap_ok());
+            let found = check(Ok(NETWORKS), &host);
             assert_eq!(found.len(), 1, "{answer:?}");
             assert_eq!(found[0].code, "bridge_blocked_by_firewall");
             assert!(found[0].message.contains("incusbr0") && found[0].fix.contains("setup --yes"));
@@ -170,7 +199,9 @@ mod tests {
 
     #[test]
     fn a_trusted_bridge_or_no_usable_firewall_answer_is_fine() {
-        assert!(check(Ok(NETWORKS), &[(ZONE, true, "trusted", "")]).is_empty());
+        let mut host = vec![(ZONE, true, "trusted", "")];
+        host.extend(idmap_ok());
+        assert!(check(Ok(NETWORKS), &host).is_empty());
         assert!(check(Ok(NETWORKS), &[(ZONE, false, "", "FirewallD is not running")]).is_empty(), "firewalld stopped");
         assert!(check(Ok(NETWORKS), &[(ZONE, false, "", "Authorization failed.")]).is_empty(), "no permission to ask");
         assert!(check(Ok(NETWORKS), &[]).is_empty(), "no firewall-cmd at all");
@@ -180,6 +211,34 @@ mod tests {
     fn the_real_laptop_answer_is_a_problem() {
         // Seen on Fedora 44: stdout empty, stderr "no zone", exit code 2.
         assert_eq!(check(Ok(NETWORKS), &[(ZONE, false, "", "no zone")]).len(), 1);
+    }
+
+    #[test]
+    fn a_subuid_file_without_a_root_line_is_a_problem() {
+        // Regression 2026-11-16: the laptop had Incus already installed and initialized before the join,
+        // so setup never wrote the root line; the panel showed ready and every create failed with
+        // "System doesn't have a functional idmap setup".
+        let mut host = vec![(ZONE, true, "trusted", ""), (SUBUID_OK, true, LAPTOP_SUBUID, ""), (SUBGID_OK, true, GOOD_SUBUID, "")];
+        let found = check(Ok(NETWORKS), &host);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].code, "incus_idmap_broken");
+        assert!(found[0].message.contains("idmap") && found[0].fix.contains("setup --yes"));
+
+        // The same break through /etc/subgid alone.
+        host[1] = (SUBUID_OK, true, GOOD_SUBUID, "");
+        host[2] = (SUBGID_OK, true, LAPTOP_SUBUID, "");
+        assert_eq!(check(Ok(NETWORKS), &host)[0].code, "incus_idmap_broken");
+    }
+
+    #[test]
+    fn a_root_line_in_both_files_is_no_problem_and_unreadable_files_are_not_evidence() {
+        let mut host = vec![(ZONE, true, "trusted", ""), (SUBUID_OK, true, GOOD_SUBUID, ""), (SUBGID_OK, true, GOOD_SUBUID, "")];
+        assert!(check(Ok(NETWORKS), &host).is_empty());
+
+        // No `cat` answer at all (binary missing, permission denied at exec): not evidence of a break.
+        host.remove(1);
+        host.remove(1);
+        assert!(check(Ok(NETWORKS), &host).is_empty(), "unreadable files");
     }
 
     #[test]
