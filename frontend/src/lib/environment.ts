@@ -48,7 +48,7 @@ export function helperIsOld(version: string | null | undefined, newest: string |
   return (compareVersions(version, newest) ?? 0) < 0
 }
 
-const ENGINE_NAMES: Record<string, string> = { apple: 'Apple container', incus: 'Incus' }
+const ENGINE_NAMES: Record<string, string> = { apple: 'Apple container', incus: 'Incus', none: 'no VM engine (this system does not run VMs yet)' }
 
 /** For example "Apple container 1.5.0, ready". */
 export function engineText(engine: Engine | null | undefined): string {
