@@ -88,6 +88,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/workloads/:id/start", post(start))
         .route("/v1/workloads/:id/stop", post(stop))
         .route("/v1/workloads/:id/terminal", get(crate::console::terminal))
+        .route("/v1/host-terminal", get(crate::console::host_terminal))
         .route("/v1/workloads/:id/gpu-check", post(gpu_check))
         .route("/v1/workloads/:id/ssh-keys", put(ssh_keys))
         .route("/v1/workloads/:id/app", put(app_install))

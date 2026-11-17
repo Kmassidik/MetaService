@@ -28,6 +28,9 @@ struct TerminalRoutes {
             _ = try await check(id: Self.workloadId(context.parameters))
             throw ApiFailure(status: Self.upgradeRequired, code: "upgrade_required", message: "this address only speaks WebSocket")
         }
+        router.get("/v1/host-terminal") { _, _ -> Response in
+            throw ApiFailure(status: Self.upgradeRequired, code: "upgrade_required", message: "this address only speaks WebSocket")
+        }
     }
 
     func socketRouter() -> Router<BasicWebSocketRequestContext> {
@@ -38,6 +41,12 @@ struct TerminalRoutes {
             return .upgrade([:])
         }, onUpgrade: { inbound, outbound, context in
             try await serve(id: try Self.workloadId(context.requestContext.parameters), inbound, outbound)
+        })
+        router.ws("/v1/host-terminal", shouldUpgrade: { request, _ in
+            try authorize(request)
+            return .upgrade([:])
+        }, onUpgrade: { inbound, outbound, _ in
+            try await serveHost(inbound, outbound)
         })
         return router
     }
@@ -82,6 +91,27 @@ struct TerminalRoutes {
     private func start(id: String) async -> PtyProcess? {
         guard let command = try? await service.attach(id: id) else { return nil }
         return try? PtyProcess(command: command)
+    }
+
+    /// A shell on the machine itself, as the user the helper runs as. The command is the login shell from the
+    /// environment (the helper never takes one from the request), or the system shell when unset.
+    private func serveHost(_ inbound: WebSocketInboundStream, _ outbound: WebSocketOutboundWriter) async throws {
+        let id = "host"
+        let (ends, endSink) = AsyncStream<ConsoleClose>.makeStream()
+        guard consoles.claim(id, onEnd: { endSink.yield($0) }) else { return try await close(outbound, .alreadyOpen) }
+        defer { consoles.release(id); endSink.finish() }
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh"
+        guard let pty = try? PtyProcess(command: [shell]) else { return try await close(outbound, .couldNotStart) }
+        defer { pty.stop() }
+        let ending = try await withThrowingTaskGroup(of: ConsoleClose?.self) { group in
+            group.addTask { try await Self.pumpOutput(pty, outbound) }
+            group.addTask { try await Self.pumpInput(inbound, pty) }
+            group.addTask { await ends.first { _ in true } }
+            let first = try await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        if let ending { try await close(outbound, ending) }
     }
 
     /// Shell output to the browser. When the shell ends, the console ends with it.

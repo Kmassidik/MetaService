@@ -3,7 +3,7 @@
   import SecretField from '../SecretField.svelte'
   import { cleanReady, removeSharedMachine } from '../../lib/leave.ts'
   import type { JoinedMachine } from '../../lib/share.ts'
-  import { handshakeText, LEAVE_COMMAND, OS_NAMES, removePeerCopy } from '../../lib/shareText.ts'
+  import { handshakeText, LEAVE_COMMAND, MESH_NOTE, OS_NAMES, removePeerCopy } from '../../lib/shareText.ts'
 
   let { peers, onChanged }: { peers: JoinedMachine[]; onChanged: () => Promise<void> } = $props()
   let removing = $state<JoinedMachine | null>(null)
@@ -52,7 +52,10 @@
   </div>
 {/if}
 {#if notice}<p class="leave notice" role="status">{notice}</p>{/if}
-{#if peers.length > 0}<p class="leave">Remove cleans the computer too when you type its sudo password: it stops its helper and WireGuard and deletes its join folder. If you untick that, run <code>{LEAVE_COMMAND}</code> on it yourself.</p>{/if}
+{#if peers.length > 0}
+  <p class="leave mesh-note" role="note">{MESH_NOTE}</p>
+  <p class="leave">Remove cleans the computer too when you type its sudo password: it stops its helper and WireGuard and deletes its join folder. If you untick that, run <code>{LEAVE_COMMAND}</code> on it yourself.</p>
+{/if}
 
 <ConfirmDialog open={removing !== null} {...copy} ready={cleanReady(clean, sudoPassword)} onconfirm={remove} onClose={() => (removing = null)}>
   <label class="check"><input type="checkbox" bind:checked={clean} /> Also clean the computer: stop its helper and WireGuard, remove its boot entries and delete its join folder (recommended)</label>

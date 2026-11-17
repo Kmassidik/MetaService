@@ -24,7 +24,7 @@ struct TerminalBridge: Sendable {
     func run(_ key: ConsoleKey, inbound: WebSocketInboundStream, outbound: WebSocketOutboundWriter, logger: Logger) async -> CloseReason {
         let ended = EndedBy()
         do {
-            let (url, token) = try client.target(machine: key.machine, scheme: "ws", path: "/v1/workloads/\(key.workload)/terminal")
+            let (url, token) = try client.target(machine: key.machine, scheme: "ws", path: Self.helperPath(key))
             var headers = HTTPFields()
             headers[.authorization] = "Bearer \(token)"
             let configuration = WebSocketClientConfiguration(maxFrameSize: Self.helperOutputBytes, additionalHeaders: headers)
@@ -41,9 +41,14 @@ struct TerminalBridge: Sendable {
         return reason
     }
 
+    /// "host" means the machine itself: the helper's own shell route, not a workload's.
+    static func helperPath(_ key: ConsoleKey) -> String {
+        key.workload == "host" ? "/v1/host-terminal" : "/v1/workloads/\(key.workload)/terminal"
+    }
+
     /// The helper refused the upgrade. Asking the same route without upgrade headers gets its plain answer (409 not_running, console_open, no_agent), which says why.
     private func refusalReason(_ key: ConsoleKey) async -> CloseReason {
-        let path = "/v1/workloads/\(key.workload)/terminal"
+        let path = Self.helperPath(key)
         guard let reply = try? await client.call(machine: key.machine, method: "GET", path: path) else { return .vmUnavailable }
         let error = reply.json?["error"] as? [String: Any]
         return HelperRefusal.reason(code: error?["code"] as? String)

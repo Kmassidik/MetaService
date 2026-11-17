@@ -72,6 +72,10 @@ export function saneName(hostname: string): string {
 /** The line that undoes a join on the computer itself. It asks for sudo once there, stops the helper and WireGuard, removes the boot entries and deletes the join folder. */
 export const LEAVE_COMMAND = 'sh ~/.metaservice-join/leave.sh'
 
+/** What a join gives and does not give, told on the page where machines join. The tunnel is outbound: the joined computer can reach the panel, and the panel can reach its helper — nothing else on that computer is exposed, and nobody else is on the mesh. */
+export const MESH_NOTE =
+  'A joined computer is on the shared network: the panel can reach its helper (updates, cleaning, VMs), and you can open its terminal from anywhere on this page. Its screen and its own SSH login are not exposed to the internet.'
+
 /** What Remove here does not do: the other computer is not touched, so its helper and WireGuard keep running until someone there runs the leave command. */
 export const LEAVE_NOTE = `Removing it here does not change that computer: its helper and WireGuard keep running there until someone on it runs ${LEAVE_COMMAND} (it asks for sudo once, stops the services and deletes the join folder).`
 

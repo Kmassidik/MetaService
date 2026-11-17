@@ -51,11 +51,16 @@ final class TerminalService: @unchecked Sendable {
         } catch MachineError.notFound {
             throw ApiFailure.notFound
         }
-        guard let vm = machine.workloads.first(where: { $0.id == key.workload }) else { throw ApiFailure.notFound }
         guard TerminalSupport.isSupported(machineOS: machine.os ?? "", capabilities: machine.capabilities) else { throw ApiFailure(status: .conflict, code: "not_supported", message: TerminalSupport.message) }
         guard machine.state != "offline" else { throw ApiFailure(status: .badGateway, code: "unreachable", message: "the machine is offline") }
+        // "host" is the machine itself: a shell as the user the helper runs as, no workload involved.
+        guard key.workload != Self.hostWorkload else { return }
+        guard let vm = machine.workloads.first(where: { $0.id == key.workload }) else { throw ApiFailure.notFound }
         guard vm.state == "running" else { throw ApiFailure(status: .conflict, code: "not_running", message: "the VM is not running") }
     }
+
+    /// The reserved workload id that opens a shell on the machine itself.
+    static let hostWorkload = "host"
 
     // MARK: the open console
 
@@ -68,7 +73,7 @@ final class TerminalService: @unchecked Sendable {
     }
 
     private func record(_ action: String, _ operatorName: String, _ key: ConsoleKey, seconds: Int?, reason: String? = nil) {
-        var detail = ["vm": key.workload]
+        var detail = [key.workload == Self.hostWorkload ? "target" : "vm": key.workload]
         if let seconds { detail["seconds"] = String(seconds) }
         if let reason { detail["reason"] = reason }
         try? audit.record(actor: operatorName, action: action, target: key.machine, detail: detail, at: clock.now)

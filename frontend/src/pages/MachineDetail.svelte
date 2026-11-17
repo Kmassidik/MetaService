@@ -17,6 +17,7 @@
   import { ActionState } from '../lib/action.svelte.ts'
   import { pendingFor, type PendingVm } from '../lib/pendingVms.ts'
   import { machineTabFromRoute } from '../lib/routes.ts'
+  import { openConsole } from '../lib/terminalStore.svelte.ts'
   import type { Command, Machine, RemoteMachineInfo, Workload } from '../lib/types.ts'
 
   interface Props {
@@ -93,6 +94,7 @@
     </div>
     <div class="sp">
       <button class="btn line sm" type="button" disabled={checking.busy} aria-busy={checking.busy} onclick={startCheck} title="Look at this machine again over SSH. Nothing is installed unless you ask for it.">{checkLabel}</button>
+      <button class="btn line sm" type="button" disabled={machine.state !== 'online'} title={machine.state === 'online' ? 'Open a shell on this machine itself' : 'The machine is offline.'} onclick={() => openConsole({ machine: machine.id, workload: 'host', name: `${machine.name} — host shell` })}>Host terminal</button>
       <button class="btn green sm" type="button" disabled={!readyForVms} title={readyForVms ? '' : 'This machine cannot create VMs yet.'} onclick={() => onCreate(machine)}>＋ Create a VM here</button>
       <button class="btn danger sm" type="button" onclick={() => onRemove(machine)} aria-label="Remove {machine.name}">Remove</button>
     </div>

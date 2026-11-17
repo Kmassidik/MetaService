@@ -66,6 +66,23 @@ pub async fn terminal(State(app): State<Arc<App>>, Path(id): Path<String>, upgra
         .on_upgrade(move |socket| session::run(socket, app, id, command, slot))
 }
 
+/// The reserved id for the machine itself: the shell runs on the helper's own host, as the user the helper runs as.
+pub const HOST_ID: &str = "host";
+
+/// `GET /v1/host-terminal`: a shell on the machine itself, not inside a workload. The same checks minus the workload:
+/// the id is fixed, the one-console rule is per machine, and the command is the user's login shell — nothing from the request.
+pub async fn host_terminal(State(app): State<Arc<App>>, upgrade: Option<WebSocketUpgrade>) -> Response {
+    let command = AttachCommand { program: std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into()), arguments: Vec::new() };
+    let Some(upgrade) = upgrade else {
+        return error(StatusCode::UPGRADE_REQUIRED, "upgrade_required", "this address only speaks WebSocket");
+    };
+    let Some(slot) = app.consoles.claim(HOST_ID) else { return console_open() };
+    upgrade
+        .max_frame_size(frames::SOCKET_FRAME_BYTES)
+        .max_message_size(frames::SOCKET_FRAME_BYTES)
+        .on_upgrade(move |socket| session::run(socket, app, HOST_ID.into(), command, slot))
+}
+
 /// Every refusal a console can meet before it starts, as the finished reply.
 #[allow(clippy::result_large_err)] // the Err is the reply, sent as it is
 async fn checked(app: &Arc<App>, id: &str) -> Result<AttachCommand, Response> {
