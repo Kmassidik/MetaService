@@ -136,6 +136,10 @@ async fn forward_input(message: Option<Result<Message, axum::Error>>, process: &
 
 /// Looks at the workload now. A listing that fails is tried again at the next look, not taken for the end.
 async fn workload_ended(app: &App, id: &str) -> Option<Ending> {
+    // The machine's own shell (id "host") is not a workload: there is nothing to look up, and it ends when the shell ends.
+    if id == super::HOST_ID {
+        return None;
+    }
     let workloads = match app.service.workloads().await {
         Ok(workloads) => workloads,
         Err(_) => {
