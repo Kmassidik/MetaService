@@ -71,7 +71,7 @@ async fn script_handler(
     }
     supported::check_pair(&state.config.builds, &os, &cpu).map_err(|p| ApiError::bad(p.code).with("reason", p.reason))?;
     let text = script::join_script(&link.id, &state.config.public_url, &os, &cpu);
-    Ok(([(header::CONTENT_TYPE, "text/x-shellscript")], text).into_response())
+    Ok(([(header::CONTENT_TYPE, script::content_type_for(&os))], text).into_response())
 }
 
 async fn register_handler(

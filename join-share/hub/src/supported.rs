@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 pub const OSES: [&str; 3] = ["mac", "linux", "windows"];
 pub const CPUS: [&str; 2] = ["arm64", "x86_64"];
 /// Pairs proven end to end so far; a build for any other pair is "untested".
+/// Proven on a real machine. Windows joins work with fakes only, so it stays off this list
+/// until a real Windows machine has joined once (see docs/PRD-windows-helper.md section 6).
 const PROVEN: [(&str, &str); 3] = [("mac", "arm64"), ("linux", "x86_64"), ("linux", "arm64")];
 const EXECUTABLE_BITS: u32 = 0o111;
 
@@ -43,16 +45,13 @@ pub struct PairProblem {
     pub reason: &'static str,
 }
 
-/// The parent's system name, e.g. `linux-x86_64`; None for windows or unknown words.
+/// The parent's system name, e.g. `linux-x86_64`, `windows-arm64`; None for unknown words.
 pub fn system_of(os: &str, cpu: &str) -> Option<String> {
-    if !CPUS.contains(&cpu) {
+    if !CPUS.contains(&cpu) || !OSES.contains(&os) {
         return None;
     }
-    match os {
-        "mac" => Some(format!("darwin-{cpu}")),
-        "linux" => Some(format!("linux-{cpu}")),
-        _ => None,
-    }
+    let family = if os == "mac" { "darwin" } else { os };
+    Some(format!("{family}-{cpu}"))
 }
 
 impl Builds {
@@ -77,9 +76,6 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 pub fn state_of(builds: &Builds, os: &str, cpu: &str) -> State {
-    if os == "windows" {
-        return State::Soon;
-    }
     if builds.helper_for(os, cpu).is_none() {
         return State::Missing;
     }
@@ -93,7 +89,7 @@ pub fn check_pair(builds: &Builds, os: &str, cpu: &str) -> Result<(), PairProble
     }
     match state_of(builds, os, cpu) {
         State::Ready | State::Untested => Ok(()),
-        State::Soon => Err(PairProblem { code: "windows_soon", reason: "Windows is coming soon." }),
+        State::Soon => Err(PairProblem { code: "no_build", reason: "There is no helper build for this computer yet." }),
         State::Missing => Err(PairProblem { code: "no_build", reason: "There is no helper build for this computer yet." }),
     }
 }
@@ -141,18 +137,22 @@ mod tests {
         assert_eq!(system_of("mac", "arm64").as_deref(), Some("darwin-arm64"));
         assert_eq!(system_of("mac", "x86_64").as_deref(), Some("darwin-x86_64"));
         assert_eq!(system_of("linux", "arm64").as_deref(), Some("linux-arm64"));
-        assert_eq!(system_of("windows", "arm64"), None);
+        assert_eq!(system_of("windows", "arm64").as_deref(), Some("windows-arm64"));
+        assert_eq!(system_of("windows", "x86_64").as_deref(), Some("windows-x86_64"));
         assert_eq!(system_of("linux", "../x"), None);
     }
 
     #[test]
     fn states_follow_files_and_proven_pairs() {
-        let (dir, builds) = builds_with(&["darwin-arm64", "linux-arm64", "linux-x86_64"]);
+        let (dir, builds) = builds_with(&["darwin-arm64", "linux-arm64", "linux-x86_64", "windows-x86_64"]);
         assert_eq!(state_of(&builds, "mac", "arm64"), State::Ready);
         assert_eq!(state_of(&builds, "linux", "x86_64"), State::Ready);
         assert_eq!(state_of(&builds, "linux", "arm64"), State::Ready);
         assert_eq!(state_of(&builds, "mac", "x86_64"), State::Missing);
-        assert_eq!(state_of(&builds, "windows", "x86_64"), State::Soon);
+        // A build exists for windows (shipped since 2026-11-17) but no real Windows machine has joined:
+        // untested, not soon (see docs/PRD-windows-helper.md section 6).
+        assert_eq!(state_of(&builds, "windows", "x86_64"), State::Untested);
+        assert_eq!(state_of(&builds, "windows", "arm64"), State::Missing);
         testkit::cleanup(&dir);
     }
 
@@ -169,7 +169,7 @@ mod tests {
     fn check_pair_codes() {
         let (dir, builds) = builds_with(&["linux-x86_64"]);
         assert!(check_pair(&builds, "linux", "x86_64").is_ok());
-        assert_eq!(check_pair(&builds, "windows", "arm64").unwrap_err().code, "windows_soon");
+        assert_eq!(check_pair(&builds, "windows", "arm64").unwrap_err().code, "no_build");
         assert_eq!(check_pair(&builds, "mac", "arm64").unwrap_err().code, "no_build");
         assert_eq!(check_pair(&builds, "beos", "arm64").unwrap_err().code, "bad_os_cpu");
         assert_eq!(check_pair(&builds, "../x", "arm64").unwrap_err().code, "bad_os_cpu");
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(t[0]["os"], "mac");
         assert_eq!(t[0]["cpus"][0], json!({"cpu": "arm64", "state": "ready"}));
         assert_eq!(t[0]["cpus"][1]["state"], "missing");
-        assert_eq!(t[2]["cpus"][1]["state"], "soon");
+        assert_eq!(t[2]["cpus"][1]["state"], "missing"); // windows arm64: no build yet
         testkit::cleanup(&dir);
     }
 }

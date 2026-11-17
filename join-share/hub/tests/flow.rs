@@ -281,8 +281,9 @@ async fn five_wrong_codes_refuse_and_expiry_is_reported() {
 #[tokio::test]
 async fn unsupported_pairs_are_400() {
     let h = Harness::new();
+    // windows with no build on this hub: no_build (the harness creates no windows build)
     let (s, body) = h.admin(Method::POST, "/admin/links", Some(json!({"os": "windows", "cpu": "x86_64"}))).await;
-    assert_eq!((s, parse(&body)["error"].clone()), (StatusCode::BAD_REQUEST, json!("windows_soon")));
+    assert_eq!((s, parse(&body)["error"].clone()), (StatusCode::BAD_REQUEST, json!("no_build")));
     let (s, body) = h.admin(Method::POST, "/admin/links", Some(json!({"os": "mac", "cpu": "x86_64"}))).await;
     assert_eq!((s, parse(&body)["error"].clone()), (StatusCode::BAD_REQUEST, json!("no_build")));
     let (s, _) = h.admin(Method::POST, "/admin/links", Some(json!({"os": "beos", "cpu": "arm64"}))).await;
@@ -309,7 +310,7 @@ async fn supported_table_lists_states() {
     assert_eq!(table[0]["cpus"][1]["state"], "missing");
     assert_eq!(table[1]["cpus"][0]["state"], "ready");
     assert_eq!(table[1]["cpus"][1]["state"], "ready");
-    assert_eq!(table[2]["cpus"][0]["state"], "soon");
+    assert_eq!(table[2]["cpus"][0]["state"], "missing"); // windows: no build in the harness
 }
 
 #[tokio::test]

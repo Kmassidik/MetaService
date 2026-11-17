@@ -1,0 +1,48 @@
+# Building the Windows helper
+
+The Windows helper lives in `agent/windows`. It cross-compiles from any machine with the
+mingw-w64 toolchain (the Windows targets need `x86_64-w64-mingw32-dlltool`, which the laptop
+cannot install today — 2026-11-18 — so the first build happens wherever the toolchain is, e.g.
+a nix shell or the Mini when a mingw formula exists).
+
+## One-time toolchain
+
+```sh
+rustup target add x86_64-pc-windows-gnu aarch64-pc-windows-gnu
+brew install mingw-w64        # macOS; provides the dlltool the gnu targets need
+```
+
+## Build (both architectures)
+
+```sh
+cd agent/windows
+cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release --target aarch64-pc-windows-gnu
+```
+
+The outputs are `target/<target>/release/metaservice-agent.exe`. Name them for the parent's
+build store and ship with checksums, same as the Linux helpers:
+
+```sh
+cp target/x86_64-pc-windows-gnu/release/metaservice-agent.exe  metaservice-agent-windows-x86_64.exe
+cp target/aarch64-pc-windows-gnu/release/metaservice-agent.exe metaservice-agent-windows-arm64.exe
+sha256sum metaservice-agent-windows-* > SHA256SUMS
+# then scp to the Mini: ~/MetaService/control-plane/arm64/state/agent-builds/
+```
+
+The hub serves the `.exe` and the tunnel config (`<name>.conf`) from that folder; the join
+script downloads both (see `join-share/script/join.ps1`).
+
+## What the build machine must be
+
+Anything with the mingw toolchain. The crate itself has no Windows-only dependencies in v1
+(axum, tokio, sysinfo, ureq are all cross-platform); the ConPTY terminal behind `/v1/host-terminal`
+is cfg-gated: on a non-Windows build host it compiles as an honest 500 "needs a Windows build"
+refusal, and the real ConPTY shell lands when someone builds on Windows or adds the `windows`
+crate — see `agent/windows/src/conpty.rs`.
+
+## Honest status
+
+Until a real Windows machine joins once: **every Windows claim is "tested with fakes only, not
+proven."** The hub marks windows builds `untested` (not `ready`) on purpose; the first real join
+promotes it. See `docs/PRD-windows-helper.md` section 6.
