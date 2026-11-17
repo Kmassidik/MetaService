@@ -71,7 +71,11 @@ async fn create_link(State(state): State<Shared>, body: Result<Json<NewLink>, Js
     let now = state.now();
     let link = Link { id: new_link_id(), os, cpu, created_at: now, expires_at: now + LIFETIME_SECS, used_at: None };
     state.store.insert_link(&link)?;
-    let command = format!("curl -fsSL \"{}/j/{}?os={}&cpu={}\" | sh", state.config.public_url, link.id, link.os, link.cpu);
+    let command = if link.os == "windows" {
+        format!("powershell -Command \"irm '{}/j/{}?os={}&cpu={}' | iex\"", state.config.public_url, link.id, link.os, link.cpu)
+    } else {
+        format!("curl -fsSL \"{}/j/{}?os={}&cpu={}\" | sh", state.config.public_url, link.id, link.os, link.cpu)
+    };
     Ok(Json(json!({ "link": link.id, "expires_at": iso8601(link.expires_at), "command": command })))
 }
 
