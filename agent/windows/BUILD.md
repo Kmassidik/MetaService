@@ -34,6 +34,20 @@ sha256sum metaservice-agent-windows-* > SHA256SUMS
 The hub serves the `.exe` and the tunnel config (`<name>.conf`) from that folder; the join
 script downloads both (see `join-share/script/join.ps1`).
 
+## The aarch64 build (done once, 2026-11-18, on the DGX)
+
+`aarch64-pc-windows-gnu` std is only distributed for x86_64 hosts, so the aarch64 build used the
+`aarch64-pc-windows-gnullvm` target + llvm-mingw (standalone tarball from
+github.com/mstorsjo/llvm-mingw/releases, ubuntu-22.04-aarch64 variant):
+
+```sh
+rustup target add aarch64-pc-windows-gnullvm
+# extract llvm-mingw to ~/llvm, then:
+CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER=~/llvm/bin/aarch64-w64-mingw32-gcc \
+  cargo build --release --target aarch64-pc-windows-gnullvm
+```
+The DGX was used once and cleaned afterwards (rustup + llvm + crate all removed).
+
 ## What the build machine must be
 
 Anything with the mingw toolchain. The crate itself has no Windows-only dependencies in v1
