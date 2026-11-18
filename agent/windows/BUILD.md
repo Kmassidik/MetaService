@@ -1,9 +1,10 @@
 # Building the Windows helper
 
 The Windows helper lives in `agent/windows`. It cross-compiles from any machine with the
-mingw-w64 toolchain (the Windows targets need `x86_64-w64-mingw32-dlltool`, which the laptop
-cannot install today — 2026-11-18 — so the first build happens wherever the toolchain is, e.g.
-a nix shell or the Mini when a mingw formula exists).
+mingw-w64 toolchain. **First real build: 2026-11-18, on Kurnia's fedora laptop** (mingw64-gcc
+dnf package + rustup stable with the x86_64-pc-windows-gnu std target), reached over the mesh
+from the Mini. The produced exe is in the parent's build store and the hub lists
+`windows x86_64: untested` — joinable.
 
 ## One-time toolchain
 
