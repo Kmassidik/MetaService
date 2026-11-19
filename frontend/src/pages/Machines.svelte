@@ -12,9 +12,9 @@
 
 <div class="phead">
   <h1>Machines</h1><span class="crumb">Infrastructure › {machines.length} {machines.length === 1 ? 'machine' : 'machines'}</span>
-  <div class="toggle" role="tablist" aria-label="View">
-    <button role="tab" class:active={mode === 'list'} aria-selected={mode === 'list'} onclick={() => (mode = 'list')}>List</button>
-    <button role="tab" class:active={mode === 'map'} aria-selected={mode === 'map'} onclick={() => (mode = 'map')}>Map</button>
+  <div class="viewtoggle" role="tablist" aria-label="View">
+    <button class="btn line sm" class:active={mode === 'list'} role="tab" aria-selected={mode === 'list'} onclick={() => (mode = 'list')}>List</button>
+    <button class="btn line sm" class:active={mode === 'map'} role="tab" aria-selected={mode === 'map'} onclick={() => (mode = 'map')}>Map</button>
   </div>
 </div>
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
@@ -27,8 +27,6 @@
 {/if}
 
 <style>
-  .toggle { display: inline-flex; background: #141a22; border: 1px solid #232c38; border-radius: 8px; padding: 2px; margin: 0 0 0 auto; }
-  .toggle button { background: transparent; border: none; color: #8b98a6; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  .toggle button.active { background: #1e6b34; color: #eaf7ec; }
-  .toggle button:hover:not(.active) { color: #dbe2ea; }
+  .viewtoggle { display: inline-flex; gap: 8px; margin: 0 0 0 auto; }
+  .viewtoggle .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 </style>
