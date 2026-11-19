@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { edgeKindFor, iconFor, layout, stateFor, subtitleFor } from './machineMap.ts'
+import { buildGraph, edgeKindFor, hubNodeId, iconFor, machineHrefFor, stateFor, subtitleFor } from './machineMap.ts'
 import type { Machine } from './types.ts'
 
 const mac = (id: string, over: Partial<Machine> = {}): Machine => ({
@@ -33,14 +33,14 @@ test('edge kind: mesh for 10.77, public for 202., ssh for the office LAN', () =>
   expect(edgeKindFor(mac('dgx', { ip: '192.168.0.30' }))).toBe('ssh')
 })
 
-test('layout puts the hub at the centre and the others in the preset slots, with one edge each', () => {
+test('buildGraph puts the hub at 0,0, machines in preset slots, one edge each', () => {
   const machines = [mac('fedora', { ip: '10.77.0.2' }), mac('dgx-spark', { ip: '192.168.0.30' })]
-  const { nodes, edges } = layout(machines, 'macminiruvio')
-  const hub = nodes.find((n) => n.id === '__hub__')
+  const { nodes, edges } = buildGraph(machines, 'macminiruvio')
+  const hub = nodes.find((n) => n.id === hubNodeId())
   expect(hub).toBeDefined()
-  expect(hub!.x).toBe(480)
-  expect(hub!.y).toBe(285)
-  expect(hub!.icon).toBe('hub')
+  expect(hub!.x).toBe(0)
+  expect(hub!.y).toBe(0)
+  expect(hub!.isHub).toBe(true)
   expect(nodes).toHaveLength(3)
   expect(edges).toHaveLength(2)
   expect(edges[0]!.kind).toBe('mesh')
@@ -48,7 +48,23 @@ test('layout puts the hub at the centre and the others in the preset slots, with
 })
 
 test('the hub machine itself is excluded from the satellite nodes', () => {
-  const { nodes } = layout([mac('macminiruvio'), mac('fedora')], 'macminiruvio')
+  const { nodes } = buildGraph([mac('macminiruvio'), mac('fedora')], 'macminiruvio')
   expect(nodes.filter((n) => n.machineId === 'macminiruvio')).toHaveLength(1)
-  expect(nodes[0]!.id).toBe('__hub__')
+  expect(nodes[0]!.id).toBe(hubNodeId())
+})
+
+test('more machines than preset slots fall onto a ring', () => {
+  const machines = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => mac(id))
+  const { nodes } = buildGraph(machines, 'hubmachine')
+  const satellites = nodes.filter((n) => !n.isHub)
+  expect(satellites).toHaveLength(7)
+  for (const node of satellites) {
+    const dist = Math.hypot(node.x, node.y)
+    expect(dist).toBeGreaterThan(200)
+    expect(dist).toBeLessThan(400)
+  }
+})
+
+test('machineHrefFor encodes the machine id', () => {
+  expect(machineHrefFor('mac mini')).toBe('#/machines/details?id=mac%20mini')
 })

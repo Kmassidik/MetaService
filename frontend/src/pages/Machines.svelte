@@ -4,7 +4,7 @@
   // Two view modes (List, Map) as toggle tabs; the search box filters whichever view is active via route query (?q=).
   import MachineList from '../components/MachineList.svelte'
   import { queryMachines } from '../lib/machineQuery.ts'
-  import MachineMap from '../components/MachineMap.svelte'
+  import MachineCanvas from '../components/MachineCanvas.svelte'
   import ScanView from '../components/ScanView.svelte'
   import type { Machine, RemoteMachineInfo } from '../lib/types.ts'
 
@@ -60,7 +60,7 @@
 {#if view === 'find'}
   <div class="body"><ScanView {machines} {onConnect} /></div>
 {:else if mode === 'map'}
-  <div class="mapwrap"><MachineMap machines={filtered} hub="macminiruvio" /></div>
+  <MachineCanvas machines={filtered} hub="macminiruvio" bind:query />
 {:else}
   <div class="body searchrow">
     <input class="querybox" type="search" placeholder="Search: name, os, ip… or os:linux state:offline ip:10.77" value={query} oninput={(e) => setQuery((e.target as HTMLInputElement).value)} aria-label="Search machines" />
@@ -77,8 +77,7 @@
 {/if}
 
 <style>
-  .mapwrap { position: relative; }
-  .searchrow { display: flex; gap: 8px; align-items: center; }
+.searchrow { display: flex; gap: 8px; align-items: center; }
   .querybox { width: 100%; max-width: 560px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; }
   .querycount { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .viewtoggle { display: inline-flex; gap: 8px; margin: 0 0 0 auto; }
