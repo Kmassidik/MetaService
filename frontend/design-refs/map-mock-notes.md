@@ -17,3 +17,9 @@ Panel integration notes:
 - Machine data must come from the real machines prop, NOT hardcoded nodes/latency/load. Latency/load are NOT in Machine type — omit or wire to a real API later; do not fake numbers.
 - Search is route-query driven (?q=) — filtering stays in Machines.svelte; Map just dims to unmatched styling.
 - Double-click opens detail page (keep), single click opens the inspector drawer (new, replaces table-row select? — table below canvas can stay; drawer is the inspection surface).
+
+## Shipped 2026-11-20
+- Full canvas engine swap chosen by Kurnia: `MachineCanvas.svelte` replaces `MachineMap.svelte` (deleted).
+- Drawer shows real Machine fields only (address/os/arch/link/helper/ram/cpu/problems) — no invented telemetry.
+- Route query `?q=` dims non-matching nodes; `?tab=` picks the view.
+- Layout math stays in `machineMap.ts` (buildGraph), covered by machineMap.test.ts.
