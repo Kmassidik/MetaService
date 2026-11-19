@@ -188,7 +188,7 @@
   }
 
   function onPointerUp(event: PointerEvent): void {
-    canvasEl!.releasePointerCapture(event.pointerId)
+    if (canvasEl!.hasPointerCapture(event.pointerId)) canvasEl!.releasePointerCapture(event.pointerId)
     if (dragNodeId) {
       savePositions()
       if (!moved) handleNodeClick(dragNodeId)
