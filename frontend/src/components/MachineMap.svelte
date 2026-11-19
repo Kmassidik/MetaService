@@ -28,26 +28,26 @@
 </div>
 
 <style>
-  .map { display: block; margin-top: 8px; width: 100%; max-width: 960px; height: 560px; background: #0e1319; border: 1px solid #1a222d; border-radius: 12px; }
+  .map { display: block; margin-top: 8px; width: 100%; max-width: 960px; height: 560px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
   .node { cursor: pointer; }
   .node:hover .halo { opacity: 1; }
   .halo { opacity: 0; transition: opacity .15s; fill: none; }
-  .node-online .halo { stroke: #2ea34a; stroke-opacity: .35; }
-  .node-setup .halo { stroke: #d9971a; stroke-opacity: .35; }
-  .node-offline .halo { stroke: #c04343; stroke-opacity: .35; }
-  .label { fill: #dbe2ea; font-size: 12px; font-weight: 500; text-anchor: middle; }
-  .sub { fill: #8b98a6; font-size: 11px; text-anchor: middle; }
-  .edge { stroke: #33485e; stroke-width: 1.5; stroke-dasharray: 4 3; }
-  .edge-mesh { stroke: #2ea34a; }
-  .edge-ssh { stroke: #3f87d9; }
-  .edge-public { stroke: #7a8694; stroke-dasharray: 1 4; }
-  .legend { display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: #8b98a6; }
+  .node-online .halo { stroke: var(--ok); stroke-opacity: .35; }
+  .node-setup .halo { stroke: var(--warn); stroke-opacity: .45; }
+  .node-offline .halo { stroke: var(--off); stroke-opacity: .45; }
+  .label { fill: var(--text); font-size: 12px; font-weight: 500; text-anchor: middle; }
+  .sub { fill: var(--m40); font-size: 11px; text-anchor: middle; }
+  .edge { stroke: var(--line); stroke-width: 1.5; }
+  .edge-mesh { stroke: var(--ok); }
+  .edge-ssh { stroke: var(--info); }
+  .edge-public { stroke: var(--m40); stroke-dasharray: 2 4; }
+  .legend { display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--m40); }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
-  .dot.online { background: #2ea34a; }
-  .dot.setup { background: #d9971a; }
-  .dot.offline { background: #c04343; }
+  .dot.online { background: var(--ok); }
+  .dot.setup { background: var(--warn); }
+  .dot.offline { background: var(--off); }
   .kinds { margin-left: 24px; }
-  .k.mesh { color: #2ea34a; }
-  .k.ssh { color: #3f87d9; }
-  .k.public { color: #7a8694; }
+  .k.mesh { color: var(--ok); }
+  .k.ssh { color: var(--info); }
+  .k.public { color: var(--m40); }
 </style>
