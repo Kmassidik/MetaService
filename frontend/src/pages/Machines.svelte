@@ -57,17 +57,17 @@
   </div>
 </div>
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
-<div class="body searchrow">
-  <input class="querybox" type="search" placeholder="Search: name, os, ip… or os:linux state:offline ip:10.77" value={query} oninput={(e) => setQuery((e.target as HTMLInputElement).value)} aria-label="Search machines" />
-  {#if query.trim()}
-    <button type="button" class="btn line sm clear" onclick={() => setQuery('')} aria-label="Clear search">✕ clear</button>
-  {/if}
-</div>
 {#if view === 'find'}
   <div class="body"><ScanView {machines} {onConnect} /></div>
 {:else if mode === 'map'}
   <div class="mapwrap"><MachineMap machines={filtered} hub="macminiruvio" /></div>
 {:else}
+  <div class="body searchrow">
+    <input class="querybox" type="search" placeholder="Search: name, os, ip… or os:linux state:offline ip:10.77" value={query} oninput={(e) => setQuery((e.target as HTMLInputElement).value)} aria-label="Search machines" />
+    {#if query.trim()}
+      <button type="button" class="btn line sm clear" onclick={() => setQuery('')} aria-label="Clear search">✕ clear</button>
+    {/if}
+  </div>
   <div class="body">
     {#if query.trim()}
       <p class="querycount">{filtered.length} of {machines.length} machines match</p>

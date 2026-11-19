@@ -1,6 +1,7 @@
 <script lang="ts">
   import { layout, machineHrefFor, probe3dIcons, iconPath } from '../lib/machineMap.ts'
   import type { Machine } from '../lib/types.ts'
+  import type { MapNode } from '../lib/machineMap.ts'
 
   let { machines, hub }: { machines: Machine[]; hub: string } = $props()
   let version = $state(0)
@@ -42,8 +43,26 @@
   let nodeStart = $state({ x: 0, y: 0 })
   let moved = false
   let selectedId = $state<string | null>(null)
+  const HUB_NODE_ID = '__hub__'
+  const STATE_LABELS: Record<MapNode['state'], string> = { online: 'online', setup: 'needs setup', offline: 'offline' }
+  const TABLE_ROW_ID_PREFIX = 'maprow-'
+  const tableNodes = $derived(base.nodes.filter((n) => n.id !== HUB_NODE_ID))
+
+  function rowEl(nodeId: string): Element | null {
+    return document.getElementById(`${TABLE_ROW_ID_PREFIX}${nodeId}`)
+  }
+
+  function scrollToRow(nodeId: string): void {
+    rowEl(nodeId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }
+
   let lastClickTime = 0
   let lastClickId: string | null = null
+  function selectRow(nodeId: string): void {
+    lastClickTime = 0
+    lastClickId = null
+    selectedId = nodeId
+  }
   let positions = $state<Record<string, { x: number; y: number }>>(loadPositions())
 
   function loadPositions(): Record<string, { x: number; y: number }> {
@@ -122,6 +141,7 @@
     lastClickTime = now
     lastClickId = nodeId
     selectedId = nodeId
+    scrollToRow(nodeId)
   }
 
   function resetView(): void {
@@ -177,21 +197,34 @@
   <span class="zoomlevel">{Math.round(scale * 100)}%</span>
 </div>
 
-{#if selectedId}
-  {@const node = base.nodes.find((n) => n.id === selectedId)}
-  {#if node}
-    <div class="selectedinfo" role="status">
-      <strong>{node.label}</strong> · {node.subtitle} ·
-      <a href={machineHrefFor(node)}>Open machine page</a>
-      <button type="button" aria-label="Close" onclick={() => (selectedId = null)}>✕</button>
-    </div>
-  {/if}
-{/if}
+<div class="machinetable-wrap">
+  <table class="machinetable" aria-label="Machines">
+    <thead>
+      <tr><th class="col-icon"></th><th>name</th><th>address</th><th>state</th><th></th></tr>
+    </thead>
+    <tbody>
+      {#each tableNodes as node (node.id)}
+        <tr
+          id={`${TABLE_ROW_ID_PREFIX}${node.id}`}
+          class="row row-{node.state}"
+          class:selected={selectedId === node.id}
+          onclick={() => { selectRow(node.id); scrollToRow(node.id) }}
+        >
+          <td class="col-icon"><img src={iconPath(node)} alt="" width="24" height="24" /></td>
+          <td class="col-name">{node.label}</td>
+          <td class="col-address">{node.subtitle}</td>
+          <td class="col-state"><span class="dot {node.state}"></span>{STATE_LABELS[node.state]}</td>
+          <td class="col-open"><a class="btn line sm" href={machineHrefFor(node)}>Open</a></td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
+</div>
 
 <div class="legend">
-  <span><span class="dot online"></span>online</span>
-  <span><span class="dot setup"></span>needs setup</span>
-  <span><span class="dot offline"></span>offline</span>
+  <span><span class="legenddot online"></span>online</span>
+  <span><span class="legenddot setup"></span>needs setup</span>
+  <span><span class="legenddot offline"></span>offline</span>
   <span class="kinds"><span class="k mesh">—</span> mesh tunnel &nbsp; <span class="k ssh">—</span> ssh &nbsp; <span class="k public">—</span> public</span>
   <span class="hint">drag canvas to pan · wheel to zoom · drag a machine to move it · click to select · double-click to open</span>
 </div>
@@ -218,13 +251,31 @@
   .mapcontrols button { width: 32px; height: 32px; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; }
   .mapcontrols button:hover { border-color: var(--accent); color: var(--accent-d); }
   .zoomlevel { font-size: 10px; color: var(--muted); text-align: center; }
-  .selectedinfo { margin-top: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: 13px; display: flex; gap: 8px; align-items: center; }
-  .selectedinfo button { margin-left: auto; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; }
-  .legend { display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .machinetable-wrap { margin-top: 10px; width: 100%; max-width: 960px; max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .machinetable { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
+  .machinetable th { position: sticky; top: 0; background: var(--surface); text-align: left; padding: 6px 12px; font-size: 11px; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .machinetable td { padding: 5px 12px; border-bottom: 1px solid var(--line); }
+  .machinetable tbody tr:last-child td { border-bottom: none; }
+  .row { cursor: pointer; height: 32px; }
+  .row:hover { background: var(--surface-2); }
+  .row.selected { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .row.selected .col-name { color: var(--accent); }
+  .col-icon { width: 40px; }
+  .col-icon img { display: block; border-radius: 4px; }
+  .col-name { font-weight: 500; }
+  .col-address { color: var(--muted); }
+  .col-state { color: var(--text); white-space: nowrap; }
+  .col-open { text-align: right; }
+  .col-open a { pointer-events: auto; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
   .dot.online { background: var(--ok); }
   .dot.setup { background: var(--warn); }
   .dot.offline { background: var(--off); }
+  .legend { display: flex; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .legend .legenddot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .legend .legenddot.online { background: var(--ok); }
+  .legend .legenddot.setup { background: var(--warn); }
+  .legend .legenddot.offline { background: var(--off); }
   .kinds { margin-left: 24px; }
   .k.mesh { color: var(--accent-mark); }
   .k.ssh { color: var(--info); }
