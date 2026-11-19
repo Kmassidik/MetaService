@@ -103,7 +103,10 @@
 
   function onPointerUp(nodeId: string | undefined, event: PointerEvent): void {
     void event
-    if (mode === 'node' && dragNodeId) savePosition(dragNodeId, positions[dragNodeId]!.x, positions[dragNodeId]!.y)
+    if (mode === 'node' && dragNodeId) {
+      const pos = positions[dragNodeId]
+      if (pos) savePosition(dragNodeId, pos.x, pos.y)
+    }
     const wasMoved = moved
     mode = 'none'
     dragNodeId = null
