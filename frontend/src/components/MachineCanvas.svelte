@@ -279,26 +279,33 @@
       ctx.stroke()
       ctx.restore()
 
-      // protocol badge at the midpoint when zoomed in or highlighted
+      // protocol badge at the midpoint when zoomed in or highlighted; mesh edges get the TB plug glyph
       if ((zoom >= 0.9 || highlighted) && !dimmed) {
         const midX = (p1.x + p2.x) / 2
         const midY = (p1.y + p2.y) / 2
         const label = edge.kind
+        const glyphW = edge.kind === 'mesh' ? 16 * Math.max(0.85, zoom) : 0
         ctx.font = `600 ${Math.round(9 * Math.max(0.85, zoom))}px "JetBrains Mono", monospace`
         const textW = ctx.measureText(label).width + 10
+        const badgeW = textW + glyphW
         const textH = 15 * Math.max(0.85, zoom)
         ctx.fillStyle = '#FFFFFF'
         ctx.strokeStyle = '#E4E7E4'
         ctx.lineWidth = 1
         ctx.setLineDash([])
         ctx.beginPath()
-        ctx.roundRect(midX - textW / 2, midY - textH / 2, textW, textH, 4)
+        ctx.roundRect(midX - badgeW / 2, midY - textH / 2, badgeW, textH, 4)
         ctx.fill()
         ctx.stroke()
         ctx.fillStyle = '#6B7280'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(label, midX, midY + 0.5)
+        if (edge.kind === 'mesh') {
+          drawPlugGlyph(ctx, midX - glyphW / 2 + 3, midY + 0.5, Math.max(0.85, zoom), EDGE_COLOR.mesh)
+          ctx.fillText(label, midX + glyphW / 2, midY + 0.5)
+        } else {
+          ctx.fillText(label, midX, midY + 0.5)
+        }
       }
 
       // animated packets
@@ -430,7 +437,37 @@
     }
   }
 
-  /** Simple vector hardware glyphs (no external icon files needed on canvas). */
+  /** Thunderbolt-plug glyph (plug outline + lightning) for mesh edges. */
+  function drawPlugGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, color: string): void {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(scale, scale)
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.lineWidth = 1.4
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    // plug body: rounded oval cable-end
+    ctx.beginPath()
+    ctx.roundRect(-5, -5.5, 10, 11, 4.5)
+    ctx.stroke()
+    // two contact dots
+    ctx.beginPath()
+    ctx.arc(-2, 3.2, 0.8, 0, Math.PI * 2)
+    ctx.arc(2, 3.2, 0.8, 0, Math.PI * 2)
+    ctx.fill()
+    // lightning bolt
+    ctx.beginPath()
+    ctx.moveTo(0.8, -3.6)
+    ctx.lineTo(-2.2, 0.4)
+    ctx.lineTo(-0.2, 0.4)
+    ctx.lineTo(-0.8, 3.2 - 2) // -0.8 baseline of bolt
+    ctx.moveTo(-0.8, 1.2)
+    ctx.lineTo(0.2, 1.2)
+    ctx.stroke()
+    ctx.restore()
+  }
+
   function drawHardwareIcon(ctx: CanvasRenderingContext2D, kind: MapIconKind, x: number, y: number, size: number): void {
     ctx.save()
     ctx.translate(x, y)
