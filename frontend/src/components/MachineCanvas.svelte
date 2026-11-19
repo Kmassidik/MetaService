@@ -2,6 +2,7 @@
   // Machines map: a 2D canvas engine. Pan/zoom/drag, animated packets on the edges, an in-canvas
   // legend bar, and an inspector drawer with real machine fields only (no invented telemetry).
   import { buildGraph, machineHrefFor, edgeKindFor } from '../lib/machineMap.ts'
+  import { drawPlugGlyph } from '../lib/mapGlyphs.ts'
   import type { CanvasNode, MapIconKind } from '../lib/machineMap.ts'
   import type { Machine } from '../lib/types.ts'
 
@@ -435,37 +436,6 @@
         ctx.fill()
       }
     }
-  }
-
-  /** Thunderbolt-plug glyph (plug outline + lightning) for mesh edges. */
-  function drawPlugGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, color: string): void {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.scale(scale, scale)
-    ctx.strokeStyle = color
-    ctx.fillStyle = color
-    ctx.lineWidth = 1.4
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    // plug body: rounded oval cable-end
-    ctx.beginPath()
-    ctx.roundRect(-5, -5.5, 10, 11, 4.5)
-    ctx.stroke()
-    // two contact dots
-    ctx.beginPath()
-    ctx.arc(-2, 3.2, 0.8, 0, Math.PI * 2)
-    ctx.arc(2, 3.2, 0.8, 0, Math.PI * 2)
-    ctx.fill()
-    // lightning bolt
-    ctx.beginPath()
-    ctx.moveTo(0.8, -3.6)
-    ctx.lineTo(-2.2, 0.4)
-    ctx.lineTo(-0.2, 0.4)
-    ctx.lineTo(-0.8, 3.2 - 2) // -0.8 baseline of bolt
-    ctx.moveTo(-0.8, 1.2)
-    ctx.lineTo(0.2, 1.2)
-    ctx.stroke()
-    ctx.restore()
   }
 
   function drawHardwareIcon(ctx: CanvasRenderingContext2D, kind: MapIconKind, x: number, y: number, size: number): void {
