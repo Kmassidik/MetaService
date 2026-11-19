@@ -4,6 +4,34 @@ import type { Machine } from './types.ts'
 
 export type MapIcon = 'hub' | 'fedora' | 'dgx' | 'rtx5090' | 'macmini' | 'macmini2' | 'macstudio' | 'macstudio2' | 'cloud'
 
+/** Probe: does a 3d icon exist for this machine id? Checked once per session; the map uses 3d when present, flat as fallback. */
+const probed3d = new Map<string, boolean>()
+
+export function iconPath(node: MapNode): string {
+  return probed3d.get(node.machineId) ? `/assets/icons3d/${node.machineId}.webp` : `/assets/icons/${node.icon}.webp`
+}
+
+/** Probes all machines for a 3d icon (async; the map re-renders after the checks settle). */
+export async function probe3dIcons(machineIds: string[]): Promise<void> {
+  await Promise.all(
+    machineIds.map(
+      (id) =>
+        new Promise<void>((resolve) => {
+          const img = new Image()
+          img.onload = () => {
+            probed3d.set(id, true)
+            resolve()
+          }
+          img.onerror = () => {
+            probed3d.set(id, false)
+            resolve()
+          }
+          img.src = `/assets/icons3d/${id}.webp`
+        }),
+    ),
+  )
+}
+
 export interface MapNode {
   id: string
   icon: MapIcon

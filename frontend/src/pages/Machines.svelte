@@ -2,12 +2,14 @@
   // Machines: the computers MetaService runs on. Open one to see everything about it, its deployments (VMs) and its activity.
   // Find machines and Add a machine live in the sidebar, under Machines.
   import MachineList from '../components/MachineList.svelte'
+  import { queryMachines } from '../lib/machineQuery.ts'
   import MachineMap from '../components/MachineMap.svelte'
   import ScanView from '../components/ScanView.svelte'
   import type { Machine, RemoteMachineInfo } from '../lib/types.ts'
 
   let { machines, remotes, now, pinned, banner, onAdd, onConnect, onRemove, onRename, onChanged, onCheck, view }: { machines: Machine[]; remotes: RemoteMachineInfo[]; now: number; pinned: string | null | undefined; banner: string; onAdd: () => void; onConnect: (host?: string) => void; onRemove: (machine: Machine) => void; onRename: (machine: Machine) => void; onChanged: () => void; onCheck: (machine: Machine) => void; view: 'list' | 'find' } = $props()
-  let mode: 'list' | 'map' = $state('list')
+  let mode: 'list' | 'map' | 'query' = $state('list')
+  let query = $state('')
 </script>
 
 <div class="phead">
@@ -15,18 +17,30 @@
   <div class="viewtoggle" role="tablist" aria-label="View">
     <button class="btn line sm" class:active={mode === 'list'} role="tab" aria-selected={mode === 'list'} onclick={() => (mode = 'list')}>List</button>
     <button class="btn line sm" class:active={mode === 'map'} role="tab" aria-selected={mode === 'map'} onclick={() => (mode = 'map')}>Map</button>
+    <button class="btn line sm" class:active={mode === 'query'} role="tab" aria-selected={mode === 'query'} onclick={() => (mode = 'query')}>Query</button>
   </div>
 </div>
 {#if banner}<p class="banner" role="status">{banner}</p>{/if}
 {#if view === 'find'}
   <div class="body"><ScanView {machines} {onConnect} /></div>
 {:else if mode === 'map'}
-  <MachineMap {machines} hub="macminiruvio" />
+  <div class="mapwrap"><MachineMap {machines} hub="macminiruvio" /></div>
+{:else if mode === 'query'}
+  <div class="body">
+    <input class="querybox" type="search" placeholder="Search: name, os, ip… or os:linux state:offline ip:10.77" bind:value={query} aria-label="Query machines" />
+    {#if query.trim()}
+      <p class="querycount">{queryMachines(machines, query).length} of {machines.length} machines</p>
+    {/if}
+    <MachineList machines={queryMachines(machines, query)} {remotes} {now} {pinned} {onRemove} {onRename} {onAdd} {onChanged} {onCheck} />
+  </div>
 {:else}
   <MachineList {machines} {remotes} {now} {pinned} {onRemove} {onRename} {onAdd} {onChanged} {onCheck} />
 {/if}
 
 <style>
+  .mapwrap { position: relative; }
+  .querybox { width: 100%; max-width: 560px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; }
+  .querycount { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .viewtoggle { display: inline-flex; gap: 8px; margin: 0 0 0 auto; }
   .viewtoggle .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 </style>
