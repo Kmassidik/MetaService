@@ -149,7 +149,11 @@
 
   // --- pointer handlers ---
   function onPointerDown(event: PointerEvent): void {
-    canvasEl!.setPointerCapture(event.pointerId)
+    try {
+      canvasEl!.setPointerCapture(event.pointerId)
+    } catch {
+      // synthetic or already-gone pointer: interactions still work without capture
+    }
     const pos = pointerPos(event)
     const hit = nodeAt(pos.x, pos.y)
     moved = false
