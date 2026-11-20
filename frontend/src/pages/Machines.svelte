@@ -78,7 +78,7 @@
 
 <style>
 .searchrow { display: flex; gap: 8px; align-items: center; }
-  .querybox { width: 100%; max-width: 560px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; }
+  .querybox { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; }
   .querycount { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .viewtoggle { display: inline-flex; gap: 8px; margin: 0 0 0 auto; }
   .viewtoggle .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
