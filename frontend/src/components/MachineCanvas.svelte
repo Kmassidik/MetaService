@@ -604,7 +604,7 @@
             <span class="dot big" style="background:{STATE_COLOR[selectedNode.state]}"></span>
             <h2>{selected.name}</h2>
           </div>
-          <p class="role">{selectedNode.isHub ? 'hub · parent' : selected.engine ?? selected.arch}</p>
+          <p class="role">{selectedNode.isHub ? 'hub · parent' : selected.engine ? `${selected.engine.name}${selected.engine.version ? ` ${selected.engine.version}` : ''}` : selected.arch}</p>
         </div>
         <button type="button" aria-label="Close inspector" onclick={() => (selectedId = null)}>✕</button>
       </header>
