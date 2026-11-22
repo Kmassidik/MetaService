@@ -11,13 +11,13 @@ test('memory in use is what programs hold; caches count as free', () => {
   expect(liveMemory(stats({ total_bytes: 0 }))).toBeNull()
 })
 
-test('the disk is the root mount, or the biggest one without a root', () => {
+test('the disk is the root mount, or the biggest one without a root, in GiB like the detail page', () => {
   const disks = [
-    { mount: '/data', name: 'b', fs: 'ext4', total_bytes: 2_000_000_000_000, used_bytes: 1_000_000_000_000, free_bytes: 1_000_000_000_000 },
-    { mount: '/', name: 'a', fs: 'ext4', total_bytes: 500_000_000_000, used_bytes: 100_000_000_000, free_bytes: 400_000_000_000 },
+    { mount: '/data', name: 'b', fs: 'ext4', total_bytes: 2 * 1024 ** 3 * 1000, used_bytes: 1024 ** 3 * 1000, free_bytes: 1024 ** 3 * 1000 },
+    { mount: '/', name: 'a', fs: 'ext4', total_bytes: 500 * 1024 ** 3, used_bytes: 100 * 1024 ** 3, free_bytes: 400 * 1024 ** 3 },
   ]
   expect(liveDisk(stats({}, disks))).toEqual({ free: 400, total: 500 })
-  expect(liveDisk(stats({}, disks.slice(0, 1)))).toEqual({ free: 1000, total: 2000 })
+  expect(liveDisk(stats({}, disks.slice(0, 1)))).toEqual({ free: 977, total: 1953 })
   expect(liveDisk(stats({}, []))).toBeNull()
 })
 

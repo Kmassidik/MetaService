@@ -26,7 +26,7 @@
   import { getMachineStats } from '../lib/api.ts'
   import { isStale, LIST_POLL_MS } from '../lib/stats.ts'
   import { browserEnvironment, startPolling } from '../lib/statsPoll.ts'
-  import { formatGb, formatMb, bundleFlag, relativeTime } from '../lib/format.ts'
+  import { formatGib, formatMb, bundleFlag, relativeTime } from '../lib/format.ts'
   import { machineCardDisplay } from '../lib/machineOffline.ts'
 
   import type { FactKey } from '../lib/cardFacts.ts'
@@ -124,7 +124,7 @@
 
   <div class="meters">
     <Meter label="Memory" free={memorySpace.free} total={memorySpace.total} format={formatMb} icon={CARD_ICONS.memory} />
-    <Meter label="Disk" free={diskSpace.free} total={diskSpace.total} format={formatGb} icon={CARD_ICONS.disk} />
+    <Meter label="Disk" free={diskSpace.free} total={diskSpace.total} format={formatGib} icon={CARD_ICONS.disk} />
     {#if room}<p class="room" data-testid="vm-room" title="What this machine can still give to new VMs: its share, minus the host's own reserve, minus what VMs already hold.">{room}</p>{/if}
   </div>
 

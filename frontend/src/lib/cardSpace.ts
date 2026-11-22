@@ -9,7 +9,7 @@ export interface Space {
 }
 
 const BYTES_PER_MB = 1024 * 1024
-const BYTES_PER_GB = 1_000_000_000
+const BYTES_PER_GIB = 1024 ** 3
 const ROOT_MOUNT = '/'
 
 /** Memory in MB: what is not in use, caches included (a cache is given back the moment a program asks for the memory). */
@@ -24,7 +24,7 @@ export function liveDisk(stats: MachineStats | null): Space | null {
   const disks = stats?.disks ?? []
   const disk = disks.find((candidate) => candidate.mount === ROOT_MOUNT) ?? [...disks].sort((left, right) => right.total_bytes - left.total_bytes)[0]
   if (!disk || disk.total_bytes <= 0) return null
-  return { free: Math.max(0, Math.round(disk.free_bytes / BYTES_PER_GB)), total: Math.round(disk.total_bytes / BYTES_PER_GB) }
+  return { free: Math.max(0, Math.round(disk.free_bytes / BYTES_PER_GIB)), total: Math.round(disk.total_bytes / BYTES_PER_GIB) }
 }
 
 /** What the machine can still give to new VMs: its share, minus the host's own reserve, minus what VMs already hold. Null when the machine does not say. */

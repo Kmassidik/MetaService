@@ -31,6 +31,12 @@ export function formatGb(gb: number | null | undefined): string {
   return gb >= 1000 ? `${trim(gb / 1000)} TB` : `${gb} GB`
 }
 
+/** Binary-step formatter for measured disk sizes (GiB counts): 3756 → "3.7 TB", same base as the detail page's formatBytes. */
+export function formatGib(gib: number | null | undefined): string {
+  if (gib === null || gib === undefined) return '–'
+  return gib >= 1024 ? `${trim(gib / 1024)} TB` : `${gib} GB`
+}
+
 function trim(value: number): string {
   return value >= 100 ? String(Math.round(value)) : value.toFixed(1).replace(/\.0$/, '')
 }
