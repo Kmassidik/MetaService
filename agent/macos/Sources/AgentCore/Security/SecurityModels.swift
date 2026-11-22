@@ -5,6 +5,17 @@ public enum SecurityEventType: String, Encodable, Equatable { case failedLogin =
 public enum SecurityMethod: String, Encodable, Equatable { case key, password }
 public enum BanTool: String, Encodable, Equatable { case running, notRunning = "not_running", notAvailable = "not_available" }
 
+/// One read of the log: the events, and the cursor to ask from next time.
+public struct SecurityEventsPage: Sendable, Equatable {
+    public let events: [SecurityEvent]
+    public let cursor: String
+    public let reset: Bool
+
+    public init(events: [SecurityEvent], cursor: String, reset: Bool) {
+        self.events = events; self.cursor = cursor; self.reset = reset
+    }
+}
+
 public struct SecurityEvent: Encodable, Equatable {
     public let time: String
     public let type: SecurityEventType

@@ -17,18 +17,20 @@ public struct SshdConfigResolver {
     /// sshd stops following Include after this many levels.
     static let maxIncludeDepth = 16
     private static let keyword = "passwordauthentication"
+    private static let logLevelKeyword = "loglevel"
     private static let includeKeyword = "include"
     private static let matchKeyword = "match"
 
     public let files: SshdConfigFiles
     public init(files: SshdConfigFiles) { self.files = files }
 
-    private enum Found { case value(Bool), invalid, unreadable, nothing }
+    private enum Found { case value(Bool), text(String), invalid, unreadable, nothing }
 
     /// true: password login is on; false: off; nil: the configuration could not be read, or says something sshd would refuse.
     public func passwordLogin() -> Bool? {
         switch scan(Self.mainConfig, depth: 0) {
         case .value(let on): return on
+        case .text: return nil
         case .nothing: return true
         case .invalid, .unreadable: return nil
         }
@@ -56,6 +58,28 @@ public struct SshdConfigResolver {
                 if case .nothing = found { continue }
                 return found
             }
+        }
+        return .nothing
+    }
+
+    /// The sshd LogLevel as the config says it (lowercased; "verbose" means the helper can read attempts). nil: not stated or unreadable.
+    public func logLevel() -> String? {
+        switch scanKeyword(Self.logLevelKeyword, depth: 0) {
+        case .text(let level): return level
+        default: return nil
+        }
+    }
+
+    /// A single-keyword scan that returns the value text (LogLevel takes words, not yes/no).
+    private func scanKeyword(_ keyword: String, depth: Int) -> Found {
+        guard depth <= Self.maxIncludeDepth else { return .invalid }
+        guard let text = files.read(Self.mainConfig) else { return .unreadable }
+        for line in text.split(whereSeparator: \.isNewline) {
+            let words = Self.words(of: line)
+            guard let first = words.first?.lowercased() else { continue }
+            if first == Self.matchKeyword { break }
+            if first == Self.includeKeyword { continue }
+            if first == keyword, let value = words.dropFirst().first?.lowercased() { return .text(value) }
         }
         return .nothing
     }
