@@ -17,9 +17,8 @@ final class SecurityRoutesTests: XCTestCase {
     }
 
     private func application() -> some ApplicationProtocol {
-        let reader = SecurityEventsReader(readLog: { _, _, _ in "" })
         let files = NoFiles()
-        let service = SecurityService(reader: reader, sshdConfig: SshdConfigResolver(files: files), files: files, homeDirectory: "/nonexistent",
+        let service = SecurityService(sshdConfig: SshdConfigResolver(files: files), files: files, homeDirectory: "/nonexistent",
                                       run: { _, _ in throw CocoaError(.fileNoSuchFile) }, pending: PendingUpdates(run: { _, _, _ in throw CocoaError(.fileNoSuchFile) }))
         let router = Router(context: AgentContext.self)
         router.add(middleware: SecurityHeadersMiddleware())
@@ -46,11 +45,12 @@ final class SecurityRoutesTests: XCTestCase {
         }
     }
 
-    func testAGarbledCursorIsAResetNotAnError() async throws {
+    /// macOS reports no events, so a cursor is accepted (never a reset): there is no log position to lose.
+    func testAGarbledCursorIsAcceptedNotAnError() async throws {
         try await application().test(.live) { client in
             try await client.execute(uri: "/v1/security/events?after=%3Cscript%3E", method: .get, headers: good) { response in
                 XCTAssertEqual(response.status, .ok)
-                XCTAssertEqual((try JSONSerialization.jsonObject(with: response.body) as! [String: Any])["reset"] as? Bool, true)
+                XCTAssertEqual((try JSONSerialization.jsonObject(with: response.body) as! [String: Any])["reset"] as? Bool, false)
             }
         }
     }

@@ -17,7 +17,7 @@ test('the disk is the root mount, or the biggest one without a root, in GiB like
     { mount: '/', name: 'a', fs: 'ext4', total_bytes: 500 * 1024 ** 3, used_bytes: 100 * 1024 ** 3, free_bytes: 400 * 1024 ** 3 },
   ]
   expect(liveDisk(stats({}, disks))).toEqual({ free: 400, total: 500 })
-  expect(liveDisk(stats({}, disks.slice(0, 1)))).toEqual({ free: 977, total: 1953 })
+  expect(liveDisk(stats({}, disks.slice(0, 1)))).toEqual({ free: 1000, total: 2000 })
   expect(liveDisk(stats({}, []))).toBeNull()
 })
 

@@ -98,11 +98,13 @@ function row(machine: string, failed: number) {
   return { machine, reported: true, last_reported: '2026-11-01T08:50:00Z', baseline: { password_login: null, ban_tool: null, firewall: null, auto_updates: null, starts_after_reboot: null, pending_updates: null }, failed, blocked: 0 }
 }
 
-test('the summary uses the range wording and counts Macs as connections', () => {
+test('the summary uses the range wording and counts only machines that report attempts (Macs report none)', () => {
   const rows = machineRows(infos, { range: '6h', generated_at: null, machines: [row('a', 1200), row('m', 1)], blocked_now: [], top_users: [], top_addresses: [], daily: [], buckets: [], bucket_minutes: 10 })
-  expect(rangeSummary(rows, '6h')).toBe('1,200 failed logins and 1 SSH connection in the last 6 hours.')
+  expect(rangeSummary(rows, '6h')).toBe('1,200 failed logins in the last 6 hours.')
   expect(rangeSummary(rows, '1h')?.endsWith('in the last hour.')).toBe(true)
   expect(rangeSummary(machineRows(infos, null), '6h')).toBeNull()
+  const onlyMac = machineRows([infos[1]], { range: '6h', generated_at: null, machines: [row('m', 1)], blocked_now: [], top_users: [], top_addresses: [], daily: [], buckets: [], bucket_minutes: 10 })
+  expect(rangeSummary(onlyMac, '6h')).toBeNull()
 })
 
 function machine(state: Machine['state'], extra: Partial<Machine> = {}): Machine {

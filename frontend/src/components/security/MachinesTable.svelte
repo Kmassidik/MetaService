@@ -8,7 +8,7 @@
   import { numberText } from '../../lib/securityRules.ts'
   import { NOT_WATCHED_LABEL, notWatchedLine, type MachineSecurityRow } from '../../lib/securityView.ts'
   import type { TimeFormat } from '../../lib/securityTime.ts'
-  import { CONNECTION_TOOLTIP, MAC_NOTE, isMacOs } from '../../lib/securityView.ts'
+  import { MAC_NOTE, isMacOs } from '../../lib/securityView.ts'
   import type { CheckState } from '../../lib/securityRules.ts'
 
   /** `onChanged` reads the machines again after a helper was updated. */
@@ -36,11 +36,7 @@
               {#if row.state !== 'offline'}<div class="help" data-testid="not-watched-help"><CardUpdate machine={row} {onChanged} /></div>{/if}
             {/if}
           </div></td>
-          <td data-label="Failed" class="nums num">
-            {#if row.watched && isMacOs(row.os) && row.failed !== null}
-              <span title={CONNECTION_TOOLTIP} data-connections>{numberText(row.failed)} connections</span>
-            {:else}{numberText(row.failed)}{/if}
-          </td>
+          <td data-label="Failed" class="nums num">{numberText(row.failed)}</td>
           <td data-label="Blocked" class="nums num">{numberText(row.blocked)}</td>
         </tr>
       {/each}

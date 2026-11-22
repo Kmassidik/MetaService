@@ -70,8 +70,10 @@ export const anyWatched = (rows: MachineSecurityRow[]): boolean => rows.some((ro
 /** The words the parent stores for a Mac's daily count of SSH connections (macOS does not log who connected, so it is saved as a failed login without user or address). */
 export const CONNECTION_DETAIL_PREFIX = 'SSH connections'
 export const CONNECTION_TYPE_LABEL = 'SSH connections'
-export const CONNECTION_TOOLTIP = "macOS does not record who connected. This counts every SSH connection that day, including MetaService's own tunnels and your own logins."
-export const MAC_NOTE = 'Mac numbers count connections, not failed logins: macOS does not log who connected.'
+/** Kept for events recorded before the removal: the parent's database still holds them. */
+export const LEGACY_CONNECTION_TOOLTIP = 'Recorded before 2026-11-22: macOS counted every SSH connection, including the ones MetaService itself made. No longer collected.'
+/** macOS reports no events at all (docs/security-model.md): no attempts are visible to it, so the Failed column shows —, not a connection count. */
+export const MAC_NOTE = 'Macs show the baseline only: macOS does not record failed logins (or any SSH detail) without VERBOSE sshd logging. Attempts are counted where the OS reports them (Linux, DGX).'
 const MAC_OS_NAMES: readonly string[] = ['macos', 'darwin']
 
 /** True for a machine that runs macOS. */
@@ -90,7 +92,7 @@ export const isConnectionCount = (event: SecurityEvent, infos: MachineInfo[]): b
 export const eventTypeLabel = (event: SecurityEvent, infos: MachineInfo[]): string => (isConnectionCount(event, infos) ? CONNECTION_TYPE_LABEL : EVENT_TYPE_LABELS[event.type])
 
 /** The tooltip of the type tag; only a connection count has one. */
-export const eventTypeTitle = (event: SecurityEvent, infos: MachineInfo[]): string | undefined => (isConnectionCount(event, infos) ? CONNECTION_TOOLTIP : undefined)
+export const eventTypeTitle = (event: SecurityEvent, infos: MachineInfo[]): string | undefined => (isConnectionCount(event, infos) ? LEGACY_CONNECTION_TOOLTIP : undefined)
 
 const countText = (count: number, one: string, many: string): string => `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`
 
@@ -111,13 +113,11 @@ export function eventTone(event: SecurityEvent, infos: MachineInfo[]): 'run' | '
   return event.type === 'login' ? 'run' : ''
 }
 
-/** One plain sentence on the range: failed logins on the watched Linux machines and SSH connections on the Macs, in the range's own words ("in the last 6 hours"). Null when nothing is watched. */
+
+/** One plain sentence on the range: failed logins on the machines that report attempts, in the range's own words ("in the last 6 hours"). Null when nothing watched reports. */
 export function rangeSummary(rows: MachineSecurityRow[], range: SecurityRange): string | null {
-  const watched = rows.filter((row) => row.watched)
-  if (watched.length === 0) return null
-  const sum = (part: MachineSecurityRow[]): number => part.reduce((total, row) => total + (row.failed ?? 0), 0)
-  const macs = watched.filter((row) => isMacOs(row.os))
-  const others = watched.filter((row) => !isMacOs(row.os))
-  const parts = [others.length > 0 ? countText(sum(others), 'failed login', 'failed logins') : null, macs.length > 0 ? countText(sum(macs), 'SSH connection', 'SSH connections') : null]
-  return `${parts.filter((part) => part !== null).join(' and ')} ${RANGE_PHRASE[range]}.`
+  const counting = rows.filter((row) => row.watched && !isMacOs(row.os))
+  if (counting.length === 0) return null
+  const total = counting.reduce((sum, row) => sum + (row.failed ?? 0), 0)
+  return `${countText(total, 'failed login', 'failed logins')} ${RANGE_PHRASE[range]}.`
 }

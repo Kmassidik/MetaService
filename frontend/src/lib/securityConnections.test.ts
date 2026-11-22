@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { SecurityEvent } from './securityTypes.ts'
 import type { MachineInfo } from './securityView.ts'
-import { CONNECTION_TOOLTIP, eventDetailText, eventTone, eventTypeLabel, eventTypeTitle, isConnectionCount, isMacOs } from './securityView.ts'
+import { LEGACY_CONNECTION_TOOLTIP, eventDetailText, eventTone, eventTypeLabel, eventTypeTitle, isConnectionCount, isMacOs } from './securityView.ts'
 
 const OLD_DETAIL = 'SSH connections (macOS does not log who tried)'
 const MAC: MachineInfo = { id: 'mac', name: 'Mac Studio', state: 'online', os: 'macos' }
@@ -30,7 +30,7 @@ describe('a Mac connection count', () => {
   })
   test('is named SSH connections, with the tooltip, in the neutral colour', () => {
     expect(eventTypeLabel(event(), INFOS)).toBe('SSH connections')
-    expect(eventTypeTitle(event(), INFOS)).toBe(CONNECTION_TOOLTIP)
+    expect(eventTypeTitle(event(), INFOS)).toBe(LEGACY_CONNECTION_TOOLTIP)
     expect(eventTone(event(), INFOS)).toBe('')
     expect(eventDetailText(event(), INFOS)).toBe('3,322 connections')
     expect(eventDetailText(event({ count: 1 }), INFOS)).toBe('1 connection')
