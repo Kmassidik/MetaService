@@ -5,8 +5,10 @@
   let { machines, topAddresses }: { machines: SecurityMachineLine[]; topAddresses: TopRow[] } = $props()
 
   const ips = $derived(topAddresses.filter((row) => row.count >= 3).slice(0, 8))
+  // Prefer the internet-facing Macs (pf wrapper installed) over Linux fail2ban for the pf check.
   const banMachine = $derived(
-    machines.find((m) => m.reported && m.baseline?.ban_tool === 'running')?.machine
+    machines.find((m) => m.reported && m.baseline?.ban_tool === 'running' && m.machine.startsWith('mac-'))?.machine
+      ?? machines.find((m) => m.reported && m.baseline?.ban_tool === 'running')?.machine
       ?? machines.find((m) => m.reported)?.machine,
   )
   let ip = $state('')
