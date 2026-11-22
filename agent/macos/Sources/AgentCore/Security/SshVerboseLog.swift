@@ -2,7 +2,10 @@ import Foundation
 
 /// One VERBOSE sshd line that carries an attempt or a login: when, which process, user, address.
 /// Mirrors the Linux parser's shapes (agent/linux/src/security/parse.rs); see docs/security-model.md §5.
-public struct VerboseSighting: Equatable {
+public struct VerboseSighting: Equatable, Sendable {
+    public init(epoch: Int, pid: Int, user: String?, address: String?, failed: Bool, method: String?) {
+        self.epoch = epoch; self.pid = pid; self.user = user; self.address = address; self.failed = failed; self.method = method
+    }
     public let epoch: Int
     public let pid: Int
     public let user: String?

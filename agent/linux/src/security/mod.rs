@@ -20,6 +20,8 @@ mod reader;
 #[cfg(test)]
 mod route_tests;
 #[cfg(test)]
+mod parse_properties;
+#[cfg(test)]
 mod tests;
 mod text;
 
