@@ -1,73 +1,61 @@
 <script lang="ts">
-  // Recommendations card: what to do NEXT, derived from the overview data (PRD-security-hardening.md §3).
-  // Router blocks come with the exact Omada rule text; the is-banned button checks a machine's pf table.
-  import { recommendations } from '../../lib/securityRecommend.ts'
+  // Simple card: which IPs to ban on the router, and a check whether an IP is already banned.
   import type { SecurityMachineLine, TopRow } from '../../lib/securityTypes.ts'
 
   let { machines, topAddresses }: { machines: SecurityMachineLine[]; topAddresses: TopRow[] } = $props()
 
-  const recs = $derived(recommendations(machines, topAddresses))
-  let checking = $state<Record<string, boolean>>({})
-  let banResult = $state<Record<string, string>>({})
+  const ips = $derived(topAddresses.filter((row) => row.count >= 3).slice(0, 8))
+  const banMachine = $derived(
+    machines.find((m) => m.reported && m.baseline?.ban_tool === 'running')?.machine
+      ?? machines.find((m) => m.reported)?.machine,
+  )
+  let ip = $state('')
+  let checking = $state(false)
+  let result = $state('')
 
-  async function checkBan(machine: string, address: string): Promise<void> {
-    checking[machine + address] = true
+  async function check(): Promise<void> {
+    if (!ip.trim() || !banMachine) return
+    checking = true
+    result = ''
     try {
-      const params = new URLSearchParams({ machine, address })
-      const reply = await fetch(`/api/security/ban-status?${params}`)
-      if (!reply.ok) throw new Error('unreachable')
-      const body = (await reply.json()) as { banned: boolean; reachable: boolean }
-      banResult[machine + address] = body.banned ? '✓ already banned' : 'not banned yet'
+      const reply = await fetch(`/api/security/ban-status?machine=${encodeURIComponent(banMachine)}&address=${encodeURIComponent(ip.trim())}`)
+      const body = (await reply.json()) as { banned: boolean }
+      result = body.banned ? '✓ banned' : 'not banned'
     } catch {
-      banResult[machine + address] = 'unreachable'
+      result = 'unreachable'
     } finally {
-      checking[machine + address] = false
+      checking = false
     }
   }
 </script>
 
-{#if recs.length > 0}
-  <section class="reccard" aria-label="Security recommendations" data-testid="recommendations">
-    <h2>Do this next</h2>
-    <ol>
-      {#each recs as rec, index (rec.target + rec.action)}
-        <li class="rec">
-          <div class="action">
-            <strong>{rec.action}</strong>
-            <span class="target">on {rec.target}</span>
-          </div>
-          <p class="why">{rec.why}</p>
-          {#if rec.omadaRule}
-            <pre class="rule">{rec.omadaRule}</pre>
-            <div class="checkrow">
-              <label for="checkip-{index}">Is it already banned?</label>
-              <input id="checkip-{index}" class="ipinput" type="text" placeholder="1.2.3.4" value={topAddresses[0]?.name ?? ''} />
-              <button type="button" class="btn line sm" onclick={(e) => {
-                const input = (e.currentTarget as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement
-                const firstMachine = machines.find((m) => m.reported)?.machine
-                if (input?.value && firstMachine) void checkBan(firstMachine, input.value.trim())
-              }}>Check</button>
-              <span class="result">{banResult[machines.find((m) => m.reported)?.machine! + (topAddresses[0]?.name ?? '')] ?? ''}</span>
-            </div>
-          {/if}
-        </li>
+{#if ips.length > 0 || banMachine}
+  <section class="card" data-testid="recommendations">
+    {#if ips.length > 0}
+      <div class="row head"><span>Block these on the router (Omada → Firewall → ipblock group):</span></div>
+      {#each ips as entry (entry.name)}
+        <div class="row">
+          <code class="ip">{entry.name}</code>
+          <span class="tries">{entry.count} tries</span>
+          <button type="button" class="btn line sm" onclick={() => (ip = entry.name)}>check</button>
+        </div>
       {/each}
-    </ol>
+    {/if}
+    <div class="row check">
+      <input class="input" type="text" placeholder="IP to check" bind:value={ip} aria-label="IP to check" />
+      <button type="button" class="btn line sm" onclick={check} disabled={checking}>{checking ? '…' : 'Already banned?'}</button>
+      <span class="result">{result}</span>
+    </div>
   </section>
 {/if}
 
 <style>
-  .reccard { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px 18px; margin-bottom: 16px; }
-  h2 { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--m50); margin: 0 0 10px; }
-  ol { padding: 0 0 0 20px; margin: 0; }
-  .rec { margin-bottom: 12px; }
-  .action { display: flex; gap: 8px; align-items: baseline; }
-  .action strong { font-size: 13px; color: var(--text); }
-  .target { font-size: 11px; color: var(--muted); }
-  .why { font-size: 12px; color: var(--m60); margin: 4px 0 0; }
-  .rule { font-family: var(--mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0 0; white-space: pre-wrap; }
-  .checkrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
-  .checkrow label { color: var(--muted); }
-  .ipinput { width: 160px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-family: var(--mono); font-size: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 10px 14px; margin-bottom: 12px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
+  .head { color: var(--muted); margin-bottom: 4px; }
+  .ip { font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .tries { color: var(--muted); font-size: 11px; }
+  .check { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .input { width: 180px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-family: var(--mono); font-size: 12px; }
   .result { color: var(--ok); font-size: 12px; }
 </style>
