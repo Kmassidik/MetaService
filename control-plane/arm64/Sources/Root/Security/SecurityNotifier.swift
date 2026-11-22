@@ -58,8 +58,10 @@ public final class DatabaseSecurityNotifier: SecurityNotifier {
             """, [.text(machine), .text(key), .text(day)])
         let inserted = try database.query("SELECT changes() AS c").first?.int("c") ?? 0
         guard inserted > 0 else { return }
+        // command_id is NOT NULL UNIQUE in the notifications schema; security rows use a synthetic id
+        let commandId = "sec-\(machine)-\(key)-\(day)"
         try database.execute("""
-            INSERT INTO notifications (user, kind, title, detail, machine_id, created_at) VALUES (?, ?, ?, ?, ?, ?)
-            """, [.text(Self.recipient), .text("security"), .text(title), .text(detail), .text(machine), .int(Int(now.timeIntervalSince1970))])
+            INSERT OR IGNORE INTO notifications (user, kind, title, detail, command_id, machine_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, [.text(Self.recipient), .text("security"), .text(title), .text(detail), .text(commandId), .text(machine), .int(Int(now.timeIntervalSince1970))])
     }
 }
