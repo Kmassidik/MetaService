@@ -12,6 +12,7 @@
   import SecurityHeader from '../components/security/SecurityHeader.svelte'
   import TopList from '../components/security/TopList.svelte'
   import MetricCard from '../components/monitor/MetricCard.svelte'
+  import Recommendations from '../components/security/Recommendations.svelte'
   import { bucketChart } from '../lib/securityBuckets.ts'
   import { chartData } from '../lib/securityChart.ts'
   import { RANGE_PHRASE, bucketMinutesOf, isShortRange } from '../lib/securityRanges.ts'
@@ -96,6 +97,7 @@
     </MetricCard>
   {/if}
   {#if collecting}
+    <Recommendations machines={data.overview?.machines ?? []} topAddresses={data.overview?.top_addresses ?? []} />
     {#if summary}<p class="summary" data-testid="range-summary">{summary}</p>{/if}
     {#if short}<BucketChart chart={buckets} {phrase} zoneLabel={time.label} />{:else}<DailyChart {chart} {phrase} />{/if}
     <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} {time} />

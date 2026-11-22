@@ -101,7 +101,10 @@ struct Services {
         stats = StatsService(machines: machines, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock)
         notifications = NotificationStore(database)
         jobMaintenance = JobMaintenance(commands: commands, notifications: notifications, clock: clock)
-        security = SecurityService(machines: machines, store: SecurityStore(securityDatabase), client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
+        let notifier = DatabaseSecurityNotifier(database: database)
+        let securityStore = SecurityStore(securityDatabase)
+        let securityLedger = NotifyingLedger(upstream: securityStore, notifier: notifier, counters: CounterBox())
+        security = SecurityService(machines: machines, store: securityLedger, pruner: securityStore, client: AgentClient(machines: machines, secrets: secrets, tunnels: tunnelPorts), clock: clock,
                                    pollSeconds: config.securityPollSeconds)
         netUsage = NetUsageService(machines: machines, store: NetMinuteStore(database), clock: clock)
         officeBandwidth = OfficeBandwidthService(settings: config.officeSnmp, store: OfficeMinuteStore(database), clock: clock)

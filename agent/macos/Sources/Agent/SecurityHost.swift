@@ -11,7 +11,11 @@ enum SecurityHost {
         let files = DiskFiles()
         let run: BaselineChecks.Run = { try await CommandRunner.run($0, $1, timeout: commandTimeout) }
         let pending = PendingUpdates { try await CommandRunner.run($0, $1, timeout: $2) }
-        return SecurityService(sshdConfig: SshdConfigResolver(files: files), files: files, homeDirectory: homeDirectory, run: run, pending: pending)
+        let pfRun: PfBan.Run = { tool, arguments, timeout in
+            let output = try await CommandRunner.run(tool, arguments, timeout: timeout)
+            return String(decoding: output, as: UTF8.self)
+        }
+        return SecurityService(sshdConfig: SshdConfigResolver(files: files), files: files, homeDirectory: homeDirectory, run: run, pending: pending, pfRun: pfRun)
     }
 
 }

@@ -309,6 +309,13 @@ public enum Migrations {
             );
             CREATE INDEX office_minutes_by_minute ON office_minutes (minute);
             """) }),
+        // One security notification per machine per key per day (rate limit for Kurnia's ask).
+        (35, { try $0.exec("""
+            CREATE TABLE security_notified (
+              machine TEXT NOT NULL, notify_key TEXT NOT NULL, day TEXT NOT NULL,
+              PRIMARY KEY (machine, notify_key, day)
+            );
+            """) }),
     ]
 
     public static var latest: Int { steps.last?.version ?? 0 }

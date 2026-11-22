@@ -103,7 +103,7 @@ test('the summary uses the range wording and counts only machines that report at
   expect(rangeSummary(rows, '6h')).toBe('1,200 failed logins in the last 6 hours.')
   expect(rangeSummary(rows, '1h')?.endsWith('in the last hour.')).toBe(true)
   expect(rangeSummary(machineRows(infos, null), '6h')).toBeNull()
-  const onlyMac = machineRows([infos[1]], { range: '6h', generated_at: null, machines: [row('m', 1)], blocked_now: [], top_users: [], top_addresses: [], daily: [], buckets: [], bucket_minutes: 10 })
+  const onlyMac = machineRows([infos[1]!], { range: '6h', generated_at: null, machines: [row('m', 1)], blocked_now: [], top_users: [], top_addresses: [], daily: [], buckets: [], bucket_minutes: 10 })
   expect(rangeSummary(onlyMac, '6h')).toBeNull()
 })
 
