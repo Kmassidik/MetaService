@@ -76,7 +76,63 @@ private let attemptShapes: [NSRegularExpression] = {
     return shapes.compactMap { try? NSRegularExpression(pattern: $0) }
 }()
 
+/// Parses the message-only lines of an `sshd -E` file (no timestamps, no pid). One event per
+/// unique (user, address) — the two lines of one connection deduplicate to it.
+public extension SshVerboseLog {
+    struct ClassicSighting: Equatable {
+        public let user: String?
+        public let address: String?
+        public let failed: Bool
+        public let pid: Int
+    }
+
+    static let classicShapes: [NSRegularExpression] = {
+        let shapes = [
+            #"Failed password for (?:invalid user )?(?<user>\S+) from (?<address>\S+) port"#,
+            #"Invalid user (?<user>\S*) from (?<address>\S+)(?: port)?"#,
+            #"(?:Connection closed by|Disconnected from) (?:invalid |authenticating )?user (?<user>\S+) (?<address>\S+) port"#,
+        ]
+        return shapes.compactMap { try? NSRegularExpression(pattern: $0) }
+    }()
+
+    static func parseClassicLines(_ text: String) -> [ClassicSighting] {
+        var events: [ClassicSighting] = []
+        var seenConnections: Set<String> = []
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = String(rawLine)
+            for shape in classicShapes {
+                guard let match = shape.firstMatchValueDict(in: line) else { continue }
+                let user = match["user"]
+                let address = match["address"]
+                let key = "\(user ?? "-")@\(address ?? "-")"
+                guard !seenConnections.contains(key) else { continue }
+                seenConnections.insert(key)
+                events.append(ClassicSighting(user: user, address: address, failed: true, pid: events.count))
+                break
+            }
+        }
+        return events
+    }
+}
+
 extension NSRegularExpression {
+    fileprivate func firstMatchValueDict(in text: String) -> [String: String]? {
+        guard let match = firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+        var groups: [String: String] = [:]
+        for name in ["user", "address"] {
+            let range = match.range(withName: name)
+            if range.location != NSNotFound, let swift = Range(range, in: text) { groups[name] = String(text[swift]) }
+        }
+        return groups
+    }
+
+    fileprivate func firstMatchValue(for name: String, in text: Substring) -> String? {
+        guard let match = firstMatch(in: String(text), range: NSRange(text.startIndex..., in: text)) else { return nil }
+        let range = match.range(withName: name)
+        guard range.location != NSNotFound, let swift = Range(range, in: text) else { return nil }
+        return String(text[swift])
+    }
+
     fileprivate func firstMatch(in text: Substring) -> [String: String]? {
         guard let match = firstMatch(in: String(text), range: NSRange(text.startIndex..., in: text)) else { return nil }
         var groups: [String: String] = [:]

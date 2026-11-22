@@ -3,6 +3,12 @@ import Foundation
 
 /// `log show --style compact` timestamps: `2026-11-01 14:23:06` in the machine's own zone, to Unix seconds.
 enum SecurityLogTime {
+    static func isoNow(_ date: Date = Date()) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+
     static let shape = Array("0000-00-00 00:00:00".utf8)
 
     static func epoch(of text: String, zone: TimeZone) -> Int? {

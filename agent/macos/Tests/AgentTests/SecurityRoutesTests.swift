@@ -19,7 +19,7 @@ final class SecurityRoutesTests: XCTestCase {
     private func application() -> some ApplicationProtocol {
         let files = NoFiles()
         let service = SecurityService(sshdConfig: SshdConfigResolver(files: files), files: files, homeDirectory: "/nonexistent",
-                                      run: { _, _ in throw CocoaError(.fileNoSuchFile) }, pending: PendingUpdates(run: { _, _, _ in throw CocoaError(.fileNoSuchFile) }))
+                                      run: { _, _ in throw CocoaError(.fileNoSuchFile) }, pending: PendingUpdates(run: { _, _, _ in throw CocoaError(.fileNoSuchFile) }), tail: nil)
         let router = Router(context: AgentContext.self)
         router.add(middleware: SecurityHeadersMiddleware())
         router.add(middleware: ErrorMiddleware())
