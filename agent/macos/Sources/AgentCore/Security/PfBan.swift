@@ -46,7 +46,7 @@ public struct PfBan {
     /// Whether an address is currently banned: asks pf (the table is the one source of truth,
     /// shared across helper restarts).
     public func isBanned(_ address: String) async -> Bool {
-        guard let output = try? await run(Self.wrapper, ["-t", "metaservice_blocklist", "-T", "test", address], 10) else { return false }
+        guard let output = try? await run("/usr/bin/sudo", ["-n", Self.wrapper, "-t", "metaservice_blocklist", "-T", "test", address], 10) else { return false }
         return output.contains("1/1 addresses match")
     }
 
@@ -62,7 +62,8 @@ public struct PfBan {
     }
 
     private mutating func ban(_ address: String) async {
-        _ = try? await run(Self.wrapper, ["-t", "metaservice_blocklist", "-T", "add", address], 10)
+        // pfctl needs root: the scoped wrapper runs through sudo -n (Kurnia installed the sudoers line)
+        _ = try? await run("/usr/bin/sudo", ["-n", Self.wrapper, "-t", "metaservice_blocklist", "-T", "add", address], 10)
     }
 
     private static func iso(_ epoch: Int) -> String {
