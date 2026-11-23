@@ -97,10 +97,12 @@
     </MetricCard>
   {/if}
   {#if collecting}
-    <Recommendations machines={data.overview?.machines ?? []} topAddresses={data.overview?.top_addresses ?? []} />
     {#if summary}<p class="summary" data-testid="range-summary">{summary}</p>{/if}
+    <div class="pair">
+      <Recommendations machines={data.overview?.machines ?? []} topAddresses={data.overview?.top_addresses ?? []} />
+      <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} {time} />
+    </div>
     {#if short}<BucketChart chart={buckets} {phrase} zoneLabel={time.label} />{:else}<DailyChart {chart} {phrase} />{/if}
-    <BlockedNow rows={data.overview?.blocked_now ?? []} {infos} {now} {time} />
     <div class="pair">
       <TopList label="User names the bots try" hint="The user names failed logins used most in this time range. Attackers guess common names. A Mac does not log user names, so it is not counted here." rows={data.overview?.top_users ?? []} testId="top-users" {phrase} />
       <TopList label="Addresses attacking most" hint="The addresses with the most failed logins in this time range. A Mac does not log addresses, so it is not counted here." rows={data.overview?.top_addresses ?? []} testId="top-addresses" {phrase} />

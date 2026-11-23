@@ -32,7 +32,7 @@
 </script>
 
 {#if ips.length > 0 || banMachine}
-  <section class="card" data-testid="recommendations">
+  <section class="card tile" data-testid="recommendations">
     {#if ips.length > 0}
       <div class="row head"><span>Block these on the router (Omada → Firewall → ipblock group):</span></div>
       {#each ips as entry (entry.name)}
@@ -52,7 +52,8 @@
 {/if}
 
 <style>
-  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 10px 14px; margin-bottom: 12px; }
+  .card { border: 1px solid var(--line); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .tile { height: 100%; }
   .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
   .head { color: var(--muted); margin-bottom: 4px; }
   .ip { font-family: var(--mono); font-size: 12px; color: var(--text); }
