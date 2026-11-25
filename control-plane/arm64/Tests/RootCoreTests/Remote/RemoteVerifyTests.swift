@@ -220,3 +220,53 @@ final class FirewallFixTests: XCTestCase {
         XCTAssertTrue(InstallMissingScripts.script(for: .firewall, user: "u", box: "b", mac: true, sshPort: 22).contains("socketfilterfw"))
     }
 }
+
+final class PasswordLoginFixTests: XCTestCase {
+    private let linux = "os=Linux\narch=x86_64\nuser=u\nram_mb=16384\ndisk_free_gb=100\ntool=incus\ntool=python3\npkg=apt\nsudo=password\nport_9101=free\n"
+
+    private func security(password: Bool?, key: Bool?) -> RemoteSecurity {
+        var s = RemoteSecurity()
+        s.passwordLogin = password
+        s.hasKeyLogin = key
+        return s
+    }
+
+    func testTheFixIsOfferedOnlyWhenPasswordsAreOnAndAKeyIsThere() throws {
+        let facts = try XCTUnwrap(RemoteProbe.parse(linux))
+        XCTAssertEqual(SecurityFixes.offers(security: security(password: true, key: true), facts: facts).map(\.part), ["password_login"])
+        // No key: the fix would lock the owner out, so it is never offered.
+        XCTAssertTrue(SecurityFixes.offers(security: security(password: true, key: false), facts: facts).isEmpty)
+        XCTAssertTrue(SecurityFixes.offers(security: security(password: true, key: nil), facts: facts).isEmpty)
+        // Already key-only, or unknown: nothing to fix.
+        XCTAssertTrue(SecurityFixes.offers(security: security(password: false, key: true), facts: facts).isEmpty)
+        XCTAssertTrue(SecurityFixes.offers(security: security(password: nil, key: true), facts: facts).isEmpty)
+        // No sudo: the panel cannot run it.
+        let noSudo = try XCTUnwrap(RemoteProbe.parse(linux.replacingOccurrences(of: "sudo=password", with: "sudo=none")))
+        XCTAssertTrue(SecurityFixes.offers(security: security(password: true, key: true), facts: noSudo).isEmpty)
+    }
+
+    func testTheScriptRefusesWithoutAKeyAndSetsTheDropInWithOne() {
+        let script = PasswordLoginScript.script(mac: false, sshPort: 22)
+        // The lockout guard runs inside the script, whatever the panel believed.
+        XCTAssertTrue(script.contains("authorized_keys"))
+        XCTAssertTrue(script.contains("PasswordAuthentication no"))
+        XCTAssertTrue(script.contains("sshd -t"))
+        // The result is proven from the effective config before the done marker.
+        let check = script.range(of: "passwordauthentication no")
+        let done = script.range(of: InstallMissingScripts.doneMarker)
+        XCTAssertNotNil(check)
+        XCTAssertNotNil(done)
+        XCTAssertLessThan(check!.lowerBound, done!.lowerBound)
+    }
+
+    func testTheMacScriptUsesTheDropInAndSshdT() {
+        let script = PasswordLoginScript.script(mac: true, sshPort: 22)
+        XCTAssertTrue(script.contains("sshd_config.d/00-metaservice-login.conf"))
+        XCTAssertTrue(script.contains("/usr/sbin/sshd -t"))
+        XCTAssertFalse(script.contains("systemctl"))
+    }
+
+    func testThePartDispatchesToThePasswordLoginScript() {
+        XCTAssertTrue(InstallMissingScripts.script(for: .passwordLogin, user: "u", box: "b", mac: false, sshPort: 22).contains("sshd -t"))
+    }
+}

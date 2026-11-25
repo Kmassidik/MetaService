@@ -77,11 +77,13 @@ const FIX_WHAT: Record<string, string> = {
   vm_packages: 'Installs qemu and its firmware with apt, and loads the KVM module, so this computer can run full VMs instead of only containers.',
   firewall: 'Turns the firewall on. The SSH connection this panel uses stays allowed, and your other computers are not touched.',
   autostart: "Registers this computer's helper with the boot service of the system (launchd on a Mac, systemd on Linux), so it is online again by itself after a restart.",
+  password_login: 'Writes one sshd drop-in that stops password logins, checks it with sshd -t, and proves the result before finishing. Your key login keeps working. Remove it anytime: sudo rm /etc/ssh/sshd_config.d/00-metaservice-login.conf',
 }
 
 const FIX_BUTTON: Record<string, string> = {
   firewall: 'Turn on the firewall for me',
   gpu_toolkit: "Install it for me (adds NVIDIA's package source)",
+  password_login: 'Turn off password login for me',
 }
 
 /** The label of the button under a cross. The toolkit's says it adds a package source from NVIDIA, so the person knows before pressing. */
@@ -91,6 +93,7 @@ export const fixButtonLabel = (offer: InstallOffer): string => FIX_BUTTON[offer.
 const FIX_WHAT_MAC: Record<string, string> = {
   firewall: "Turns on the Mac's built-in firewall with Apple's own tool. Remote Login (SSH) keeps working and nothing else on the Mac changes.",
   vm_tool: "Downloads Apple's container installer from github.com, checks that Apple signed it, installs it, then restarts this Mac's helper so it can make VMs. Nothing else on the Mac changes.",
+  password_login: "Writes one file under /etc/ssh/sshd_config.d that stops password logins, checks it with sshd -t, and proves the result before finishing. Your key login keeps working. Remove it anytime: sudo rm /etc/ssh/sshd_config.d/00-metaservice-login.conf",
 }
 
 /** The line the owner can paste on the computer when the panel cannot run the fix itself (a login without sudo): a Mac turns Apple's firewall on, Linux allows SSH first. */

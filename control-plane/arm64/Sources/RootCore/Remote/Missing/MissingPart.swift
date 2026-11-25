@@ -12,6 +12,8 @@ public enum MissingPart: String, CaseIterable, Sendable {
     case autostart
     /// Turns the firewall on (a Mac: Apple's tool; Linux: ufw, with the SSH port allowed first). Offered under the security row, not under a cross.
     case firewall
+    /// Turns SSH password login off (one sshd drop-in, `sshd -t` gated). Offered only when the machine answered that the login user has a key: without one this would lock the owner out.
+    case passwordLogin = "password_login"
 }
 
 public enum PackageManager: String, Sendable {
@@ -28,17 +30,17 @@ public enum InstallOffers {
     /// "Starts at boot" is not a package: it is one file the system's own boot service reads, so a Mac with sudo is allowed as well as a Linux computer with apt.
     /// Everything else stays where the whole install is known and verified (see docs/PLAN-install-missing.md).
     public static func offer(for part: MissingPart, facts: RemoteFacts) -> InstallOffer? {
-        if part == .firewall { return facts.sudo == .none ? nil : InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password) }
+        if part == .firewall || part == .passwordLogin { return facts.sudo == .none ? nil : InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password) }
         guard needed(part, facts), canInstall(part, facts) else { return nil }
         return InstallOffer(part: part.rawValue, needsPassword: facts.sudo == .password)
     }
-
     /// Writing a file outside the home folder is the only privileged step, so a login with no sudo cannot do it. "Starts at boot" needs no package manager at all,
     /// which is why a Mac is allowed for it; everything else waits for the apt support the rest of the install has.
     private static func canInstall(_ part: MissingPart, _ facts: RemoteFacts) -> Bool {
         guard facts.sudo != .none else { return false }
         if part == .autostart, facts.isMac { return true }
         if part == .vmTool, facts.isMac { return AppleContainerScript.supports(facts) }
+        if part == .passwordLogin { return true }
         return facts.isLinux && facts.packageManager == .apt
     }
 
@@ -53,6 +55,7 @@ public enum InstallOffers {
         /// container tool from a release, so it has no package manager: the fact there alone decides.
         case .autostart: return facts.autostart == false && RemoteInstallOptions.isPlainPath(facts.box)
         case .firewall: return true
+        case .passwordLogin: return true
         }
     }
 }

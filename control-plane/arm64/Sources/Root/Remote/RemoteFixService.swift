@@ -65,6 +65,7 @@ final class RemoteFixService: @unchecked Sendable {
         case .vmPackages: return facts.kvm == true && facts.qemu == true
         case .autostart: return facts.autostart == true
         case .firewall: return false
+        case .passwordLogin: return false
         }
     }
 

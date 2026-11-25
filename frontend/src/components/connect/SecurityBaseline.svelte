@@ -30,7 +30,7 @@
           <div class="det">{row.line}</div>
         </div>
         <span class="val">{row.short}</span>
-        {#if row.state === 'warning'}{@const offer = fixFor(row.id)}{#if offer}<InstallItForMe {offer} {form} {fingerprint} {os} {onChecked} />{:else if row.id === 'firewall'}{@const command = firewallCommand(os, form.port)}<div class="manual"><p>The panel cannot turn it on for you here (this login has no sudo). Paste this on that computer:</p><div class="codebox"><code>{command}</code><CopyButton text={command} describe="the firewall command" /></div></div>{/if}{/if}
+        {#if row.state === 'warning'}{@const offer = fixFor(row.id)}{#if offer}<InstallItForMe {offer} {form} {fingerprint} {os} {onChecked} />{:else if row.id === 'firewall'}{@const command = firewallCommand(os, form.port)}<div class="manual"><p>The panel cannot turn it on for you here (this login has no sudo). Paste this on that computer:</p><div class="codebox"><code>{command}</code><CopyButton text={command} describe="the firewall command" /></div></div>{:else if row.id === 'password_login'}<div class="manual"><p>The panel turns this off only after a key login is on the machine. Test a key-only login from a second window first, then run the harden script below — it checks the key itself and undoes everything if sshd rejects the change.</p></div>{/if}{/if}
       </li>
     {/each}
   </ul>
