@@ -128,6 +128,14 @@ pub fn gpu_watts(gpus: &[super::model::GpuStats]) -> Option<f64> {
     (total > 0.0).then(|| one_decimal(total))
 }
 
+/// The machine's best chip-total: CPU + GPU when both are known, else whichever one is. Neither: None.
+pub fn chip_total_watts(cpu_watts: Option<f64>, gpu_watts: Option<f64>) -> Option<f64> {
+    match (cpu_watts, gpu_watts) {
+        (Some(cpu), Some(gpu)) => Some(one_decimal(cpu + gpu)),
+        (only, None) | (None, only) => only,
+    }
+}
+
 /// One electrical rail of the CPU, as hwmon reports it: a voltage in volts or a current in amperes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Rail {
@@ -226,6 +234,14 @@ mod tests {
     #[test]
     fn a_counter_that_went_back_gives_nothing() {
         assert_eq!(watts_between(5_000_000, 4_999_999, 1.0), None);
+    }
+
+    #[test]
+    fn the_chip_total_is_the_sum_or_whichever_exists() {
+        assert_eq!(chip_total_watts(Some(15.5), Some(6.9)), Some(22.4));
+        assert_eq!(chip_total_watts(Some(2.0), None), Some(2.0));
+        assert_eq!(chip_total_watts(None, Some(5.3)), Some(5.3));
+        assert_eq!(chip_total_watts(None, None), None);
     }
 
     #[test]

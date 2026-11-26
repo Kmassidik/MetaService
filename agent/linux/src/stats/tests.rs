@@ -311,6 +311,72 @@ fn cpu_core_rails_are_read_from_labelled_hwmon_sensors() {
 }
 
 #[test]
+fn input_rails_mirror_the_cpu_rail_when_one_exists() {
+    let tree = Tree::new();
+    tree.put("sys/class/hwmon/hwmon0/in0_input", "1208\n"); // millivolts: 1.208 V
+    tree.put("sys/class/hwmon/hwmon0/in0_label", "CPU Core\n");
+    tree.put("sys/class/hwmon/hwmon0/curr1_input", "13000\n"); // milliamperes: 13.0 A
+    tree.put("sys/class/hwmon/hwmon0/curr1_label", "CPU\n");
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
+    assert_eq!(stats.input_voltage, stats.cpu_core_voltage);
+    assert_eq!(stats.input_current, stats.cpu_core_current);
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json["input_voltage"], serde_json::json!(1.208));
+    assert_eq!(json["input_current"], serde_json::json!(13.0));
+    assert_eq!(
+        json.get("input_watts"),
+        None,
+        "no chip draw readable on this fake board: the key is absent"
+    );
+}
+
+#[test]
+fn a_board_without_rails_leaves_the_input_keys_out_of_the_json() {
+    let tree = Tree::new();
+    tree.rapl(1_000_000_000);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, true).unwrap();
+    tree.rapl(1_006_000_000);
+    let stats = sampler
+        .take(start + Duration::from_secs(3), 0, true)
+        .unwrap();
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json.get("input_voltage"), None);
+    assert_eq!(json.get("input_current"), None);
+    // No GPU scan has run yet, so the CPU draw alone is the best chip-total.
+    assert_eq!(json["input_watts"], serde_json::json!(2.0));
+}
+
+#[test]
+fn chip_total_adds_the_gpu_sum_when_both_draws_are_known() {
+    let tree = Tree::new();
+    tree.rapl(1_000_000_000);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    let mut stats = sampler.take(start, 0, true).unwrap();
+    tree.rapl(1_006_000_000); // 2 W of CPU draw
+    stats = sampler
+        .take(start + Duration::from_secs(3), 0, true)
+        .unwrap();
+    // The GPU scan in Monitor::read reports 5.3 W: the total becomes 7.3 W.
+    stats.gpus = Some(vec![{
+        let mut gpu =
+            super::model::GpuStats::named("Fake GPU".into(), "nvidia");
+        gpu.power_watts = Some(5.3);
+        gpu
+    }]);
+    stats.gpu_power_watts = Some(super::power::gpu_watts(stats.gpus.as_ref().unwrap()).unwrap());
+    stats.power_watts = Some(super::model::one_decimal(
+        stats.cpu_power_watts.unwrap() + stats.gpu_power_watts.unwrap(),
+    ));
+    stats.input_watts = super::power::chip_total_watts(stats.cpu_power_watts, stats.gpu_power_watts);
+    assert_eq!(stats.input_watts, Some(7.3));
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json["input_watts"], serde_json::json!(7.3));
+}
+
+#[test]
 fn the_primary_interface_speed_is_reported_next_to_the_total() {
     let tree = Tree::new();
     tree.route("enp5s0");

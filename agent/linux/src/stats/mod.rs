@@ -67,6 +67,8 @@ impl Monitor {
                 stats.power_watts = Some(model::one_decimal(cpu_watts + gpu_watts));
             }
         }
+        // The machine's best chip-total: CPU + GPU when both are known, else whichever is (no GPUs read: the CPU draw or instant hwmon sensor alone).
+        stats.input_watts = power::chip_total_watts(stats.cpu_power_watts, stats.gpu_power_watts);
         Ok(stats)
     }
 }

@@ -49,6 +49,15 @@ pub struct Stats {
     /// The CPU core rail, in amperes (hwmon, a sensor labelled "CPU"). Left out when the board has no such sensor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpu_core_current: Option<f64>,
+    /// The machine's best chip-total draw (CPU + GPU, or whichever of the two is known). Left out when neither can be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_watts: Option<f64>,
+    /// The best labelled rail's voltage (the same sensor as `cpu_core_voltage`). Left out when the board has no such sensor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_voltage: Option<f64>,
+    /// The best labelled rail's current (the same sensor as `cpu_core_current`). Left out when the board has no such sensor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_current: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gpus: Option<Vec<GpuStats>>,
     pub processes: Vec<Process>,

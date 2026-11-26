@@ -85,6 +85,9 @@ impl Sampler {
         let before = slot.as_ref().filter(|b| comparable(b, now, &cpu_times));
         let seconds = before.map(|b| now.duration_since(b.at).as_secs_f64());
         let users = processes::parse_passwd(&self.read("etc/passwd").unwrap_or_default()); // no passwd file (a bare container): the user number is shown
+        // One scan serves both field pairs: the best labelled rail is the CPU rail.
+        let voltage = rail_voltage(&self.environment.root);
+        let current = rail_current(&self.environment.root);
         let stats = Stats {
             taken_at: iso8601(unix_seconds),
             measuring: before.is_none(),
@@ -99,8 +102,12 @@ impl Sampler {
             cpu_power_watts: power_section(&power, before, seconds),
             power_watts: power_section(&power, before, seconds), // total: raised by the GPU sum in stats/mod.rs when NVIDIA GPUs report
             gpu_power_watts: None, // filled in stats/mod.rs, after the (slow) GPU scan
-            cpu_core_voltage: rail_voltage(&self.environment.root),
-            cpu_core_current: rail_current(&self.environment.root),
+            cpu_core_voltage: voltage,
+            cpu_core_current: current,
+            // The chip-total without GPUs (raised with the GPU sum in stats/mod.rs); None when the machine cannot say.
+            input_watts: power::chip_total_watts(power_section(&power, before, seconds), None),
+            input_voltage: voltage,
+            input_current: current,
             process_count: processes::count(&self.environment.root.join("proc")),
             gpus: None,
             processes: self.listed(seen.as_deref(), before, seconds, &users),
