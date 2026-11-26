@@ -20,5 +20,5 @@
 {/if}
 
 <style>
-  .now { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--m60); }
+  .now { margin: 0; font-family: var(--mono); font-size: 18px; font-weight: 700; line-height: 1.1; color: inherit; }
 </style>
