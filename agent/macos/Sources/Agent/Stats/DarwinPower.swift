@@ -2,8 +2,8 @@ import Foundation
 
 /// Reads this Mac's power draw with powermetrics. Needs root; where the machine refuses it the answer is nil, never 0.
 enum DarwinPower {
-    private static let toolPath = "/usr/bin/powermetrics"
-    private static let sampleArguments = ["-i", "200", "-n", "1", "--samplers", "cpu_power,gpu_power"]
+    private static let toolPath = "/usr/bin/sudo"
+    private static let sampleArguments = ["-n", "/usr/bin/powermetrics", "-i", "200", "-n", "1", "--samplers", "cpu_power,gpu_power"]
     /// One line of the sample per source, in milliwatts. The cpu_power sampler prints all four; the gpu_power sampler
     /// repeats "GPU Power:", so only each label's first occurrence is read.
     private static let linePrefixes: [Key: String] = [.cpu: "CPU Power:", .gpu: "GPU Power:", .ane: "ANE Power:", .combined: "Combined Power (CPU + GPU + ANE):"]
