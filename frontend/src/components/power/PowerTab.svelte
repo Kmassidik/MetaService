@@ -104,29 +104,37 @@
 </script>
 
 <section class="power" class:grey aria-label="Power" data-testid="power-tab">
-  {#if machineWatts !== null}
-    <MetricCard label="Machine" hint={MACHINE_HINT}>
-      <p class="bignum nums" data-testid="power-machine">{machineWatts.toFixed(1)} <small>W</small></p>
-      <p class="sub">whole machine now</p>
-    </MetricCard>
-  {/if}
-  {#if cpuWatts !== null}
-    <MetricCard label="CPU" hint={CPU_HINT}>
-      <p class="bignum nums" data-testid="power-cpu">{cpuWatts.toFixed(1)} <small>W</small></p>
-      <p class="sub">CPU part now</p>
-    </MetricCard>
-  {/if}
-  {#if gpuWatts !== null}
-    <MetricCard label="GPU" hint={GPU_HINT}>
-      <p class="bignum nums" data-testid="power-gpu">{gpuWatts.toFixed(1)} <small>W</small></p>
-      <p class="sub">{gpuCaption}</p>
-    </MetricCard>
-  {/if}
-  {#if aneWatts !== null}
-    <MetricCard label="ANE" hint={ANE_HINT}>
-      <p class="bignum nums" data-testid="power-ane">{aneWatts.toFixed(1)} <small>W</small></p>
-      <p class="sub">Neural Engine now</p>
-    </MetricCard>
+  {#if machineWatts !== null || cpuWatts !== null || gpuWatts !== null || aneWatts !== null}
+    <section class="card strip" aria-label="Power draw" data-testid="power-strip">
+      {#if machineWatts !== null}
+        <div class="cell" title={MACHINE_HINT}>
+          <h3>Machine</h3>
+          <p class="bignum nums" data-testid="power-machine">{machineWatts.toFixed(1)} <small>W</small></p>
+          <p class="sub">whole machine now</p>
+        </div>
+      {/if}
+      {#if cpuWatts !== null}
+        <div class="cell" title={CPU_HINT}>
+          <h3>CPU</h3>
+          <p class="bignum nums" data-testid="power-cpu">{cpuWatts.toFixed(1)} <small>W</small></p>
+          <p class="sub">CPU part now</p>
+        </div>
+      {/if}
+      {#if gpuWatts !== null}
+        <div class="cell" title={GPU_HINT}>
+          <h3>GPU</h3>
+          <p class="bignum nums" data-testid="power-gpu">{gpuWatts.toFixed(1)} <small>W</small></p>
+          <p class="sub">{gpuCaption}</p>
+        </div>
+      {/if}
+      {#if aneWatts !== null}
+        <div class="cell" title={ANE_HINT}>
+          <h3>ANE</h3>
+          <p class="bignum nums" data-testid="power-ane">{aneWatts.toFixed(1)} <small>W</small></p>
+          <p class="sub">Neural Engine now</p>
+        </div>
+      {/if}
+    </section>
   {/if}
 
   {#if chart}
@@ -155,8 +163,11 @@
 </section>
 
 <style>
-  .power { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: start; }
+  .power { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
   .power > :global(.tile), .note { grid-column: 1 / -1; }
+  .strip { padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px 48px; }
+  .cell { display: grid; gap: 4px; min-width: 0; }
+  h3 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m50); }
   .bignum { margin: 0; font-family: var(--mono); font-size: 40px; font-weight: 700; line-height: 1; }
   .bignum small { font-size: 18px; font-weight: 400; color: var(--m60); }
   .sub { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--m60); }
