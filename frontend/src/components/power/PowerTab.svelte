@@ -165,7 +165,7 @@
 <style>
   .power { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
   .power > :global(.tile), .note { grid-column: 1 / -1; }
-  .strip { padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px 48px; }
+  .strip { padding: 14px 16px; display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px 48px; }
   .cell { display: grid; gap: 4px; min-width: 0; }
   h3 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m50); }
   .bignum { margin: 0; font-family: var(--mono); font-size: 40px; font-weight: 700; line-height: 1; }
