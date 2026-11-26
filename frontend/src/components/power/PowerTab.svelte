@@ -19,6 +19,7 @@
   const ANE_HINT = 'How many watts the Neural Engine (the chip part that runs machine-learning models) is drawing at this moment.'
   const CHART_HINT = 'The watts of the last hour, one line per part the machine reports. A missing reading is a gap in the line, never zero.'
   const RAIL_HINT = 'The CPU core rail\u2019s voltage and current from the sensors; their product is an estimate of the rail\u2019s watts, not the whole chip\u2019s draw.'
+  const INPUT_HINT = 'The machine\u2019s power input, measured at the supply: it includes the RAM, storage, fans \u2014 everything the chip numbers leave out.'
   const NO_LIMIT = null
 
   let { machine }: { machine: Machine } = $props()
@@ -48,6 +49,9 @@
   const aneWatts = $derived(newest((point) => point.anePower))
   const coreVoltage = $derived(newest((point) => point.coreVoltage))
   const coreCurrent = $derived(newest((point) => point.coreCurrent))
+  const inputVoltage = $derived(newest((point) => point.inputVoltage))
+  const inputCurrent = $derived(newest((point) => point.inputCurrent))
+  const inputWatts = $derived(newest((point) => point.inputWatts))
   const railWatts = $derived(coreVoltage !== null && coreCurrent !== null ? coreVoltage * coreCurrent : null)
   /** The maker's power limit of the first GPU that names one; the GPU card's caption compares against it. */
   const gpuLimit = $derived(stats?.gpus.find((gpu) => gpu.power_limit_watts !== undefined)?.power_limit_watts ?? NO_LIMIT)
@@ -151,6 +155,16 @@
         {#if railWatts !== null}<div><dt>Power</dt><dd data-testid="power-rail-watts">{railWatts.toFixed(1)} W</dd></div>{/if}
       </dl>
       {#if railWatts !== null}<p class="sub">estimate from the CPU core rail</p>{/if}
+    </MetricCard>
+  {/if}
+
+  {#if inputVoltage !== null || inputCurrent !== null || inputWatts !== null}
+    <MetricCard label="Power input" hint={INPUT_HINT}>
+      <dl class="rail nums">
+        {#if inputVoltage !== null}<div><dt>Voltage</dt><dd data-testid="power-input-voltage">{inputVoltage.toFixed(1)} V</dd></div>{/if}
+        {#if inputCurrent !== null}<div><dt>Current</dt><dd data-testid="power-input-current">{inputCurrent.toFixed(1)} A</dd></div>{/if}
+        {#if inputWatts !== null}<div><dt>Power</dt><dd data-testid="power-input-watts">{inputWatts.toFixed(1)} W</dd></div>{/if}
+      </dl>
     </MetricCard>
   {/if}
 

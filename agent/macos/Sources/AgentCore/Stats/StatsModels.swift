@@ -57,6 +57,8 @@ public struct MachineStats: Equatable {
     public var powerWatts: Double?
     /// CPU, GPU and Neural Engine watts of that draw. Each left out when the system does not say.
     public var cpuPowerWatts, gpuPowerWatts, anePowerWatts: Double?
+    /// The power inlet's volts, amps and watts. Each left out when the system does not say.
+    public var inputVoltage, inputCurrent, inputWatts: Double?
     public let processes: [Process]
 }
 
@@ -116,7 +118,7 @@ extension MachineStats.Gpu: Encodable {
 }
 
 extension MachineStats: Encodable {
-    private enum Keys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, processes }
+    private enum Keys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, inputVoltage, inputCurrent, inputWatts, processes }
     public func encode(to encoder: Encoder) throws {
         var box = encoder.container(keyedBy: Keys.self)
         try box.encode(takenAt, forKey: .takenAt); try box.encode(measuring, forKey: .measuring); try box.encode(uptimeSeconds, forKey: .uptimeSeconds)
@@ -124,6 +126,8 @@ extension MachineStats: Encodable {
         try box.encodeIfPresent(diskIo, forKey: .diskIo); try box.encodeIfPresent(processCount, forKey: .processCount); try box.encodeIfPresent(gpus, forKey: .gpus)
         try box.encodeIfPresent(powerWatts, forKey: .powerWatts); try box.encodeIfPresent(cpuPowerWatts, forKey: .cpuPowerWatts)
         try box.encodeIfPresent(gpuPowerWatts, forKey: .gpuPowerWatts); try box.encodeIfPresent(anePowerWatts, forKey: .anePowerWatts)
+        try box.encodeIfPresent(inputVoltage, forKey: .inputVoltage); try box.encodeIfPresent(inputCurrent, forKey: .inputCurrent)
+        try box.encodeIfPresent(inputWatts, forKey: .inputWatts)
         try box.encode(processes, forKey: .processes)
     }
 }

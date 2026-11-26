@@ -13,10 +13,12 @@ final class DarwinStatsSource: StatsSource {
         let network = DarwinNetwork.totals()
         let (cores, states) = try Self.cpuTimes()
         let power = DarwinPower.read()
+        let wall = DarwinWall.read()
         let extras = StatsExtras(cpuStates: states, topology: topology, networkIssues: NetworkIssues(errorsIn: network.errorsIn, errorsOut: network.errorsOut, dropsIn: network.dropsIn),
                                  diskTotals: DarwinDiskTotals.read(), processCount: processes.count(), gpus: DarwinGpus.read(), primaryInterface: primaryCounters(in: network),
                                  machinePowerWatts: power.combined, machineCpuPowerWatts: power.cpu,
-                                 machineGpuPowerWatts: power.gpu, machineAnePowerWatts: power.ane)
+                                 machineGpuPowerWatts: power.gpu, machineAnePowerWatts: power.ane,
+                                 inputVoltage: wall.voltage, inputCurrent: wall.current, inputWatts: wall.watts)
         return StatsSnapshot(takenAt: Date(), uptimeSeconds: try Self.uptimeSeconds(), cores: cores, load: Self.load(), memory: try DarwinMemory.read(),
                              disks: DarwinDisks.read(), receivedTotalBytes: network.received, sentTotalBytes: network.sent, processes: includeProcesses ? processes.list() : nil, extras: extras)
     }

@@ -40,6 +40,9 @@ function pointOf(source: Rec): StatsHistoryPoint {
   const anePower = finiteNumber(source.ane_power_watts)
   const coreVoltage = finiteNumber(source.cpu_core_voltage)
   const coreCurrent = finiteNumber(source.cpu_core_current)
+  const inputVoltage = finiteNumber(source.input_voltage)
+  const inputCurrent = finiteNumber(source.input_current)
+  const inputWatts = finiteNumber(source.input_watts)
   const gpus = historyGpus(source.gpus)
   return {
     t: required(source, 't'), cpu_percent: required(source, 'cpu_percent'),
@@ -58,6 +61,9 @@ function pointOf(source: Rec): StatsHistoryPoint {
     ...(anePower === undefined ? {} : { ane_power_watts: anePower }),
     ...(coreVoltage === undefined ? {} : { cpu_core_voltage: coreVoltage }),
     ...(coreCurrent === undefined ? {} : { cpu_core_current: coreCurrent }),
+    ...(inputVoltage === undefined ? {} : { input_voltage: inputVoltage }),
+    ...(inputCurrent === undefined ? {} : { input_current: inputCurrent }),
+    ...(inputWatts === undefined ? {} : { input_watts: inputWatts }),
     ...(gpus === undefined ? {} : { gpus }),
   }
 }

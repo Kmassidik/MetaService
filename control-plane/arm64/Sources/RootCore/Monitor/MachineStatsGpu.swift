@@ -15,6 +15,10 @@ extension MachineStats {
     public static let maxVoltage = 5.0
     public static let maxAmperes = 500.0
     public static let maxFanPercent = 100.0
+    /// Wall-side input ranges: mains is 0–300 V, a Mac mini draws under 20 A at the inlet, under 2000 W.
+    public static let maxInputVoltage = 300.0
+    public static let maxInputAmperes = 20.0
+    public static let maxInputWatts = 2000.0
 
     static func limitedGpus(_ gpus: [Gpu]?) -> [Gpu]? {
         guard let gpus, !gpus.isEmpty else { return nil }

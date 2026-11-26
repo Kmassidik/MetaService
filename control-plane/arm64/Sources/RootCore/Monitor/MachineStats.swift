@@ -193,10 +193,14 @@ public struct MachineStats: Codable, Equatable, Sendable {
     /// The CPU core's rail, when the helper can read it. Left out (nil) otherwise.
     public var cpuCoreVoltage: Double? = nil
     public var cpuCoreCurrent: Double? = nil
+    /// The power inlet's volts, amps and watts. Left out (nil) when the helper cannot say.
+    public var inputVoltage: Double? = nil
+    public var inputCurrent: Double? = nil
+    public var inputWatts: Double? = nil
     public var processes: [Process]
 
     /// Raw values are the property names; the decoder changes the snake_case keys to them and the encoder writes them back.
-    enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, processes }
+    enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, inputVoltage, inputCurrent, inputWatts, processes }
 
     /// Written like the contract: a missing number is null, but the gpus key is left out when there are none.
     public func encode(to encoder: Encoder) throws {
@@ -217,6 +221,9 @@ public struct MachineStats: Codable, Equatable, Sendable {
         try box.encodeIfPresent(anePowerWatts, forKey: .anePowerWatts)
         try box.encodeIfPresent(cpuCoreVoltage, forKey: .cpuCoreVoltage)
         try box.encodeIfPresent(cpuCoreCurrent, forKey: .cpuCoreCurrent)
+        try box.encodeIfPresent(inputVoltage, forKey: .inputVoltage)
+        try box.encodeIfPresent(inputCurrent, forKey: .inputCurrent)
+        try box.encodeIfPresent(inputWatts, forKey: .inputWatts)
         try box.encode(processes, forKey: .processes)
     }
 }

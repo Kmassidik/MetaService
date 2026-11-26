@@ -54,11 +54,15 @@ public struct StatsExtras: Equatable {
     public var machinePowerWatts: Double?
     /// CPU, GPU and Neural Engine watts of that draw. Nil where the system does not say.
     public var machineCpuPowerWatts, machineGpuPowerWatts, machineAnePowerWatts: Double?
+    /// The wall-side electrical telemetry: volts, amps and watts at the power inlet. Nil where the system does not say.
+    public var inputVoltage, inputCurrent, inputWatts: Double?
     public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil, gpus: [GpuReading] = [],
                 primaryInterface: InterfaceCounters? = nil, machinePowerWatts: Double? = nil,
-                machineCpuPowerWatts: Double? = nil, machineGpuPowerWatts: Double? = nil, machineAnePowerWatts: Double? = nil) {
+                machineCpuPowerWatts: Double? = nil, machineGpuPowerWatts: Double? = nil, machineAnePowerWatts: Double? = nil,
+                inputVoltage: Double? = nil, inputCurrent: Double? = nil, inputWatts: Double? = nil) {
         self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount; self.gpus = gpus
         self.primaryInterface = primaryInterface; self.machinePowerWatts = machinePowerWatts
         self.machineCpuPowerWatts = machineCpuPowerWatts; self.machineGpuPowerWatts = machineGpuPowerWatts; self.machineAnePowerWatts = machineAnePowerWatts
+        self.inputVoltage = inputVoltage; self.inputCurrent = inputCurrent; self.inputWatts = inputWatts
     }
 }

@@ -10,6 +10,7 @@ enum StatsMath {
             network: network(now, old, seconds), diskIo: diskIo(now, old, seconds), processCount: now.extras.processCount.map { max(0, $0) }, gpus: gpus(now),
             powerWatts: now.extras.machinePowerWatts, cpuPowerWatts: now.extras.machineCpuPowerWatts,
             gpuPowerWatts: now.extras.machineGpuPowerWatts, anePowerWatts: now.extras.machineAnePowerWatts,
+            inputVoltage: now.extras.inputVoltage, inputCurrent: now.extras.inputCurrent, inputWatts: now.extras.inputWatts,
             processes: processes(now, old, seconds))
     }
 

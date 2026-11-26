@@ -97,3 +97,15 @@ test('the stats address says whether the list of programs is wanted', () => {
   expect(statsPath('mac mini', false)).toBe('/api/machines/mac%20mini/stats?processes=0')
   expect(statsPath('studio', true)).toBe('/api/machines/studio/stats?processes=1')
 })
+
+test('input power parses like the other optional top-level numbers', () => {
+  const withWall = parseStatsReply(JSON.parse(JSON.stringify(reply({ stats: sampleStats({ input_voltage: 239.9, input_current: 0.42, input_watts: 100.7 }) }))))
+  expect(withWall.stats?.input_voltage).toBe(239.9)
+  expect(withWall.stats?.input_current).toBe(0.42)
+  expect(withWall.stats?.input_watts).toBe(100.7)
+  const without = parseStatsReply(JSON.parse(JSON.stringify(reply())))
+  expect(without.stats?.input_watts).toBeUndefined()
+  const junkSource = sampleStats()
+  const junk = parseStatsReply(JSON.parse(JSON.stringify({ ...reply(), stats: { ...junkSource, input_watts: 'plenty' } })))
+  expect(junk.stats?.input_watts).toBeUndefined()
+})

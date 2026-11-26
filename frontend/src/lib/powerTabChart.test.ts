@@ -47,3 +47,13 @@ describe('the Power tab chart', () => {
     expect(history).toMatchObject({ cpuPower: 40.5, gpuPower: 60, anePower: 2, coreVoltage: 0.8, coreCurrent: 3.2 })
   })
 })
+
+describe('the input line', () => {
+  test('it draws only when input watts exist, alongside the machine line', () => {
+    const chart = powerTabChart([point(0, { power: 120, inputWatts: 118 }), point(10, { power: 130, inputWatts: 127 })])
+    expect(chart?.series.map((one) => one.key)).toEqual(['machine', 'input'])
+    expect(chart?.series[1]?.name).toBe('input')
+    expect(chart?.series[1]?.values).toEqual([118, 127])
+    expect(powerTabChart([point(0, { power: 120 }), point(10, { power: 130 })])?.series.map((one) => one.key)).toEqual(['machine'])
+  })
+})

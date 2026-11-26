@@ -151,3 +151,14 @@ describe('mergeHistory', () => {
     expect(mergeHistory(many, [live(CHART_POINT_LIMIT + 5)]).length).toBe(CHART_POINT_LIMIT)
   })
 })
+
+describe('input power in the series', () => {
+  test('it rides the history point and the live reading, and is null when not given', () => {
+    const fromHistory = pointFromHistory(historyPoint(5, { input_voltage: 230.1, input_current: 0.5, input_watts: 115 }))
+    expect(fromHistory).toMatchObject({ inputVoltage: 230.1, inputCurrent: 0.5, inputWatts: 115 })
+    expect(pointFromHistory(historyPoint(5)).inputWatts).toBeNull()
+    const fromReading = pointFromReading(online({ stats: sampleStats({ input_voltage: 229.8, input_current: 0.6, input_watts: 138 }) }), 1000)
+    expect(fromReading).toMatchObject({ inputVoltage: 229.8, inputCurrent: 0.6, inputWatts: 138 })
+    expect(pointFromReading(online(), 1000)?.inputVoltage).toBeNull()
+  })
+})

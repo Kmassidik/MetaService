@@ -69,6 +69,21 @@ final class HistoryPointTests: XCTestCase {
         XCTAssertTrue(text.contains("\"power_watts\":123.4"), text)
     }
 
+    func testTheInputWattsAreCarriedButNotVoltageOrCurrent() throws {
+        var reading = stats()
+        reading.inputVoltage = 12.6
+        reading.inputCurrent = 2.75
+        reading.inputWatts = 34.7
+        let made = HistoryPoint(stats: reading, at: Date(timeIntervalSince1970: 1_800_000_000))!
+        XCTAssertEqual(made.inputWatts, 34.7)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let text = String(decoding: try encoder.encode(made), as: UTF8.self)
+        XCTAssertTrue(text.contains("\"input_watts\":34.7"), text)
+        XCTAssertFalse(text.contains("inputVoltage") || text.contains("input_voltage"), "no voltage key in history: \(text)")
+        XCTAssertFalse(text.contains("inputCurrent") || text.contains("input_current"), "no current key in history: \(text)")
+    }
+
     func testThePowerSplitAndRailNumbersAreCarriedWithSnakeCaseKeys() throws {
         var reading = stats()
         reading.cpuPowerWatts = 8.5

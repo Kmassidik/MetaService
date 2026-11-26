@@ -23,6 +23,7 @@ const RAILS: readonly Rail[] = [
   { key: 'cpu', name: 'CPU', colour: 'blue', dash: 'solid', pick: (point) => point.cpuPower },
   { key: 'gpu', name: 'GPU', colour: 'orange', dash: 'dashed', pick: (point) => point.gpuPower },
   { key: 'ane', name: 'ANE', colour: 'teal', dash: 'dotted', pick: (point) => point.anePower },
+  { key: 'input', name: 'input', colour: 'purple', dash: 'solid', pick: (point) => point.inputWatts },
 ]
 
 const watts = (value: number): string => `${value.toFixed(WATTS_DECIMALS)} W`

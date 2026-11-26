@@ -685,6 +685,10 @@ export interface MachineStats {
   /** The CPU core rail's volts and amps; the approximate rail power is their product. */
   cpu_core_voltage?: number
   cpu_core_current?: number
+  /** The machine's power input: volts, amps and watts at the supply's input; left out when the helper cannot read it. */
+  input_voltage?: number
+  input_current?: number
+  input_watts?: number
   /** Left out when the machine cannot say. */
   gpus: StatsGpu[]
   processes: StatsProcess[]
@@ -718,6 +722,9 @@ export interface StatsHistoryPoint {
   ane_power_watts?: number
   cpu_core_voltage?: number
   cpu_core_current?: number
+  input_voltage?: number
+  input_current?: number
+  input_watts?: number
 }
 
 export interface StatsHistoryReply {

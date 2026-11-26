@@ -26,6 +26,9 @@ extension MachineStats {
         anePowerWatts = try? box.decodeIfPresent(Double.self, forKey: .anePowerWatts)
         cpuCoreVoltage = try? box.decodeIfPresent(Double.self, forKey: .cpuCoreVoltage)
         cpuCoreCurrent = try? box.decodeIfPresent(Double.self, forKey: .cpuCoreCurrent)
+        inputVoltage = try? box.decodeIfPresent(Double.self, forKey: .inputVoltage)
+        inputCurrent = try? box.decodeIfPresent(Double.self, forKey: .inputCurrent)
+        inputWatts = try? box.decodeIfPresent(Double.self, forKey: .inputWatts)
         processes = try box.decode([Process].self, forKey: .processes)
     }
 
@@ -59,6 +62,9 @@ extension MachineStats {
         kept.anePowerWatts = MachineStats.rangeOrNil(anePowerWatts, 0...MachineStats.maxWatts)
         kept.cpuCoreVoltage = MachineStats.rangeOrNil(cpuCoreVoltage, 0...MachineStats.maxVoltage)
         kept.cpuCoreCurrent = MachineStats.rangeOrNil(cpuCoreCurrent, 0...MachineStats.maxAmperes)
+        kept.inputVoltage = MachineStats.rangeOrNil(inputVoltage, 0...MachineStats.maxInputVoltage)
+        kept.inputCurrent = MachineStats.rangeOrNil(inputCurrent, 0...MachineStats.maxInputAmperes)
+        kept.inputWatts = MachineStats.rangeOrNil(inputWatts, 0...MachineStats.maxInputWatts)
         kept.processes = processes.prefix(Self.maxProcesses).map { $0.limited() }
         return kept
     }

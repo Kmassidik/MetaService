@@ -78,7 +78,7 @@ export function networkExtras(source: Rec): Pick<StatsNetwork, 'errors_in_total'
 }
 
 /** The optional top-level parts: disk speed, the number of running programs, the whole-machine power draw and its split. */
-export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count' | 'power_watts' | 'cpu_power_watts' | 'gpu_power_watts' | 'ane_power_watts' | 'cpu_core_voltage' | 'cpu_core_current'> {
+export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count' | 'power_watts' | 'cpu_power_watts' | 'gpu_power_watts' | 'ane_power_watts' | 'cpu_core_voltage' | 'cpu_core_current' | 'input_voltage' | 'input_current' | 'input_watts'> {
   const speed = source.disk_io
   const read = isRec(speed) ? finiteNumber(speed.read_bytes_per_second) : undefined
   const write = isRec(speed) ? finiteNumber(speed.write_bytes_per_second) : undefined
@@ -89,6 +89,9 @@ export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_
   const anePower = finiteNumber(source.ane_power_watts)
   const coreVoltage = finiteNumber(source.cpu_core_voltage)
   const coreCurrent = finiteNumber(source.cpu_core_current)
+  const inputVoltage = finiteNumber(source.input_voltage)
+  const inputCurrent = finiteNumber(source.input_current)
+  const inputWatts = finiteNumber(source.input_watts)
   return {
     ...(read === undefined || write === undefined ? {} : { disk_io: { read_bytes_per_second: read, write_bytes_per_second: write } }),
     ...(count === undefined ? {} : { process_count: count }),
@@ -98,6 +101,9 @@ export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_
     ...(anePower === undefined ? {} : { ane_power_watts: anePower }),
     ...(coreVoltage === undefined ? {} : { cpu_core_voltage: coreVoltage }),
     ...(coreCurrent === undefined ? {} : { cpu_core_current: coreCurrent }),
+    ...(inputVoltage === undefined ? {} : { input_voltage: inputVoltage }),
+    ...(inputCurrent === undefined ? {} : { input_current: inputCurrent }),
+    ...(inputWatts === undefined ? {} : { input_watts: inputWatts }),
   }
 }
 

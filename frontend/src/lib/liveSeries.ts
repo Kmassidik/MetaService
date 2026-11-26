@@ -43,6 +43,10 @@ export interface LivePoint {
   anePower: number | null
   coreVoltage: number | null
   coreCurrent: number | null
+  /** The machine's power input: volts, amps and watts. Null when the machine did not say. */
+  inputVoltage: number | null
+  inputCurrent: number | null
+  inputWatts: number | null
   /** Only the GPUs that gave a number this time. */
   gpus: readonly LiveGpu[]
 }
@@ -65,6 +69,7 @@ export function pointFromHistory(point: StatsHistoryPoint): LivePoint {
     drops: point.net_drops ?? null, processes: point.processes_count ?? null, power: point.power_watts ?? null,
     cpuPower: point.cpu_power_watts ?? null, gpuPower: point.gpu_power_watts ?? null, anePower: point.ane_power_watts ?? null,
     coreVoltage: point.cpu_core_voltage ?? null, coreCurrent: point.cpu_core_current ?? null,
+    inputVoltage: point.input_voltage ?? null, inputCurrent: point.input_current ?? null, inputWatts: point.input_watts ?? null,
     gpus: (point.gpus ?? []).map(liveGpuOfHistory),
   }
 }
@@ -98,6 +103,7 @@ export function pointFromReading(reply: MachineStatsReply, nowSeconds: number): 
     power: stats.power_watts ?? null,
     cpuPower: stats.cpu_power_watts ?? null, gpuPower: stats.gpu_power_watts ?? null, anePower: stats.ane_power_watts ?? null,
     coreVoltage: stats.cpu_core_voltage ?? null, coreCurrent: stats.cpu_core_current ?? null,
+    inputVoltage: stats.input_voltage ?? null, inputCurrent: stats.input_current ?? null, inputWatts: stats.input_watts ?? null,
     gpus: stats.gpus.map(liveGpuOfReading).filter(hasNumber),
   }
 }

@@ -29,11 +29,13 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
     public var anePowerWatts: Double?
     public var cpuCoreVoltage: Double?
     public var cpuCoreCurrent: Double?
+    /// Watts drawn at the power inlet; left out when the helper did not say. Voltage and current stay live-only.
+    public var inputWatts: Double?
     /// Per-GPU numbers; left out when the machine has no GPU with a number this time.
     public var gpus: [HistoryGpu]?
 
     private enum CodingKeys: String, CodingKey {
-        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, gpus
+        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, inputWatts, gpus
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -59,6 +61,7 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
         try box.encodeIfPresent(anePowerWatts, forKey: .anePowerWatts)
         try box.encodeIfPresent(cpuCoreVoltage, forKey: .cpuCoreVoltage)
         try box.encodeIfPresent(cpuCoreCurrent, forKey: .cpuCoreCurrent)
+        try box.encodeIfPresent(inputWatts, forKey: .inputWatts)
         try box.encodeIfPresent(gpus, forKey: .gpus)
     }
 }
@@ -74,7 +77,7 @@ extension HistoryPoint {
                   diskRead: stats.diskIo?.readBytesPerSecond, diskWrite: stats.diskIo?.writeBytesPerSecond,
                   netInBps: speeds.received, netOutBps: speeds.sent,
                   netDrops: Self.drops(stats.network), processesCount: stats.processCount, powerWatts: stats.powerWatts, cpuPowerWatts: stats.cpuPowerWatts, gpuPowerWatts: stats.gpuPowerWatts,
-                  anePowerWatts: stats.anePowerWatts, cpuCoreVoltage: stats.cpuCoreVoltage, cpuCoreCurrent: stats.cpuCoreCurrent, gpus: Self.gpuSeries(stats.gpus))
+                  anePowerWatts: stats.anePowerWatts, cpuCoreVoltage: stats.cpuCoreVoltage, cpuCoreCurrent: stats.cpuCoreCurrent, inputWatts: stats.inputWatts, gpus: Self.gpuSeries(stats.gpus))
     }
 
     private static func load(_ load: MachineStats.Load) -> [Double]? {
