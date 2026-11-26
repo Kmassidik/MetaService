@@ -169,9 +169,9 @@
   {/if}
 
   {#if historyFailed && points.length === 0}<p class="note" role="status">{HISTORY_FAILED}</p>{/if}
-  {#if !failed && machineWatts === null && cpuWatts === null && gpuWatts === null}
+  {#if !failed && machineWatts === null && cpuWatts === null && gpuWatts === null && aneWatts === null}
     <p class="note" role="status" data-testid="power-waiting">
-      This machine's helper does not report watts yet. Update the helper (Machines list, or the Environment tab) and wait about two minutes: the first reading needs two samples.
+      This machine's helper reports no watts yet. Update the helper (Machines list, or the Environment tab) and wait about two minutes: the first reading needs two samples. A machine whose board exposes no power sensor will never show them; the GPU card appears alone when only the graphics chip reports.
     </p>
   {/if}
 </section>
