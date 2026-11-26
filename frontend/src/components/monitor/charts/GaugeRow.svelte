@@ -18,7 +18,7 @@
 </div>
 <div class="facts" data-testid="gauge-facts">
   {#if stats.process_count !== undefined}
-    <section class="card count" aria-label="Processes" title="How many programs run now. The Top processes button lists the busiest 15.">
+    <section class="card" aria-label="Processes" title="How many programs run now. The Top processes button lists the busiest 15.">
       <h3>Processes</h3>
       <p class="bignum nums" data-testid="process-count">{stats.process_count}</p>
       <p class="sub">running now · “Top processes” lists the busiest 15</p>

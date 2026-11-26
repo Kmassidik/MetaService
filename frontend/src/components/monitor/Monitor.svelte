@@ -89,7 +89,7 @@
   })
 
   const stats = $derived(reply?.stats ?? null)
-  const grey = $derived(failed || reply?.state === 'offline')
+  const grey = $derived(reply?.state === 'offline')
   const canListPrograms = $derived(reply?.state === 'online' && stats !== null)
   /** The card's strip: the numbers from this same reading; a machine that is off keeps the card's name and dashes its numbers. */
   const gpu = $derived(readGpuLive(machine, stats?.gpus ?? [], reply?.state !== 'offline'))
