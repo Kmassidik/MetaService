@@ -69,6 +69,42 @@ final class HistoryPointTests: XCTestCase {
         XCTAssertTrue(text.contains("\"power_watts\":123.4"), text)
     }
 
+    func testThePowerSplitAndRailNumbersAreCarriedWithSnakeCaseKeys() throws {
+        var reading = stats()
+        reading.cpuPowerWatts = 8.5
+        reading.gpuPowerWatts = 25.0
+        reading.anePowerWatts = 0.5
+        reading.cpuCoreVoltage = 1.1
+        reading.cpuCoreCurrent = 3.2
+        let made = HistoryPoint(stats: reading, at: Date(timeIntervalSince1970: 1_800_000_000))!
+        XCTAssertEqual(made.cpuPowerWatts, 8.5)
+        XCTAssertEqual(made.gpuPowerWatts, 25.0)
+        XCTAssertEqual(made.anePowerWatts, 0.5)
+        XCTAssertEqual(made.cpuCoreVoltage, 1.1)
+        XCTAssertEqual(made.cpuCoreCurrent, 3.2)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let text = String(decoding: try encoder.encode(made), as: UTF8.self)
+        for key in ["\"cpu_power_watts\":8.5", "\"gpu_power_watts\":25", "\"ane_power_watts\":0.5", "\"cpu_core_voltage\":1.1", "\"cpu_core_current\":3.2"] {
+            XCTAssertTrue(text.contains(key), "\(key) in \(text)")
+        }
+    }
+
+    func testAReadingWithoutThePowerSplitMakesNoKeysForIt() throws {
+        let made = HistoryPoint(stats: stats(), at: Date(timeIntervalSince1970: 1_800_000_000))!
+        XCTAssertNil(made.cpuPowerWatts)
+        XCTAssertNil(made.gpuPowerWatts)
+        XCTAssertNil(made.anePowerWatts)
+        XCTAssertNil(made.cpuCoreVoltage)
+        XCTAssertNil(made.cpuCoreCurrent)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let text = String(decoding: try encoder.encode(made), as: UTF8.self)
+        for key in ["cpu_power_watts", "gpu_power_watts", "ane_power_watts", "cpu_core_voltage", "cpu_core_current"] {
+            XCTAssertFalse(text.contains(key), "\(key) is left out when unknown")
+        }
+    }
+
     func testAWattlessReadingMakesNoPointWithWattsAndNoKey() throws {
         let made = HistoryPoint(stats: stats(), at: Date(timeIntervalSince1970: 1_800_000_000))!
         XCTAssertNil(made.powerWatts)

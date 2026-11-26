@@ -18,5 +18,5 @@
 
 <style>
   .big { margin: 0; font-family: var(--mono); font-size: 20px; font-weight: 700; }
-  .big small { font-size: 12px; font-weight: 400; color: var(--m60); }
+  .big small { font-size: 12px; font-weight: 400; }
 </style>

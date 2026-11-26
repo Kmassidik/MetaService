@@ -186,10 +186,17 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public var gpus: [Gpu]?
     /// Watts the whole machine draws now. Left out (nil) when the helper cannot say.
     public var powerWatts: Double? = nil
+    /// Where the watts go, when the helper can split them. Left out (nil) when it cannot say.
+    public var cpuPowerWatts: Double? = nil
+    public var gpuPowerWatts: Double? = nil
+    public var anePowerWatts: Double? = nil
+    /// The CPU core's rail, when the helper can read it. Left out (nil) otherwise.
+    public var cpuCoreVoltage: Double? = nil
+    public var cpuCoreCurrent: Double? = nil
     public var processes: [Process]
 
     /// Raw values are the property names; the decoder changes the snake_case keys to them and the encoder writes them back.
-    enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, processes }
+    enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, processes }
 
     /// Written like the contract: a missing number is null, but the gpus key is left out when there are none.
     public func encode(to encoder: Encoder) throws {
@@ -205,6 +212,11 @@ public struct MachineStats: Codable, Equatable, Sendable {
         try box.encodeIfPresent(processCount, forKey: .processCount)
         try box.encodeIfPresent(gpus, forKey: .gpus)
         try box.encodeIfPresent(powerWatts, forKey: .powerWatts)
+        try box.encodeIfPresent(cpuPowerWatts, forKey: .cpuPowerWatts)
+        try box.encodeIfPresent(gpuPowerWatts, forKey: .gpuPowerWatts)
+        try box.encodeIfPresent(anePowerWatts, forKey: .anePowerWatts)
+        try box.encodeIfPresent(cpuCoreVoltage, forKey: .cpuCoreVoltage)
+        try box.encodeIfPresent(cpuCoreCurrent, forKey: .cpuCoreCurrent)
         try box.encode(processes, forKey: .processes)
     }
 }

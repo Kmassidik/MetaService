@@ -678,6 +678,13 @@ export interface MachineStats {
   process_count?: number
   /** Whole-machine power draw in watts; left out when the helper cannot read it. */
   power_watts?: number
+  /** The draw split by part, and the CPU core rail; left out when the helper cannot read them (an older helper, or no sensor). */
+  cpu_power_watts?: number
+  gpu_power_watts?: number
+  ane_power_watts?: number
+  /** The CPU core rail's volts and amps; the approximate rail power is their product. */
+  cpu_core_voltage?: number
+  cpu_core_current?: number
   /** Left out when the machine cannot say. */
   gpus: StatsGpu[]
   processes: StatsProcess[]
@@ -705,6 +712,12 @@ export interface StatsHistoryPoint {
   processes_count?: number
   /** Left out when the helper cannot read the whole-machine power draw. */
   power_watts?: number
+  /** The draw split by part, and the CPU core rail; left out when the helper cannot read them. */
+  cpu_power_watts?: number
+  gpu_power_watts?: number
+  ane_power_watts?: number
+  cpu_core_voltage?: number
+  cpu_core_current?: number
 }
 
 export interface StatsHistoryReply {

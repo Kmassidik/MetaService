@@ -38,7 +38,8 @@
 <style>
   .detail { display: grid; gap: 8px; min-width: 0; }
   .model { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--m60); }
-  .facts { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 16px; font-family: var(--mono); font-size: 12px; color: var(--m60); }
+  .facts { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 16px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .facts span { color: var(--m60); }
   .facts span:first-child { font-weight: 700; color: var(--text); }
   .threads { display: flex; flex-wrap: wrap; gap: 4px 6px; max-height: 150px; overflow-y: auto; }
   .core { display: flex; gap: 1px; padding: 2px; border: 1px solid var(--line); background: var(--surface); }

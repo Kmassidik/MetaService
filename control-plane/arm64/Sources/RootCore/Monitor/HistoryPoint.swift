@@ -23,11 +23,17 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
     public var processesCount: Int?
     /// Watts the whole machine drew at this reading; left out when the helper did not say.
     public var powerWatts: Double?
+    /// Where the watts went, when the helper split them; left out otherwise.
+    public var cpuPowerWatts: Double?
+    public var gpuPowerWatts: Double?
+    public var anePowerWatts: Double?
+    public var cpuCoreVoltage: Double?
+    public var cpuCoreCurrent: Double?
     /// Per-GPU numbers; left out when the machine has no GPU with a number this time.
     public var gpus: [HistoryGpu]?
 
     private enum CodingKeys: String, CodingKey {
-        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, powerWatts, gpus
+        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, powerWatts, cpuPowerWatts, gpuPowerWatts, anePowerWatts, cpuCoreVoltage, cpuCoreCurrent, gpus
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -48,6 +54,11 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
         try box.encodeIfPresent(netDrops, forKey: .netDrops)
         try box.encodeIfPresent(processesCount, forKey: .processesCount)
         try box.encodeIfPresent(powerWatts, forKey: .powerWatts)
+        try box.encodeIfPresent(cpuPowerWatts, forKey: .cpuPowerWatts)
+        try box.encodeIfPresent(gpuPowerWatts, forKey: .gpuPowerWatts)
+        try box.encodeIfPresent(anePowerWatts, forKey: .anePowerWatts)
+        try box.encodeIfPresent(cpuCoreVoltage, forKey: .cpuCoreVoltage)
+        try box.encodeIfPresent(cpuCoreCurrent, forKey: .cpuCoreCurrent)
         try box.encodeIfPresent(gpus, forKey: .gpus)
     }
 }
@@ -62,7 +73,8 @@ extension HistoryPoint {
                   swapUsed: stats.memory.swapUsedBytes, swapTotal: stats.memory.swapTotalBytes,
                   diskRead: stats.diskIo?.readBytesPerSecond, diskWrite: stats.diskIo?.writeBytesPerSecond,
                   netInBps: speeds.received, netOutBps: speeds.sent,
-                  netDrops: Self.drops(stats.network), processesCount: stats.processCount, powerWatts: stats.powerWatts, gpus: Self.gpuSeries(stats.gpus))
+                  netDrops: Self.drops(stats.network), processesCount: stats.processCount, powerWatts: stats.powerWatts, cpuPowerWatts: stats.cpuPowerWatts, gpuPowerWatts: stats.gpuPowerWatts,
+                  anePowerWatts: stats.anePowerWatts, cpuCoreVoltage: stats.cpuCoreVoltage, cpuCoreCurrent: stats.cpuCoreCurrent, gpus: Self.gpuSeries(stats.gpus))
     }
 
     private static func load(_ load: MachineStats.Load) -> [Double]? {

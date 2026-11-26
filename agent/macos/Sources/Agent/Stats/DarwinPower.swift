@@ -3,24 +3,36 @@ import Foundation
 /// Reads this Mac's power draw with powermetrics. Needs root; where the machine refuses it the answer is nil, never 0.
 enum DarwinPower {
     private static let toolPath = "/usr/bin/powermetrics"
-    private static let sampleArguments = ["-i", "200", "-n", "1", "--samplers", "cpu_power"]
-    /// The one line of the sample that carries the machine total, in milliwatts.
-    private static let combinedLinePrefix = "Combined Power (CPU + GPU + ANE):"
+    private static let sampleArguments = ["-i", "200", "-n", "1", "--samplers", "cpu_power,gpu_power"]
+    /// One line of the sample per source, in milliwatts. The cpu_power sampler prints all four; the gpu_power sampler
+    /// repeats "GPU Power:", so only each label's first occurrence is read.
+    private static let linePrefixes: [Key: String] = [.cpu: "CPU Power:", .gpu: "GPU Power:", .ane: "ANE Power:", .combined: "Combined Power (CPU + GPU + ANE):"]
     private static let commandTimeoutSeconds: TimeInterval = 2
     private static let maxOutputBytes = 16 * 1024
     private static let milliwattsPerWatt = 1000.0
 
-    static func read() -> Double? { watts(sampleText: sample() ?? "") }
+    /// The machine's power draw in watts, per source. A part the system does not report is nil, never 0.
+    struct Reading: Equatable {
+        let combined, cpu, gpu, ane: Double?
+        static let unknown = Reading(combined: nil, cpu: nil, gpu: nil, ane: nil)
+    }
+
+    private enum Key { case cpu, gpu, ane, combined }
+
+    static func read() -> Reading { readings(sampleText: sample() ?? "") }
 
     /// The arithmetic, kept pure so tests can feed real sample text.
-    static func watts(sampleText: String) -> Double? {
+    static func readings(sampleText: String) -> Reading {
+        var answer = [Key: Double?]()
         for line in sampleText.split(separator: "\n") {
-            guard let marker = line.firstRange(of: combinedLinePrefix) else { continue }
-            let digits = line[marker.upperBound...].drop { $0 == " " }.prefix { $0.isNumber || $0 == "." }
-            guard let milliwatts = Double(digits) else { return nil }
-            return (milliwatts / milliwattsPerWatt * 10).rounded() / 10
+            for (key, prefix) in linePrefixes where answer[key] == nil {
+                let lowercased = line.lowercased()
+                guard let marker = lowercased.firstRange(of: prefix.lowercased()) else { continue }
+                let digits = lowercased[marker.upperBound...].drop { $0 == " " }.prefix { $0.isNumber || $0 == "." }
+                answer[key] = Double(digits).map { ($0 / milliwattsPerWatt * 10).rounded() / 10 }
+            }
         }
-        return nil
+        return Reading(combined: answer[.combined] ?? nil, cpu: answer[.cpu] ?? nil, gpu: answer[.gpu] ?? nil, ane: answer[.ane] ?? nil)
     }
 
     /// Runs the sampler without a shell. Nil on any failure: it cannot start, it runs past the time limit, or it exits non-zero.

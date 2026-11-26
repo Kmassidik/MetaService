@@ -1,15 +1,17 @@
 import { test, expect } from 'bun:test'
 import { DEFAULT_TAB, machineTabs, nextTab, pollsLive, tabFromName } from './machineTabs.ts'
 
-test('the tabs are Live, Network, Compute, Storage, Environment, Activity, in that order', () => {
-  expect(machineTabs().map((tab) => tab.label)).toEqual(['Live', 'Network', 'Compute', 'Storage', 'Environment', 'Activity'])
-  expect(machineTabs().map((tab) => tab.id)).toEqual(['live', 'network', 'vms', 'storage', 'environment', 'activity'])
+test('the tabs are Live, Power, Network, Compute, Storage, Environment, Activity, in that order', () => {
+  expect(machineTabs().map((tab) => tab.label)).toEqual(['Live', 'Power', 'Network', 'Compute', 'Storage', 'Environment', 'Activity'])
+  expect(machineTabs().map((tab) => tab.id)).toEqual(['live', 'power', 'network', 'vms', 'storage', 'environment', 'activity'])
 })
 
-test('the Network tab is found by its name, and its arrow keys sit next to Live', () => {
-  expect(tabFromName('Network')).toBe('network')
-  expect(nextTab('live', 'ArrowRight')).toBe('network')
-  expect(nextTab('network', 'ArrowRight')).toBe('vms')
+test('the Power tab is found by its name, and its arrow keys sit next to Live and Network', () => {
+  expect(tabFromName('power')).toBe('power')
+  expect(tabFromName('Power')).toBe('power')
+  expect(nextTab('live', 'ArrowRight')).toBe('power')
+  expect(nextTab('power', 'ArrowRight')).toBe('network')
+  expect(nextTab('power', 'ArrowLeft')).toBe('live')
 })
 
 test('old tab names land on a sensible new tab, in any letter case', () => {
@@ -38,5 +40,5 @@ test('arrow keys move between tabs and wrap; Home and End jump; other keys do no
 
 test('the live numbers are asked for only while Live is shown', () => {
   expect(pollsLive('live')).toBe(true)
-  expect((['network', 'vms', 'environment', 'activity'] as const).map(pollsLive)).toEqual([false, false, false, false])
+  expect((['power', 'network', 'vms', 'environment', 'activity'] as const).map(pollsLive)).toEqual([false, false, false, false, false])
 })

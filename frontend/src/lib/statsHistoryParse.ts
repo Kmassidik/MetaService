@@ -35,6 +35,11 @@ function pointOf(source: Rec): StatsHistoryPoint {
   const drops = finiteNumber(source.net_drops)
   const processes = finiteNumber(source.processes_count)
   const power = finiteNumber(source.power_watts)
+  const cpuPower = finiteNumber(source.cpu_power_watts)
+  const gpuPower = finiteNumber(source.gpu_power_watts)
+  const anePower = finiteNumber(source.ane_power_watts)
+  const coreVoltage = finiteNumber(source.cpu_core_voltage)
+  const coreCurrent = finiteNumber(source.cpu_core_current)
   const gpus = historyGpus(source.gpus)
   return {
     t: required(source, 't'), cpu_percent: required(source, 'cpu_percent'),
@@ -48,6 +53,11 @@ function pointOf(source: Rec): StatsHistoryPoint {
     ...(drops === undefined ? {} : { net_drops: drops }),
     ...(processes === undefined ? {} : { processes_count: processes }),
     ...(power === undefined ? {} : { power_watts: power }),
+    ...(cpuPower === undefined ? {} : { cpu_power_watts: cpuPower }),
+    ...(gpuPower === undefined ? {} : { gpu_power_watts: gpuPower }),
+    ...(anePower === undefined ? {} : { ane_power_watts: anePower }),
+    ...(coreVoltage === undefined ? {} : { cpu_core_voltage: coreVoltage }),
+    ...(coreCurrent === undefined ? {} : { cpu_core_current: coreCurrent }),
     ...(gpus === undefined ? {} : { gpus }),
   }
 }

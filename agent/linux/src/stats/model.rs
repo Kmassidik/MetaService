@@ -37,6 +37,18 @@ pub struct Stats {
     /// Whole machine's draw in watts (RAPL or a hwmon sensor). Left out when the machine cannot say.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub power_watts: Option<f64>,
+    /// The CPU package's share of that draw (the RAPL counter). Left out when the machine cannot say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_power_watts: Option<f64>,
+    /// The GPUs' share: the sum of every readable GPU draw. Left out when none can be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpu_power_watts: Option<f64>,
+    /// The CPU core rail, in volts (hwmon, a sensor labelled "CPU"). Left out when the board has no such sensor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_core_voltage: Option<f64>,
+    /// The CPU core rail, in amperes (hwmon, a sensor labelled "CPU"). Left out when the board has no such sensor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_core_current: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gpus: Option<Vec<GpuStats>>,
     pub processes: Vec<Process>,
@@ -160,7 +172,19 @@ pub struct GpuProgram {
 impl GpuStats {
     /// A reading with only the name and vendor known: every number is null until a reader fills it.
     pub fn named(name: String, vendor: &'static str) -> Self {
-        GpuStats { name, vendor, utilization_percent: None, memory_used_bytes: None, memory_total_bytes: None, temperature_celsius: None, power_watts: None, power_limit_watts: None, fan_percent: None, clock_mhz: None, processes: None }
+        GpuStats {
+            name,
+            vendor,
+            utilization_percent: None,
+            memory_used_bytes: None,
+            memory_total_bytes: None,
+            temperature_celsius: None,
+            power_watts: None,
+            power_limit_watts: None,
+            fan_percent: None,
+            clock_mhz: None,
+            processes: None,
+        }
     }
 }
 

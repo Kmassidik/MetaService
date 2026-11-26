@@ -56,7 +56,7 @@
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   h2 { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--m50); }
-  .note { font-family: var(--mono); font-size: 12px; color: var(--m60); }
+  .note { font-family: var(--mono); font-size: 12px; color: var(--text); }
   .caption { font-family: var(--mono); font-size: 11px; color: var(--m50); }
   .note.warn { color: var(--warn); }
   .gpu { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px 16px; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface-2); }

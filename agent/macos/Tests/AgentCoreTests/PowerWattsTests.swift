@@ -26,8 +26,15 @@ private func json(_ stats: MachineStats) throws -> String { String(decoding: try
 
 final class PowerWattsTests: XCTestCase {
     func testPowerWattsIsEncodedOnlyWhenKnown() throws {
-        let text = try json(try stats(StatsExtras(machinePowerWatts: 12.3)))
+        let extras = StatsExtras(machinePowerWatts: 12.3, machineCpuPowerWatts: 11.4, machineGpuPowerWatts: 0.9, machineAnePowerWatts: 0)
+        let text = try json(try stats(extras))
         XCTAssertTrue(text.contains("\"power_watts\":12.3"), text)
+        XCTAssertTrue(text.contains("\"cpu_power_watts\":11.4"), text)
+        XCTAssertTrue(text.contains("\"gpu_power_watts\":0.9"), text)
+        XCTAssertTrue(text.contains("\"ane_power_watts\":0"), text)
+        let partial = try json(try stats(StatsExtras(machinePowerWatts: 12.3)))
+        XCTAssertTrue(partial.contains("\"power_watts\":12.3"), partial)
+        XCTAssertFalse(partial.contains("cpu_power_watts") || partial.contains("gpu_power_watts") || partial.contains("ane_power_watts"), partial)
         let unknown = try json(try stats(StatsExtras()))
         XCTAssertFalse(unknown.contains("power_watts"), "unknown power must be left out, not null or zero: \(unknown)")
     }

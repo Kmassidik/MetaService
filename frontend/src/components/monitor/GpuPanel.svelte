@@ -57,6 +57,7 @@
   .chip { flex: none; padding: 1px 6px; border: 1px solid var(--line); background: var(--surface-2); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m60); }
   .name, .pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .line { font-size: 11px; color: var(--m60); }
+  .line .nums { color: var(--text); }
   .booking { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
   .programs { display: grid; gap: 3px; margin-top: 4px; }
   h4 { margin: 0; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--m50); }

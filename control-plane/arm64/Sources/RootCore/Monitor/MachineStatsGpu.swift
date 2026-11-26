@@ -11,6 +11,9 @@ extension MachineStats {
     public static let gpuVendors: Set<String> = ["nvidia", "amd", "apple", "intel", "unknown"]
     public static let unknownGpuVendor = "unknown"
     public static let maxWatts = 2000.0
+    /// Outside this range a core voltage or current is a broken sensor.
+    public static let maxVoltage = 5.0
+    public static let maxAmperes = 500.0
     public static let maxFanPercent = 100.0
 
     static func limitedGpus(_ gpus: [Gpu]?) -> [Gpu]? {

@@ -133,7 +133,7 @@
   .area { stroke: none; }
   .marker { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
   .mark { fill: var(--chart-red); }
-  .empty { position: absolute; inset: 0 0 22px 0; margin: 0; display: grid; place-items: center; text-align: center; padding: 0 16px; font-size: 12px; color: var(--m60); }
+  .empty { position: absolute; inset: 0 0 22px 0; margin: 0; display: grid; place-items: center; text-align: center; padding: 0 16px; font-size: 12px; color: var(--text); }
   .caption { margin: 0; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--m60); }
   @container (max-width: 520px) { .body { grid-template-columns: minmax(0, 1fr); } }
 </style>

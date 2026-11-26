@@ -22,5 +22,5 @@
 {/if}
 
 <style>
-  .state { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--m60); }
+  .state { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--text); }
 </style>

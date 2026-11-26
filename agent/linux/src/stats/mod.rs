@@ -35,17 +35,38 @@ pub struct Monitor {
 
 impl Monitor {
     pub fn system(nvidia_smi: Option<String>) -> Self {
-        let environment = Environment { root: PathBuf::from("/"), size_of: disks::system_sizes, ticks_per_second: clock_ticks_per_second() };
+        let environment = Environment {
+            root: PathBuf::from("/"),
+            size_of: disks::system_sizes,
+            ticks_per_second: clock_ticks_per_second(),
+        };
         let root = environment.root.clone();
-        Monitor { sampler: Sampler::new(environment), root, nvidia_smi }
+        Monitor {
+            sampler: Sampler::new(environment),
+            root,
+            nvidia_smi,
+        }
     }
 
     /// Blocking: reads files and may run `nvidia-smi` for up to three seconds in all. Call it off the async threads.
     /// `with_processes` false skips the walk through /proc/<pid> (the costly part); the list in the answer is then empty.
     pub fn read(&self, with_processes: bool) -> Result<Stats, String> {
-        let unix_seconds = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
-        let mut stats = self.sampler.take(Instant::now(), unix_seconds, with_processes)?;
+        let unix_seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_secs();
+        let mut stats = self
+            .sampler
+            .take(Instant::now(), unix_seconds, with_processes)?;
         stats.gpus = gpu::read(&self.root, self.nvidia_smi.as_deref(), gpu::QUERY_TIMEOUT);
+        // A machine with NVIDIA GPUs: the CPU (RAPL) and the GPUs together are the whole machine's draw,
+        // so the sum is added to the total when both are known. Anything less known: the total stays as read.
+        if let Some(gpu_watts) = power::gpu_watts(stats.gpus.as_deref().unwrap_or(&[])) {
+            stats.gpu_power_watts = Some(gpu_watts);
+            if let Some(cpu_watts) = stats.cpu_power_watts {
+                stats.power_watts = Some(model::one_decimal(cpu_watts + gpu_watts));
+            }
+        }
         Ok(stats)
     }
 }

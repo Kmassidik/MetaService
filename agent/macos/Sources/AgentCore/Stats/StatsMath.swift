@@ -8,7 +8,9 @@ enum StatsMath {
             takenAt: timestamp(now.takenAt), measuring: old == nil, uptimeSeconds: now.uptimeSeconds,
             cpu: cpu(now, old), memory: memory(now.memory), disks: now.disks.prefix(StatsSampler.maxDisks).map(disk),
             network: network(now, old, seconds), diskIo: diskIo(now, old, seconds), processCount: now.extras.processCount.map { max(0, $0) }, gpus: gpus(now),
-            powerWatts: now.extras.machinePowerWatts, processes: processes(now, old, seconds))
+            powerWatts: now.extras.machinePowerWatts, cpuPowerWatts: now.extras.machineCpuPowerWatts,
+            gpuPowerWatts: now.extras.machineGpuPowerWatts, anePowerWatts: now.extras.machineAnePowerWatts,
+            processes: processes(now, old, seconds))
     }
 
     static func timestamp(_ date: Date) -> String {

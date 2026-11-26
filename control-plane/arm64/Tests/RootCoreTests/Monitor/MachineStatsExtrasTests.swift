@@ -25,7 +25,7 @@ final class MachineStatsExtrasTests: XCTestCase {
         XCTAssertNil(stats.powerWatts)
         XCTAssertNil(stats.processes[0].threads)
         let text = String(decoding: try JSONEncoder().encode(stats), as: UTF8.self)
-        for key in ["physicalCores", "coreOf", "clusters", "breakdown", "frequencyMhz", "temperatureCelsius", "diskIo", "processCount", "errorsInTotal", "powerWatts", "threads"] {
+        for key in ["physicalCores", "coreOf", "clusters", "breakdown", "frequencyMhz", "temperatureCelsius", "diskIo", "processCount", "errorsInTotal", "powerWatts", "cpuPowerWatts", "gpuPowerWatts", "anePowerWatts", "cpuCoreVoltage", "cpuCoreCurrent", "threads"] {
             XCTAssertFalse(text.contains(key), "\(key) must stay out of the answer")
         }
     }
@@ -113,6 +113,46 @@ final class MachineStatsExtrasTests: XCTestCase {
     func testAWrongTypedWattsReadsAsNotSaidNotARefusedAnswer() throws {
         let stats = try MachineStats.parse(answer(top: ",\"power_watts\":\"plenty\""))
         XCTAssertNil(stats.powerWatts)
+    }
+
+    func testPowerSplitAndRailExtrasAreKeptWhenInRange() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"cpu_power_watts\":8.5,\"gpu_power_watts\":25.0,\"ane_power_watts\":0.5,\"cpu_core_voltage\":1.1,\"cpu_core_current\":3.2"))
+        XCTAssertEqual(stats.cpuPowerWatts, 8.5)
+        XCTAssertEqual(stats.gpuPowerWatts, 25.0)
+        XCTAssertEqual(stats.anePowerWatts, 0.5)
+        XCTAssertEqual(stats.cpuCoreVoltage, 1.1)
+        XCTAssertEqual(stats.cpuCoreCurrent, 3.2)
+        let text = String(decoding: try JSONEncoder().encode(stats), as: UTF8.self)
+        for key in ["cpuPowerWatts", "gpuPowerWatts", "anePowerWatts", "cpuCoreVoltage", "cpuCoreCurrent"] {
+            XCTAssertTrue(text.contains(key), "\(key) in \(text)")
+        }
+    }
+
+    func testPowerSplitAndRailExtrasOutOfRangeAreDroppedNotClamped() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"cpu_power_watts\":2000.1,\"gpu_power_watts\":-1.0,\"ane_power_watts\":9999.0,\"cpu_core_voltage\":5.1,\"cpu_core_current\":500.1"))
+        XCTAssertNil(stats.cpuPowerWatts, "past maxWatts")
+        XCTAssertNil(stats.gpuPowerWatts, "negative")
+        XCTAssertNil(stats.anePowerWatts, "past maxWatts")
+        XCTAssertNil(stats.cpuCoreVoltage, "past maxVoltage")
+        XCTAssertNil(stats.cpuCoreCurrent, "past maxAmperes")
+    }
+
+    func testPowerSplitAndRailExtrasAtTheLimitsAreKept() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"cpu_power_watts\":2000.0,\"gpu_power_watts\":0.0,\"ane_power_watts\":0.1,\"cpu_core_voltage\":5.0,\"cpu_core_current\":500.0"))
+        XCTAssertEqual(stats.cpuPowerWatts, 2000.0)
+        XCTAssertEqual(stats.gpuPowerWatts, 0.0)
+        XCTAssertEqual(stats.anePowerWatts, 0.1)
+        XCTAssertEqual(stats.cpuCoreVoltage, 5.0)
+        XCTAssertEqual(stats.cpuCoreCurrent, 500.0)
+    }
+
+    func testAWrongTypedPowerSplitReadsAsNotSaidNotARefusedAnswer() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"cpu_power_watts\":\"lots\",\"gpu_power_watts\":\"some\",\"ane_power_watts\":\"a bit\",\"cpu_core_voltage\":\"low\",\"cpu_core_current\":\"small\""))
+        XCTAssertNil(stats.cpuPowerWatts)
+        XCTAssertNil(stats.gpuPowerWatts)
+        XCTAssertNil(stats.anePowerWatts)
+        XCTAssertNil(stats.cpuCoreVoltage)
+        XCTAssertNil(stats.cpuCoreCurrent)
     }
 
     func testTheWrongTypeForAnExtraRefusesTheWholeAnswerLikeAnyOtherField() {

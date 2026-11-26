@@ -18,5 +18,5 @@
 </MetricCard>
 
 <style>
-  .none { margin: 0; font-size: 13px; color: var(--m60); }
+  .none { margin: 0; font-size: 13px; color: var(--text); }
 </style>

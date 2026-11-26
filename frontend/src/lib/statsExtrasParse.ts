@@ -77,17 +77,27 @@ export function networkExtras(source: Rec): Pick<StatsNetwork, 'errors_in_total'
   }
 }
 
-/** The optional top-level parts: disk speed, the number of running programs and the whole-machine power draw. */
-export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count' | 'power_watts'> {
+/** The optional top-level parts: disk speed, the number of running programs, the whole-machine power draw and its split. */
+export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count' | 'power_watts' | 'cpu_power_watts' | 'gpu_power_watts' | 'ane_power_watts' | 'cpu_core_voltage' | 'cpu_core_current'> {
   const speed = source.disk_io
   const read = isRec(speed) ? finiteNumber(speed.read_bytes_per_second) : undefined
   const write = isRec(speed) ? finiteNumber(speed.write_bytes_per_second) : undefined
   const count = finiteNumber(source.process_count)
   const power = finiteNumber(source.power_watts)
+  const cpuPower = finiteNumber(source.cpu_power_watts)
+  const gpuPower = finiteNumber(source.gpu_power_watts)
+  const anePower = finiteNumber(source.ane_power_watts)
+  const coreVoltage = finiteNumber(source.cpu_core_voltage)
+  const coreCurrent = finiteNumber(source.cpu_core_current)
   return {
     ...(read === undefined || write === undefined ? {} : { disk_io: { read_bytes_per_second: read, write_bytes_per_second: write } }),
     ...(count === undefined ? {} : { process_count: count }),
     ...(power === undefined ? {} : { power_watts: power }),
+    ...(cpuPower === undefined ? {} : { cpu_power_watts: cpuPower }),
+    ...(gpuPower === undefined ? {} : { gpu_power_watts: gpuPower }),
+    ...(anePower === undefined ? {} : { ane_power_watts: anePower }),
+    ...(coreVoltage === undefined ? {} : { cpu_core_voltage: coreVoltage }),
+    ...(coreCurrent === undefined ? {} : { cpu_core_current: coreCurrent }),
   }
 }
 

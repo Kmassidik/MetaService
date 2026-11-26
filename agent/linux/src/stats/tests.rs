@@ -13,9 +13,18 @@ impl Tree {
         let tree = Tree(std::env::temp_dir().join(format!("ms-proc-{}", rand::random::<u64>())));
         tree.put("proc/uptime", "5000.25 100.0\n");
         tree.put("proc/loadavg", "0.50 1.00 1.50 1/100 7\n");
-        tree.put("proc/meminfo", "MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\n");
-        tree.put("proc/mounts", "/dev/sda1 / ext4 rw 0 0\ntmpfs /run tmpfs rw 0 0\n");
-        tree.put("etc/passwd", "root:x:0:0:root:/root:/bin/sh\nkurnia:x:1000:1000::/home/kurnia:/bin/sh\n");
+        tree.put(
+            "proc/meminfo",
+            "MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\n",
+        );
+        tree.put(
+            "proc/mounts",
+            "/dev/sda1 / ext4 rw 0 0\ntmpfs /run tmpfs rw 0 0\n",
+        );
+        tree.put(
+            "etc/passwd",
+            "root:x:0:0:root:/root:/bin/sh\nkurnia:x:1000:1000::/home/kurnia:/bin/sh\n",
+        );
         tree.cpu(100, 900, 100, 900);
         tree.net(1000, 500);
         tree.route("eth0");
@@ -34,33 +43,57 @@ impl Tree {
     }
 
     fn cpu_topology(&self, id: usize, package: i64, core: i64) {
-        self.put(&format!("sys/devices/system/cpu/cpu{id}/topology/physical_package_id"), &package.to_string());
-        self.put(&format!("sys/devices/system/cpu/cpu{id}/topology/core_id"), &core.to_string());
+        self.put(
+            &format!("sys/devices/system/cpu/cpu{id}/topology/physical_package_id"),
+            &package.to_string(),
+        );
+        self.put(
+            &format!("sys/devices/system/cpu/cpu{id}/topology/core_id"),
+            &core.to_string(),
+        );
     }
 
     fn disk_stats(&self, sectors_read: u64, sectors_written: u64) {
         std::fs::create_dir_all(self.0.join("sys/block/sda")).unwrap();
-        self.put("proc/diskstats", &format!("   8       0 sda 1 0 {sectors_read} 1 1 0 {sectors_written} 1 0 1 1\n"));
+        self.put(
+            "proc/diskstats",
+            &format!("   8       0 sda 1 0 {sectors_read} 1 1 0 {sectors_written} 1 0 1 1\n"),
+        );
     }
 
     fn net(&self, received: u64, sent: u64) {
-        self.put("proc/net/dev", &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: {received} 0 0 0 0 0 0 0 {sent} 0\n"));
+        self.put(
+            "proc/net/dev",
+            &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: {received} 0 0 0 0 0 0 0 {sent} 0\n"),
+        );
     }
 
     /// A RAPL energy counter of `microjoules` µJ since boot.
     fn rapl(&self, microjoules: u128) {
-        self.put("sys/class/powercap/intel-rapl:0/energy_uj", &format!("{microjoules}\n"));
+        self.put(
+            "sys/class/powercap/intel-rapl:0/energy_uj",
+            &format!("{microjoules}\n"),
+        );
     }
 
     /// An instant hwmon draw of `watts_times_milli` milliwatts.
     fn hwmon_power(&self, watts_times_milli: u64) {
-        self.put("sys/class/hwmon/hwmon0/power1_input", &format!("{}\n", watts_times_milli * 1000));
+        self.put(
+            "sys/class/hwmon/hwmon0/power1_input",
+            &format!("{}\n", watts_times_milli * 1000),
+        );
     }
 
     /// Several interfaces at once: (name, received, sent).
     fn devices(&self, rows: &[(&str, u64, u64)]) {
-        let body: String = rows.iter().map(|(name, received, sent)| format!("{name}: {received} 0 0 0 0 0 0 0 {sent} 0\n")).collect();
-        self.put("proc/net/dev", &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\n{body}"));
+        let body: String = rows
+            .iter()
+            .map(|(name, received, sent)| format!("{name}: {received} 0 0 0 0 0 0 0 {sent} 0\n"))
+            .collect();
+        self.put(
+            "proc/net/dev",
+            &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\n{body}"),
+        );
     }
 
     /// A route table whose default route is on `interface`.
@@ -69,17 +102,33 @@ impl Tree {
     }
 
     fn process(&self, pid: u32, name: &str, ticks: u64, uid: u32, rss_kb: u64) {
-        self.put(&format!("proc/{pid}/stat"), &format!("{pid} ({name}) S 1 1 1 0 -1 0 0 0 0 0 {ticks} 0 0 0 20 0 1 0 1 1 1\n"));
-        self.put(&format!("proc/{pid}/status"), &format!("Name:\tx\nUid:\t{uid}\t{uid}\nVmRSS:\t{rss_kb} kB\n"));
-        self.put(&format!("proc/{pid}/cmdline"), &format!("/usr/bin/tool\0--password={SECRET}\0"));
+        self.put(
+            &format!("proc/{pid}/stat"),
+            &format!("{pid} ({name}) S 1 1 1 0 -1 0 0 0 0 0 {ticks} 0 0 0 20 0 1 0 1 1 1\n"),
+        );
+        self.put(
+            &format!("proc/{pid}/status"),
+            &format!("Name:\tx\nUid:\t{uid}\t{uid}\nVmRSS:\t{rss_kb} kB\n"),
+        );
+        self.put(
+            &format!("proc/{pid}/cmdline"),
+            &format!("/usr/bin/tool\0--password={SECRET}\0"),
+        );
         self.put(&format!("proc/{pid}/environ"), &format!("TOKEN={SECRET}\0"));
     }
 
     fn sampler(&self) -> Sampler {
         fn sizes(_: &Path) -> Option<Sizes> {
-            Some(Sizes { total: 10_000, free: 4_000 })
+            Some(Sizes {
+                total: 10_000,
+                free: 4_000,
+            })
         }
-        Sampler::new(Environment { root: self.0.clone(), size_of: sizes, ticks_per_second: 100 })
+        Sampler::new(Environment {
+            root: self.0.clone(),
+            size_of: sizes,
+            ticks_per_second: 100,
+        })
     }
 }
 
@@ -95,10 +144,23 @@ fn first_answer_is_measuring_with_nulls_not_zeros() {
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert!(stats.measuring);
     assert!(stats.cpu.total_percent.is_none() && stats.cpu.cores_percent.is_none());
-    assert!(stats.network.received_bytes_per_second.is_none() && stats.network.sent_bytes_per_second.is_none());
+    assert!(
+        stats.network.received_bytes_per_second.is_none()
+            && stats.network.sent_bytes_per_second.is_none()
+    );
     assert!(stats.processes.iter().all(|p| p.cpu_percent.is_none()));
-    assert_eq!((stats.uptime_seconds, stats.cpu.core_count, stats.memory.total_bytes), (5000, 1, 1000 * 1024));
-    assert_eq!((stats.network.received_total_bytes, stats.cpu.load.one), (1000, Some(0.5)));
+    assert_eq!(
+        (
+            stats.uptime_seconds,
+            stats.cpu.core_count,
+            stats.memory.total_bytes
+        ),
+        (5000, 1, 1000 * 1024)
+    );
+    assert_eq!(
+        (stats.network.received_total_bytes, stats.cpu.load.one),
+        (1000, Some(0.5))
+    );
 }
 
 #[test]
@@ -110,14 +172,20 @@ fn second_answer_has_percentages_and_rates() {
     tree.cpu(200, 1700, 150, 1850);
     tree.net(3000, 1500);
     tree.process(10, "busy <img src=x onerror=alert(1)>", 1200, 100, 2048);
-    let stats = sampler.take(start + Duration::from_secs(2), 1_782_000_000, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 1_782_000_000, true)
+        .unwrap();
     assert!(!stats.measuring);
     assert_eq!(stats.taken_at, "2026-06-21T00:00:00Z");
     assert_eq!(stats.cpu.total_percent, Some(11.1));
     assert_eq!(stats.cpu.cores_percent, Some(vec![5.0]));
     assert_eq!(stats.network.received_bytes_per_second, Some(1000.0));
     assert_eq!(stats.network.sent_bytes_per_second, Some(500.0));
-    assert_eq!(stats.processes[0].cpu_percent, Some(100.0), "200 ticks in 2 s at 100 Hz is one full core");
+    assert_eq!(
+        stats.processes[0].cpu_percent,
+        Some(100.0),
+        "200 ticks in 2 s at 100 Hz is one full core"
+    );
 }
 
 #[test]
@@ -126,7 +194,12 @@ fn an_old_previous_sample_means_measuring_again() {
     let sampler = tree.sampler();
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
-    assert!(sampler.take(start + MAX_SAMPLE_AGE + Duration::from_secs(1), 0, true).unwrap().measuring);
+    assert!(
+        sampler
+            .take(start + MAX_SAMPLE_AGE + Duration::from_secs(1), 0, true)
+            .unwrap()
+            .measuring
+    );
 }
 
 #[test]
@@ -136,7 +209,9 @@ fn a_network_counter_that_went_backwards_is_null() {
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
     tree.net(10, 9999);
-    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(1), 0, true)
+        .unwrap();
     assert!(stats.network.received_bytes_per_second.is_none());
     assert!(stats.network.sent_bytes_per_second.is_some());
 }
@@ -148,10 +223,37 @@ fn rapl_becomes_watts_on_the_second_answer_only() {
     let sampler = tree.sampler();
     let start = Instant::now();
     let first = sampler.take(start, 0, true).unwrap();
-    assert_eq!(first.power_watts, None, "no earlier counter, so no watts yet");
+    assert_eq!(
+        first.power_watts, None,
+        "no earlier counter, so no watts yet"
+    );
+    assert_eq!(
+        first.cpu_power_watts, None,
+        "the CPU watts come from the same delta"
+    );
     tree.rapl(1_006_000_000); // 6 000 000 µJ in 3 s is 2 W
-    let stats = sampler.take(start + Duration::from_secs(3), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(3), 0, true)
+        .unwrap();
     assert_eq!(stats.power_watts, Some(2.0));
+    assert_eq!(
+        stats.cpu_power_watts,
+        Some(2.0),
+        "without GPUs, the CPU draw is the whole machine"
+    );
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json["cpu_power_watts"], serde_json::json!(2.0));
+    assert_eq!(
+        json.get("gpu_power_watts"),
+        None,
+        "no GPU scan result: the key is absent"
+    );
+    assert_eq!(
+        json.get("cpu_core_voltage"),
+        None,
+        "no CPU rail on this fake board: the key is absent"
+    );
+    assert_eq!(json.get("cpu_core_current"), None);
 }
 
 #[test]
@@ -162,7 +264,9 @@ fn a_rapl_counter_that_went_backwards_is_null() {
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
     tree.rapl(4_999_000); // a reboot between samples: the delta is meaningless
-    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(1), 0, true)
+        .unwrap();
     assert_eq!(stats.power_watts, None);
 }
 
@@ -182,7 +286,28 @@ fn no_power_sensor_omits_the_field_from_the_json() {
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.power_watts, None);
     let json = serde_json::to_value(&stats).unwrap();
-    assert_eq!(json.get("power_watts"), None, "the key must be absent, not null");
+    assert_eq!(
+        json.get("power_watts"),
+        None,
+        "the key must be absent, not null"
+    );
+}
+
+#[test]
+fn cpu_core_rails_are_read_from_labelled_hwmon_sensors() {
+    let tree = Tree::new();
+    tree.put("sys/class/hwmon/hwmon0/in0_input", "1455\n"); // millivolts: 1.455 V
+    tree.put("sys/class/hwmon/hwmon0/in0_label", "CPU Core\n");
+    tree.put("sys/class/hwmon/hwmon0/curr1_input", "18000\n"); // milliamperes: 18.0 A
+    tree.put("sys/class/hwmon/hwmon0/curr1_label", "CPU Package\n");
+    tree.put("sys/class/hwmon/hwmon0/in1_input", "12000\n");
+    tree.put("sys/class/hwmon/hwmon0/in1_label", "GPU Core\n"); // no "cpu": ignored
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
+    assert_eq!(stats.cpu_core_voltage, Some(1.455));
+    assert_eq!(stats.cpu_core_current, Some(18.0));
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json["cpu_core_voltage"], serde_json::json!(1.455));
+    assert_eq!(json["cpu_core_current"], serde_json::json!(18.0));
 }
 
 #[test]
@@ -194,10 +319,25 @@ fn the_primary_interface_speed_is_reported_next_to_the_total() {
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
     tree.devices(&[("enp5s0", 3000, 1500), ("docker0", 9000, 8000)]);
-    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
-    assert_eq!((stats.network.received_bytes_per_second, stats.network.sent_bytes_per_second), (Some(3000.0), Some(2550.0)), "the total still adds the bridge");
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, true)
+        .unwrap();
+    assert_eq!(
+        (
+            stats.network.received_bytes_per_second,
+            stats.network.sent_bytes_per_second
+        ),
+        (Some(3000.0), Some(2550.0)),
+        "the total still adds the bridge"
+    );
     assert_eq!(stats.network.primary_interface.as_deref(), Some("enp5s0"));
-    assert_eq!((stats.network.primary_received_bytes_per_second, stats.network.primary_sent_bytes_per_second), (Some(1000.0), Some(550.0)));
+    assert_eq!(
+        (
+            stats.network.primary_received_bytes_per_second,
+            stats.network.primary_sent_bytes_per_second
+        ),
+        (Some(1000.0), Some(550.0))
+    );
 }
 
 #[test]
@@ -205,8 +345,16 @@ fn the_primary_fields_are_null_in_the_json_while_measuring() {
     let tree = Tree::new();
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     let json = serde_json::to_value(&stats).unwrap();
-    for key in ["primary_interface", "primary_received_bytes_per_second", "primary_sent_bytes_per_second"] {
-        assert_eq!(json["network"].get(key), Some(&serde_json::Value::Null), "{key} must be present and null");
+    for key in [
+        "primary_interface",
+        "primary_received_bytes_per_second",
+        "primary_sent_bytes_per_second",
+    ] {
+        assert_eq!(
+            json["network"].get(key),
+            Some(&serde_json::Value::Null),
+            "{key} must be present and null"
+        );
     }
 }
 
@@ -219,23 +367,42 @@ fn a_changed_primary_interface_has_no_primary_speed_for_that_reading() {
     sampler.take(start, 0, true).unwrap();
     tree.route("wlan0");
     tree.devices(&[("eth0", 3000, 1500), ("wlan0", 600, 300)]);
-    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
-    assert_eq!((stats.network.received_bytes_per_second, stats.network.sent_bytes_per_second), (Some(1200.0), Some(650.0)));
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, true)
+        .unwrap();
+    assert_eq!(
+        (
+            stats.network.received_bytes_per_second,
+            stats.network.sent_bytes_per_second
+        ),
+        (Some(1200.0), Some(650.0))
+    );
     assert_eq!(stats.network.primary_interface.as_deref(), Some("wlan0"));
-    assert!(stats.network.primary_received_bytes_per_second.is_none() && stats.network.primary_sent_bytes_per_second.is_none());
+    assert!(
+        stats.network.primary_received_bytes_per_second.is_none()
+            && stats.network.primary_sent_bytes_per_second.is_none()
+    );
 }
 
 #[test]
 fn without_a_default_route_only_the_primary_fields_are_null() {
     let tree = Tree::new();
-    tree.put("proc/net/route", "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\n");
+    tree.put(
+        "proc/net/route",
+        "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\n",
+    );
     let sampler = tree.sampler();
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
     tree.net(3000, 1500);
-    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, true)
+        .unwrap();
     assert_eq!(stats.network.received_bytes_per_second, Some(1000.0));
-    assert!(stats.network.primary_interface.is_none() && stats.network.primary_received_bytes_per_second.is_none());
+    assert!(
+        stats.network.primary_interface.is_none()
+            && stats.network.primary_received_bytes_per_second.is_none()
+    );
     assert!(stats.network.primary_sent_bytes_per_second.is_none());
 }
 
@@ -245,9 +412,13 @@ fn the_command_line_and_environment_never_appear_anywhere() {
     let sampler = tree.sampler();
     let start = Instant::now();
     sampler.take(start, 0, true).unwrap();
-    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(1), 0, true)
+        .unwrap();
     let json = serde_json::to_string(&stats).unwrap();
-    assert!(!json.contains(SECRET) && !json.contains("--password") && !json.contains("/usr/bin/tool"));
+    assert!(
+        !json.contains(SECRET) && !json.contains("--password") && !json.contains("/usr/bin/tool")
+    );
 }
 
 #[test]
@@ -255,7 +426,10 @@ fn hostile_names_are_data_and_users_come_from_passwd() {
     let tree = Tree::new();
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.processes[0].name, "busy <img src=x onerror=alert(1)>");
-    assert_eq!(stats.processes[0].user, "100", "no passwd entry: the number as text");
+    assert_eq!(
+        stats.processes[0].user, "100",
+        "no passwd entry: the number as text"
+    );
     tree.process(11, "worker", 5, 1000, 10);
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert!(stats.processes.iter().any(|p| p.user == "kurnia"));
@@ -266,7 +440,10 @@ fn only_real_disks_and_the_json_has_no_gpu_key() {
     let tree = Tree::new();
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.disks.len(), 1);
-    assert_eq!((stats.disks[0].used_bytes, stats.disks[0].free_bytes), (6_000, 4_000));
+    assert_eq!(
+        (stats.disks[0].used_bytes, stats.disks[0].free_bytes),
+        (6_000, 4_000)
+    );
     let json: serde_json::Value = serde_json::to_value(&stats).unwrap();
     assert!(json.get("gpus").is_none());
     assert!(json["cpu"]["total_percent"].is_null());
@@ -286,7 +463,9 @@ fn without_the_program_list_the_answer_has_none_and_the_machine_numbers_are_read
     let start = Instant::now();
     sampler.take(start, 0, false).unwrap();
     tree.cpu(200, 1700, 150, 1850);
-    let stats = sampler.take(start + Duration::from_secs(2), 0, false).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, false)
+        .unwrap();
     assert!(stats.processes.is_empty());
     assert!(!stats.measuring);
     assert_eq!(stats.cpu.total_percent, Some(11.1));
@@ -300,7 +479,9 @@ fn programs_after_an_answer_without_them_have_no_cpu_yet_not_a_false_zero() {
     sampler.take(start, 0, false).unwrap();
     tree.cpu(200, 1700, 150, 1850);
     tree.process(10, "busy", 1200, 100, 2048);
-    let stats = sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, true)
+        .unwrap();
     assert!(!stats.measuring, "the machine numbers are ready");
     assert_eq!(stats.processes.len(), 1);
     assert_eq!(stats.processes[0].cpu_percent, None);
@@ -311,10 +492,16 @@ fn the_first_answer_has_topology_but_no_breakdown_or_disk_speed() {
     let tree = Tree::new();
     tree.cpu_topology(0, 0, 0);
     let stats = tree.sampler().take(Instant::now(), 0, false).unwrap();
-    assert_eq!((stats.cpu.physical_cores, stats.cpu.core_of.clone()), (Some(1), Some(vec![0])));
+    assert_eq!(
+        (stats.cpu.physical_cores, stats.cpu.core_of.clone()),
+        (Some(1), Some(vec![0]))
+    );
     assert!(stats.cpu.breakdown.is_none() && stats.disk_io.is_none());
     let json = serde_json::to_value(&stats).unwrap();
-    assert!(json["cpu"]["breakdown"].is_null(), "null while measuring, never zeros");
+    assert!(
+        json["cpu"]["breakdown"].is_null(),
+        "null while measuring, never zeros"
+    );
     assert!(json.get("disk_io").is_none());
 }
 
@@ -327,22 +514,46 @@ fn the_second_answer_has_breakdown_disk_speed_and_network_extras() {
     sampler.take(start, 0, false).unwrap();
     tree.cpu(200, 1700, 150, 1850);
     tree.disk_stats(2000 + 8, 4000 + 16);
-    tree.put("proc/net/dev", "hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: 3000 10 2 3 0 0 0 0 1500 5 4 5 0 0 0 0\n");
-    let stats = sampler.take(start + Duration::from_secs(2), 0, false).unwrap();
+    tree.put(
+        "proc/net/dev",
+        "hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: 3000 10 2 3 0 0 0 0 1500 5 4 5 0 0 0 0\n",
+    );
+    let stats = sampler
+        .take(start + Duration::from_secs(2), 0, false)
+        .unwrap();
     let breakdown = stats.cpu.breakdown.unwrap();
     assert_eq!((breakdown.user, breakdown.idle), (11.1, 88.9));
     let io = stats.disk_io.unwrap();
-    assert_eq!((io.read_bytes_per_second, io.write_bytes_per_second), (2048.0, 4096.0));
-    assert_eq!((stats.network.errors_in_total, stats.network.drops_in_total), (2, 3));
-    assert_eq!((stats.network.errors_out_total, stats.network.drops_out_total), (4, 5));
+    assert_eq!(
+        (io.read_bytes_per_second, io.write_bytes_per_second),
+        (2048.0, 4096.0)
+    );
+    assert_eq!(
+        (stats.network.errors_in_total, stats.network.drops_in_total),
+        (2, 3)
+    );
+    assert_eq!(
+        (
+            stats.network.errors_out_total,
+            stats.network.drops_out_total
+        ),
+        (4, 5)
+    );
 }
 
 #[test]
 fn frequency_and_temperature_are_left_out_when_the_system_does_not_say() {
     let tree = Tree::new();
-    let json = serde_json::to_value(tree.sampler().take(Instant::now(), 0, false).unwrap()).unwrap();
-    assert!(json["cpu"].get("frequency_mhz").is_none() && json["cpu"].get("temperature_celsius").is_none());
-    tree.put("sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "3600000\n");
+    let json =
+        serde_json::to_value(tree.sampler().take(Instant::now(), 0, false).unwrap()).unwrap();
+    assert!(
+        json["cpu"].get("frequency_mhz").is_none()
+            && json["cpu"].get("temperature_celsius").is_none()
+    );
+    tree.put(
+        "sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
+        "3600000\n",
+    );
     tree.put("sys/class/hwmon/hwmon0/name", "k10temp\n");
     tree.put("sys/class/hwmon/hwmon0/temp1_input", "47000\n");
     let stats = tree.sampler().take(Instant::now(), 0, false).unwrap();
@@ -362,7 +573,10 @@ fn the_number_of_running_programs_is_counted_even_without_the_list() {
 #[test]
 fn the_thread_count_of_a_program_is_sent_when_the_system_says() {
     let tree = Tree::new();
-    tree.put("proc/10/status", "Name:\tx\nUid:\t100\t100\nVmRSS:\t2048 kB\nThreads:\t7\n");
+    tree.put(
+        "proc/10/status",
+        "Name:\tx\nUid:\t100\t100\nVmRSS:\t2048 kB\nThreads:\t7\n",
+    );
     let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
     assert_eq!(stats.processes[0].threads, Some(7));
 }
@@ -373,8 +587,12 @@ fn the_next_answer_with_programs_has_their_cpu() {
     let sampler = tree.sampler();
     let start = Instant::now();
     sampler.take(start, 0, false).unwrap();
-    sampler.take(start + Duration::from_secs(2), 0, true).unwrap();
+    sampler
+        .take(start + Duration::from_secs(2), 0, true)
+        .unwrap();
     tree.process(10, "busy", 1200, 100, 2048);
-    let stats = sampler.take(start + Duration::from_secs(4), 0, true).unwrap();
+    let stats = sampler
+        .take(start + Duration::from_secs(4), 0, true)
+        .unwrap();
     assert_eq!(stats.processes[0].cpu_percent, Some(100.0));
 }

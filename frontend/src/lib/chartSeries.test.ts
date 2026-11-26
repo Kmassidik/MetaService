@@ -4,7 +4,8 @@ import type { LivePoint } from './liveSeries.ts'
 
 const point = (t: number, extra: Partial<LivePoint> = {}): LivePoint => ({
   t, cpu: 10, breakdown: null, load: null, memUsed: 400, memCached: 200, memTotal: 1000, swapUsed: 0, swapTotal: 0,
-  diskRead: null, diskWrite: null, netIn: 100, netOut: 50, drops: null, processes: null, power: null, gpus: [], ...extra,
+  diskRead: null, diskWrite: null, netIn: 100, netOut: 50, drops: null, processes: null, power: null,
+  cpuPower: null, gpuPower: null, anePower: null, coreVoltage: null, coreCurrent: null, gpus: [], ...extra,
 })
 
 describe('the CPU chart', () => {

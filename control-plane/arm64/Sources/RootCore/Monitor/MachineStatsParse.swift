@@ -21,6 +21,11 @@ extension MachineStats {
         processCount = try box.decodeIfPresent(Int.self, forKey: .processCount)
         gpus = try box.decodeIfPresent([Gpu].self, forKey: .gpus)
         powerWatts = try? box.decodeIfPresent(Double.self, forKey: .powerWatts)
+        cpuPowerWatts = try? box.decodeIfPresent(Double.self, forKey: .cpuPowerWatts)
+        gpuPowerWatts = try? box.decodeIfPresent(Double.self, forKey: .gpuPowerWatts)
+        anePowerWatts = try? box.decodeIfPresent(Double.self, forKey: .anePowerWatts)
+        cpuCoreVoltage = try? box.decodeIfPresent(Double.self, forKey: .cpuCoreVoltage)
+        cpuCoreCurrent = try? box.decodeIfPresent(Double.self, forKey: .cpuCoreCurrent)
         processes = try box.decode([Process].self, forKey: .processes)
     }
 
@@ -49,6 +54,11 @@ extension MachineStats {
         kept.processCount = processCount.flatMap(Self.processCountOrNil)
         kept.gpus = Self.limitedGpus(gpus)
         kept.powerWatts = MachineStats.rangeOrNil(powerWatts, 0...MachineStats.maxWatts)
+        kept.cpuPowerWatts = MachineStats.rangeOrNil(cpuPowerWatts, 0...MachineStats.maxWatts)
+        kept.gpuPowerWatts = MachineStats.rangeOrNil(gpuPowerWatts, 0...MachineStats.maxWatts)
+        kept.anePowerWatts = MachineStats.rangeOrNil(anePowerWatts, 0...MachineStats.maxWatts)
+        kept.cpuCoreVoltage = MachineStats.rangeOrNil(cpuCoreVoltage, 0...MachineStats.maxVoltage)
+        kept.cpuCoreCurrent = MachineStats.rangeOrNil(cpuCoreCurrent, 0...MachineStats.maxAmperes)
         kept.processes = processes.prefix(Self.maxProcesses).map { $0.limited() }
         return kept
     }

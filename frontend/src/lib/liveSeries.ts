@@ -37,6 +37,12 @@ export interface LivePoint {
   processes: number | null
   /** Whole-machine power draw in watts; null when the machine did not give one. */
   power: number | null
+  /** The split of the draw: CPU, GPU and ANE watts, and the CPU core rail's volts and amps. Null when the machine did not say (an older helper, or no sensor). */
+  cpuPower: number | null
+  gpuPower: number | null
+  anePower: number | null
+  coreVoltage: number | null
+  coreCurrent: number | null
   /** Only the GPUs that gave a number this time. */
   gpus: readonly LiveGpu[]
 }
@@ -56,7 +62,10 @@ export function pointFromHistory(point: StatsHistoryPoint): LivePoint {
     t: point.t, cpu: point.cpu_percent, breakdown: point.cpu_breakdown ?? null, load: point.load ?? null,
     memUsed: point.mem_used, memCached: point.mem_cached, memTotal: point.mem_total, swapUsed: point.swap_used, swapTotal: point.swap_total,
     diskRead: point.disk_read ?? null, diskWrite: point.disk_write ?? null, netIn: point.net_in_bps, netOut: point.net_out_bps,
-    drops: point.net_drops ?? null, processes: point.processes_count ?? null, power: point.power_watts ?? null, gpus: (point.gpus ?? []).map(liveGpuOfHistory),
+    drops: point.net_drops ?? null, processes: point.processes_count ?? null, power: point.power_watts ?? null,
+    cpuPower: point.cpu_power_watts ?? null, gpuPower: point.gpu_power_watts ?? null, anePower: point.ane_power_watts ?? null,
+    coreVoltage: point.cpu_core_voltage ?? null, coreCurrent: point.cpu_core_current ?? null,
+    gpus: (point.gpus ?? []).map(liveGpuOfHistory),
   }
 }
 
@@ -87,6 +96,8 @@ export function pointFromReading(reply: MachineStatsReply, nowSeconds: number): 
     diskRead: stats.disk_io?.read_bytes_per_second ?? null, diskWrite: stats.disk_io?.write_bytes_per_second ?? null,
     netIn: stats.network.received_bytes_per_second, netOut: stats.network.sent_bytes_per_second, drops: dropsOf(stats), processes: stats.process_count ?? null,
     power: stats.power_watts ?? null,
+    cpuPower: stats.cpu_power_watts ?? null, gpuPower: stats.gpu_power_watts ?? null, anePower: stats.ane_power_watts ?? null,
+    coreVoltage: stats.cpu_core_voltage ?? null, coreCurrent: stats.cpu_core_current ?? null,
     gpus: stats.gpus.map(liveGpuOfReading).filter(hasNumber),
   }
 }
