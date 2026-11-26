@@ -147,6 +147,11 @@
   {/if}
 
   {#if historyFailed && points.length === 0}<p class="note" role="status">{HISTORY_FAILED}</p>{/if}
+  {#if !failed && machineWatts === null && cpuWatts === null && gpuWatts === null}
+    <p class="note" role="status" data-testid="power-waiting">
+      This machine's helper does not report watts yet. Update the helper (Machines list, or the Environment tab) and wait about two minutes: the first reading needs two samples.
+    </p>
+  {/if}
 </section>
 
 <style>
