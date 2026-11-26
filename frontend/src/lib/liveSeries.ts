@@ -35,6 +35,8 @@ export interface LivePoint {
   /** Packets dropped since boot (a running total; the page shows the change). */
   drops: number | null
   processes: number | null
+  /** Whole-machine power draw in watts; null when the machine did not give one. */
+  power: number | null
   /** Only the GPUs that gave a number this time. */
   gpus: readonly LiveGpu[]
 }
@@ -54,7 +56,7 @@ export function pointFromHistory(point: StatsHistoryPoint): LivePoint {
     t: point.t, cpu: point.cpu_percent, breakdown: point.cpu_breakdown ?? null, load: point.load ?? null,
     memUsed: point.mem_used, memCached: point.mem_cached, memTotal: point.mem_total, swapUsed: point.swap_used, swapTotal: point.swap_total,
     diskRead: point.disk_read ?? null, diskWrite: point.disk_write ?? null, netIn: point.net_in_bps, netOut: point.net_out_bps,
-    drops: point.net_drops ?? null, processes: point.processes_count ?? null, gpus: (point.gpus ?? []).map(liveGpuOfHistory),
+    drops: point.net_drops ?? null, processes: point.processes_count ?? null, power: point.power_watts ?? null, gpus: (point.gpus ?? []).map(liveGpuOfHistory),
   }
 }
 
@@ -84,6 +86,7 @@ export function pointFromReading(reply: MachineStatsReply, nowSeconds: number): 
     memUsed: stats.memory.used_bytes, memCached: stats.memory.cached_bytes, memTotal: stats.memory.total_bytes, swapUsed: stats.memory.swap_used_bytes, swapTotal: stats.memory.swap_total_bytes,
     diskRead: stats.disk_io?.read_bytes_per_second ?? null, diskWrite: stats.disk_io?.write_bytes_per_second ?? null,
     netIn: stats.network.received_bytes_per_second, netOut: stats.network.sent_bytes_per_second, drops: dropsOf(stats), processes: stats.process_count ?? null,
+    power: stats.power_watts ?? null,
     gpus: stats.gpus.map(liveGpuOfReading).filter(hasNumber),
   }
 }

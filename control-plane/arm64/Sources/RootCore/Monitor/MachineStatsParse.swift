@@ -6,6 +6,24 @@ public enum StatsError: Error, Equatable {
 }
 
 extension MachineStats {
+    /// Reads a helper's answer. The whole-machine watts are an optional extra: a wrong type reads as "not said",
+    /// never as a refused answer (like the network card's extras).
+    public init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        takenAt = try box.decode(String.self, forKey: .takenAt)
+        measuring = try box.decode(Bool.self, forKey: .measuring)
+        uptimeSeconds = try box.decode(Int.self, forKey: .uptimeSeconds)
+        cpu = try box.decode(Cpu.self, forKey: .cpu)
+        memory = try box.decode(Memory.self, forKey: .memory)
+        disks = try box.decode([Disk].self, forKey: .disks)
+        network = try box.decode(Network.self, forKey: .network)
+        diskIo = try box.decodeIfPresent(DiskIo.self, forKey: .diskIo)
+        processCount = try box.decodeIfPresent(Int.self, forKey: .processCount)
+        gpus = try box.decodeIfPresent([Gpu].self, forKey: .gpus)
+        powerWatts = try? box.decodeIfPresent(Double.self, forKey: .powerWatts)
+        processes = try box.decode([Process].self, forKey: .processes)
+    }
+
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -30,6 +48,7 @@ extension MachineStats {
         kept.diskIo = diskIo?.limited()
         kept.processCount = processCount.flatMap(Self.processCountOrNil)
         kept.gpus = Self.limitedGpus(gpus)
+        kept.powerWatts = MachineStats.rangeOrNil(powerWatts, 0...MachineStats.maxWatts)
         kept.processes = processes.prefix(Self.maxProcesses).map { $0.limited() }
         return kept
     }

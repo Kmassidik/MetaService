@@ -20,8 +20,16 @@ describe('history from the parent', () => {
   })
 
   test('the optional numbers come through when the helper sent them', () => {
-    const point = pointFromHistory(historyPoint(5, { cpu_breakdown: { user: 3 }, load: [1, 2, 3], disk_read: 7, disk_write: 8, net_drops: 9, processes_count: 400 }))
-    expect(point).toMatchObject({ breakdown: { user: 3 }, load: [1, 2, 3], diskRead: 7, diskWrite: 8, drops: 9, processes: 400 })
+    const point = pointFromHistory(historyPoint(5, { cpu_breakdown: { user: 3 }, load: [1, 2, 3], disk_read: 7, disk_write: 8, net_drops: 9, processes_count: 400, power_watts: 102.3 }))
+    expect(point).toMatchObject({ breakdown: { user: 3 }, load: [1, 2, 3], diskRead: 7, diskWrite: 8, drops: 9, processes: 400, power: 102.3 })
+  })
+
+  test('whole-machine power is null when the helper did not give one, and a bad one is left out of the history', () => {
+    expect(pointFromHistory(historyPoint(5)).power).toBeNull()
+    const parsed = parseHistoryReply({ interval_seconds: 10, points: [{ t: 1, cpu_percent: 2, mem_used: 3, mem_cached: 4, mem_total: 5, swap_used: 0, swap_total: 0, net_in_bps: null, net_out_bps: 1, power_watts: 'many' }] })
+    expect(parsed.points[0]?.power_watts).toBeUndefined()
+    const good = parseHistoryReply({ interval_seconds: 10, points: [{ t: 1, cpu_percent: 2, mem_used: 3, mem_cached: 4, mem_total: 5, swap_used: 0, swap_total: 0, net_in_bps: null, net_out_bps: 1, power_watts: 88.4 }] })
+    expect(good.points[0]?.power_watts).toBe(88.4)
   })
 
   test('at most an hour of points is kept, the newest', () => {
@@ -53,6 +61,11 @@ describe('a live reading', () => {
     expect(point?.load).toEqual([1.2, 0.9, 0.7])
     expect(point?.netIn).toBe(2048)
     expect(point?.diskRead).toBeNull()
+  })
+
+  test('whole-machine power comes through from the reading; an older helper gives a null', () => {
+    expect(pointFromReading(online({ stats: sampleStats({ power_watts: 102.3 }) }), 0)?.power).toBe(102.3)
+    expect(pointFromReading(online(), 0)?.power).toBeNull()
   })
 
   test('while measuring, offline or old there is no point', () => {

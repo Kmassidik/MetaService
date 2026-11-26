@@ -184,9 +184,12 @@ public struct MachineStats: Codable, Equatable, Sendable {
     public var processCount: Int?
     /// Left out (nil) when the machine cannot say. Never an empty list.
     public var gpus: [Gpu]?
+    /// Watts the whole machine draws now. Left out (nil) when the helper cannot say.
+    public var powerWatts: Double? = nil
     public var processes: [Process]
 
-    private enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, processes }
+    /// Raw values are the property names; the decoder changes the snake_case keys to them and the encoder writes them back.
+    enum CodingKeys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, processes }
 
     /// Written like the contract: a missing number is null, but the gpus key is left out when there are none.
     public func encode(to encoder: Encoder) throws {
@@ -201,6 +204,7 @@ public struct MachineStats: Codable, Equatable, Sendable {
         try box.encodeIfPresent(diskIo, forKey: .diskIo)
         try box.encodeIfPresent(processCount, forKey: .processCount)
         try box.encodeIfPresent(gpus, forKey: .gpus)
+        try box.encodeIfPresent(powerWatts, forKey: .powerWatts)
         try box.encode(processes, forKey: .processes)
     }
 }

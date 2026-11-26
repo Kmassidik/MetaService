@@ -50,9 +50,11 @@ public struct StatsExtras: Equatable {
     public var gpus: [GpuReading]
     /// The interface that holds the default route, with its own counters. Nil when its name or counters are not known.
     public var primaryInterface: InterfaceCounters?
+    /// The whole machine's power draw in watts. Nil where the system does not say (needs root).
+    public var machinePowerWatts: Double?
     public init(cpuStates: CpuStateTicks? = nil, topology: CpuTopology? = nil, networkIssues: NetworkIssues? = nil, diskTotals: DiskTotals? = nil, processCount: Int? = nil, gpus: [GpuReading] = [],
-                primaryInterface: InterfaceCounters? = nil) {
+                primaryInterface: InterfaceCounters? = nil, machinePowerWatts: Double? = nil) {
         self.cpuStates = cpuStates; self.topology = topology; self.networkIssues = networkIssues; self.diskTotals = diskTotals; self.processCount = processCount; self.gpus = gpus
-        self.primaryInterface = primaryInterface
+        self.primaryInterface = primaryInterface; self.machinePowerWatts = machinePowerWatts
     }
 }

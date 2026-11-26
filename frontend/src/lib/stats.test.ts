@@ -70,6 +70,15 @@ test('the reply parser accepts a good reply and a missing gpu list', () => {
   expect(parseStatsReply({ state: 'offline', last_seen: null, fetched_at: null, stats: null }).stats).toBeNull()
 })
 
+test('the reply parser passes the whole-machine power through and leaves it out when absent or odd', () => {
+  const withPower = parseStatsReply(JSON.parse(JSON.stringify(reply({ stats: sampleStats({ power_watts: 102.3 }) }))))
+  expect(withPower.stats?.power_watts).toBe(102.3)
+  const withoutPower = parseStatsReply(JSON.parse(JSON.stringify(reply())))
+  expect(withoutPower.stats?.power_watts).toBeUndefined()
+  const oddPower = parseStatsReply(JSON.parse(JSON.stringify(reply({ stats: sampleStats({ power_watts: 'many' as unknown as number }) }))))
+  expect(oddPower.stats?.power_watts).toBeUndefined()
+})
+
 test('the reply parser refuses odd shapes', () => {
   expect(() => parseStatsReply(null)).toThrow(UnreadableAnswer)
   expect(() => parseStatsReply({ state: 'weird', stats: null })).toThrow(UnreadableAnswer)

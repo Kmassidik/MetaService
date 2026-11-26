@@ -57,6 +57,25 @@ final class HistoryPointTests: XCTestCase {
         XCTAssertEqual(made.netDrops, 7)
         XCTAssertNil(made.load)
     }
+
+    func testTheWattsAreCarriedAndUseTheContractsSnakeCaseKey() throws {
+        var reading = stats()
+        reading.powerWatts = 123.4
+        let made = HistoryPoint(stats: reading, at: Date(timeIntervalSince1970: 1_800_000_000))!
+        XCTAssertEqual(made.powerWatts, 123.4)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let text = String(decoding: try encoder.encode(made), as: UTF8.self)
+        XCTAssertTrue(text.contains("\"power_watts\":123.4"), text)
+    }
+
+    func testAWattlessReadingMakesNoPointWithWattsAndNoKey() throws {
+        let made = HistoryPoint(stats: stats(), at: Date(timeIntervalSince1970: 1_800_000_000))!
+        XCTAssertNil(made.powerWatts)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        XCTAssertFalse(String(decoding: try encoder.encode(made), as: UTF8.self).contains("power_watts"))
+    }
 }
 
 final class StatsHistoryTests: XCTestCase {

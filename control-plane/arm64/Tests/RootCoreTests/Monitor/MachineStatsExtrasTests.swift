@@ -22,9 +22,10 @@ final class MachineStatsExtrasTests: XCTestCase {
         XCTAssertNil(stats.diskIo)
         XCTAssertNil(stats.processCount)
         XCTAssertNil(stats.network.errorsInTotal)
+        XCTAssertNil(stats.powerWatts)
         XCTAssertNil(stats.processes[0].threads)
         let text = String(decoding: try JSONEncoder().encode(stats), as: UTF8.self)
-        for key in ["physicalCores", "coreOf", "clusters", "breakdown", "frequencyMhz", "temperatureCelsius", "diskIo", "processCount", "errorsInTotal", "threads"] {
+        for key in ["physicalCores", "coreOf", "clusters", "breakdown", "frequencyMhz", "temperatureCelsius", "diskIo", "processCount", "errorsInTotal", "powerWatts", "threads"] {
             XCTAssertFalse(text.contains(key), "\(key) must stay out of the answer")
         }
     }
@@ -94,6 +95,24 @@ final class MachineStatsExtrasTests: XCTestCase {
         XCTAssertNil(stats.network.dropsInTotal)
         XCTAssertNil(stats.processCount)
         XCTAssertNil(stats.processes[0].threads, "a program has at least one thread; 0 means the helper did not know")
+    }
+
+    func testTheWholeMachinesWattsAreKeptWhenInRange() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"power_watts\":123.4"))
+        XCTAssertEqual(stats.powerWatts, 123.4)
+        let text = String(decoding: try JSONEncoder().encode(stats), as: UTF8.self)
+        XCTAssertTrue(text.contains("powerWatts"), text)
+    }
+
+    func testWattsOutOfRangeAreDroppedNotClamped() throws {
+        XCTAssertNil(try MachineStats.parse(answer(top: ",\"power_watts\":9999.0")).powerWatts, "past maxWatts")
+        XCTAssertNil(try MachineStats.parse(answer(top: ",\"power_watts\":-5.0")).powerWatts, "negative")
+        XCTAssertNil(try MachineStats.parse(answer(top: ",\"power_watts\":null")).powerWatts)
+    }
+
+    func testAWrongTypedWattsReadsAsNotSaidNotARefusedAnswer() throws {
+        let stats = try MachineStats.parse(answer(top: ",\"power_watts\":\"plenty\""))
+        XCTAssertNil(stats.powerWatts)
     }
 
     func testTheWrongTypeForAnExtraRefusesTheWholeAnswerLikeAnyOtherField() {

@@ -7,6 +7,7 @@
   import LoadCard from './charts/LoadCard.svelte'
   import MemoryCard from './charts/MemoryCard.svelte'
   import NetworkCard from './charts/NetworkCard.svelte'
+  import PowerCard from './charts/PowerCard.svelte'
   import DiskPanel from './DiskPanel.svelte'
   import GpuCharts from './charts/GpuCharts.svelte'
   import GpuPanel from './GpuPanel.svelte'
@@ -27,6 +28,7 @@
   <div class="band" data-testid="band-load">
     <LoadCard {points} {intervalSeconds} />
     <DiskIoCard {points} {intervalSeconds} />
+    <PowerCard {points} {intervalSeconds} />
   </div>
   <div class="band" class:single={!hasGpu} data-testid="band-network">
     <NetworkCard {points} {intervalSeconds} />

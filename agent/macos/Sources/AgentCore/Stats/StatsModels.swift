@@ -53,6 +53,8 @@ public struct MachineStats: Equatable {
     public var processCount: Int?
     /// Left out (nil) when there is no GPU the system can read.
     public let gpus: [Gpu]?
+    /// The whole machine's power draw in watts. Left out when the system does not say.
+    public var powerWatts: Double?
     public let processes: [Process]
 }
 
@@ -112,12 +114,13 @@ extension MachineStats.Gpu: Encodable {
 }
 
 extension MachineStats: Encodable {
-    private enum Keys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, processes }
+    private enum Keys: String, CodingKey { case takenAt, measuring, uptimeSeconds, cpu, memory, disks, network, diskIo, processCount, gpus, powerWatts, processes }
     public func encode(to encoder: Encoder) throws {
         var box = encoder.container(keyedBy: Keys.self)
         try box.encode(takenAt, forKey: .takenAt); try box.encode(measuring, forKey: .measuring); try box.encode(uptimeSeconds, forKey: .uptimeSeconds)
         try box.encode(cpu, forKey: .cpu); try box.encode(memory, forKey: .memory); try box.encode(disks, forKey: .disks); try box.encode(network, forKey: .network)
-        try box.encodeIfPresent(diskIo, forKey: .diskIo); try box.encodeIfPresent(processCount, forKey: .processCount); try box.encodeIfPresent(gpus, forKey: .gpus); try box.encode(processes, forKey: .processes)
+        try box.encodeIfPresent(diskIo, forKey: .diskIo); try box.encodeIfPresent(processCount, forKey: .processCount); try box.encodeIfPresent(gpus, forKey: .gpus)
+        try box.encodeIfPresent(powerWatts, forKey: .powerWatts); try box.encode(processes, forKey: .processes)
     }
 }
 extension MachineStats.Cluster: Encodable {}

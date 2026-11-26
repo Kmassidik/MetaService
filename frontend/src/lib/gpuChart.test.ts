@@ -12,7 +12,7 @@ const gpuAt = (index: number, extra: Partial<LiveGpu> = {}): LiveGpu => ({ index
 
 const point = (t: number, gpus: LiveGpu[]): LivePoint => ({
   t, cpu: 10, breakdown: null, load: null, memUsed: 1, memCached: 1, memTotal: 10, swapUsed: 0, swapTotal: 0,
-  diskRead: null, diskWrite: null, netIn: 1, netOut: 1, drops: null, processes: null, gpus,
+  diskRead: null, diskWrite: null, netIn: 1, netOut: 1, drops: null, processes: null, power: null, gpus,
 })
 
 const card = (extra: Partial<StatsGpu> = {}): StatsGpu => ({ name: 'NVIDIA GeForce RTX 5090', utilization_percent: 40, memory_used_bytes: 4 * GIB, memory_total_bytes: 32 * GIB, temperature_celsius: 55, ...extra })

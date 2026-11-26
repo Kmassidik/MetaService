@@ -676,6 +676,8 @@ export interface MachineStats {
   disk_io?: { read_bytes_per_second: number; write_bytes_per_second: number }
   /** How many programs run in all; the list holds only the busiest. */
   process_count?: number
+  /** Whole-machine power draw in watts; left out when the helper cannot read it. */
+  power_watts?: number
   /** Left out when the machine cannot say. */
   gpus: StatsGpu[]
   processes: StatsProcess[]
@@ -701,6 +703,8 @@ export interface StatsHistoryPoint {
   gpus?: StatsHistoryGpu[]
   net_drops?: number
   processes_count?: number
+  /** Left out when the helper cannot read the whole-machine power draw. */
+  power_watts?: number
 }
 
 export interface StatsHistoryReply {

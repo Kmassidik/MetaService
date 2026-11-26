@@ -77,15 +77,17 @@ export function networkExtras(source: Rec): Pick<StatsNetwork, 'errors_in_total'
   }
 }
 
-/** The optional top-level parts: disk speed and the number of running programs. */
-export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count'> {
+/** The optional top-level parts: disk speed, the number of running programs and the whole-machine power draw. */
+export function topExtras(source: Rec): Pick<MachineStats, 'disk_io' | 'process_count' | 'power_watts'> {
   const speed = source.disk_io
   const read = isRec(speed) ? finiteNumber(speed.read_bytes_per_second) : undefined
   const write = isRec(speed) ? finiteNumber(speed.write_bytes_per_second) : undefined
   const count = finiteNumber(source.process_count)
+  const power = finiteNumber(source.power_watts)
   return {
     ...(read === undefined || write === undefined ? {} : { disk_io: { read_bytes_per_second: read, write_bytes_per_second: write } }),
     ...(count === undefined ? {} : { process_count: count }),
+    ...(power === undefined ? {} : { power_watts: power }),
   }
 }
 

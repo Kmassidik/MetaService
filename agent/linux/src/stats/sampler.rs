@@ -7,7 +7,7 @@ use super::model::{Cpu, DiskIo, Network, Process, Stats, MAX_CORES};
 use super::network::{self, Counters, Primary};
 use super::processes::{self, Earlier, Seen};
 use super::topology::{self, Topology};
-use super::{memory, thermal};
+use super::{memory, power, thermal};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -30,6 +30,8 @@ struct Sample {
     network: Counters,
     primary: Option<Primary>,
     disk: Option<diskio::Counters>,
+    /// The machine's power reading: a RAPL counter (needs the sample before it) or instant watts. None when the machine cannot say.
+    power: Option<power::Reading>,
     /// None when this sample did not scan the programs: the next one has nothing to compare them with.
     processes: Option<Earlier>,
 }
@@ -60,6 +62,7 @@ impl Sampler {
         let route_text = self.read("proc/net/route").unwrap_or_default(); // unreadable: the primary interface fields are null
         let primary = network::primary_reading(&route_text, &dev_text);
         let disk_counters = self.read("proc/diskstats").ok().and_then(|text| diskio::parse(&text, &self.environment.root));
+        let power = power::read(&self.environment.root);
         let seen = with_processes.then(|| processes::scan(&self.environment.root.join("proc")));
         let mut slot = self.previous.lock().map_err(|_| "the sampler lock is broken".to_string())?;
         let before = slot.as_ref().filter(|b| comparable(b, now, &cpu_times));
@@ -74,11 +77,12 @@ impl Sampler {
             disks: disks::read(&self.read("proc/mounts")?, self.environment.size_of),
             network: network_section(&counters, primary.as_ref(), before, seconds),
             disk_io: disk_io(disk_counters, before, seconds),
+            power_watts: power_section(&power, before, seconds),
             process_count: processes::count(&self.environment.root.join("proc")),
             gpus: None,
             processes: self.listed(seen.as_deref(), before, seconds, &users),
         };
-        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, primary, disk: disk_counters, processes: seen.as_deref().map(processes::ticks_of) });
+        *slot = Some(Sample { at: now, cpu: cpu_times, network: counters, primary, disk: disk_counters, power, processes: seen.as_deref().map(processes::ticks_of) });
         Ok(stats)
     }
 
@@ -141,6 +145,18 @@ fn disk_io(now: Option<diskio::Counters>, before: Option<&Sample>, seconds: Opti
         read_bytes_per_second: network::rate(then.read_bytes, now.read_bytes, seconds)?,
         write_bytes_per_second: network::rate(then.written_bytes, now.written_bytes, seconds)?,
     })
+}
+
+/// Watts now: an instant reading passes through; a RAPL counter needs the earlier sample and becomes µJ/s. Nothing to compare with, or the counter went back: None.
+fn power_section(now: &Option<power::Reading>, before: Option<&Sample>, seconds: Option<f64>) -> Option<f64> {
+    match now {
+        Some(power::Reading::Watts(watts)) => Some(*watts),
+        Some(power::Reading::Counter(micro_joules)) => match before?.power? {
+            power::Reading::Counter(before_uj) => power::watts_between(before_uj, *micro_joules, seconds?),
+            power::Reading::Watts(_) => None, // the source switched between samples: the delta would not be an energy counter
+        },
+        None => None,
+    }
 }
 
 fn comparable(before: &Sample, now: Instant, cpu_now: &CpuTimes) -> bool {

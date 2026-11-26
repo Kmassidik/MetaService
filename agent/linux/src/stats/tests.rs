@@ -47,6 +47,16 @@ impl Tree {
         self.put("proc/net/dev", &format!("hdr\n lo: 5 0 0 0 0 0 0 0 5 0\neth0: {received} 0 0 0 0 0 0 0 {sent} 0\n"));
     }
 
+    /// A RAPL energy counter of `microjoules` µJ since boot.
+    fn rapl(&self, microjoules: u128) {
+        self.put("sys/class/powercap/intel-rapl:0/energy_uj", &format!("{microjoules}\n"));
+    }
+
+    /// An instant hwmon draw of `watts_times_milli` milliwatts.
+    fn hwmon_power(&self, watts_times_milli: u64) {
+        self.put("sys/class/hwmon/hwmon0/power1_input", &format!("{}\n", watts_times_milli * 1000));
+    }
+
     /// Several interfaces at once: (name, received, sent).
     fn devices(&self, rows: &[(&str, u64, u64)]) {
         let body: String = rows.iter().map(|(name, received, sent)| format!("{name}: {received} 0 0 0 0 0 0 0 {sent} 0\n")).collect();
@@ -129,6 +139,50 @@ fn a_network_counter_that_went_backwards_is_null() {
     let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
     assert!(stats.network.received_bytes_per_second.is_none());
     assert!(stats.network.sent_bytes_per_second.is_some());
+}
+
+#[test]
+fn rapl_becomes_watts_on_the_second_answer_only() {
+    let tree = Tree::new();
+    tree.rapl(1_000_000_000);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    let first = sampler.take(start, 0, true).unwrap();
+    assert_eq!(first.power_watts, None, "no earlier counter, so no watts yet");
+    tree.rapl(1_006_000_000); // 6 000 000 µJ in 3 s is 2 W
+    let stats = sampler.take(start + Duration::from_secs(3), 0, true).unwrap();
+    assert_eq!(stats.power_watts, Some(2.0));
+}
+
+#[test]
+fn a_rapl_counter_that_went_backwards_is_null() {
+    let tree = Tree::new();
+    tree.rapl(5_000_000);
+    let sampler = tree.sampler();
+    let start = Instant::now();
+    sampler.take(start, 0, true).unwrap();
+    tree.rapl(4_999_000); // a reboot between samples: the delta is meaningless
+    let stats = sampler.take(start + Duration::from_secs(1), 0, true).unwrap();
+    assert_eq!(stats.power_watts, None);
+}
+
+#[test]
+fn an_instant_hwmon_draw_needs_no_earlier_sample() {
+    let tree = Tree::new();
+    tree.hwmon_power(42_500); // 42.5 W
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
+    assert_eq!(stats.power_watts, Some(42.5));
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json["power_watts"], serde_json::json!(42.5));
+}
+
+#[test]
+fn no_power_sensor_omits_the_field_from_the_json() {
+    let tree = Tree::new();
+    let stats = tree.sampler().take(Instant::now(), 0, true).unwrap();
+    assert_eq!(stats.power_watts, None);
+    let json = serde_json::to_value(&stats).unwrap();
+    assert_eq!(json.get("power_watts"), None, "the key must be absent, not null");
 }
 
 #[test]

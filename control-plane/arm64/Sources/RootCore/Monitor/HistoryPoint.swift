@@ -21,11 +21,13 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
     /// Packets dropped since boot, in and out added (a running total; the panel shows the change).
     public var netDrops: Int?
     public var processesCount: Int?
+    /// Watts the whole machine drew at this reading; left out when the helper did not say.
+    public var powerWatts: Double?
     /// Per-GPU numbers; left out when the machine has no GPU with a number this time.
     public var gpus: [HistoryGpu]?
 
     private enum CodingKeys: String, CodingKey {
-        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, gpus
+        case t, cpuPercent, cpuBreakdown, load, memUsed, memCached, memTotal, swapUsed, swapTotal, diskRead, diskWrite, netInBps, netOutBps, netDrops, processesCount, powerWatts, gpus
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -45,6 +47,7 @@ public struct HistoryPoint: Codable, Equatable, Sendable {
         try box.encode(netOutBps, forKey: .netOutBps)
         try box.encodeIfPresent(netDrops, forKey: .netDrops)
         try box.encodeIfPresent(processesCount, forKey: .processesCount)
+        try box.encodeIfPresent(powerWatts, forKey: .powerWatts)
         try box.encodeIfPresent(gpus, forKey: .gpus)
     }
 }
@@ -59,7 +62,7 @@ extension HistoryPoint {
                   swapUsed: stats.memory.swapUsedBytes, swapTotal: stats.memory.swapTotalBytes,
                   diskRead: stats.diskIo?.readBytesPerSecond, diskWrite: stats.diskIo?.writeBytesPerSecond,
                   netInBps: speeds.received, netOutBps: speeds.sent,
-                  netDrops: Self.drops(stats.network), processesCount: stats.processCount, gpus: Self.gpuSeries(stats.gpus))
+                  netDrops: Self.drops(stats.network), processesCount: stats.processCount, powerWatts: stats.powerWatts, gpus: Self.gpuSeries(stats.gpus))
     }
 
     private static func load(_ load: MachineStats.Load) -> [Double]? {

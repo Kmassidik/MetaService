@@ -34,6 +34,9 @@ pub struct Stats {
     /// How many programs run (the list below holds only the busiest). Left out when /proc cannot be listed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_count: Option<usize>,
+    /// Whole machine's draw in watts (RAPL or a hwmon sensor). Left out when the machine cannot say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power_watts: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gpus: Option<Vec<GpuStats>>,
     pub processes: Vec<Process>,

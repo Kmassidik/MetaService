@@ -7,6 +7,7 @@ mod gpu;
 mod memory;
 mod model;
 mod network;
+mod power;
 mod processes;
 mod request;
 mod sampler;

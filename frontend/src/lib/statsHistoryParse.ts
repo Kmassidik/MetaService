@@ -34,6 +34,7 @@ function pointOf(source: Rec): StatsHistoryPoint {
   const write = finiteNumber(source.disk_write)
   const drops = finiteNumber(source.net_drops)
   const processes = finiteNumber(source.processes_count)
+  const power = finiteNumber(source.power_watts)
   const gpus = historyGpus(source.gpus)
   return {
     t: required(source, 't'), cpu_percent: required(source, 'cpu_percent'),
@@ -46,6 +47,7 @@ function pointOf(source: Rec): StatsHistoryPoint {
     ...(write === undefined ? {} : { disk_write: write }),
     ...(drops === undefined ? {} : { net_drops: drops }),
     ...(processes === undefined ? {} : { processes_count: processes }),
+    ...(power === undefined ? {} : { power_watts: power }),
     ...(gpus === undefined ? {} : { gpus }),
   }
 }
